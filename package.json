@@ -2,7 +2,6 @@
   "type": "module",
   "scripts": {
     "build": "tsc --skipLibCheck --noEmitOnError",
-    "build:strict": "tsc",
     "start": "node dist/app.js",
     "dev": "ts-node src/app.ts"
   },
