@@ -1,5 +1,4 @@
 {
-  "type": "module",
   "scripts": {
     "build": "tsc --skipLibCheck --noEmitOnError",
     "start": "node dist/app.js",
