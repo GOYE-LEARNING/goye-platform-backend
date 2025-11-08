@@ -1,34 +1,22 @@
 {
   "compilerOptions": {
-    /* 🧩 File Layout */
-    "rootDir": "./src",
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": ["ES2021"],
     "outDir": "./dist",
-
-    /* ⚙️ Environment Settings */
-    "target": "es2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-
-    /* 🧠 Type Checking */
-    "strict": true,
+    "rootDir": "./src",
+    "strict": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-
-    /* 💡 Optional but useful */
-    "sourceMap": true,
-    "declaration": true,
-    "declarationMap": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "noEmitOnError": false,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
-    /* 👇 remove these (they cause ESM issues) */
-    // "verbatimModuleSyntax": true,
-    // "isolatedModules": true,
-    // "noUncheckedSideEffectImports": true,
-    // "moduleDetection": "force",
-
-    /* 🧱 JSX only for frontend projects */
-    // remove if this is backend only
-    // "jsx": "react-jsx"
+    "emitDecoratorMetadata": true,
+    "useDefineForClassFields": false
   },
-  "include": ["src"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
