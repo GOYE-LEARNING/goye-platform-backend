@@ -5,7 +5,6 @@ import { RegisterRoutes } from "./routes/routes.js";
 const PORT = process.env.PORT || 4000;
 import swaggerDocument from '../build/swagger.json' with {type: 'json'};
 import bodyParser from "body-parser";
-import { VerifyToken } from "./middleware/verifytoken.js";
 const app = express();
 app.use(express.json());
 app.use(cors());
