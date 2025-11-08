@@ -1,8 +1,7 @@
 import express, { type Request, type Response } from "express";
 import cors from "cors";
-// import swaggerUi from "swagger-ui-express"; // Comment out for now
-import { RegisterRoutes } from "./routes/routes.js";
-// import swaggerDocument from '../build/swagger.json'; // Comment out for now
+import swaggerUi from "swagger-ui-express";
+import { RegisterRoutes } from "./routes/routes";
 import bodyParser from "body-parser";
 
 const PORT = process.env.PORT || 4000;
@@ -12,8 +11,8 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
-// Comment out swagger for deployment - fix this later
-// app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+// Swagger documentation
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(require('./routes/swagger.json')));
 
 app.get("/", (req: Request, res: Response) => {
   res.send("GOYE IS RUNNING");
@@ -30,5 +29,5 @@ app.get("/health", (req: Request, res: Response) => {
 RegisterRoutes(app);
 
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Server is running on port ${PORT}`);
 });
