@@ -4,7 +4,7 @@
   "description": "GOYE Education Platform API",
   "main": "dist/index.js",
   "scripts": {
-    "build": "npm install && npx prisma generate && npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false || true",
+    "build": "npm install && npx prisma generate && npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "tsoa:routes": "tsoa routes",
