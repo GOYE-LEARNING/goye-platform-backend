@@ -1,4 +1,8 @@
 {
+  "name": "goye-backend",
+  "version": "1.0.0",
+  "description": "GOYE Education Platform API",
+  "main": "dist/index.js",
   "scripts": {
     "build": "npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck",
     "start": "node dist/index.js",
@@ -7,19 +11,18 @@
     "tsoa:spec": "tsoa spec",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
-    "render-build": "npm run prisma:generate && npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck"
+    "render-build": "npm install && npm run prisma:generate && npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck --noEmitOnError false"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
-    "prisma": "^6.18.0",  
+    "prisma": "^6.18.0",
     "@supabase/supabase-js": "^2.80.0",
-    "@types/multer": "^2.0.0",
+    "@tsoa/runtime": "^6.6.0",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.19.0",
-    "@tsoa/runtime": "^6.6.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.10",
@@ -34,6 +37,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.25",
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.0.0",
     "@types/node": "^20.19.24",
     "@types/nodemailer": "^7.0.3",
     "@types/swagger-jsdoc": "^6.0.4",
@@ -41,5 +45,8 @@
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
