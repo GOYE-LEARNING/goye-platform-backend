@@ -1,0 +1,34 @@
+{
+  "compilerOptions": {
+    /* 🧩 File Layout */
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    /* ⚙️ Environment Settings */
+    "target": "es2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+
+    /* 🧠 Type Checking */
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+
+    /* 💡 Optional but useful */
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+    /* 👇 remove these (they cause ESM issues) */
+    // "verbatimModuleSyntax": true,
+    // "isolatedModules": true,
+    // "noUncheckedSideEffectImports": true,
+    // "moduleDetection": "force",
+
+    /* 🧱 JSX only for frontend projects */
+    // remove if this is backend only
+    // "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}
