@@ -1,8 +1,13 @@
 {
   "scripts": {
-    "build": "tsc --skipLibCheck --noEmitOnError",
-    "start": "node dist/app.js",
-    "dev": "ts-node src/app.ts"
+    "build": "npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck",
+    "start": "node dist/index.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "tsoa:routes": "tsoa routes",
+    "tsoa:spec": "tsoa spec",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "render-build": "npm run prisma:generate && npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
@@ -13,6 +18,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "express": "^4.19.0",
+    "@tsoa/runtime": "^6.6.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.10",
