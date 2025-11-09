@@ -2,7 +2,7 @@
   "name": "goye-backend",
   "version": "1.0.0",
   "description": "GOYE Education Platform API",
-  "main": "dist/index.js",
+  "main": "dist/app.js",
   "scripts": {
     "build": "npm install && npx prisma generate && npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
     "start": "node dist/app.js",

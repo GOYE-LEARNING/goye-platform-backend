@@ -16,7 +16,7 @@ app.use(bodyParser.json());
 
 // Serve Swagger documentation
 try {
-  const swaggerDocument = require('./routes/swagger.json');
+  const swaggerDocument = require("./routes/swagger.json");
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 } catch (error) {
   console.log('Swagger documentation not available');
