@@ -11,7 +11,7 @@
     "tsoa:spec": "tsoa spec",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
-    "render-build": "npm install && npm run prisma:generate && npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck --noEmitOnError false"
+    "render-build": "npm install && npx prisma generate --force && npx prisma db push && npx tsoa spec && npx tsoa routes && npx tsc --skipLibCheck --noEmitOnError false && echo '=== CHECKING GENERATED FILES ===' && find . -name 'swagger.json' -type f && echo '=== FILES IN ROUTES DIR ===' && (ls -la src/routes/ 2>/dev/null || ls -la dist/routes/ 2>/dev/null || echo 'No routes directory found')"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",

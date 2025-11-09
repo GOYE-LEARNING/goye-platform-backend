@@ -1,3327 +1,3125 @@
 {
-	"openapi": "3.0.0",
-	"components": {
-		"examples": {},
-		"headers": {},
-		"parameters": {},
-		"requestBodies": {},
-		"responses": {},
-		"schemas": {
-			"SignupResponse": {
-				"properties": {
-					"message": {
-						"type": "string"
-					},
-					"data": {},
-					"token": {}
-				},
-				"required": [
-					"message",
-					"data"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Pick_User.Exclude_keyofUser.id__": {
-				"properties": {
-					"first_name": {
-						"type": "string"
-					},
-					"last_name": {
-						"type": "string"
-					},
-					"email_address": {
-						"type": "string"
-					},
-					"password": {
-						"type": "string"
-					},
-					"country": {
-						"type": "string"
-					},
-					"state": {
-						"type": "string"
-					},
-					"phone_number": {
-						"type": "string"
-					},
-					"role": {
-						"type": "string"
-					},
-					"level": {
-						"type": "string"
-					},
-					"createAt": {},
-					"updatedAt": {}
-				},
-				"required": [
-					"first_name",
-					"last_name",
-					"email_address",
-					"password",
-					"country",
-					"state",
-					"phone_number",
-					"role",
-					"level"
-				],
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_User.id_": {
-				"$ref": "#/components/schemas/Pick_User.Exclude_keyofUser.id__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"Partial_User_": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"first_name": {
-						"type": "string"
-					},
-					"last_name": {
-						"type": "string"
-					},
-					"email_address": {
-						"type": "string"
-					},
-					"password": {
-						"type": "string"
-					},
-					"country": {
-						"type": "string"
-					},
-					"state": {
-						"type": "string"
-					},
-					"phone_number": {
-						"type": "string"
-					},
-					"role": {
-						"type": "string"
-					},
-					"level": {
-						"type": "string"
-					},
-					"createAt": {},
-					"updatedAt": {}
-				},
-				"type": "object",
-				"description": "Make all properties in T optional"
-			},
-			"Pick_PostDTO.Exclude_keyofPostDTO.id-or-userId__": {
-				"properties": {
-					"postId": {
-						"type": "string"
-					},
-					"title": {
-						"type": "string"
-					},
-					"content": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"postId",
-					"title",
-					"content"
-				],
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_PostDTO.id-or-userId_": {
-				"$ref": "#/components/schemas/Pick_PostDTO.Exclude_keyofPostDTO.id-or-userId__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__": {
-				"properties": {
-					"postId": {
-						"type": "string"
-					},
-					"content": {
-						"type": "string"
-					},
-					"Id": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"postId",
-					"content",
-					"Id"
-				],
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_ReplyDTO.id-or-userId_": {
-				"$ref": "#/components/schemas/Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"Pick_EventDTO.Exclude_keyofEventDTO.id__": {
-				"properties": {
-					"event_name": {
-						"type": "string"
-					},
-					"event_description": {
-						"type": "string"
-					},
-					"event_time": {
-						"type": "string"
-					},
-					"event_date": {
-						"type": "string"
-					},
-					"event_type": {
-						"type": "string"
-					},
-					"event_link": {
-						"type": "string"
-					}
-				},
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_EventDTO.id_": {
-				"$ref": "#/components/schemas/Pick_EventDTO.Exclude_keyofEventDTO.id__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"CourseResponse": {
-				"properties": {
-					"message": {
-						"type": "string"
-					},
-					"data": {}
-				},
-				"required": [
-					"message",
-					"data"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Lesson": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"lesson_title": {
-						"type": "string"
-					},
-					"lesson_video": {
-						"type": "string"
-					},
-					"moduleId": {
-						"type": "string"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Module": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"module_title": {
-						"type": "string"
-					},
-					"module_description": {
-						"type": "string"
-					},
-					"module_duration": {
-						"type": "string"
-					},
-					"courseId": {
-						"type": "string"
-					},
-					"lesson": {
-						"items": {
-							"$ref": "#/components/schemas/Lesson"
-						},
-						"type": "array"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Material": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"material_title": {
-						"type": "string"
-					},
-					"material_description": {
-						"type": "string"
-					},
-					"material_pages": {
-						"type": "number",
-						"format": "double"
-					},
-					"material_document": {
-						"type": "string"
-					},
-					"courseId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"material_title",
-					"material_description",
-					"material_pages",
-					"material_document",
-					"courseId"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"CreateQuestionDTO": {
-				"properties": {
-					"question": {
-						"type": "string"
-					},
-					"options": {
-						"items": {
-							"type": "string"
-						},
-						"type": "array"
-					},
-					"correctAnswer": {
-						"type": "string"
-					},
-					"explanation": {
-						"type": "string"
-					},
-					"points": {
-						"type": "number",
-						"format": "double"
-					},
-					"order": {
-						"type": "number",
-						"format": "double"
-					}
-				},
-				"required": [
-					"question",
-					"options",
-					"correctAnswer",
-					"order"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"CreateQuizDTO": {
-				"properties": {
-					"title": {
-						"type": "string"
-					},
-					"description": {
-						"type": "string"
-					},
-					"courseId": {
-						"type": "string"
-					},
-					"duration": {
-						"type": "number",
-						"format": "double"
-					},
-					"passingScore": {
-						"type": "number",
-						"format": "double"
-					},
-					"maxAttempts": {
-						"type": "number",
-						"format": "double"
-					},
-					"questions": {
-						"items": {
-							"$ref": "#/components/schemas/CreateQuestionDTO"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"title",
-					"courseId",
-					"questions"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Objectives": {
-				"properties": {
-					"id": {
-						"type": "string"
-					},
-					"objective_title1": {
-						"type": "string"
-					},
-					"objective_title2": {
-						"type": "string"
-					},
-					"objective_title3": {
-						"type": "string"
-					},
-					"objective_title4": {
-						"type": "string"
-					},
-					"objective_title5": {
-						"type": "string"
-					},
-					"courseId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"id",
-					"objective_title1",
-					"objective_title2",
-					"objective_title3",
-					"objective_title4",
-					"objective_title5",
-					"courseId"
-				],
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Pick_Course.Exclude_keyofCourse.id__": {
-				"properties": {
-					"course_title": {
-						"type": "string"
-					},
-					"course_short_description": {
-						"type": "string"
-					},
-					"course_description": {
-						"type": "string"
-					},
-					"course_level": {
-						"type": "string"
-					},
-					"course_image": {
-						"type": "string"
-					},
-					"module": {
-						"items": {
-							"$ref": "#/components/schemas/Module"
-						},
-						"type": "array"
-					},
-					"material": {
-						"items": {
-							"$ref": "#/components/schemas/Material"
-						},
-						"type": "array"
-					},
-					"quiz": {
-						"items": {
-							"$ref": "#/components/schemas/CreateQuizDTO"
-						},
-						"type": "array"
-					},
-					"objectives": {
-						"items": {
-							"$ref": "#/components/schemas/Objectives"
-						},
-						"type": "array"
-					}
-				},
-				"required": [
-					"course_title",
-					"course_short_description",
-					"course_description",
-					"course_level",
-					"course_image"
-				],
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_Course.id_": {
-				"$ref": "#/components/schemas/Pick_Course.Exclude_keyofCourse.id__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"UpdateCourseWithRelationsDTO": {
-				"properties": {
-					"course_title": {
-						"type": "string"
-					},
-					"course_short_description": {
-						"type": "string"
-					},
-					"course_description": {
-						"type": "string"
-					},
-					"course_level": {
-						"type": "string"
-					},
-					"course_image": {
-						"type": "string"
-					},
-					"modules": {
-						"items": {
-							"properties": {
-								"lessons": {
-									"items": {
-										"properties": {
-											"lesson_video": {
-												"type": "string"
-											},
-											"lesson_title": {
-												"type": "string"
-											},
-											"id": {
-												"type": "string"
-											}
-										},
-										"type": "object"
-									},
-									"type": "array"
-								},
-								"module_duration": {
-									"type": "string"
-								},
-								"module_description": {
-									"type": "string"
-								},
-								"module_title": {
-									"type": "string"
-								},
-								"id": {
-									"type": "string"
-								}
-							},
-							"type": "object"
-						},
-						"type": "array"
-					},
-					"materials": {
-						"items": {
-							"properties": {
-								"material_document": {
-									"type": "string"
-								},
-								"material_pages": {
-									"type": "number",
-									"format": "double"
-								},
-								"material_description": {
-									"type": "string"
-								},
-								"material_title": {
-									"type": "string"
-								},
-								"id": {
-									"type": "string"
-								}
-							},
-							"type": "object"
-						},
-						"type": "array"
-					},
-					"objectives": {
-						"items": {
-							"properties": {
-								"objective_title5": {
-									"type": "string"
-								},
-								"objective_title4": {
-									"type": "string"
-								},
-								"objective_title3": {
-									"type": "string"
-								},
-								"objective_title2": {
-									"type": "string"
-								},
-								"objective_title1": {
-									"type": "string"
-								},
-								"id": {
-									"type": "string"
-								}
-							},
-							"type": "object"
-						},
-						"type": "array"
-					},
-					"quiz": {
-						"items": {
-							"properties": {
-								"questions": {
-									"items": {
-										"properties": {
-											"question_name": {
-												"type": "string"
-											},
-											"id": {
-												"type": "string"
-											}
-										},
-										"type": "object"
-									},
-									"type": "array"
-								},
-								"quiz_score": {
-									"type": "number",
-									"format": "double"
-								},
-								"quiz_duration": {
-									"type": "number",
-									"format": "double"
-								},
-								"quiz_description": {
-									"type": "string"
-								},
-								"quiz_title": {
-									"type": "string"
-								},
-								"id": {
-									"type": "string"
-								}
-							},
-							"type": "object"
-						},
-						"type": "array"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Pick_Module.Exclude_keyofModule.id__": {
-				"properties": {
-					"module_title": {
-						"type": "string"
-					},
-					"module_description": {
-						"type": "string"
-					},
-					"module_duration": {
-						"type": "string"
-					},
-					"courseId": {
-						"type": "string"
-					},
-					"lesson": {
-						"items": {
-							"$ref": "#/components/schemas/Lesson"
-						},
-						"type": "array"
-					}
-				},
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_Module.id_": {
-				"$ref": "#/components/schemas/Pick_Module.Exclude_keyofModule.id__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			}
-		},
-		"securitySchemes": {
-			"bearerAuth": {
-				"type": "http",
-				"scheme": "bearer"
-			}
-		}
-	},
-	"info": {
-		"title": "",
-		"contact": {}
-	},
-	"paths": {
-		"/user/signup": {
-			"post": {
-				"operationId": "CreateUser",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/SignupResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_User.id_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/login": {
-			"post": {
-				"operationId": "Login",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"password": {
-										"type": "string"
-									},
-									"email": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"password",
-									"email"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/sendOtp": {
-			"post": {
-				"operationId": "SendOtp",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"email": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"email"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/verify-otp": {
-			"post": {
-				"operationId": "VerifyOtp",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"email": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"email": {
-													"type": "string"
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"email",
-												"message"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"sessionToken": {
-										"type": "string"
-									},
-									"otp": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"sessionToken",
-									"otp"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/upload-profile-picture": {
-			"post": {
-				"operationId": "UploadPicture",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/update-password/{id}": {
-			"put": {
-				"operationId": "UpdatePassword",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"newPassword": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"newPassword"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/get-user/{id}": {
-			"get": {
-				"operationId": "GetUser",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/user/update-user/{id}": {
-			"put": {
-				"operationId": "UpdateUser",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/SignupResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Partial_User_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/delete-user/{id}": {
-			"delete": {
-				"operationId": "DeleteUser",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"user": {
-											"properties": {
-												"user_pic": {
-													"type": "string"
-												},
-												"lastActive": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isOnline": {
-													"type": "boolean"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"completed": {
-													"type": "string"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"level": {
-													"type": "string"
-												},
-												"role": {
-													"type": "string"
-												},
-												"phone_number": {
-													"type": "string"
-												},
-												"state": {
-													"type": "string"
-												},
-												"country": {
-													"type": "string"
-												},
-												"password": {
-													"type": "string"
-												},
-												"email_address": {
-													"type": "string"
-												},
-												"last_name": {
-													"type": "string"
-												},
-												"first_name": {
-													"type": "string"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"user_pic",
-												"lastActive",
-												"isOnline",
-												"createdAt",
-												"completed",
-												"updatedAt",
-												"level",
-												"role",
-												"phone_number",
-												"state",
-												"country",
-												"password",
-												"email_address",
-												"last_name",
-												"first_name",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"user",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/user/fetch-users-student": {
-			"get": {
-				"operationId": "GetStudent",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/user/fetch-users-tutors": {
-			"get": {
-				"operationId": "GetTutor",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/user/profile": {
-			"get": {
-				"operationId": "GetProfile",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"user": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"user": {
-													"properties": {
-														"user_pic": {
-															"type": "string"
-														},
-														"lastActive": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isOnline": {
-															"type": "boolean"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"completed": {
-															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"level": {
-															"type": "string"
-														},
-														"role": {
-															"type": "string"
-														},
-														"phone_number": {
-															"type": "string"
-														},
-														"state": {
-															"type": "string"
-														},
-														"country": {
-															"type": "string"
-														},
-														"password": {
-															"type": "string"
-														},
-														"email_address": {
-															"type": "string"
-														},
-														"last_name": {
-															"type": "string"
-														},
-														"first_name": {
-															"type": "string"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"user_pic",
-														"lastActive",
-														"isOnline",
-														"createdAt",
-														"completed",
-														"updatedAt",
-														"level",
-														"role",
-														"phone_number",
-														"state",
-														"country",
-														"password",
-														"email_address",
-														"last_name",
-														"first_name",
-														"id"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"user",
-												"message"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": []
-			}
-		},
-		"/user/forgot-password": {
-			"post": {
-				"operationId": "ForgotPassword",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"link": {
-										"type": "string"
-									},
-									"email": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"link",
-									"email"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/user/user-student-status": {
-			"get": {
-				"operationId": "GetUserStatus",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/user/logout": {
-			"post": {
-				"operationId": "Logout",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"User control APIs"
-				],
-				"security": [
-					{
-						"jwt": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {}
-						}
-					}
-				}
-			}
-		},
-		"/socials/create-post": {
-			"post": {
-				"operationId": "CreatePost",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_PostDTO.id-or-userId_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/socials/create-reply": {
-			"post": {
-				"operationId": "CreateReply",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_ReplyDTO.id-or-userId_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/socials/get-post-replies/{postId}": {
-			"get": {
-				"operationId": "GetPostReplies",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "postId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/get-post-with-replies/{postId}": {
-			"get": {
-				"operationId": "GetPostWithReplies",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "postId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/like-post/{postId}": {
-			"post": {
-				"operationId": "LikePost",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "postId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/like-reply/{replyId}": {
-			"post": {
-				"operationId": "LikeReply",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "replyId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/unlike-post/{postId}": {
-			"delete": {
-				"operationId": "UnlikePost",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "postId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/unlike-reply/{replyId}": {
-			"delete": {
-				"operationId": "UnlikeReply",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "replyId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/check-like": {
-			"get": {
-				"operationId": "CheckLike",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "query",
-						"name": "postId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "query",
-						"name": "replyId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/get-all-posts": {
-			"get": {
-				"operationId": "GetAllPosts",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/socials/update-reply/{replyId}": {
-			"put": {
-				"operationId": "UpdateReply",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "replyId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"content": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"content"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/socials/delete-reply/{replyId}": {
-			"delete": {
-				"operationId": "DeleteReply",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "replyId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/post-likes/{postId}": {
-			"get": {
-				"operationId": "GetPostLikes",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "postId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/reply-likes/{replyId}": {
-			"get": {
-				"operationId": "GetReplyLikes",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "replyId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/create-event": {
-			"post": {
-				"operationId": "CreateEvent",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_EventDTO.id_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/socials/get-event": {
-			"get": {
-				"operationId": "GetEvent",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/socials/get-event/{id}": {
-			"get": {
-				"operationId": "GetEventById",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"getEventById": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"getEventById": {
-													"properties": {
-														"event_data": {
-															"type": "string"
-														},
-														"event_link": {
-															"type": "string"
-														},
-														"event_type": {
-															"type": "string"
-														},
-														"event_time": {
-															"type": "string"
-														},
-														"event_description": {
-															"type": "string"
-														},
-														"event_name": {
-															"type": "string"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"event_data",
-														"event_link",
-														"event_type",
-														"event_time",
-														"event_description",
-														"event_name",
-														"id"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"getEventById",
-												"message"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/socials/update-event/{id}": {
-			"put": {
-				"operationId": "UpdateEvent",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"updateEvent": {
-											"properties": {
-												"event_data": {
-													"type": "string"
-												},
-												"event_link": {
-													"type": "string"
-												},
-												"event_type": {
-													"type": "string"
-												},
-												"event_time": {
-													"type": "string"
-												},
-												"event_description": {
-													"type": "string"
-												},
-												"event_name": {
-													"type": "string"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"event_data",
-												"event_link",
-												"event_type",
-												"event_time",
-												"event_description",
-												"event_name",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"updateEvent",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"event_link": {
-										"type": "string"
-									},
-									"event_type": {
-										"type": "string"
-									},
-									"event_date": {
-										"type": "string"
-									},
-									"event_time": {
-										"type": "string"
-									},
-									"event_description": {
-										"type": "string"
-									},
-									"event_name": {
-										"type": "string"
-									},
-									"id": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"id"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/socials/delete-event/{id}": {
-			"delete": {
-				"operationId": "DeleteEvent",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"deleteEvent": {
-											"properties": {
-												"event_data": {
-													"type": "string"
-												},
-												"event_link": {
-													"type": "string"
-												},
-												"event_type": {
-													"type": "string"
-												},
-												"event_time": {
-													"type": "string"
-												},
-												"event_description": {
-													"type": "string"
-												},
-												"event_name": {
-													"type": "string"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"event_data",
-												"event_link",
-												"event_type",
-												"event_time",
-												"event_description",
-												"event_name",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"deleteEvent",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/course/create-course": {
-			"post": {
-				"operationId": "CreateCourse",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/CourseResponse"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_Course.id_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/get-courses": {
-			"get": {
-				"operationId": "GetCourse",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/course/get-courses/{id}": {
-			"get": {
-				"operationId": "GetCourseById",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"data": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"data": {
-													"allOf": [
-														{
-															"properties": {
-																"_count": {
-																	"properties": {
-																		"module": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"enrollment": {
-																			"type": "number",
-																			"format": "double"
-																		}
-																	},
-																	"required": [
-																		"module",
-																		"enrollment"
-																	],
-																	"type": "object"
-																},
-																"objectives": {
-																	"items": {
-																		"properties": {
-																			"objective_title5": {
-																				"type": "string"
-																			},
-																			"objective_title4": {
-																				"type": "string"
-																			},
-																			"objective_title3": {
-																				"type": "string"
-																			},
-																			"objective_title2": {
-																				"type": "string"
-																			},
-																			"objective_title1": {
-																				"type": "string"
-																			},
-																			"courseId": {
-																				"type": "string"
-																			},
-																			"createdAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"updatedAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"id": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"objective_title5",
-																			"objective_title4",
-																			"objective_title3",
-																			"objective_title2",
-																			"objective_title1",
-																			"courseId",
-																			"createdAt",
-																			"updatedAt",
-																			"id"
-																		],
-																		"type": "object"
-																	},
-																	"type": "array"
-																},
-																"quiz": {
-																	"items": {
-																		"allOf": [
-																			{
-																				"properties": {
-																					"questions": {
-																						"items": {
-																							"properties": {
-																								"order": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"points": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"options": {
-																									"items": {
-																										"type": "string"
-																									},
-																									"type": "array"
-																								},
-																								"question": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"order",
-																								"points",
-																								"options",
-																								"question",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					}
-																				},
-																				"required": [
-																					"questions"
-																				],
-																				"type": "object"
-																			},
-																			{
-																				"properties": {
-																					"maxAttempts": {
-																						"type": "number",
-																						"format": "double"
-																					},
-																					"passingScore": {
-																						"type": "number",
-																						"format": "double"
-																					},
-																					"description": {
-																						"type": "string"
-																					},
-																					"duration": {
-																						"type": "number",
-																						"format": "double"
-																					},
-																					"courseId": {
-																						"type": "string"
-																					},
-																					"title": {
-																						"type": "string"
-																					},
-																					"createdAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"updatedAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"id": {
-																						"type": "string"
-																					}
-																				},
-																				"required": [
-																					"maxAttempts",
-																					"passingScore",
-																					"description",
-																					"duration",
-																					"courseId",
-																					"title",
-																					"createdAt",
-																					"updatedAt",
-																					"id"
-																				],
-																				"type": "object"
-																			}
-																		]
-																	},
-																	"type": "array"
-																},
-																"material": {
-																	"items": {
-																		"properties": {
-																			"material_document": {
-																				"type": "string"
-																			},
-																			"material_pages": {
-																				"type": "number",
-																				"format": "double"
-																			},
-																			"material_description": {
-																				"type": "string"
-																			},
-																			"material_title": {
-																				"type": "string"
-																			},
-																			"courseId": {
-																				"type": "string"
-																			},
-																			"createdAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"updatedAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"id": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"material_document",
-																			"material_pages",
-																			"material_description",
-																			"material_title",
-																			"courseId",
-																			"createdAt",
-																			"updatedAt",
-																			"id"
-																		],
-																		"type": "object"
-																	},
-																	"type": "array"
-																},
-																"module": {
-																	"items": {
-																		"allOf": [
-																			{
-																				"properties": {
-																					"lesson": {
-																						"items": {
-																							"properties": {
-																								"duration": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"moduleId": {
-																									"type": "string"
-																								},
-																								"lesson_video": {
-																									"type": "string"
-																								},
-																								"lesson_title": {
-																									"type": "string"
-																								},
-																								"order": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"duration",
-																								"moduleId",
-																								"lesson_video",
-																								"lesson_title",
-																								"order",
-																								"createdAt",
-																								"updatedAt",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					}
-																				},
-																				"required": [
-																					"lesson"
-																				],
-																				"type": "object"
-																			},
-																			{
-																				"properties": {
-																					"courseId": {
-																						"type": "string"
-																					},
-																					"module_duration": {
-																						"type": "string"
-																					},
-																					"module_description": {
-																						"type": "string"
-																					},
-																					"module_title": {
-																						"type": "string"
-																					},
-																					"order": {
-																						"type": "number",
-																						"format": "double"
-																					},
-																					"createdAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"updatedAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"id": {
-																						"type": "string"
-																					}
-																				},
-																				"required": [
-																					"courseId",
-																					"module_duration",
-																					"module_description",
-																					"module_title",
-																					"order",
-																					"createdAt",
-																					"updatedAt",
-																					"id"
-																				],
-																				"type": "object"
-																			}
-																		]
-																	},
-																	"type": "array"
-																}
-															},
-															"required": [
-																"_count",
-																"objectives",
-																"quiz",
-																"material",
-																"module"
-															],
-															"type": "object"
-														},
-														{
-															"properties": {
-																"course_image": {
-																	"type": "string"
-																},
-																"course_level": {
-																	"type": "string"
-																},
-																"course_description": {
-																	"type": "string"
-																},
-																"course_short_description": {
-																	"type": "string"
-																},
-																"course_title": {
-																	"type": "string"
-																},
-																"createdAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"updatedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"id": {
-																	"type": "string"
-																}
-															},
-															"required": [
-																"course_image",
-																"course_level",
-																"course_description",
-																"course_short_description",
-																"course_title",
-																"createdAt",
-																"updatedAt",
-																"id"
-															],
-															"type": "object"
-														}
-													]
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"data",
-												"message"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/course/update-course/{id}": {
-			"put": {
-				"operationId": "UpdateCourse",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/UpdateCourseWithRelationsDTO"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/delete-course/{id}": {
-			"delete": {
-				"operationId": "DeleteCourse",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"data": {
-											"properties": {
-												"course_image": {
-													"type": "string"
-												},
-												"course_level": {
-													"type": "string"
-												},
-												"course_description": {
-													"type": "string"
-												},
-												"course_short_description": {
-													"type": "string"
-												},
-												"course_title": {
-													"type": "string"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"course_image",
-												"course_level",
-												"course_description",
-												"course_short_description",
-												"course_title",
-												"createdAt",
-												"updatedAt",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/course/upload-course-image/{courseId}": {
-			"post": {
-				"operationId": "UploadCourseImage",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "courseId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/upload-lesson-video/{courseId}/{moduleId}": {
-			"post": {
-				"operationId": "UploadLessonVideo",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "courseId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "path",
-						"name": "moduleId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"duration": {
-										"type": "number",
-										"format": "double"
-									},
-									"lessonTitle": {
-										"type": "string"
-									},
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"lessonTitle",
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/upload-course-material/{courseId}": {
-			"post": {
-				"operationId": "UploadCourseMaterial",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "courseId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"pages": {
-										"type": "number",
-										"format": "double"
-									},
-									"materialDescription": {
-										"type": "string"
-									},
-									"materialTitle": {
-										"type": "string"
-									},
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"materialTitle",
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/get-course-materials/{courseId}": {
-			"get": {
-				"operationId": "GetCourseMaterials",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "courseId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/course/create-module": {
-			"post": {
-				"operationId": "CreateModule",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_Module.id_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/get-modules": {
-			"get": {
-				"operationId": "GetModules",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/course/get-module/{courseId}/{moduleId}": {
-			"get": {
-				"operationId": "GetModuleById",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "courseId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"in": "path",
-						"name": "moduleId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/course/update-module/{id}": {
-			"put": {
-				"operationId": "UpdateModule",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"module_duration": {
-										"type": "string"
-									},
-									"module_description": {
-										"type": "string"
-									},
-									"module_title": {
-										"type": "string"
-									}
-								},
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/course/delete-module/{id}": {
-			"delete": {
-				"operationId": "DeleteModule",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"data": {
-											"properties": {
-												"courseId": {
-													"type": "string"
-												},
-												"module_duration": {
-													"type": "string"
-												},
-												"module_description": {
-													"type": "string"
-												},
-												"module_title": {
-													"type": "string"
-												},
-												"order": {
-													"type": "number",
-													"format": "double"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"courseId",
-												"module_duration",
-												"module_description",
-												"module_title",
-												"order",
-												"createdAt",
-												"updatedAt",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/course/create-quiz": {
-			"post": {
-				"operationId": "CreateQuiz",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"questions": {
-										"items": {
-											"properties": {
-												"order": {
-													"type": "number",
-													"format": "double"
-												},
-												"points": {
-													"type": "number",
-													"format": "double"
-												},
-												"explanation": {
-													"type": "string"
-												},
-												"correctAnswer": {
-													"type": "string"
-												},
-												"options": {
-													"items": {
-														"type": "string"
-													},
-													"type": "array"
-												},
-												"question": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"order",
-												"correctAnswer",
-												"options",
-												"question"
-											],
-											"type": "object"
-										},
-										"type": "array"
-									},
-									"maxAttempts": {
-										"type": "number",
-										"format": "double"
-									},
-									"passingScore": {
-										"type": "number",
-										"format": "double"
-									},
-									"duration": {
-										"type": "number",
-										"format": "double"
-									},
-									"courseId": {
-										"type": "string"
-									},
-									"description": {
-										"type": "string"
-									},
-									"title": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"questions",
-									"courseId",
-									"title"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		}
-	},
-	"servers": [
-		{
-			"url": "/api"
-		}
-	]
+  "openapi": "3.0.0",
+  "components": {
+    "examples": {},
+    "headers": {},
+    "parameters": {},
+    "requestBodies": {},
+    "responses": {},
+    "schemas": {
+      "SignupResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {},
+          "token": {}
+        },
+        "required": ["message", "data"],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Pick_User.Exclude_keyofUser.id__": {
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "email_address": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "phone_number": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "createAt": {},
+          "updatedAt": {}
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email_address",
+          "password",
+          "country",
+          "state",
+          "phone_number",
+          "role",
+          "level"
+        ],
+        "type": "object",
+        "description": "From T, pick a set of properties whose keys are in the union K"
+      },
+      "Omit_User.id_": {
+        "$ref": "#/components/schemas/Pick_User.Exclude_keyofUser.id__",
+        "description": "Construct a type with the properties of T except for those in type K."
+      },
+      "Partial_User_": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "first_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "email_address": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "phone_number": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "createAt": {},
+          "updatedAt": {}
+        },
+        "type": "object",
+        "description": "Make all properties in T optional"
+      },
+      "Pick_PostDTO.Exclude_keyofPostDTO.id-or-userId__": {
+        "properties": {
+          "postId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        },
+        "required": ["postId", "title", "content"],
+        "type": "object",
+        "description": "From T, pick a set of properties whose keys are in the union K"
+      },
+      "Omit_PostDTO.id-or-userId_": {
+        "$ref": "#/components/schemas/Pick_PostDTO.Exclude_keyofPostDTO.id-or-userId__",
+        "description": "Construct a type with the properties of T except for those in type K."
+      },
+      "Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__": {
+        "properties": {
+          "postId": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "Id": {
+            "type": "string"
+          }
+        },
+        "required": ["postId", "content", "Id"],
+        "type": "object",
+        "description": "From T, pick a set of properties whose keys are in the union K"
+      },
+      "Omit_ReplyDTO.id-or-userId_": {
+        "$ref": "#/components/schemas/Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__",
+        "description": "Construct a type with the properties of T except for those in type K."
+      },
+      "Pick_EventDTO.Exclude_keyofEventDTO.id__": {
+        "properties": {
+          "event_name": {
+            "type": "string"
+          },
+          "event_description": {
+            "type": "string"
+          },
+          "event_time": {
+            "type": "string"
+          },
+          "event_date": {
+            "type": "string"
+          },
+          "event_type": {
+            "type": "string"
+          },
+          "event_link": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "description": "From T, pick a set of properties whose keys are in the union K"
+      },
+      "Omit_EventDTO.id_": {
+        "$ref": "#/components/schemas/Pick_EventDTO.Exclude_keyofEventDTO.id__",
+        "description": "Construct a type with the properties of T except for those in type K."
+      },
+      "CourseResponse": {
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        },
+        "required": ["message", "data"],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Lesson": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "lesson_title": {
+            "type": "string"
+          },
+          "lesson_video": {
+            "type": "string"
+          },
+          "moduleId": {
+            "type": "string"
+          }
+        },
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Module": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "module_title": {
+            "type": "string"
+          },
+          "module_description": {
+            "type": "string"
+          },
+          "module_duration": {
+            "type": "string"
+          },
+          "courseId": {
+            "type": "string"
+          },
+          "lesson": {
+            "items": {
+              "$ref": "#/components/schemas/Lesson"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Material": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "material_title": {
+            "type": "string"
+          },
+          "material_description": {
+            "type": "string"
+          },
+          "material_pages": {
+            "type": "number",
+            "format": "double"
+          },
+          "material_document": {
+            "type": "string"
+          },
+          "courseId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "material_title",
+          "material_description",
+          "material_pages",
+          "material_document",
+          "courseId"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "CreateQuestionDTO": {
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "correctAnswer": {
+            "type": "string"
+          },
+          "explanation": {
+            "type": "string"
+          },
+          "points": {
+            "type": "number",
+            "format": "double"
+          },
+          "order": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "required": ["question", "options", "correctAnswer", "order"],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "CreateQuizDTO": {
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "courseId": {
+            "type": "string"
+          },
+          "duration": {
+            "type": "number",
+            "format": "double"
+          },
+          "passingScore": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxAttempts": {
+            "type": "number",
+            "format": "double"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/CreateQuestionDTO"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["title", "courseId", "questions"],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Objectives": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "objective_title1": {
+            "type": "string"
+          },
+          "objective_title2": {
+            "type": "string"
+          },
+          "objective_title3": {
+            "type": "string"
+          },
+          "objective_title4": {
+            "type": "string"
+          },
+          "objective_title5": {
+            "type": "string"
+          },
+          "courseId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "objective_title1",
+          "objective_title2",
+          "objective_title3",
+          "objective_title4",
+          "objective_title5",
+          "courseId"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Pick_Course.Exclude_keyofCourse.id__": {
+        "properties": {
+          "course_title": {
+            "type": "string"
+          },
+          "course_short_description": {
+            "type": "string"
+          },
+          "course_description": {
+            "type": "string"
+          },
+          "course_level": {
+            "type": "string"
+          },
+          "course_image": {
+            "type": "string"
+          },
+          "module": {
+            "items": {
+              "$ref": "#/components/schemas/Module"
+            },
+            "type": "array"
+          },
+          "material": {
+            "items": {
+              "$ref": "#/components/schemas/Material"
+            },
+            "type": "array"
+          },
+          "quiz": {
+            "items": {
+              "$ref": "#/components/schemas/CreateQuizDTO"
+            },
+            "type": "array"
+          },
+          "objectives": {
+            "items": {
+              "$ref": "#/components/schemas/Objectives"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "course_title",
+          "course_short_description",
+          "course_description",
+          "course_level",
+          "course_image"
+        ],
+        "type": "object",
+        "description": "From T, pick a set of properties whose keys are in the union K"
+      },
+      "Omit_Course.id_": {
+        "$ref": "#/components/schemas/Pick_Course.Exclude_keyofCourse.id__",
+        "description": "Construct a type with the properties of T except for those in type K."
+      },
+      "UpdateCourseWithRelationsDTO": {
+        "properties": {
+          "course_title": {
+            "type": "string"
+          },
+          "course_short_description": {
+            "type": "string"
+          },
+          "course_description": {
+            "type": "string"
+          },
+          "course_level": {
+            "type": "string"
+          },
+          "course_image": {
+            "type": "string"
+          },
+          "modules": {
+            "items": {
+              "properties": {
+                "lessons": {
+                  "items": {
+                    "properties": {
+                      "lesson_video": {
+                        "type": "string"
+                      },
+                      "lesson_title": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "module_duration": {
+                  "type": "string"
+                },
+                "module_description": {
+                  "type": "string"
+                },
+                "module_title": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "materials": {
+            "items": {
+              "properties": {
+                "material_document": {
+                  "type": "string"
+                },
+                "material_pages": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "material_description": {
+                  "type": "string"
+                },
+                "material_title": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "objectives": {
+            "items": {
+              "properties": {
+                "objective_title5": {
+                  "type": "string"
+                },
+                "objective_title4": {
+                  "type": "string"
+                },
+                "objective_title3": {
+                  "type": "string"
+                },
+                "objective_title2": {
+                  "type": "string"
+                },
+                "objective_title1": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "quiz": {
+            "items": {
+              "properties": {
+                "questions": {
+                  "items": {
+                    "properties": {
+                      "question_name": {
+                        "type": "string"
+                      },
+                      "id": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "quiz_score": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "quiz_duration": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "quiz_description": {
+                  "type": "string"
+                },
+                "quiz_title": {
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "additionalProperties": false
+      },
+      "Pick_Module.Exclude_keyofModule.id__": {
+        "properties": {
+          "module_title": {
+            "type": "string"
+          },
+          "module_description": {
+            "type": "string"
+          },
+          "module_duration": {
+            "type": "string"
+          },
+          "courseId": {
+            "type": "string"
+          },
+          "lesson": {
+            "items": {
+              "$ref": "#/components/schemas/Lesson"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object",
+        "description": "From T, pick a set of properties whose keys are in the union K"
+      },
+      "Omit_Module.id_": {
+        "$ref": "#/components/schemas/Pick_Module.Exclude_keyofModule.id__",
+        "description": "Construct a type with the properties of T except for those in type K."
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "info": {
+    "title": "",
+    "contact": {}
+  },
+  "paths": {
+    "/user/signup": {
+      "post": {
+        "operationId": "CreateUser",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Omit_User.id_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/login": {
+      "post": {
+        "operationId": "Login",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "password": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": ["password", "email"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/sendOtp": {
+      "post": {
+        "operationId": "SendOtp",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": ["email"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/verify-otp": {
+      "post": {
+        "operationId": "VerifyOtp",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "email": {},
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["message"],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "email": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["email", "message"],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "sessionToken": {
+                    "type": "string"
+                  },
+                  "otp": {
+                    "type": "string"
+                  }
+                },
+                "required": ["sessionToken", "otp"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/upload-profile-picture": {
+      "post": {
+        "operationId": "UploadPicture",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": ["mimeType", "fileName", "file"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/update-password/{id}": {
+      "put": {
+        "operationId": "UpdatePassword",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "newPassword": {
+                    "type": "string"
+                  }
+                },
+                "required": ["newPassword"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/get-user/{id}": {
+      "get": {
+        "operationId": "GetUser",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/user/update-user/{id}": {
+      "put": {
+        "operationId": "UpdateUser",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Partial_User_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/delete-user/{id}": {
+      "delete": {
+        "operationId": "DeleteUser",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "user": {
+                      "properties": {
+                        "user_pic": {
+                          "type": "string"
+                        },
+                        "lastActive": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "isOnline": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "completed": {
+                          "type": "string"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "level": {
+                          "type": "string"
+                        },
+                        "role": {
+                          "type": "string"
+                        },
+                        "phone_number": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "string"
+                        },
+                        "country": {
+                          "type": "string"
+                        },
+                        "password": {
+                          "type": "string"
+                        },
+                        "email_address": {
+                          "type": "string"
+                        },
+                        "last_name": {
+                          "type": "string"
+                        },
+                        "first_name": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "user_pic",
+                        "lastActive",
+                        "isOnline",
+                        "createdAt",
+                        "completed",
+                        "updatedAt",
+                        "level",
+                        "role",
+                        "phone_number",
+                        "state",
+                        "country",
+                        "password",
+                        "email_address",
+                        "last_name",
+                        "first_name",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["user", "message"],
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/user/fetch-users-student": {
+      "get": {
+        "operationId": "GetStudent",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/user/fetch-users-tutors": {
+      "get": {
+        "operationId": "GetTutor",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/user/profile": {
+      "get": {
+        "operationId": "GetProfile",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "user": {},
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["message"],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "user": {
+                          "properties": {
+                            "user_pic": {
+                              "type": "string"
+                            },
+                            "lastActive": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "isOnline": {
+                              "type": "boolean"
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "completed": {
+                              "type": "string"
+                            },
+                            "updatedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "level": {
+                              "type": "string"
+                            },
+                            "role": {
+                              "type": "string"
+                            },
+                            "phone_number": {
+                              "type": "string"
+                            },
+                            "state": {
+                              "type": "string"
+                            },
+                            "country": {
+                              "type": "string"
+                            },
+                            "password": {
+                              "type": "string"
+                            },
+                            "email_address": {
+                              "type": "string"
+                            },
+                            "last_name": {
+                              "type": "string"
+                            },
+                            "first_name": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "user_pic",
+                            "lastActive",
+                            "isOnline",
+                            "createdAt",
+                            "completed",
+                            "updatedAt",
+                            "level",
+                            "role",
+                            "phone_number",
+                            "state",
+                            "country",
+                            "password",
+                            "email_address",
+                            "last_name",
+                            "first_name",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["user", "message"],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": []
+      }
+    },
+    "/user/forgot-password": {
+      "post": {
+        "operationId": "ForgotPassword",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "link": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  }
+                },
+                "required": ["link", "email"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/user/user-student-status": {
+      "get": {
+        "operationId": "GetUserStatus",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/user/logout": {
+      "post": {
+        "operationId": "Logout",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["User control APIs"],
+        "security": [
+          {
+            "jwt": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          }
+        }
+      }
+    },
+    "/socials/create-post": {
+      "post": {
+        "operationId": "CreatePost",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Omit_PostDTO.id-or-userId_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/socials/create-reply": {
+      "post": {
+        "operationId": "CreateReply",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Omit_ReplyDTO.id-or-userId_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/socials/get-post-replies/{postId}": {
+      "get": {
+        "operationId": "GetPostReplies",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/get-post-with-replies/{postId}": {
+      "get": {
+        "operationId": "GetPostWithReplies",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/like-post/{postId}": {
+      "post": {
+        "operationId": "LikePost",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/like-reply/{replyId}": {
+      "post": {
+        "operationId": "LikeReply",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/unlike-post/{postId}": {
+      "delete": {
+        "operationId": "UnlikePost",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/unlike-reply/{replyId}": {
+      "delete": {
+        "operationId": "UnlikeReply",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/check-like": {
+      "get": {
+        "operationId": "CheckLike",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "postId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "replyId",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/get-all-posts": {
+      "get": {
+        "operationId": "GetAllPosts",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/socials/update-reply/{replyId}": {
+      "put": {
+        "operationId": "UpdateReply",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": ["content"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/socials/delete-reply/{replyId}": {
+      "delete": {
+        "operationId": "DeleteReply",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/post-likes/{postId}": {
+      "get": {
+        "operationId": "GetPostLikes",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "postId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/reply-likes/{replyId}": {
+      "get": {
+        "operationId": "GetReplyLikes",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "replyId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/create-event": {
+      "post": {
+        "operationId": "CreateEvent",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Omit_EventDTO.id_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/socials/get-event": {
+      "get": {
+        "operationId": "GetEvent",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/socials/get-event/{id}": {
+      "get": {
+        "operationId": "GetEventById",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "getEventById": {},
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["message"],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "getEventById": {
+                          "properties": {
+                            "event_data": {
+                              "type": "string"
+                            },
+                            "event_link": {
+                              "type": "string"
+                            },
+                            "event_type": {
+                              "type": "string"
+                            },
+                            "event_time": {
+                              "type": "string"
+                            },
+                            "event_description": {
+                              "type": "string"
+                            },
+                            "event_name": {
+                              "type": "string"
+                            },
+                            "id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "event_data",
+                            "event_link",
+                            "event_type",
+                            "event_time",
+                            "event_description",
+                            "event_name",
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["getEventById", "message"],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/socials/update-event/{id}": {
+      "put": {
+        "operationId": "UpdateEvent",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "updateEvent": {
+                      "properties": {
+                        "event_data": {
+                          "type": "string"
+                        },
+                        "event_link": {
+                          "type": "string"
+                        },
+                        "event_type": {
+                          "type": "string"
+                        },
+                        "event_time": {
+                          "type": "string"
+                        },
+                        "event_description": {
+                          "type": "string"
+                        },
+                        "event_name": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "event_data",
+                        "event_link",
+                        "event_type",
+                        "event_time",
+                        "event_description",
+                        "event_name",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["updateEvent", "message"],
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "event_link": {
+                    "type": "string"
+                  },
+                  "event_type": {
+                    "type": "string"
+                  },
+                  "event_date": {
+                    "type": "string"
+                  },
+                  "event_time": {
+                    "type": "string"
+                  },
+                  "event_description": {
+                    "type": "string"
+                  },
+                  "event_name": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  }
+                },
+                "required": ["id"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/socials/delete-event/{id}": {
+      "delete": {
+        "operationId": "DeleteEvent",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "deleteEvent": {
+                      "properties": {
+                        "event_data": {
+                          "type": "string"
+                        },
+                        "event_link": {
+                          "type": "string"
+                        },
+                        "event_type": {
+                          "type": "string"
+                        },
+                        "event_time": {
+                          "type": "string"
+                        },
+                        "event_description": {
+                          "type": "string"
+                        },
+                        "event_name": {
+                          "type": "string"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "event_data",
+                        "event_link",
+                        "event_type",
+                        "event_time",
+                        "event_description",
+                        "event_name",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["deleteEvent", "message"],
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Social controllers"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/course/create-course": {
+      "post": {
+        "operationId": "CreateCourse",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Omit_Course.id_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/get-courses": {
+      "get": {
+        "operationId": "GetCourse",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/course/get-courses/{id}": {
+      "get": {
+        "operationId": "GetCourseById",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "data": {},
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["message"],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "properties": {
+                                "_count": {
+                                  "properties": {
+                                    "module": {
+                                      "type": "number",
+                                      "format": "double"
+                                    },
+                                    "enrollment": {
+                                      "type": "number",
+                                      "format": "double"
+                                    }
+                                  },
+                                  "required": ["module", "enrollment"],
+                                  "type": "object"
+                                },
+                                "objectives": {
+                                  "items": {
+                                    "properties": {
+                                      "objective_title5": {
+                                        "type": "string"
+                                      },
+                                      "objective_title4": {
+                                        "type": "string"
+                                      },
+                                      "objective_title3": {
+                                        "type": "string"
+                                      },
+                                      "objective_title2": {
+                                        "type": "string"
+                                      },
+                                      "objective_title1": {
+                                        "type": "string"
+                                      },
+                                      "courseId": {
+                                        "type": "string"
+                                      },
+                                      "createdAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "updatedAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "objective_title5",
+                                      "objective_title4",
+                                      "objective_title3",
+                                      "objective_title2",
+                                      "objective_title1",
+                                      "courseId",
+                                      "createdAt",
+                                      "updatedAt",
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "quiz": {
+                                  "items": {
+                                    "allOf": [
+                                      {
+                                        "properties": {
+                                          "questions": {
+                                            "items": {
+                                              "properties": {
+                                                "order": {
+                                                  "type": "number",
+                                                  "format": "double"
+                                                },
+                                                "points": {
+                                                  "type": "number",
+                                                  "format": "double"
+                                                },
+                                                "options": {
+                                                  "items": {
+                                                    "type": "string"
+                                                  },
+                                                  "type": "array"
+                                                },
+                                                "question": {
+                                                  "type": "string"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "order",
+                                                "points",
+                                                "options",
+                                                "question",
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          }
+                                        },
+                                        "required": ["questions"],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "properties": {
+                                          "maxAttempts": {
+                                            "type": "number",
+                                            "format": "double"
+                                          },
+                                          "passingScore": {
+                                            "type": "number",
+                                            "format": "double"
+                                          },
+                                          "description": {
+                                            "type": "string"
+                                          },
+                                          "duration": {
+                                            "type": "number",
+                                            "format": "double"
+                                          },
+                                          "courseId": {
+                                            "type": "string"
+                                          },
+                                          "title": {
+                                            "type": "string"
+                                          },
+                                          "createdAt": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                          },
+                                          "updatedAt": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "maxAttempts",
+                                          "passingScore",
+                                          "description",
+                                          "duration",
+                                          "courseId",
+                                          "title",
+                                          "createdAt",
+                                          "updatedAt",
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                },
+                                "material": {
+                                  "items": {
+                                    "properties": {
+                                      "material_document": {
+                                        "type": "string"
+                                      },
+                                      "material_pages": {
+                                        "type": "number",
+                                        "format": "double"
+                                      },
+                                      "material_description": {
+                                        "type": "string"
+                                      },
+                                      "material_title": {
+                                        "type": "string"
+                                      },
+                                      "courseId": {
+                                        "type": "string"
+                                      },
+                                      "createdAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "updatedAt": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "material_document",
+                                      "material_pages",
+                                      "material_description",
+                                      "material_title",
+                                      "courseId",
+                                      "createdAt",
+                                      "updatedAt",
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "module": {
+                                  "items": {
+                                    "allOf": [
+                                      {
+                                        "properties": {
+                                          "lesson": {
+                                            "items": {
+                                              "properties": {
+                                                "duration": {
+                                                  "type": "number",
+                                                  "format": "double"
+                                                },
+                                                "moduleId": {
+                                                  "type": "string"
+                                                },
+                                                "lesson_video": {
+                                                  "type": "string"
+                                                },
+                                                "lesson_title": {
+                                                  "type": "string"
+                                                },
+                                                "order": {
+                                                  "type": "number",
+                                                  "format": "double"
+                                                },
+                                                "createdAt": {
+                                                  "type": "string",
+                                                  "format": "date-time"
+                                                },
+                                                "updatedAt": {
+                                                  "type": "string",
+                                                  "format": "date-time"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "duration",
+                                                "moduleId",
+                                                "lesson_video",
+                                                "lesson_title",
+                                                "order",
+                                                "createdAt",
+                                                "updatedAt",
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          }
+                                        },
+                                        "required": ["lesson"],
+                                        "type": "object"
+                                      },
+                                      {
+                                        "properties": {
+                                          "courseId": {
+                                            "type": "string"
+                                          },
+                                          "module_duration": {
+                                            "type": "string"
+                                          },
+                                          "module_description": {
+                                            "type": "string"
+                                          },
+                                          "module_title": {
+                                            "type": "string"
+                                          },
+                                          "order": {
+                                            "type": "number",
+                                            "format": "double"
+                                          },
+                                          "createdAt": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                          },
+                                          "updatedAt": {
+                                            "type": "string",
+                                            "format": "date-time"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "courseId",
+                                          "module_duration",
+                                          "module_description",
+                                          "module_title",
+                                          "order",
+                                          "createdAt",
+                                          "updatedAt",
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      }
+                                    ]
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "_count",
+                                "objectives",
+                                "quiz",
+                                "material",
+                                "module"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "properties": {
+                                "course_image": {
+                                  "type": "string"
+                                },
+                                "course_level": {
+                                  "type": "string"
+                                },
+                                "course_description": {
+                                  "type": "string"
+                                },
+                                "course_short_description": {
+                                  "type": "string"
+                                },
+                                "course_title": {
+                                  "type": "string"
+                                },
+                                "createdAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "updatedAt": {
+                                  "type": "string",
+                                  "format": "date-time"
+                                },
+                                "id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "course_image",
+                                "course_level",
+                                "course_description",
+                                "course_short_description",
+                                "course_title",
+                                "createdAt",
+                                "updatedAt",
+                                "id"
+                              ],
+                              "type": "object"
+                            }
+                          ]
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": ["data", "message"],
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/course/update-course/{id}": {
+      "put": {
+        "operationId": "UpdateCourse",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCourseWithRelationsDTO"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/delete-course/{id}": {
+      "delete": {
+        "operationId": "DeleteCourse",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "course_image": {
+                          "type": "string"
+                        },
+                        "course_level": {
+                          "type": "string"
+                        },
+                        "course_description": {
+                          "type": "string"
+                        },
+                        "course_short_description": {
+                          "type": "string"
+                        },
+                        "course_title": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "course_image",
+                        "course_level",
+                        "course_description",
+                        "course_short_description",
+                        "course_title",
+                        "createdAt",
+                        "updatedAt",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "message"],
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/course/upload-course-image/{courseId}": {
+      "post": {
+        "operationId": "UploadCourseImage",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "courseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": ["mimeType", "fileName", "file"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/upload-lesson-video/{courseId}/{moduleId}": {
+      "post": {
+        "operationId": "UploadLessonVideo",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "courseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "moduleId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "duration": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "lessonTitle": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": ["lessonTitle", "mimeType", "fileName", "file"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/upload-course-material/{courseId}": {
+      "post": {
+        "operationId": "UploadCourseMaterial",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "courseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "pages": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "materialDescription": {
+                    "type": "string"
+                  },
+                  "materialTitle": {
+                    "type": "string"
+                  },
+                  "mimeType": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string"
+                  }
+                },
+                "required": ["materialTitle", "mimeType", "fileName", "file"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/get-course-materials/{courseId}": {
+      "get": {
+        "operationId": "GetCourseMaterials",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "courseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/course/create-module": {
+      "post": {
+        "operationId": "CreateModule",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Omit_Module.id_"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/get-modules": {
+      "get": {
+        "operationId": "GetModules",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [],
+        "parameters": []
+      }
+    },
+    "/course/get-module/{courseId}/{moduleId}": {
+      "get": {
+        "operationId": "GetModuleById",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "courseId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "moduleId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/course/update-module/{id}": {
+      "put": {
+        "operationId": "UpdateModule",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "module_duration": {
+                    "type": "string"
+                  },
+                  "module_description": {
+                    "type": "string"
+                  },
+                  "module_title": {
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/course/delete-module/{id}": {
+      "delete": {
+        "operationId": "DeleteModule",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "courseId": {
+                          "type": "string"
+                        },
+                        "module_duration": {
+                          "type": "string"
+                        },
+                        "module_description": {
+                          "type": "string"
+                        },
+                        "module_title": {
+                          "type": "string"
+                        },
+                        "order": {
+                          "type": "number",
+                          "format": "double"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "courseId",
+                        "module_duration",
+                        "module_description",
+                        "module_title",
+                        "order",
+                        "createdAt",
+                        "updatedAt",
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "message"],
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/course/create-quiz": {
+      "post": {
+        "operationId": "CreateQuiz",
+        "responses": {
+          "200": {
+            "description": "Ok",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "tags": ["Course Control APIs"],
+        "security": [],
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "questions": {
+                    "items": {
+                      "properties": {
+                        "order": {
+                          "type": "number",
+                          "format": "double"
+                        },
+                        "points": {
+                          "type": "number",
+                          "format": "double"
+                        },
+                        "explanation": {
+                          "type": "string"
+                        },
+                        "correctAnswer": {
+                          "type": "string"
+                        },
+                        "options": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "question": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "order",
+                        "correctAnswer",
+                        "options",
+                        "question"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "maxAttempts": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "passingScore": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "duration": {
+                    "type": "number",
+                    "format": "double"
+                  },
+                  "courseId": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  }
+                },
+                "required": ["questions", "courseId", "title"],
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "/api"
+    }
+  ]
 }
