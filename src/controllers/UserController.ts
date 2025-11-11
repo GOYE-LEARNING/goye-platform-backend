@@ -121,7 +121,7 @@ export class UserController extends Controller {
     if (req.res) {
       req.res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // HTTPS in production
+        secure: false, // HTTPS in production
         sameSite: "lax",
         maxAge: 1 * 60 * 60 * 1000, // 1hr days
       });
@@ -477,11 +477,10 @@ export class UserController extends Controller {
   @Security("bearerAuth")
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
-    const userId = (req as any).user?.id;
-    const token = req.cookies?.token
+    const userId = req.user.id;
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
-    if (token) {
+    if (!userId) {
       this.setStatus(401);
       return { message: "Unauthorized" };
     }
