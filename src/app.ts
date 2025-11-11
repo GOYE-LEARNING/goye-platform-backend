@@ -6,31 +6,20 @@ import { RegisterRoutes } from "./routes/routes";
 import bodyParser from "body-parser";
 import { existsSync, readdirSync } from "fs";
 import { join } from "path";
+import cookieParser from "cookie-parser";
 
 const PORT = process.env.PORT || 10000;
 const app = express();
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
+app.use(cookieParser())
 app.use(express.urlencoded({ extended: true }));
 // Or for dynamic origins
+// CORS for web + mobile
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:3000',
-      // Add your production domain
-    ];
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: ['http://localhost:3000', 'https://your-production-web.com'],
+  credentials: true, // important for cookies
 }));
 app.use(bodyParser.json());
 
