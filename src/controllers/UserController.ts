@@ -10,7 +10,6 @@ import {
   Put,
   Delete,
   Path,
-  Res,
 } from "tsoa";
 import prisma from "../db.js";
 import { SignupResponse, User } from "../interface/interfaces.js";
@@ -19,7 +18,6 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { SendEmail } from "../utils/utils.js";
 import { MediaService } from "../services/mediaServices.js";
-import { Response } from "express";
 //User route start here
 @Route("user")
 @Tags("User control APIs")
@@ -75,7 +73,7 @@ export class UserController extends Controller {
   @Post("/login")
   public async Login(
     @Body() creditials: { email: string; password: string },
-    @Res() res: Response
+    @Request() req: any
   ): Promise<any> {
     const user = await prisma.user.findUnique({
       where: {
@@ -120,12 +118,14 @@ export class UserController extends Controller {
       };
     }
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // HTTPS in production
-      sameSite: "lax",
-      maxAge: 1 * 60 * 60 * 1000, // 1hr days
-    });
+    if (req.res) {
+      req.res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // HTTPS in production
+        sameSite: "lax",
+        maxAge: 1 * 60 * 60 * 1000, // 1hr days
+      });
+    }
 
     this.setStatus(200);
     return {
