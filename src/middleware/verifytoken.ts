@@ -1,3 +1,4 @@
+// ...existing code...
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../db.js";
@@ -9,21 +10,27 @@ export async function VerifyToken(
   res: Response,
   next: NextFunction
 ) {
+  // prefer cookie (httpOnly) but accept Authorization header
+  const cookieToken = (req as any).cookies?.token;
   const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(404).json({ message: "No token found" });
-  }
+  const bearerToken =
+    authHeader && typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : null;
 
-  const token = req.cookies.token || authHeader.split(" ")[1];
+  const token = cookieToken || bearerToken;
+  if (!token) {
+    return res.status(401).json({ message: "No token found" });
+  }
 
   try {
     const decoded = jwt.verify(
       token,
       process.env.BEARERAUTH_SECRET || "secret-key"
     ) as any;
-    req.user = decoded;
+    (req as any).user = decoded;
 
-    if (decoded.id) {
+    if (decoded?.id) {
       await prisma.user
         .update({
           where: { id: decoded.id },
@@ -35,7 +42,9 @@ export async function VerifyToken(
         .catch((err) => console.error(err));
     }
     next();
-  } catch (error) {
-    return res.status(403).json({ message: "Invalid or expired token" });
+  } catch (error: any) {
+    const msg = error?.name === "TokenExpiredError" ? "Token expired" : "Invalid or expired token";
+    return res.status(403).json({ message: msg });
   }
 }
+// ...existing code...
