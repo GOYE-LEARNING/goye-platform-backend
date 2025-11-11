@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../db.js";
+import dotenv from "dotenv";
+dotenv.config();
 
 export async function VerifyToken(
   req: Request,
