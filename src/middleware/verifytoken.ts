@@ -17,7 +17,7 @@ export async function VerifyToken(
   try {
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "secret-key"
+      process.env.BEARERAUTH_SECRET || "secret-key"
     ) as any;
     req.user = decoded;
 

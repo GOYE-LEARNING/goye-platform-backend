@@ -48,7 +48,7 @@ export class UserController extends Controller {
         role: updateUser.role,
         updateStatus: updateUser.isOnline,
       },
-      (process.env.bearerAuth_SECRET as string) || "secret-key",
+      (process.env.BEARERAUTH_SECRET as string) || "secret-key",
       { expiresIn: "1h" }
     );
 
@@ -96,7 +96,7 @@ export class UserController extends Controller {
         role: updateUser.role,
         updateStatus: updateUser.isOnline,
       },
-      (process.env.bearerAuth_SECRET as string) || "secret-key",
+      (process.env.BEARERAUTH_SECRET as string) || "secret-key",
       { expiresIn: "1h" }
     );
     if (!user) {
