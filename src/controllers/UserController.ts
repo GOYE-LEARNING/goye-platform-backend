@@ -96,8 +96,8 @@ export class UserController extends Controller {
         role: updateUser.role,
         updateStatus: updateUser.isOnline,
       },
-      (process.env.BEARERAUTH_SECRET as string) || "secret-key",
-      { expiresIn: "1h" }
+      (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+      { expiresIn: "7d" }
     );
     if (!user) {
       this.setStatus(404);
@@ -121,9 +121,9 @@ export class UserController extends Controller {
     if (req.res) {
       req.res.cookie("token", token, {
         httpOnly: true,
-        secure: false, // HTTPS in production
+        secure: false, // HTTPS in dev
         sameSite: "lax",
-        maxAge: 1 * 60 * 60 * 1000, // 1hr days
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7days
       });
     }
 
