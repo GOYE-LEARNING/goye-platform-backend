@@ -10,6 +10,7 @@ import {
   Put,
   Delete,
   Path,
+  Res,
 } from "tsoa";
 import prisma from "../db.js";
 import { SignupResponse, User } from "../interface/interfaces.js";
@@ -18,6 +19,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { SendEmail } from "../utils/utils.js";
 import { MediaService } from "../services/mediaServices.js";
+import { Response } from "express";
 //User route start here
 @Route("user")
 @Tags("User control APIs")
@@ -26,7 +28,7 @@ export class UserController extends Controller {
   @Post("/signup")
   public async CreateUser(
     @Body() body: Omit<User, "id">,
-    @Request() req: any
+    @Res() res: Response
   ): Promise<SignupResponse> {
     const hashedPassword = await bcrypt.hash(body.password, 10);
     const data = await prisma.user.create({
@@ -52,14 +54,12 @@ export class UserController extends Controller {
       { expiresIn: "1h" }
     );
 
-    if (req.res) {
-      req.res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // HTTPS in production
-        sameSite: "lax",
-        maxAge: 1 * 60 * 60 * 1000, // 1hr days
-      });
-    }
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // HTTPS in production
+      sameSite: "lax",
+      maxAge: 1 * 60 * 60 * 1000, // 1hr days
+    });
 
     this.setStatus(201);
     return {
@@ -73,7 +73,7 @@ export class UserController extends Controller {
   @Post("/login")
   public async Login(
     @Body() creditials: { email: string; password: string },
-    @Request() req: any
+    @Res() res: Response
   ): Promise<any> {
     const user = await prisma.user.findUnique({
       where: {
@@ -118,18 +118,25 @@ export class UserController extends Controller {
       };
     }
 
-    if (req.res) {
-      req.res.cookie("token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // HTTPS in production
-        sameSite: "lax",
-        maxAge: 1 * 60 * 60 * 1000, // 1hr days
-      });
-    }
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // HTTPS in production
+      sameSite: "lax",
+      maxAge: 1 * 60 * 60 * 1000, // 1hr days
+    });
 
     this.setStatus(200);
     return {
-      data: { message: "Login successfull", token },
+      data: {
+        message: "Login successfull",
+        token,
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          role: user.role,
+        },
+      },
     };
   }
 
@@ -137,7 +144,7 @@ export class UserController extends Controller {
   @Post("/sendOtp")
   public async SendOtp(@Body() body: { email: string }): Promise<any> {
     const otp = crypto.randomInt(100000, 999999).toString();
-    const expires = new Date(Date.now() + 5 * 60 * 1000);
+    const expires = new Date(Date.now() + 5 * 60 * 1000); // expires in 5min
 
     const newOtp = await prisma.otp.create({
       data: {
@@ -195,7 +202,7 @@ export class UserController extends Controller {
       };
     } else if (verifyOtp.expiresIn < new Date()) {
       return {
-        message: "Otp has expited",
+        message: "Otp has expired",
       };
     }
 
@@ -255,30 +262,49 @@ export class UserController extends Controller {
   }
 
   @Security("bearerAuth")
+  @Get("/get-user-password")
+  public async GetPassword(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Password fetched successfully",
+      user,
+    };
+  }
+
+  @Security("bearerAuth")
   @Put("/update-password/{id}")
   public async UpdatePassword(
     @Path() id: string,
     @Request() req: any,
     @Body() body: { newPassword: string }
   ): Promise<any> {
-    const userId = req.user?.Id
+    const userId = req.user?.Id;
     if (userId !== id) {
       return {
-        message: "User must update his own password."
-      }
+        message: "User must update his own password.",
+      };
     }
-    const hashedPassword = await bcrypt.hash(body.newPassword, 10)
-      await prisma.user.update({
-      where: {id},
+    const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+    await prisma.user.update({
+      where: { id },
       data: {
         password: hashedPassword,
-        updatedAt: new Date()
-      }
-    })
+        updatedAt: new Date(),
+      },
+    });
 
     this.setStatus(200);
     return {
-      message: "Password updated successfully"
+      message: "Password updated successfully",
     };
   }
 

@@ -28,7 +28,7 @@ model User {
   post          Post[]
   reply         Reply[]
   quizAttempt   QuizAttempt[] // Added missing relation
-  likes Likes[]
+  likes         Likes[]
 }
 
 model Otp {
@@ -47,8 +47,8 @@ model Post {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   replies   Reply[]  @relation("PostReplies")
-  likes     Likes[]  // Add this line
-  
+  likes     Likes[] // Add this line
+
   @@map("posts")
 }
 
@@ -60,25 +60,25 @@ model Reply {
   createdAt DateTime @default(now())
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade, name: "PostReplies")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  likes     Likes[]  // Add this line
-  
+  likes     Likes[] // Add this line
+
   @@map("replies")
 }
 
 model Likes {
-  id      String   @id @default(cuid()) // Use cuid() for consistency
-  userId  String   // Track which user liked
-  postId  String?  // Make optional for reply likes
-  replyId String?  // Make optional for post likes
-  post    Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  reply   Reply?   @relation(fields: [replyId], references: [id], onDelete: Cascade)
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid()) // Use cuid() for consistency
+  userId    String // Track which user liked
+  postId    String? // Make optional for reply likes
+  replyId   String? // Make optional for post likes
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reply     Reply?   @relation(fields: [replyId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
-  
+  // Ensure a like is either for a post OR a reply, not both
+
   // Ensure a user can only like a post/reply once
   @@unique([userId, postId])
   @@unique([userId, replyId])
-  // Ensure a like is either for a post OR a reply, not both
 }
 
 model Course {
@@ -95,16 +95,17 @@ model Course {
   module                   Module[]
   objectives               Objectives[]
   quiz                     Quiz[]
+  saved                    Boolean      @default(false)
 }
 
 model Event {
-  id String @id @default(ulid())
-  event_name String
+  id                String @id @default(ulid())
+  event_name        String
   event_description String
-  event_time String
-  event_data String
-  event_type String
-  event_link String
+  event_time        String
+  event_data        String
+  event_type        String
+  event_link        String
 }
 
 model Enrollment {
