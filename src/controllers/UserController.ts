@@ -55,9 +55,9 @@ export class UserController extends Controller {
     if (req.res) {
       req.res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // HTTPS in production
-        sameSite: "lax",
-        maxAge: 1 * 60 * 60 * 1000, // 1hr days
+        secure: true, // because you're on localhost
+        sameSite: "none", // must be none for cross-port cookie sharing
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
     }
 
@@ -121,9 +121,9 @@ export class UserController extends Controller {
     if (req.res) {
       req.res.cookie("token", token, {
         httpOnly: true,
-        secure: false, // HTTPS in dev
-        sameSite: "lax",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7days
+        secure: true, // because you're on localhost
+        sameSite: "none", // must be none for cross-port cookie sharing
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
     }
 

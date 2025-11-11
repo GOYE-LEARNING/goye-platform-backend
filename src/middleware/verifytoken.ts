@@ -5,9 +5,14 @@ import prisma from "../db.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-export async function VerifyToken(req: Request, res: Response, next: NextFunction) {
-  const token = req.cookies?.token;
-
+export async function VerifyToken(
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  const tokenFromCookie = req.cookies?.token;
+  const tokenFromHeader = req.headers.authorization?.split(" ")[1];
+  const token = tokenFromCookie || tokenFromHeader;
   if (!token) {
     return res.status(401).json({ message: "No token found" });
   }
@@ -18,10 +23,12 @@ export async function VerifyToken(req: Request, res: Response, next: NextFunctio
 
     // OPTIONAL: mark user online
     if (decoded.id) {
-      prisma.user.update({
-        where: { id: decoded.id },
-        data: { isOnline: true, lastActive: new Date() }
-      }).catch(() => {});
+      prisma.user
+        .update({
+          where: { id: decoded.id },
+          data: { isOnline: true, lastActive: new Date() },
+        })
+        .catch(() => {});
     }
 
     return next();
