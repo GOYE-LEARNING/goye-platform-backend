@@ -28,7 +28,7 @@ export class UserController extends Controller {
   @Post("/signup")
   public async CreateUser(
     @Body() body: Omit<User, "id">,
-    @Res() res: Response
+    @Request() req: any
   ): Promise<SignupResponse> {
     const hashedPassword = await bcrypt.hash(body.password, 10);
     const data = await prisma.user.create({
@@ -54,12 +54,14 @@ export class UserController extends Controller {
       { expiresIn: "1h" }
     );
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // HTTPS in production
-      sameSite: "lax",
-      maxAge: 1 * 60 * 60 * 1000, // 1hr days
-    });
+    if (req.res) {
+      req.res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // HTTPS in production
+        sameSite: "lax",
+        maxAge: 1 * 60 * 60 * 1000, // 1hr days
+      });
+    }
 
     this.setStatus(201);
     return {
