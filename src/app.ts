@@ -18,7 +18,7 @@ app.use(express.urlencoded({ extended: true }));
 // Or for dynamic origins
 // CORS for web + mobile
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://your-production-web.com'],
+  origin: ['http://localhost:3000'],
   credentials: true, // important for cookies
 }));
 app.use(bodyParser.json());
