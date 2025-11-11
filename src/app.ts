@@ -96,6 +96,7 @@ if (!swaggerLoaded) {
   console.log('✅ Basic fallback Swagger UI mounted at /api/docs');
 }
 
+
 // Health check endpoint
 app.get("/health", (req: Request, res: Response) => {
   res.json({ 
