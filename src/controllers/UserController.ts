@@ -510,7 +510,7 @@ export class UserController extends Controller {
     await SendEmail(
       checkEmail.email_address,
       "Forgot Password Link",
-      "http://blahblah.com"
+      body.link
     );
     this.setStatus(200);
     return {
