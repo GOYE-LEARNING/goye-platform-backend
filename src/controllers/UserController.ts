@@ -219,61 +219,71 @@ export class UserController extends Controller {
     };
   }
 
-  //Uploadind of profile picture
-  @Security("bearerAuth")
-  @Post("/upload-profile-picture")
-  public async UploadPicture(
-    @Request() req: any,
-    @Body()
-    body: {
-      file: string;
-      fileName: string;
-      mimeType: string;
-    }
-  ): Promise<any> {
-    const userId = req.user?.id;
-    const fileBuffer = Buffer.from(body.file, "base64");
-    const { url, error } = await MediaService.uploadUserAvatar(
-      userId,
-      fileBuffer,
-      body.fileName,
-      body.mimeType
-    );
+ @Security("bearerAuth")
+@Post("/upload-profile-picture")
+public async UploadPicture(
+  @Request() req: any,
+  @Body()
+  body: {
+    file: string;
+    fileName: string;
+    mimeType: string;
+  }
+): Promise<any> {
+  const userId = req.user?.id;
+  const fileBuffer = Buffer.from(body.file, "base64");
+  
+  // 1. Upload to Firebase
+  const { url, error } = await MediaService.uploadUserAvatar(
+    userId,
+    fileBuffer,
+    body.fileName,
+    body.mimeType
+  );
 
-    if (error) {
-      this.setStatus(500); // Server error
-      return { message: "Upload failed", error };
-    }
-    try {
-      const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-          user_pic: url,
-        },
-        select: {
-          first_name: true,
-          user_pic: true,
-        },
-      });
+  if (error) {
+    this.setStatus(500);
+    return { message: "Upload failed", error };
+  }
 
-      this.setStatus(200);
-      return {
-        message: "Avatar uploaded successfully",
-        user: updatedUser,
-      };
-    } catch (error) {
-      if (error.message.includes("row-level security")) {
-        console.log("RLS detected");
+  try {
+    // 2. Try to update user with Prisma
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { user_pic: url },
+      select: { first_name: true, user_pic: true },
+    });
 
+    this.setStatus(200);
+    return {
+      message: "Avatar uploaded successfully",
+      user: updatedUser,
+    };
+
+  } catch (error: any) {
+    // 3. If RLS error, use raw SQL fallback
+    if (error.message.includes("row-level security")) {
+      console.log("RLS detected, using raw SQL fallback");
+      
+      try {
         await prisma.$executeRaw`UPDATE "User" SET user_pic = ${url} WHERE id = ${userId}`;
+        
         this.setStatus(200);
         return {
-          message: "Profile updated succefully",
-          user_pic: url,
+          message: "Avatar uploaded successfully (used fallback)",
+          user: { user_pic: url }
         };
+      } catch (rawError) {
+        this.setStatus(500);
+        return { message: "Failed to update user profile", error: rawError.message };
       }
     }
+    
+    // 4. Handle other errors
+    this.setStatus(500);
+    return { message: "Failed to update user profile", error: error.message };
   }
+}
 
   @Security("bearerAuth")
   @Get("/get-user-password")

@@ -1,4 +1,4 @@
-import { supabase, BUCKETS } from "../utils/supabase.js";
+import { bucket } from "../utils/firebase.js";
 
 export class MediaService {
   static async uploadUserAvatar(
@@ -9,25 +9,30 @@ export class MediaService {
   ): Promise<{ url: string; error: string | null }> {
     try {
       const fileExt = fileName.split(".").pop();
-      const filePath = `${userId}/avatar-${Date.now()}.${fileExt}`;
+      const filePath = `user_avatars/${userId}/avatar-${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
-        .from(BUCKETS.USER_AVATARS)
-        .upload(filePath, file, {
+      // Upload to Firebase
+      const fileUpload = bucket.file(filePath);
+      
+      await fileUpload.save(file, {
+        metadata: {
           contentType: mimeType,
-          upsert: true,
-        });
+          metadata: {
+            userId: userId,
+            uploadedAt: new Date().toISOString()
+          }
+        }
+      });
 
-      if (error) {
-        return { url: "", error: error.message };
-      }
+      // Make file publicly accessible
+      await fileUpload.makePublic();
 
-      const { data: { publicUrl } } = supabase.storage
-        .from(BUCKETS.USER_AVATARS)
-        .getPublicUrl(filePath);
+      // Get public URL
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
       
       return { url: publicUrl, error: null };
     } catch (error: any) {
+      console.error('Firebase upload error:', error);
       return { url: "", error: error.message };
     }
   }
@@ -41,22 +46,22 @@ export class MediaService {
   ): Promise<{ url: string; error: string | null }> {
     try {
       const fileExt = fileName.split('.').pop();
-      const filePath = `courses/${courseId}/images/${Date.now()}.${fileExt}`;
+      const filePath = `course_images/${courseId}/images/${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
-        .from(BUCKETS.COURSE_IMAGES)
-        .upload(filePath, file, {
+      const fileUpload = bucket.file(filePath);
+      
+      await fileUpload.save(file, {
+        metadata: { 
           contentType: mimeType,
-          upsert: true
-        });
+          metadata: {
+            courseId: courseId,
+            uploadedAt: new Date().toISOString()
+          }
+        }
+      });
 
-      if (error) {
-        return { url: '', error: error.message };
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(BUCKETS.COURSE_IMAGES)
-        .getPublicUrl(filePath);
+      await fileUpload.makePublic();
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
       return { url: publicUrl, error: null };
     } catch (error: any) {
@@ -74,22 +79,23 @@ export class MediaService {
   ): Promise<{ url: string; error: string | null }> {
     try {
       const fileExt = fileName.split('.').pop();
-      const filePath = `courses/${courseId}/modules/${moduleId}/videos/${Date.now()}.${fileExt}`;
+      const filePath = `lesson_videos/${courseId}/modules/${moduleId}/videos/${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
-        .from(BUCKETS.LESSON_VIDEOS)
-        .upload(filePath, file, {
+      const fileUpload = bucket.file(filePath);
+      
+      await fileUpload.save(file, {
+        metadata: { 
           contentType: mimeType,
-          upsert: false
-        });
+          metadata: {
+            courseId: courseId,
+            moduleId: moduleId,
+            uploadedAt: new Date().toISOString()
+          }
+        }
+      });
 
-      if (error) {
-        return { url: '', error: error.message };
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(BUCKETS.LESSON_VIDEOS)
-        .getPublicUrl(filePath);
+      await fileUpload.makePublic();
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
       return { url: publicUrl, error: null };
     } catch (error: any) {
@@ -105,23 +111,22 @@ export class MediaService {
     mimeType: string
   ): Promise<{ url: string; error: string | null }> {
     try {
-      const fileExt = fileName.split('.').pop();
-      const filePath = `courses/${courseId}/materials/${Date.now()}-${fileName}`;
+      const filePath = `course_materials/${courseId}/materials/${Date.now()}-${fileName}`;
 
-      const { data, error } = await supabase.storage
-        .from(BUCKETS.COURSE_MATERIALS)
-        .upload(filePath, file, {
+      const fileUpload = bucket.file(filePath);
+      
+      await fileUpload.save(file, {
+        metadata: { 
           contentType: mimeType,
-          upsert: false
-        });
+          metadata: {
+            courseId: courseId,
+            uploadedAt: new Date().toISOString()
+          }
+        }
+      });
 
-      if (error) {
-        return { url: '', error: error.message };
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(BUCKETS.COURSE_MATERIALS)
-        .getPublicUrl(filePath);
+      await fileUpload.makePublic();
+      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
 
       return { url: publicUrl, error: null };
     } catch (error: any) {
@@ -130,14 +135,12 @@ export class MediaService {
   }
 
   // Delete file
-  static async deleteFile(bucket: string, filePath: string): Promise<boolean> {
+  static async deleteFile(filePath: string): Promise<boolean> {
     try {
-      const { error } = await supabase.storage
-        .from(bucket)
-        .remove([filePath]);
-
-      return !error;
+      await bucket.file(filePath).delete();
+      return true;
     } catch (error) {
+      console.error('Delete error:', error);
       return false;
     }
   }
