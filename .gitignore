@@ -1,4 +1,9 @@
 # In backend/.gitignore
+# Service account keys
+service-account-key.json
+service_account.json
+*.json
+src/utils/service_account.json
 node_modules/
 dist/
 build/
