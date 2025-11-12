@@ -1,4 +1,4 @@
-import { bucket } from "../utils/firebase.js";
+import cloudinary from "../utils/cloudinary.js";
 
 export class MediaService {
   static async uploadUserAvatar(
@@ -8,36 +8,28 @@ export class MediaService {
     mimeType: string
   ): Promise<{ url: string; error: string | null }> {
     try {
-      const fileExt = fileName.split(".").pop();
-      const filePath = `user_avatars/${userId}/avatar-${Date.now()}.${fileExt}`;
-
-      // Upload to Firebase
-      const fileUpload = bucket.file(filePath);
+      console.log('📤 Uploading to Cloudinary...');
       
-      await fileUpload.save(file, {
-        metadata: {
-          contentType: mimeType,
-          metadata: {
-            userId: userId,
-            uploadedAt: new Date().toISOString()
-          }
-        }
+      // Convert buffer to base64
+      const base64File = `data:${mimeType};base64,${file.toString('base64')}`;
+      
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: "user_avatars",
+        public_id: `avatar_${userId}_${Date.now()}`,
+        overwrite: true,
+        resource_type: "auto", // Automatically detect image/video
       });
 
-      // Make file publicly accessible
-      await fileUpload.makePublic();
-
-      // Get public URL
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
+      console.log('✅ Upload successful:', result.secure_url);
+      return { url: result.secure_url, error: null };
       
-      return { url: publicUrl, error: null };
     } catch (error: any) {
-      console.error('Firebase upload error:', error);
+      console.error('❌ Cloudinary upload error:', error);
       return { url: "", error: error.message };
     }
   }
 
-  // Upload course image
   static async uploadCourseImage(
     courseId: string,
     file: Buffer,
@@ -45,31 +37,21 @@ export class MediaService {
     mimeType: string
   ): Promise<{ url: string; error: string | null }> {
     try {
-      const fileExt = fileName.split('.').pop();
-      const filePath = `course_images/${courseId}/images/${Date.now()}.${fileExt}`;
-
-      const fileUpload = bucket.file(filePath);
+      const base64File = `data:${mimeType};base64,${file.toString('base64')}`;
       
-      await fileUpload.save(file, {
-        metadata: { 
-          contentType: mimeType,
-          metadata: {
-            courseId: courseId,
-            uploadedAt: new Date().toISOString()
-          }
-        }
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: "course_images",
+        public_id: `course_${courseId}_${Date.now()}`,
+        overwrite: true,
+        resource_type: "auto",
       });
 
-      await fileUpload.makePublic();
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
-      return { url: publicUrl, error: null };
+      return { url: result.secure_url, error: null };
     } catch (error: any) {
       return { url: '', error: error.message };
     }
   }
 
-  // Upload lesson video
   static async uploadLessonVideo(
     courseId: string,
     moduleId: string,
@@ -78,32 +60,21 @@ export class MediaService {
     mimeType: string
   ): Promise<{ url: string; error: string | null }> {
     try {
-      const fileExt = fileName.split('.').pop();
-      const filePath = `lesson_videos/${courseId}/modules/${moduleId}/videos/${Date.now()}.${fileExt}`;
-
-      const fileUpload = bucket.file(filePath);
+      const base64File = `data:${mimeType};base64,${file.toString('base64')}`;
       
-      await fileUpload.save(file, {
-        metadata: { 
-          contentType: mimeType,
-          metadata: {
-            courseId: courseId,
-            moduleId: moduleId,
-            uploadedAt: new Date().toISOString()
-          }
-        }
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: `lesson_videos/${courseId}/${moduleId}`,
+        public_id: `video_${Date.now()}`,
+        resource_type: "video", // Specify video type
+        chunk_size: 6000000, // 6MB chunks for large videos
       });
 
-      await fileUpload.makePublic();
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
-      return { url: publicUrl, error: null };
+      return { url: result.secure_url, error: null };
     } catch (error: any) {
       return { url: '', error: error.message };
     }
   }
 
-  // Upload course material document
   static async uploadCourseMaterial(
     courseId: string,
     file: Buffer,
@@ -111,34 +82,24 @@ export class MediaService {
     mimeType: string
   ): Promise<{ url: string; error: string | null }> {
     try {
-      const filePath = `course_materials/${courseId}/materials/${Date.now()}-${fileName}`;
-
-      const fileUpload = bucket.file(filePath);
+      const base64File = `data:${mimeType};base64,${file.toString('base64')}`;
       
-      await fileUpload.save(file, {
-        metadata: { 
-          contentType: mimeType,
-          metadata: {
-            courseId: courseId,
-            uploadedAt: new Date().toISOString()
-          }
-        }
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: "course_materials",
+        public_id: `material_${courseId}_${Date.now()}_${fileName}`,
+        resource_type: "auto", // Handles PDFs, docs, etc.
       });
 
-      await fileUpload.makePublic();
-      const publicUrl = `https://storage.googleapis.com/${bucket.name}/${filePath}`;
-
-      return { url: publicUrl, error: null };
+      return { url: result.secure_url, error: null };
     } catch (error: any) {
       return { url: '', error: error.message };
     }
   }
 
-  // Delete file
-  static async deleteFile(filePath: string): Promise<boolean> {
+  static async deleteFile(publicId: string): Promise<boolean> {
     try {
-      await bucket.file(filePath).delete();
-      return true;
+      const result = await cloudinary.uploader.destroy(publicId);
+      return result.result === 'ok';
     } catch (error) {
       console.error('Delete error:', error);
       return false;
