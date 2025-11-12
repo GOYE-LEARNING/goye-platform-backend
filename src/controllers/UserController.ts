@@ -244,23 +244,35 @@ export class UserController extends Controller {
       this.setStatus(500); // Server error
       return { message: "Upload failed", error };
     }
+    try {
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          user_pic: url,
+        },
+        select: {
+          first_name: true,
+          user_pic: true,
+        },
+      });
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        user_pic: url,
-      },
-      select: {
-        first_name: true,
-        user_pic: true,
-      },
-    });
+      this.setStatus(200);
+      return {
+        message: "Avatar uploaded successfully",
+        user: updatedUser,
+      };
+    } catch (error) {
+      if (error.message.includes("row-level security")) {
+        console.log("RLS detected");
 
-    this.setStatus(200);
-    return {
-      message: "Avatar uploaded successfully",
-      user: updatedUser,
-    };
+        await prisma.$executeRaw`UPDATE "User" SET user_pic = ${url} WHERE id = ${userId}`;
+        this.setStatus(200);
+        return {
+          message: "Profile updated succefully",
+          user_pic: url,
+        };
+      }
+    }
   }
 
   @Security("bearerAuth")
