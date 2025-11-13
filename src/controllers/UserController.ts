@@ -199,6 +199,7 @@ export class UserController extends Controller {
     });
 
     if (!verifyOtp) {
+      this.setStatus(400)
       return {
         message: "Oops otp not verified.",
       };
@@ -357,6 +358,7 @@ public async UploadPicture(
     });
 
     if (!getUser) {
+      this.setStatus(404)
       return {
         message: "User not found",
       };
