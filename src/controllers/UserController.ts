@@ -502,7 +502,7 @@ public async UploadPicture(
   @Security("bearerAuth")
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
-    const userId = req.user.id;
+    const userId = req.user?.id;
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
     if (!userId) {
