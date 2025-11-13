@@ -516,7 +516,13 @@ export class UserController extends Controller {
     return {
       message: "Profile fetched succfully",
       user: {
-        ...user,
+        id: user.id,
+        fist_name: user.first_name,
+        last_name: user.lastActive,
+        password: user.password,
+        country: user.country,
+        state: user.state,
+        phone_number: user.phone_number,
       },
     };
   }
