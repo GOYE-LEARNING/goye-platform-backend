@@ -66,8 +66,11 @@ export class UserController extends Controller {
       message: "Signup successfull",
       token,
       user: {
-        ...updateUser as any
-      }
+        id: updateUser.id,
+        first_name: updateUser.first_name,
+        last_name: updateUser.last_name,
+        email_address: updateUser.email_address,
+      },
     };
   }
 
@@ -518,7 +521,7 @@ export class UserController extends Controller {
     this.setStatus(200);
     return {
       message: "Profile fetched succfully",
-      user
+      user,
     };
   }
 
