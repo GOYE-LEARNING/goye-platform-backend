@@ -320,11 +320,7 @@ export class UserController extends Controller {
     @Body() body: { newPassword: string }
   ): Promise<any> {
     const userId = req.user?.Id;
-    if (!userId) {
-      return {
-        message: "User must update his own password.",
-      };
-    }
+
     const hashedPassword = await bcrypt.hash(body.newPassword, 10);
     await prisma.user.update({
       where: { id: userId },
@@ -379,7 +375,7 @@ export class UserController extends Controller {
 
   //update User
   @Security("bearerAuth")
-  @Put("update-user")
+  @Put("/update-user")
   public async UpdateUser(
     @Request() req: any,
     @Body()
