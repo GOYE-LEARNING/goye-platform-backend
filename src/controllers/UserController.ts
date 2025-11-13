@@ -505,12 +505,13 @@ export class UserController extends Controller {
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
     const userId = req.user?.id;
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-
+    
     if (!userId) {
       this.setStatus(401);
       return { message: "Unauthorized" };
     }
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
 
     this.setStatus(200);
     return {
