@@ -32,6 +32,12 @@ export class UserController extends Controller {
     const user = await prisma.user.create({
       data: { ...body, password: hashedPassword },
     });
+    if (user) {
+      this.setStatus(401);
+      return {
+        messgae: "User already exist",
+      };
+    }
 
     const updateUser = await prisma.user.update({
       where: { id: user.id },
@@ -319,7 +325,7 @@ export class UserController extends Controller {
     @Request() req: any,
     @Body() body: { newPassword: string }
   ): Promise<any> {
-    const userId = req.user?.Id;
+    const userId = req.user?.id;
 
     const hashedPassword = await bcrypt.hash(body.newPassword, 10);
     await prisma.user.update({
