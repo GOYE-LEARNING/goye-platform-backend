@@ -20,7 +20,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     origin: ["http://localhost:3000"],
-    methods: ["POST", "DELETE", "UPDATE", "GET"],
+    methods: ["POST", "DELETE", "GET", "PUT", "PATCH"],
     credentials: true, // important for cookies
   })
 );
