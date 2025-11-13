@@ -15,7 +15,6 @@ export class MediaService {
 
       // Upload to Cloudinary
       const result = await cloudinary.uploader.upload(base64File, {
-        folder: "user_avatars",
         public_id: `avatar_${userId}_${Date.now()}`,
         overwrite: true,
         resource_type: "image", // Automatically detect image/video
@@ -42,7 +41,6 @@ export class MediaService {
       const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
 
       const result = await cloudinary.uploader.upload(base64File, {
-        folder: "course_images",
         public_id: `course_${courseId}_${Date.now()}`,
         overwrite: true,
         resource_type: "auto",
@@ -65,7 +63,6 @@ export class MediaService {
       const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
 
       const result = await cloudinary.uploader.upload(base64File, {
-        folder: `lesson_videos/${courseId}/${moduleId}`,
         public_id: `video_${Date.now()}`,
         resource_type: "video", // Specify video type
         chunk_size: 6000000, // 6MB chunks for large videos
@@ -87,7 +84,6 @@ export class MediaService {
       const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
 
       const result = await cloudinary.uploader.upload(base64File, {
-        folder: "course_materials",
         public_id: `material_${courseId}_${Date.now()}_${fileName}`,
         resource_type: "auto", // Handles PDFs, docs, etc.
       });
