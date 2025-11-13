@@ -27,14 +27,14 @@ export class UserController extends Controller {
   public async CreateUser(
     @Body() body: Omit<User, "id">,
     @Request() req: any
-  ): Promise<SignupResponse> {
+  ): Promise<any> {
     const hashedPassword = await bcrypt.hash(body.password, 10);
-    const data = await prisma.user.create({
+    const user = await prisma.user.create({
       data: { ...body, password: hashedPassword },
     });
 
     const updateUser = await prisma.user.update({
-      where: { id: data.id },
+      where: { id: user.id },
       data: {
         isOnline: true,
         lastActive: new Date(),
@@ -64,8 +64,10 @@ export class UserController extends Controller {
     this.setStatus(201);
     return {
       message: "Signup successfull",
-      data,
       token,
+      user: {
+        ...updateUser as any
+      }
     };
   }
 
@@ -505,7 +507,7 @@ export class UserController extends Controller {
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       this.setStatus(401);
       return { message: "Unauthorized" };
@@ -516,16 +518,7 @@ export class UserController extends Controller {
     this.setStatus(200);
     return {
       message: "Profile fetched succfully",
-      user: {
-        user_id: user.id,
-        user_pic: user.user_pic,
-        first_name: user.first_name,
-        last_name: user.lastActive,
-        password: user.password,
-        country: user.country,
-        state: user.state,
-        phone_number: user.phone_number,
-      },
+      user
     };
   }
 
