@@ -172,6 +172,7 @@ export class UserController extends Controller {
     return {
       message: "Otp sent successfully",
       sessionToken,
+      otp,
       email: body.email,
     };
   }
