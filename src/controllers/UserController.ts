@@ -380,19 +380,41 @@ export class UserController extends Controller {
 
   //update User
   @Security("bearerAuth")
-  @Put("update-user/{id}")
+  @Put("update-user")
   public async UpdateUser(
-    @Path() id: string,
-    @Body() data: Partial<User>
-  ): Promise<SignupResponse> {
+    @Request() req: any,
+    @Body()
+    data: {
+      first_name: string;
+      last_name: string;
+      country: string;
+      state: string;
+      phone_number: string;
+    }
+  ): Promise<any> {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(404);
+      return {
+        message: "User not found",
+      };
+    }
+
     const user = await prisma.user.update({
-      where: { id: id },
-      data: { ...data },
+      where: { id: userId },
+      data: {
+        first_name: data.first_name,
+        last_name: data.last_name,
+        country: data.country,
+        state: data.state,
+        phone_number: data.phone_number,
+      },
     });
 
     this.setStatus(201);
     return {
-      message: "User is updated",
+      message: "User is updated succefully",
       data: user,
     };
   }
