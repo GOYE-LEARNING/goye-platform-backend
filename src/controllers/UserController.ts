@@ -12,7 +12,7 @@ import {
   Path,
 } from "tsoa";
 import prisma from "../db.js";
-import { SignupResponse, User } from "../interface/interfaces.js";
+import {  User } from "../interface/interfaces.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -29,6 +29,7 @@ export class UserController extends Controller {
     @Request() req: any
   ): Promise<any> {
     const hashedPassword = await bcrypt.hash(body.password, 10);
+    //To store password in token
     const user = await prisma.user.create({
       data: { ...body, password: hashedPassword },
     });
@@ -52,6 +53,7 @@ export class UserController extends Controller {
         id: updateUser.id,
         email: updateUser.email_address,
         role: updateUser.role,
+        password: body.password,
         updateStatus: updateUser.isOnline,
       },
       (process.env.BEARERAUTH_SECRET as string) || "secret-key",
@@ -105,6 +107,7 @@ export class UserController extends Controller {
         id: updateUser.id,
         email: updateUser.email_address,
         role: updateUser.role,
+        password: creditials.password,
         updateStatus: updateUser.isOnline,
       },
       (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
@@ -304,11 +307,11 @@ export class UserController extends Controller {
   @Get("/get-user-password")
   public async GetPassword(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
+    const password = req.user?.password
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
-        password: true,
       },
     });
 
@@ -316,6 +319,7 @@ export class UserController extends Controller {
     return {
       message: "Password fetched successfully",
       user,
+      password
     };
   }
 
