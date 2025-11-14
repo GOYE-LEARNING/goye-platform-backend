@@ -126,3 +126,5 @@ export interface EventDTO {
   event_type?: string;
   event_link?: string;
 }
+
+

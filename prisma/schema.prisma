@@ -150,7 +150,7 @@ model Lesson {
   lesson_title String
   lesson_video String
   moduleId     String
-  order        Int      @default(0) // Added for ordering
+  order        Int?      @default(0) // Added for ordering
   duration     Int? // Added duration in minutes
   createdAt    DateTime @default(now()) // Added missing createdAt
   updatedAt    DateTime @updatedAt // Added missing updatedAt
@@ -193,7 +193,7 @@ model Question {
   correctAnswer String // The correct answer
   explanation   String? // Explanation of the answer
   points        Int      @default(1) // Points for this question
-  order         Int // Order in the quiz
+  order         Int? // Order in the quiz
   quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId        String
   createdAt     DateTime @default(now())

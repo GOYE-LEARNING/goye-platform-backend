@@ -10,232 +10,320 @@ import {
   Security,
   Request,
   Delete,
+  Query,
 } from "tsoa";
 import prisma from "../db.js";
 import { Course, CourseResponse, Module } from "../interface/interfaces.js";
-import { UpdateCourseWithRelationsDTO } from "../dto/course.dto.js";
+import {
+  CreateCourseDTO,
+  UpdateCourseWithRelationsDTO,
+} from "../dto/course.dto.js";
 import { MediaService } from "../services/mediaServices.js";
 
 @Route("course")
 @Tags("Course Control APIs")
 export class CourseController extends Controller {
   //create Course
+
   @Security("bearerAuth")
   @Post("/create-course")
   public async CreateCourse(
-    @Body() body: Omit<Course, "id">
+    @Body() body: CreateCourseDTO
   ): Promise<CourseResponse> {
-    const course = await prisma.course.create({ data: { ...(body as any) } });
-    this.setStatus(201);
-    return {
-      message: "Course created successfully",
-      data: course,
-    };
-  }
+    try {
+      const course = await prisma.course.create({
+        data: {
+          course_title: body.course_title,
+          course_short_description: body.course_short_description,
+          course_description: body.course_description,
+          course_level: body.course_level,
+          course_image: body.course_image,
 
-  @Get("/get-courses")
-  public async GetCourse(@Request() req: any): Promise<any> {
-    const course = await prisma.course.findMany({
-      include: {
-        _count: {
-          select: {
-            module: true,
-            material: true,
-            quiz: true,
-            enrollment: true
-          }
-        }
-      }
-    });
-    this.setStatus(200);
-    return {
-      message: "Course Fetched Successfully",
-      course,
-    };
-  }
+          // Handle modules with lessons
+          ...(body.module && {
+            module: {
+              create: body.module.map((module, index) => ({
+                module_title: module.module_title,
+                module_description: module.module_description,
+                module_duration: module.module_duration,
+                order: module.order || index,
+                ...(module.lessons && {
+                  lesson: {
+                    create: module.lessons.map((lesson, lessonIndex) => ({
+                      lesson_title: lesson.lesson_title,
+                      lesson_video: lesson.lesson_video,
+                      order: lesson.order || lessonIndex,
+                      duration: lesson.duration,
+                    })),
+                  },
+                }),
+              })),
+            },
+          }),
 
-  @Get("/get-courses/{id}")
-  public async GetCourseById(@Path() id: string) {
-    const getCourseById = await prisma.course.findUnique({
-      where: { id: id },
-      include: {
-        module: {
-          include: {
-            lesson: true
-          }
+          // Handle materials
+          ...(body.material && {
+            material: {
+              create: body.material.map((material) => ({
+                material_title: material.material_title,
+                material_description: material.material_description,
+                material_pages: material.material_pages,
+                material_document: material.material_document,
+              })),
+            },
+          }),
+
+          // Handle objectives
+          ...(body.objectives && {
+            objectives: {
+              create: body.objectives.map((objective) => ({
+                objective_title1: objective.objective_title1,
+                objective_title2: objective.objective_title2,
+                objective_title3: objective.objective_title3,
+                objective_title4: objective.objective_title4,
+                objective_title5: objective.objective_title5,
+              })),
+            },
+          }),
+
+          // Handle quizzes with questions
+          ...(body.quiz && {
+            quiz: {
+              create: body.quiz.map((quiz) => ({
+                title: quiz.title,
+                description: quiz.description,
+                duration: quiz.duration,
+                passingScore: quiz.passingScore,
+                maxAttempts: quiz.maxAttempts,
+                ...(quiz.questions && {
+                  questions: {
+                    create: quiz.questions.map((question, qIndex) => ({
+                      question: question.question,
+                      options: question.options,
+                      correctAnswer: question.correctAnswer,
+                      explanation: question.explanation,
+                      order: question.order || qIndex,
+                    })),
+                  },
+                }),
+              })),
+            },
+          }),
         },
-        material: true,
-        objectives: true,
-        quiz: {
-          include: {
-            questions: {
-              select: {
-                id: true,
-                question: true,
-                options: true,
-                order: true,
-                points: true
-              }
-            }
-          }
+        include: {
+          module: {
+            include: {
+              lesson: true,
+            },
+            orderBy: {
+              order: "asc",
+            },
+          },
+          material: true,
+          objectives: true,
+          quiz: {
+            include: {
+              questions: {
+                orderBy: {
+                  order: "asc",
+                },
+              },
+            },
+          },
         },
-        _count: {
-          select: {
-            enrollment: true,
-            module: true
-          }
-        }
-      }
-    });
+      });
 
-    if (!getCourseById) {
-      this.setStatus(404);
-      return { message: "Course not found" };
+      this.setStatus(201);
+      return {
+        message: "Course created successfully",
+        data: course,
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Error creating course: " + error.message,
+        data: null,
+      };
     }
-
-    this.setStatus(200);
-    return {
-      message: "Course fetched successfully",
-      data: getCourseById,
-    };
   }
 
   @Security("bearerAuth")
-  @Put("update-course/{id}")
+  @Put("/update-course/{courseId}")
   public async UpdateCourse(
-    @Path() id: string,
-    @Body() data: UpdateCourseWithRelationsDTO
-  ): Promise<any> {
-    const updateCourse = await prisma.course.update({
-      where: { id },
-      data: {
-        course_title: data.course_title,
-        course_short_description: data.course_short_description,
-        course_description: data.course_description,
-        course_level: data.course_level,
-        course_image: data.course_image,
-        module: {
-          upsert:
-            data.modules?.map((m) => ({
-              where: { id: m.id || "" },
-              update: {
-                module_title: m.module_title,
-                module_description: m.module_description,
-                module_duration: m.module_duration,
-                lesson: {
-                  upsert:
-                    m.lessons?.map((l) => ({
-                      where: { id: l.id || "" },
-                      update: {
-                        lesson_title: l.lesson_title,
-                        lesson_video: l.lesson_video,
-                      },
-                      create: {
-                        lesson_title: l.lesson_title!,
-                        lesson_video: l.lesson_video!,
-                      },
-                    })) || [],
-                },
-              },
-              create: {
-                module_title: m.module_title!,
-                module_description: m.module_description!,
-                module_duration: m.module_duration!,
-              },
-            })) || [],
-        },
+    @Path() courseId: string,
+    @Body() body: UpdateCourseWithRelationsDTO
+  ): Promise<CourseResponse> {
+    try {
+      // First, check if course exists
+      const existingCourse = await prisma.course.findUnique({
+        where: { id: courseId },
+      });
 
-        material: {
-          upsert:
-            data.materials?.map((mat) => ({
-              where: { id: mat.id || "" },
-              update: { ...mat },
-              create: { ...mat },
-            })) as any,
-        },
-
-        objectives: {
-          upsert:
-            data.objectives?.map((obj) => ({
-              where: { id: obj.id || "" },
-              update: { ...obj },
-              create: { ...obj },
-            })) as any,
-        },
-
-        quiz: {
-          upsert:
-            data.quiz?.map((q) => ({
-              where: { id: q.id || "" },
-              update: {
-                title: q.quiz_title,
-                description: q.quiz_description,
-                duration: q.quiz_duration,
-                passingScore: q.quiz_score,
-                questions: {
-                  upsert:
-                    q.questions?.map((ques) => ({
-                      where: { id: ques.id || "" },
-                      update: { 
-                        question: ques.question_name,
-                        options: [],
-                        correctAnswer: "",
-                        points: 1,
-                        order: 0
-                      },
-                      create: { 
-                        question: ques.question_name!,
-                        options: [],
-                        correctAnswer: "",
-                        points: 1,
-                        order: 0
-                      },
-                    })) || [],
-                },
-              },
-              create: {
-                title: q.quiz_title!,
-                description: q.quiz_description!,
-                duration: q.quiz_duration!,
-                passingScore: q.quiz_score!,
-                courseId: id,
-              },
-            })) || [],
-        },
-      },
-      include: {
-        module: {
-          include: {
-            lesson: true
-          }
-        },
-        material: true,
-        quiz: {
-          include: {
-            questions: true
-          }
-        }
+      if (!existingCourse) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+          data: null,
+        };
       }
-    });
 
-    return {
-      message: "Course and relations updated successfully",
-      data: updateCourse,
-    };
+      const updatedCourse = await prisma.course.update({
+        where: { id: courseId },
+        data: {
+          ...(body.course_title && { course_title: body.course_title }),
+          ...(body.course_short_description && {
+            course_short_description: body.course_short_description,
+          }),
+          ...(body.course_description && {
+            course_description: body.course_description,
+          }),
+          ...(body.course_level && { course_level: body.course_level }),
+          ...(body.course_image && { course_image: body.course_image }),
+        },
+        include: {
+          module: {
+            include: { lesson: true },
+            orderBy: { order: "asc" },
+          },
+          material: true,
+          objectives: true,
+          quiz: {
+            include: {
+              questions: {
+                orderBy: { order: "asc" },
+              },
+            },
+          },
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Course updated successfully",
+        data: updatedCourse,
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Error updating course: " + error.message,
+        data: null,
+      };
+    }
   }
 
   @Security("bearerAuth")
-  @Delete("delete-course/{id}")
-  public async DeleteCourse(@Path() id: string) {
-    const deleteCourse = await prisma.course.delete({
-      where: { id },
-    });
+  @Get("/get-all-courses")
+  public async GetAllCourses(): Promise<CourseResponse> {
+    try {
+      const getAllCourses = await prisma.course.findMany();
+      this.setStatus(200);
+      return {
+        message: "Courses fetched successfully",
+        data: {
+          getAllCourses,
+        },
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Error fetching courses: " + error.message,
+        data: null,
+      };
+    }
+  }
 
-    this.setStatus(200);
-    return {
-      message: "Course deleted successfully",
-      data: deleteCourse,
-    };
+  @Get("/get-course/{courseId}")
+  public async GetCourseById(
+    @Path() courseId: string
+  ): Promise<CourseResponse> {
+    try {
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        include: {
+          module: {
+            include: { lesson: true },
+            orderBy: { order: "asc" },
+          },
+          material: true,
+          objectives: true,
+          quiz: {
+            include: {
+              questions: {
+                orderBy: { order: "asc" },
+              },
+            },
+          },
+          enrollment: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!course) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+          data: null,
+        };
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Course fetched successfully",
+        data: course,
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Error fetching course: " + error.message,
+        data: null,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Delete("/delete-course/{courseId}")
+  public async DeleteCourse(@Path() courseId: string): Promise<CourseResponse> {
+    try {
+      // Check if course exists
+      const existingCourse = await prisma.course.findUnique({
+        where: { id: courseId },
+      });
+
+      if (!existingCourse) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+          data: null,
+        };
+      }
+
+      // Delete course (cascade will handle related records)
+      await prisma.course.delete({
+        where: { id: courseId },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Course deleted successfully",
+        data: null,
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Error deleting course: " + error.message,
+        data: null,
+      };
+    }
   }
 
   // FILE UPLOAD ENDPOINTS
@@ -244,7 +332,8 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   public async UploadCourseImage(
     @Path() courseId: string,
-    @Body() body: { 
+    @Body()
+    body: {
       file: string;
       fileName: string;
       mimeType: string;
@@ -252,7 +341,7 @@ export class CourseController extends Controller {
   ): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
-        where: { id: courseId }
+        where: { id: courseId },
       });
 
       if (!course) {
@@ -260,7 +349,7 @@ export class CourseController extends Controller {
         return { message: "Course not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, 'base64');
+      const fileBuffer = Buffer.from(body.file, "base64");
 
       const { url, error } = await MediaService.uploadCourseImage(
         courseId,
@@ -276,7 +365,7 @@ export class CourseController extends Controller {
 
       const updatedCourse = await prisma.course.update({
         where: { id: courseId },
-        data: { course_image: url }
+        data: { course_image: url },
       });
 
       this.setStatus(200);
@@ -284,15 +373,14 @@ export class CourseController extends Controller {
         message: "Course image uploaded successfully",
         data: {
           courseId: updatedCourse.id,
-          imageUrl: updatedCourse.course_image
-        }
+          imageUrl: updatedCourse.course_image,
+        },
       };
-
     } catch (error: any) {
       this.setStatus(500);
       return {
         message: "Failed to upload course image",
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -302,7 +390,8 @@ export class CourseController extends Controller {
   public async UploadLessonVideo(
     @Path() courseId: string,
     @Path() moduleId: string,
-    @Body() body: {
+    @Body()
+    body: {
       file: string;
       fileName: string;
       mimeType: string;
@@ -312,10 +401,10 @@ export class CourseController extends Controller {
   ): Promise<any> {
     try {
       const module = await prisma.module.findFirst({
-        where: { 
+        where: {
           id: moduleId,
-          courseId: courseId 
-        }
+          courseId: courseId,
+        },
       });
 
       if (!module) {
@@ -323,7 +412,7 @@ export class CourseController extends Controller {
         return { message: "Module not found in this course" };
       }
 
-      const fileBuffer = Buffer.from(body.file, 'base64');
+      const fileBuffer = Buffer.from(body.file, "base64");
 
       const { url, error } = await MediaService.uploadLessonVideo(
         courseId,
@@ -343,7 +432,7 @@ export class CourseController extends Controller {
           lesson_title: body.lessonTitle,
           lesson_video: url,
           moduleId: moduleId,
-          duration: body.duration || 0
+          duration: body.duration || 0,
         },
         include: {
           module: {
@@ -353,25 +442,24 @@ export class CourseController extends Controller {
               course: {
                 select: {
                   id: true,
-                  course_title: true
-                }
-              }
-            }
-          }
-        }
+                  course_title: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       this.setStatus(201);
       return {
         message: "Lesson video uploaded successfully",
-        data: newLesson
+        data: newLesson,
       };
-
     } catch (error: any) {
       this.setStatus(500);
       return {
         message: "Failed to upload lesson video",
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -380,7 +468,8 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   public async UploadCourseMaterial(
     @Path() courseId: string,
-    @Body() body: {
+    @Body()
+    body: {
       file: string;
       fileName: string;
       mimeType: string;
@@ -391,7 +480,7 @@ export class CourseController extends Controller {
   ): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
-        where: { id: courseId }
+        where: { id: courseId },
       });
 
       if (!course) {
@@ -399,7 +488,7 @@ export class CourseController extends Controller {
         return { message: "Course not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, 'base64');
+      const fileBuffer = Buffer.from(body.file, "base64");
 
       const { url, error } = await MediaService.uploadCourseMaterial(
         courseId,
@@ -419,29 +508,28 @@ export class CourseController extends Controller {
           material_description: body.materialDescription as string,
           material_pages: body.pages || 0,
           material_document: url,
-          courseId: courseId
+          courseId: courseId,
         },
         include: {
           course: {
             select: {
               id: true,
-              course_title: true
-            }
-          }
-        }
+              course_title: true,
+            },
+          },
+        },
       });
 
       this.setStatus(201);
       return {
         message: "Course material uploaded successfully",
-        data: newMaterial
+        data: newMaterial,
       };
-
     } catch (error: any) {
       this.setStatus(500);
       return {
         message: "Failed to upload course material",
-        error: error.message
+        error: error.message,
       };
     }
   }
@@ -454,20 +542,20 @@ export class CourseController extends Controller {
         course: {
           select: {
             id: true,
-            course_title: true
-          }
-        }
+            course_title: true,
+          },
+        },
       },
       orderBy: {
-        createdAt: 'desc'
-      }
+        createdAt: "desc",
+      },
     });
 
     this.setStatus(200);
     return {
       message: "Course materials fetched successfully",
       data: materials,
-      count: materials.length
+      count: materials.length,
     };
   }
 
@@ -481,7 +569,7 @@ export class CourseController extends Controller {
   ): Promise<any> {
     const createModule = await prisma.module.create({
       data: {
-        ...body as any
+        ...(body as any),
       },
     });
 
@@ -499,16 +587,16 @@ export class CourseController extends Controller {
         course: {
           select: {
             id: true,
-            course_title: true
-          }
+            course_title: true,
+          },
         },
         lesson: true,
         _count: {
           select: {
-            lesson: true
-          }
-        }
-      }
+            lesson: true,
+          },
+        },
+      },
     });
     this.setStatus(200);
     return {
@@ -527,16 +615,16 @@ export class CourseController extends Controller {
       include: {
         lesson: {
           orderBy: {
-            order: 'asc'
-          }
+            order: "asc",
+          },
         },
         course: {
           select: {
             id: true,
-            course_title: true
-          }
-        }
-      }
+            course_title: true,
+          },
+        },
+      },
     });
 
     if (!getModuleById) {
@@ -555,7 +643,8 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   public async UpdateModule(
     @Path() id: string,
-    @Body() body: {
+    @Body()
+    body: {
       module_title?: string;
       module_description?: string;
       module_duration?: string;
@@ -590,7 +679,8 @@ export class CourseController extends Controller {
   // ... YOUR QUIZ METHODS (they remain the same) ...
   @Post("/create-quiz")
   public async CreateQuiz(
-    @Body() body: {
+    @Body()
+    body: {
       title: string;
       description?: string;
       courseId: string;
@@ -617,46 +707,46 @@ export class CourseController extends Controller {
           passingScore: body.passingScore || 70,
           maxAttempts: body.maxAttempts || 3,
           questions: {
-            create: body.questions.map(question => ({
+            create: body.questions.map((question) => ({
               question: question.question,
               options: question.options,
               correctAnswer: question.correctAnswer,
               explanation: question.explanation,
               points: question.points || 1,
               order: question.order,
-            }))
-          }
+            })),
+          },
         },
         include: {
           questions: {
-            orderBy: { order: 'asc' },
+            orderBy: { order: "asc" },
             select: {
               id: true,
               question: true,
               options: true,
               order: true,
-              points: true
-            }
+              points: true,
+            },
           },
           course: {
             select: {
               id: true,
-              course_title: true
-            }
-          }
-        }
+              course_title: true,
+            },
+          },
+        },
       });
 
       this.setStatus(201);
       return {
         message: "Quiz created successfully",
-        data: newQuiz
+        data: newQuiz,
       };
     } catch (error: any) {
       this.setStatus(500);
       return {
         message: "Failed to create quiz",
-        error: error.message
+        error: error.message,
       };
     }
   }
