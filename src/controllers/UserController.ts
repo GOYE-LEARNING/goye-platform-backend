@@ -33,7 +33,7 @@ export class UserController extends Controller {
     const user = await prisma.user.create({
       data: { ...body, password: hashedPassword },
     });
-    if (user) {
+    if (!user) {
       this.setStatus(401);
       return {
         messgae: "User already exist",
