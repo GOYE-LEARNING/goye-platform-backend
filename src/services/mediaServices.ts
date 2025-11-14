@@ -45,7 +45,10 @@ export class MediaService {
         folder: "course_images",
         public_id: `course_${courseId}_${Date.now()}`,
         overwrite: true,
-        resource_type: "auto",
+        resource_type: "image", // Automatically detect image/video
+        chunk_size: 6000000, // 6MB chunks for large files
+        timeout: 60000, // 60 second timeout
+        quality: "auto",
       });
 
       return { url: result.secure_url, error: null };
@@ -67,8 +70,11 @@ export class MediaService {
       const result = await cloudinary.uploader.upload(base64File, {
         folder: `lesson_videos/${courseId}/${moduleId}`,
         public_id: `video_${Date.now()}`,
-        resource_type: "video", // Specify video type
-        chunk_size: 6000000, // 6MB chunks for large videos
+        overwrite: true,
+        resource_type: "video", // Automatically detect image/video
+        chunk_size: 6000000, // 6MB chunks for large files
+        timeout: 60000, // 60 second timeout
+        quality: "auto", // 6MB chunks for large videos
       });
 
       return { url: result.secure_url, error: null };
