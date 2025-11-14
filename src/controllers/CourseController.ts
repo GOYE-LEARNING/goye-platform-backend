@@ -13,7 +13,7 @@ import {
   Query,
 } from "tsoa";
 import prisma from "../db.js";
-import { Course, CourseResponse, Module } from "../interface/interfaces.js";
+import { CourseResponse, Module } from "../interface/interfaces.js";
 import {
   CreateCourseDTO,
   UpdateCourseWithRelationsDTO,
@@ -395,8 +395,6 @@ export class CourseController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-      lessonTitle: string;
-      duration?: number;
     }
   ): Promise<any> {
     try {
@@ -429,10 +427,8 @@ export class CourseController extends Controller {
 
       const newLesson = await prisma.lesson.create({
         data: {
-          lesson_title: body.lessonTitle,
           lesson_video: url,
           moduleId: moduleId,
-          duration: body.duration || 0,
         },
         include: {
           module: {
@@ -473,9 +469,6 @@ export class CourseController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-      materialTitle: string;
-      materialDescription?: string;
-      pages?: number;
     }
   ): Promise<any> {
     try {
@@ -504,9 +497,6 @@ export class CourseController extends Controller {
 
       const newMaterial = await prisma.material.create({
         data: {
-          material_title: body.materialTitle,
-          material_description: body.materialDescription as string,
-          material_pages: body.pages || 0,
           material_document: url,
           courseId: courseId,
         },

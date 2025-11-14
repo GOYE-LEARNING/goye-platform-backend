@@ -147,7 +147,7 @@ model Module {
 
 model Lesson {
   id           String   @id @default(cuid()) // Changed from ulid() to cuid()
-  lesson_title String
+  lesson_title String?
   lesson_video String
   moduleId     String
   order        Int?      @default(0) // Added for ordering
@@ -159,9 +159,9 @@ model Lesson {
 
 model Material {
   id                   String   @id @default(cuid()) // Changed from ulid() to cuid()
-  material_title       String
-  material_description String
-  material_pages       Int
+  material_title       String?
+  material_description String?
+  material_pages       Int?
   material_document    String
   courseId             String
   createdAt            DateTime @default(now()) // Added missing createdAt
