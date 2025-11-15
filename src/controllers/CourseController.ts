@@ -28,11 +28,16 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   @Post("/create-course")
   public async CreateCourse(
-    @Body() body: CreateCourseDTO
+    @Body() body: CreateCourseDTO,
+    @Request() req: any
   ): Promise<CourseResponse> {
+    const tutorName = req.user?.full_name
+    const tutorId = req.user?.id
     try {
       const course = await prisma.course.create({
         data: {
+          createdBy: tutorName,
+          createdUserId: tutorId,
           course_title: body.course_title,
           course_short_description: body.course_short_description,
           course_description: body.course_description,

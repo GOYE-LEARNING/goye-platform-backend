@@ -29,6 +29,7 @@ model User {
   reply         Reply[]
   quizAttempt   QuizAttempt[] // Added missing relation
   likes         Likes[]
+  savedCourses  Course[]
 }
 
 model Otp {
@@ -95,6 +96,9 @@ model Course {
   module                   Module[]
   objectives               Objectives[]
   quiz                     Quiz[]
+  createdBy                String
+  createdUserId            String
+  savedCourse              User         @relation(fields: [createdUserId], references: [id])
   saved                    Boolean      @default(false)
 }
 
@@ -109,17 +113,17 @@ model Event {
 }
 
 model Enrollment {
-  id          String   @id @default(cuid()) // Changed from uuid() to cuid()
+  id          String           @id @default(cuid()) // Changed from uuid() to cuid()
   userId      String
   courseId    String
-  progress    Int      @default(0)
-  status      EnrollmentStatus   @default(NOT_ENROLLED) // Fixed typo: "oncomplete" → "incomplete"
-  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  enrolledAt  DateTime @default(now())
-  completedAt DateTime? 
-  startedAt   DateTime 
-  createdAt   DateTime @default(now())
+  progress    Int              @default(0)
+  status      EnrollmentStatus @default(NOT_ENROLLED) // Fixed typo: "oncomplete" → "incomplete"
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrolledAt  DateTime         @default(now())
+  completedAt DateTime?
+  startedAt   DateTime
+  createdAt   DateTime         @default(now())
 
   @@unique([userId, courseId]) // Prevent duplicate enrollments
 }
@@ -138,7 +142,7 @@ model Module {
   module_description String
   module_duration    String
   courseId           String
-  order              Int?      @default(0) // Added for ordering
+  order              Int?     @default(0) // Added for ordering
   createdAt          DateTime @default(now()) // Added missing createdAt
   updatedAt          DateTime @updatedAt // Added missing updatedAt
   lesson             Lesson[]
@@ -150,7 +154,7 @@ model Lesson {
   lesson_title String?
   lesson_video String
   moduleId     String
-  order        Int?      @default(0) // Added for ordering
+  order        Int?     @default(0) // Added for ordering
   duration     Int? // Added duration in minutes
   createdAt    DateTime @default(now()) // Added missing createdAt
   updatedAt    DateTime @updatedAt // Added missing updatedAt
@@ -176,8 +180,8 @@ model Quiz {
   course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId     String
   duration     Int? // in minutes
-  passingScore Int?           @default(70) // percentage
-  maxAttempts  Int?           @default(3)
+  passingScore Int?          @default(70) // percentage
+  maxAttempts  Int?          @default(3)
   questions    Question[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt

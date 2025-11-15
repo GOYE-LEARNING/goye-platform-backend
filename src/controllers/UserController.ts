@@ -12,7 +12,7 @@ import {
   Path,
 } from "tsoa";
 import prisma from "../db.js";
-import {  User } from "../interface/interfaces.js";
+import { User } from "../interface/interfaces.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
@@ -33,7 +33,7 @@ export class UserController extends Controller {
     const user = await prisma.user.create({
       data: { ...body, password: hashedPassword },
     });
-    
+
     if (!user) {
       this.setStatus(401);
       return {
@@ -52,13 +52,14 @@ export class UserController extends Controller {
     const token = jwt.sign(
       {
         id: updateUser.id,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         email: updateUser.email_address,
         role: updateUser.role,
         password: body.password,
         updateStatus: updateUser.isOnline,
       },
       (process.env.BEARERAUTH_SECRET as string) || "secret-key",
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
     if (req.res) {
@@ -106,6 +107,7 @@ export class UserController extends Controller {
     const token = jwt.sign(
       {
         id: updateUser.id,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         email: updateUser.email_address,
         role: updateUser.role,
         password: creditials.password,
@@ -308,7 +310,7 @@ export class UserController extends Controller {
   @Get("/get-user-password")
   public async GetPassword(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-    const password = req.user?.password
+    const password = req.user?.password;
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -320,7 +322,7 @@ export class UserController extends Controller {
     return {
       message: "Password fetched successfully",
       user,
-      password
+      password,
     };
   }
 
