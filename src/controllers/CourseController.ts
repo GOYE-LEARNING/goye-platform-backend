@@ -258,10 +258,18 @@ export class CourseController extends Controller {
       const userCourses = await prisma.user.findMany({
         where: { id: userId },
         select: {
-          Courses: true,
+          Courses: {
+            include: {
+              enrollment: true,
+              material: true,
+              module: true,
+              objectives: true,
+              quiz: true
+            }
+          },
         },
         orderBy: {
-          createdAt: "desc",
+          createdAt: "asc",
         },
       });
 
