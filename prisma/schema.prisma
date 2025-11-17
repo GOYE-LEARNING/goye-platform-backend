@@ -102,14 +102,29 @@ model Course {
   saved                    Boolean      @default(false)
 }
 
+model Group {
+  id                      String   @id @default(uuid())
+  group_title             String
+  group_short_description String
+  group_description       String
+  group_image             String
+  event                   Event[]
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+}
+
 model Event {
-  id                String @id @default(ulid())
+  id                String   @id @default(ulid())
   event_name        String
   event_description String
   event_time        String
   event_data        String
   event_type        String
   event_link        String
+  group             Group    @relation(fields: [groupid], references: [id])
+  groupid           String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
 }
 
 model Enrollment {

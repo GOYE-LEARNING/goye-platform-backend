@@ -263,7 +263,7 @@ export class UserController extends Controller {
     if (error) {
       this.setStatus(500);
       return { message: "Upload failed", error };
-    }
+    }  
 
     try {
       // 2. Try to update user with Prisma
@@ -543,7 +543,7 @@ export class UserController extends Controller {
 
     if (!userId) {
       this.setStatus(401);
-      return { message: "Unauthorized" };
+      return { message: "Unauthorized", status: 401 };
     }
 
     const user = await prisma.user.findUnique({ where: { id: userId } });

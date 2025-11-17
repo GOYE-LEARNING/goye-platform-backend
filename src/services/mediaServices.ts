@@ -32,6 +32,34 @@ export class MediaService {
     }
   }
 
+  static async uploadGroupImage(
+    group_id: string,
+    file: Buffer,
+    fileName: string,
+    mimeType: string
+  ): Promise<{ url: string; error: string | null }> {
+    try {
+      const base64 = `data:${mimeType};base64,${file.toString("base64")}`;
+      const result = await cloudinary.uploader.upload(base64, {
+        folder: "group-images",
+        public_id: `avatar_${group_id}_${Date.now()}`,
+        overwrite: true,
+        resource_type: "image",
+        chunk_size: 6000000,
+        timeout: 60000,
+        quality: "auto",
+      });
+
+      return {
+        url: result.secure_url,
+        error: null,
+      };
+    } catch (error) {
+      console.error(error);
+      return { url: "", error: error.message };
+    }
+  }
+
   static async uploadCourseImage(
     courseId: string,
     file: Buffer,

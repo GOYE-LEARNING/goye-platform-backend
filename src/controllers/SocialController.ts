@@ -14,6 +14,7 @@ import {
 } from "tsoa";
 import { EventDTO, PostDTO, ReplyDTO } from "../interface/interfaces.js";
 import prisma from "../db.js";
+import { MediaService } from "../services/mediaServices.js";
 
 @Route("socials")
 @Tags("Social controllers")
@@ -799,8 +800,205 @@ export class SocialController extends Controller {
     }
   }
 
-  @Post("/create-event")
-  public async CreateEvent(@Body() body: Omit<EventDTO, "id">): Promise<any> {
+  @Post("/create-group")
+  public async CreateGroup(
+    @Body()
+    body: Omit<
+      {
+        group_title: string;
+        group_short_description: string;
+        group_description: string;
+        group_image: string;
+      },
+      "id"
+    >
+  ): Promise<any> {
+    try {
+      const group = await prisma.group.create({
+        data: {
+          group_title: body.group_title,
+          group_short_description: body.group_short_description,
+          group_description: body.group_description,
+          group_image: body.group_image,
+        },
+      });
+
+      this.setStatus(201);
+      return {
+        message: "Group created succefully",
+        group: group.group_title,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error.message);
+    }
+  }
+
+  @Get("/get-group/{id}")
+  public async GetGroupById(@Path() id: string): Promise<any> {
+    try {
+      const findGroup = await prisma.group.findUnique({
+        where: {
+          id,
+        },
+      });
+      this.setStatus(200);
+      return {
+        message: "Success finding group",
+        data: findGroup,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+    }
+  }
+
+  @Get("/get-groups")
+  public async GetGroup(): Promise<any> {
+    try {
+      const groups = await prisma.group.findMany({
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+      this.setStatus(200);
+      return {
+        message: "Group fetched successfully",
+        data: groups,
+        length: groups.length,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  @Put("/update-group/{id}")
+  public async UpdateGroup(
+    @Body()
+    body: {
+      group_title: string;
+      group_short_description: string;
+      group_description: string;
+      group_image: string;
+    },
+    @Path() id: string
+  ): Promise<any> {
+    try {
+      const updateGroup = await prisma.group.update({
+        where: {
+          id,
+        },
+
+        data: {
+          group_title: body.group_title,
+          group_short_description: body.group_short_description,
+          group_description: body.group_description,
+          group_image: body.group_image,
+        },
+      });
+      this.setStatus(200);
+      return {
+        message: "Group updated successfully",
+        data: updateGroup.group_title,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  @Delete("/delete-group/{id}")
+  public async DeleteGroup(@Path() id: string) {
+    try {
+      const deleteGroup = await prisma.group.delete({
+        where: {
+          id,
+        },
+      });
+      this.setStatus(200);
+      return {
+        message: `You just deleted ${deleteGroup.group_title}`,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+    }
+  }
+
+  @Post("/upload-group-image/{groupId}")
+  public async UploadGroupImage(
+    @Path() groupId: string,
+    @Body()
+    body: {
+      file: string;
+      fileName: string;
+      mimeType: string;
+    }
+  ): Promise<any> {
+    try {
+      const group = await prisma.group.findUnique({
+        where: { id: groupId },
+      });
+
+      if (!group) {
+        this.setStatus(404);
+        return {
+          message: "Group not found",
+        };
+      }
+
+      const fileBuffer = Buffer.from(body.file, "base64");
+      const { url, error } = await MediaService.uploadGroupImage(
+        groupId,
+        fileBuffer,
+        body.fileName,
+        body.mimeType
+      );
+
+      if (error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error };
+      }
+
+      const updatedGroupImage = await prisma.group.update({
+        where: { id: groupId },
+        data: { group_image: url },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Group image uploaded successfully",
+        data: {
+          courseId: updatedGroupImage.id,
+          imageUrl: updatedGroupImage.group_image,
+        },
+      };
+    } catch (error) {
+      this.setStatus(500);
+      return {
+        message: "Failed to upload group image",
+        error: error.message,
+      };
+    }
+  }
+
+  @Post("/create-event/{groupId}")
+  public async CreateEvent(
+    @Body() body: Omit<EventDTO, "id">,
+    @Path() groupId: string
+  ): Promise<any> {
+    const group = await prisma.group.findUnique({
+      where: {
+        id: groupId,
+      },
+    });
+
+    if (!group) {
+      this.setStatus(404);
+      return {
+        message: "Group does not exist",
+      };
+    }
+
     const event = prisma.event.create({
       data: {
         ...(body as any),
