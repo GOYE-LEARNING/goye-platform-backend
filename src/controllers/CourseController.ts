@@ -248,7 +248,7 @@ export class CourseController extends Controller {
         return {
           message: "User unauthorized",
         };
-      } else if (tutor !== "tutor") {
+      } else if (tutor !== "instructor") {
         this.setStatus(401);
         return {
           message: "User must be a tutor to fetch his courses",
