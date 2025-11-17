@@ -264,7 +264,11 @@ export class CourseController extends Controller {
               material: true,
               module: true,
               objectives: true,
-              quiz: true
+              quiz: {
+                include: {
+                  questions: true,
+                }
+              }
             }
           },
         },
