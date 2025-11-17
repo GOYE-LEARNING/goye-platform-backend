@@ -238,7 +238,7 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Get("/get-user-courses")
+  @Get("/get-tutor-courses")
   public async GetUserCourse(@Request() req: any) {
     const userId = req.user?.Id;
     try {
@@ -254,6 +254,9 @@ export class CourseController extends Controller {
         select: {
           Courses: true,
         },
+        orderBy: {
+          createdAt: 'desc'
+        }
       });
 
       this.setStatus(200);
