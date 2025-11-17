@@ -238,14 +238,20 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Get("/get-tutor-courses")
+  @Get("/get-courses-by-tutor")
   public async GetUserCourse(@Request() req: any) {
-    const userId = req.user?.Id;
+    const userId = req.user?.id;
+    const tutor = req.user?.role;
     try {
       if (!userId) {
         this.setStatus(401);
         return {
           message: "User unauthorized",
+        };
+      } else if (tutor !== "tutor") {
+        this.setStatus(401);
+        return {
+          message: "User must be a tutor to fetch his courses",
         };
       }
 
@@ -255,8 +261,8 @@ export class CourseController extends Controller {
           Courses: true,
         },
         orderBy: {
-          createdAt: 'desc'
-        }
+          createdAt: "desc",
+        },
       });
 
       this.setStatus(200);
