@@ -31,8 +31,8 @@ export class CourseController extends Controller {
     @Body() body: CreateCourseDTO,
     @Request() req: any
   ): Promise<CourseResponse> {
-    const tutorName = req.user?.full_name
-    const tutorId = req.user?.id
+    const tutorName = req.user?.full_name;
+    const tutorId = req.user?.id;
     try {
       const course = await prisma.course.create({
         data: {
@@ -234,6 +234,36 @@ export class CourseController extends Controller {
         message: "Error fetching courses: " + error.message,
         data: null,
       };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/get-user-courses")
+  public async GetUserCourse(@Request() req: any) {
+    const userId = req.user?.Id;
+    try {
+      if (!userId) {
+        this.setStatus(401);
+        return {
+          message: "User unauthorized",
+        };
+      }
+
+      const userCourses = await prisma.user.findMany({
+        where: { id: userId },
+        select: {
+          Courses: true,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Courses fetched successfully",
+        data: userCourses,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
     }
   }
 

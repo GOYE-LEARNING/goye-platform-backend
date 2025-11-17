@@ -29,7 +29,7 @@ model User {
   reply         Reply[]
   quizAttempt   QuizAttempt[] // Added missing relation
   likes         Likes[]
-  savedCourses  Course[]
+  Courses       Course[]
 }
 
 model Otp {
