@@ -32,7 +32,7 @@ export class SocialController extends Controller {
         title: body.title,
         content: body.content,
         userId: userId,
-      },
+      } as any,
       include: {
         user: {
           select: {
