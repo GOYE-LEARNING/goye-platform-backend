@@ -19,10 +19,11 @@ import { MediaService } from "../services/mediaServices.js";
 @Route("socials")
 @Tags("Social controllers")
 export class SocialController extends Controller {
-  @Post("/create-post")
+  @Post("/create-post/{courseId}")
   @Security("bearerAuth")
   public async CreatePost(
     @Request() req: any,
+    @Path() courseId: string,
     @Body() body: Omit<PostDTO, "id" | "userId">
   ): Promise<any> {
     const userId = req.user?.id;
@@ -32,7 +33,8 @@ export class SocialController extends Controller {
         title: body.title,
         content: body.content,
         userId: userId,
-      } as any,
+        courseId
+      },
       include: {
         user: {
           select: {
