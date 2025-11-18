@@ -106,7 +106,6 @@ export interface CourseResponse {
 }
 
 export interface PostDTO {
-  postId: string;
   title: string;
   content: string;
 }
