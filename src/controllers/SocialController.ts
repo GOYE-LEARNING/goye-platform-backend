@@ -42,6 +42,7 @@ export class SocialController extends Controller {
             user_pic: true,
           },
         },
+        courses: true,
         replies: {
           include: {
             user: {
