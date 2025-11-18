@@ -32,6 +32,27 @@ model User {
   Courses       Course[]
 }
 
+model Course {
+  id                       String       @id @default(cuid()) // Changed from uuid() to cuid()
+  course_title             String
+  course_short_description String
+  course_description       String
+  course_level             String
+  course_image             String
+  createdAt                DateTime     @default(now()) // Added missing createdAt
+  updatedAt                DateTime     @updatedAt // Added missing updatedAt
+  enrollment               Enrollment[]
+  material                 Material[]
+  module                   Module[]
+  objectives               Objectives[]
+  quiz                     Quiz[]
+  post                     Post[]
+  createdBy                String
+  createdUserId            String
+  savedCourse              User         @relation(fields: [createdUserId], references: [id])
+  saved                    Boolean      @default(false)
+}
+
 model Otp {
   id        String   @id @default(cuid()) // Changed from uuid() to cuid() for consistency
   email     String
@@ -49,6 +70,8 @@ model Post {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   replies   Reply[]  @relation("PostReplies")
   likes     Likes[] // Add this line
+  courses   Course   @relation(fields: [courseId], references: [id])
+  courseId  String
 
   @@map("posts")
 }
@@ -80,26 +103,6 @@ model Likes {
   // Ensure a user can only like a post/reply once
   @@unique([userId, postId])
   @@unique([userId, replyId])
-}
-
-model Course {
-  id                       String       @id @default(cuid()) // Changed from uuid() to cuid()
-  course_title             String
-  course_short_description String
-  course_description       String
-  course_level             String
-  course_image             String
-  createdAt                DateTime     @default(now()) // Added missing createdAt
-  updatedAt                DateTime     @updatedAt // Added missing updatedAt
-  enrollment               Enrollment[]
-  material                 Material[]
-  module                   Module[]
-  objectives               Objectives[]
-  quiz                     Quiz[]
-  createdBy                String
-  createdUserId            String
-  savedCourse              User         @relation(fields: [createdUserId], references: [id])
-  saved                    Boolean      @default(false)
 }
 
 model Group {
