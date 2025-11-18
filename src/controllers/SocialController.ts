@@ -84,17 +84,18 @@ export class SocialController extends Controller {
     };
   }
 
-  @Post("/create-reply")
+  @Post("/create-reply/{postId}")
   @Security("bearerAuth")
   public async CreateReply(
     @Request() req: any,
+    @Path() postId: string,
     @Body() body: Omit<ReplyDTO, "id" | "userId">
   ): Promise<any> {
     const userId = req.user?.id;
 
     try {
       const post = await prisma.post.findUnique({
-        where: { id: body.postId },
+        where: { id: postId },
       });
 
       if (!post) {
@@ -108,7 +109,7 @@ export class SocialController extends Controller {
         data: {
           content: body.content,
           userId: userId,
-          postId: body.postId,
+          postId: postId,
         },
         include: {
           user: {
