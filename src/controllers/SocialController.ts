@@ -33,7 +33,7 @@ export class SocialController extends Controller {
         title: body.title,
         content: body.content,
         userId: userId,
-        courseId
+        courseId,
       },
       include: {
         user: {
@@ -598,7 +598,6 @@ export class SocialController extends Controller {
           orderBy: {
             createdAt: "asc",
           },
-          take: 3,
         },
         likes: {
           include: {
@@ -629,6 +628,70 @@ export class SocialController extends Controller {
       data: posts,
       count: posts.length,
     };
+  }
+
+  @Security("bearerAuth")
+  @Get("/get-post-by-course/{courseId}")
+  public async GetPostByCourseId(@Path() courseId: string) {
+    try {
+      const course = await prisma.course.findMany({
+        where: {
+          id: courseId,
+        },
+      });
+
+      if (!course) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+        };
+      }
+
+      const getPost = await prisma.post.findMany({
+        where: {
+          courseId,
+        },
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+
+          replies: {
+            select: {
+              content: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          _count: {
+            select: {
+              likes: true,
+              replies: true,
+            },
+          },
+        },
+      });
+      this.setStatus(200);
+      return {
+        message: "Post fetched successfuly",
+        data: getPost,
+      };
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   @Put("/update-reply/{replyId}")
