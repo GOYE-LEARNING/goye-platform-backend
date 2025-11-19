@@ -274,10 +274,11 @@ export class CourseController extends Controller {
                 },
               },
             },
+
+            orderBy: {
+              createdAt: "desc",
+            },
           },
-        },
-        orderBy: {
-          createdAt: "desc",
         },
       });
 
