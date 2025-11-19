@@ -220,7 +220,11 @@ export class CourseController extends Controller {
   @Get("/get-all-courses")
   public async GetAllCourses(): Promise<CourseResponse> {
     try {
-      const getAllCourses = await prisma.course.findMany();
+      const getAllCourses = await prisma.course.findMany({
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
       this.setStatus(200);
       return {
         message: "Courses fetched successfully",
@@ -267,13 +271,13 @@ export class CourseController extends Controller {
               quiz: {
                 include: {
                   questions: true,
-                }
-              }
-            }
+                },
+              },
+            },
           },
         },
         orderBy: {
-          createdAt: "asc",
+          createdAt: "desc",
         },
       });
 
