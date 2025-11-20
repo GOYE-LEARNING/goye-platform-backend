@@ -153,7 +153,6 @@ export class SocialController extends Controller {
               likes: true,
             },
           },
-          
         },
       });
 
@@ -167,6 +166,98 @@ export class SocialController extends Controller {
       return {
         message: "Failed to create reply",
         error: error.message,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Post("/reply-other-reply{replyId}")
+  public async ReplyOtherReply(
+    @Body() body: Omit<ReplyDTO, "id">,
+    @Path() replyId: string,
+    @Request() req: any
+  ) {
+    const userId = req.user?.id;
+    if (!userId) {
+      this.setStatus(404);
+      return {
+        message: "Unauthorized",
+      };
+    }
+
+    if (!replyId) {
+      this.setStatus(404);
+      return {
+        message: "The post you want to reply does not exist",
+      };
+    }
+
+    try {
+      const reply = await prisma.reply.findUnique({
+        where: {
+          id: replyId,
+        },
+      });
+
+      if (!reply) {
+        this.setStatus(404);
+        return {
+          message: "Reply not found",
+        };
+      }
+
+      const replyotherReply = await prisma.replyOtherReplies.create({
+        data: {
+          userId: userId,
+          repliedMessage: body.content,
+        },
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          Reply: {
+            select: {
+              content: true,
+              createdAt: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+            },
+            
+          },
+          post: {
+            select: {
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              content: true,
+              createdAt: true
+            },
+          },
+        },
+      });
+
+      this.setStatus(201);
+      return {
+        message: "Created succefully",
+        data: replyotherReply,
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        message: "An internal server occured",
       };
     }
   }
@@ -633,9 +724,8 @@ export class SocialController extends Controller {
 
   @Security("bearerAuth")
   @Get("/get-post-by-course/{courseId}")
-  public async GetPostByCourseId(@Path() courseId: string,) {
+  public async GetPostByCourseId(@Path() courseId: string) {
     try {
-
       const course = await prisma.course.findMany({
         where: {
           id: courseId,
