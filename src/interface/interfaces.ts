@@ -112,10 +112,9 @@ export interface PostDTO {
 }
 
 export interface ReplyDTO {
-
   content: string;
-
 }
+
 
 export interface EventDTO {
   id: string;

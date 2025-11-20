@@ -231,7 +231,6 @@ export class SocialController extends Controller {
                 },
               },
             },
-            
           },
           post: {
             select: {
@@ -243,7 +242,7 @@ export class SocialController extends Controller {
                 },
               },
               content: true,
-              createdAt: true
+              createdAt: true,
             },
           },
         },
@@ -386,6 +385,84 @@ export class SocialController extends Controller {
       message: "Post with replies fetched successfully",
       data: post,
     };
+  }
+
+  @Security("bearerAuth")
+  @Get("/get-replies-from-replies/{replyId}")
+  public async GetRepliesFromReplies(
+    @Request() req: any,
+    @Path() replyId: string
+  ) {
+    const userId = req.user?.id;
+    if (!userId) {
+      this.setStatus(404);
+      return {
+        message: "Unauthorized",
+      };
+    }
+    try {
+      const reply = await prisma.reply.findUnique({
+        where: {
+          id: replyId,
+        },
+      });
+
+      if (!reply) {
+        this.setStatus(401);
+        return {
+          message: "Reply not found",
+        };
+      }
+
+      const repliedMessage = await prisma.replyOtherReplies.findMany({
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          Reply: {
+            select: {
+              content: true,
+              createdAt: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+            },
+          },
+          post: {
+            select: {
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              content: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+      this.setStatus(200);
+      return {
+        message: "Replies fetched successfully",
+        data: repliedMessage,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+      return {
+        message: "Internal server error",
+      };
+    }
   }
 
   @Post("/like-post/{postId}")
@@ -532,6 +609,81 @@ export class SocialController extends Controller {
     }
   }
 
+  @Security("bearerAuth")
+  @Post("/like-replies/{repliedMessageId}")
+  public async LikeReplies(
+    @Path() repliedMessageId: string,
+    @Request() req: any
+  ) {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(404);
+      return {
+        message: "User not found",
+      };
+    }
+
+    const reply = await prisma.replyOtherReplies.findUnique({
+      where: {
+        id: repliedMessageId,
+      },
+    });
+
+    if (!reply) {
+      this.setStatus(200);
+      return {
+        message: "Reply not found",
+      };
+    }
+
+    const existingliked = await prisma.likes.findUnique({
+      where: {
+        userId_repliesMessageId: {
+          userId,
+          repliesMessageId: repliedMessageId,
+        },
+      },
+    });
+
+    if (existingliked) {
+      this.setStatus(401);
+      return {
+        message: "User has already like this already",
+      };
+    }
+
+    const likeReplied = await prisma.likes.create({
+      data: {
+        userId,
+        repliesMessageId: repliedMessageId,
+      },
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+      },
+    });
+
+    const replyiedCount = await prisma.likes.count({
+      where: {
+        id: repliedMessageId,
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Liked successfully",
+      replyiedCount,
+      likeReplied,
+      action: "liked",
+    };
+  }
+
   @Delete("/unlike-post/{postId}")
   @Security("bearerAuth")
   public async UnlikePost(
@@ -612,12 +764,60 @@ export class SocialController extends Controller {
     }
   }
 
+  @Delete("/unlike-replied-message/{repliedMessageId}")
+  @Security("bearerAuth")
+  public async UnlikeRepliedMessage(
+    @Path() repliedMessageId: string,
+    @Request() req: any
+  ) {
+    const userId = req.user?.id;
+    if (!userId) {
+      this.setStatus(404);
+      return {
+        message: "User unauthorized",
+      };
+    }
+
+    try {
+      const repliedMessage = await prisma.replyOtherReplies.findUnique({
+        where: {
+          id: repliedMessageId,
+        },
+      });
+
+      if (!repliedMessage) {
+        this.setStatus(404);
+        return {
+          message: "This replied message does not exist",
+        };
+      }
+
+      const unlikedReply = await prisma.likes.delete({
+        where: {
+          id: repliedMessageId,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Yo bro u just unliked a post",
+        unlikedReply,
+      };
+    } catch (error) {
+      console.error(error);
+      return {
+        message: "An error occured while replying",
+      };
+    }
+  }
+
   @Get("/check-like")
   @Security("bearerAuth")
   public async CheckLike(
     @Request() req: any,
     @Query() postId?: string,
-    @Query() replyId?: string
+    @Query() replyId?: string,
+    @Query() repliedMessageId?: string
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -652,8 +852,24 @@ export class SocialController extends Controller {
         };
       }
 
+      if (repliedMessageId) {
+        const like = await prisma.likes.findUnique({
+          where: {
+            userId_repliesMessageId: {
+              userId,
+              repliesMessageId: repliedMessageId,
+            },
+          },
+        });
+
+        return {
+          like: !!like,
+          type: "Replied",
+        };
+      }
+
       this.setStatus(400);
-      return { message: "Must provide either postId or replyId" };
+      return { message: "Must provide either postId or replyId or repliedMessageId" };
     } catch (error: any) {
       this.setStatus(500);
       return {
