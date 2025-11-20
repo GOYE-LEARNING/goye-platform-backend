@@ -153,6 +153,7 @@ export class SocialController extends Controller {
               likes: true,
             },
           },
+          
         },
       });
 
@@ -632,8 +633,9 @@ export class SocialController extends Controller {
 
   @Security("bearerAuth")
   @Get("/get-post-by-course/{courseId}")
-  public async GetPostByCourseId(@Path() courseId: string) {
+  public async GetPostByCourseId(@Path() courseId: string,) {
     try {
+
       const course = await prisma.course.findMany({
         where: {
           id: courseId,
