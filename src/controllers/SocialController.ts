@@ -433,6 +433,7 @@ export class SocialController extends Controller {
       }
 
       const repliedMessage = await prisma.replyOtherReplies.findMany({
+        where: {replyId: replyId},
         include: {
           user: {
             select: {
