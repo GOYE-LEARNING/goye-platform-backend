@@ -103,9 +103,7 @@ export class SocialController extends Controller {
 
       if (!post) {
         this.setStatus(404);
-        return {
-          message: "Post not found",
-        };
+        return { message: "Post not found" };
       }
 
       const createReply = await prisma.reply.create({
@@ -149,28 +147,19 @@ export class SocialController extends Controller {
             },
           },
           _count: {
-            select: {
-              likes: true,
-            },
+            select: { likes: true },
           },
         },
       });
 
       this.setStatus(201);
-      return {
-        message: "Reply created successfully",
-        data: createReply,
-      };
+      return { message: "Reply created successfully", data: createReply };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to create reply",
-        error: error.message,
-      };
+      return { message: "Failed to create reply", error: error.message };
     }
   }
 
-  // Get all replies for a post
   @Get("/get-post-replies/{postId}")
   public async GetPostReplies(@Path() postId: string): Promise<any> {
     const replies = await prisma.reply.findMany({
@@ -187,24 +176,12 @@ export class SocialController extends Controller {
         },
         likes: {
           include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-              },
-            },
+            user: { select: { id: true, first_name: true, last_name: true } },
           },
         },
-        _count: {
-          select: {
-            likes: true,
-          },
-        },
+        _count: { select: { likes: true } },
       },
-      orderBy: {
-        createdAt: "asc",
-      },
+      orderBy: { createdAt: "asc" },
     });
 
     this.setStatus(200);
@@ -215,7 +192,6 @@ export class SocialController extends Controller {
     };
   }
 
-  // Get post with all replies
   @Security("bearerAuth")
   @Get("/get-post-with-replies/{postId}")
   public async GetPostWithReplies(@Path() postId: string): Promise<any> {
@@ -245,59 +221,31 @@ export class SocialController extends Controller {
             likes: {
               include: {
                 user: {
-                  select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                  },
+                  select: { id: true, first_name: true, last_name: true },
                 },
               },
             },
-            _count: {
-              select: {
-                likes: true,
-              },
-            },
+            _count: { select: { likes: true } },
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         },
         likes: {
           include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-              },
-            },
+            user: { select: { id: true, first_name: true, last_name: true } },
           },
         },
-        _count: {
-          select: {
-            replies: true,
-            likes: true,
-          },
-        },
+        _count: { select: { replies: true, likes: true } },
       },
     });
 
     if (!post) {
       this.setStatus(404);
-      return {
-        message: "Post not found",
-      };
+      return { message: "Post not found" };
     }
 
     this.setStatus(200);
-    return {
-      message: "Post with replies fetched successfully",
-      data: post,
-    };
+    return { message: "Post with replies fetched successfully", data: post };
   }
-
-
 
   @Post("/like-post/{postId}")
   @Security("bearerAuth")
@@ -308,26 +256,14 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const findPost = await prisma.post.findUnique({
-        where: {
-          id: postId,
-        },
-      });
-
+      const findPost = await prisma.post.findUnique({ where: { id: postId } });
       if (!findPost) {
         this.setStatus(404);
-        return {
-          message: "Post not found",
-        };
+        return { message: "Post not found" };
       }
 
       const existingLike = await prisma.likes.findUnique({
-        where: {
-          userId_postId: {
-            userId: userId,
-            postId: postId,
-          },
-        },
+        where: { userId_postId: { userId, postId } },
       });
 
       if (existingLike) {
@@ -336,10 +272,7 @@ export class SocialController extends Controller {
       }
 
       const like = await prisma.likes.create({
-        data: {
-          userId,
-          postId,
-        },
+        data: { userId, postId },
         include: {
           user: {
             select: {
@@ -352,24 +285,12 @@ export class SocialController extends Controller {
         },
       });
 
-      const likeCount = await prisma.likes.count({
-        where: { postId: postId },
-      });
-
+      const likeCount = await prisma.likes.count({ where: { postId } });
       this.setStatus(201);
-      return {
-        message: "Post liked successfully",
-        data: {
-          like,
-          likeCount,
-        },
-      };
+      return { message: "Post liked successfully", data: { like, likeCount } };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to like post",
-        error: error.message,
-      };
+      return { message: "Failed to like post", error: error.message };
     }
   }
 
@@ -382,22 +303,14 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const reply = await prisma.reply.findUnique({
-        where: { id: replyId },
-      });
-
+      const reply = await prisma.reply.findUnique({ where: { id: replyId } });
       if (!reply) {
         this.setStatus(404);
         return { message: "Reply not found" };
       }
 
       const existingLike = await prisma.likes.findUnique({
-        where: {
-          userId_replyId: {
-            userId: userId,
-            replyId: replyId,
-          },
-        },
+        where: { userId_replyId: { userId, replyId } },
       });
 
       if (existingLike) {
@@ -406,10 +319,7 @@ export class SocialController extends Controller {
       }
 
       const like = await prisma.likes.create({
-        data: {
-          userId: userId,
-          replyId: replyId,
-        },
+        data: { userId, replyId },
         include: {
           user: {
             select: {
@@ -422,27 +332,14 @@ export class SocialController extends Controller {
         },
       });
 
-      const likeCount = await prisma.likes.count({
-        where: { replyId: replyId },
-      });
-
+      const likeCount = await prisma.likes.count({ where: { replyId } });
       this.setStatus(201);
-      return {
-        message: "Reply liked successfully",
-        data: {
-          like,
-          likeCount,
-        },
-      };
+      return { message: "Reply liked successfully", data: { like, likeCount } };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to like reply",
-        error: error.message,
-      };
+      return { message: "Failed to like reply", error: error.message };
     }
   }
-
 
   @Delete("/unlike-post/{postId}")
   @Security("bearerAuth")
@@ -454,33 +351,18 @@ export class SocialController extends Controller {
 
     try {
       await prisma.likes.delete({
-        where: {
-          userId_postId: {
-            userId: userId,
-            postId: postId,
-          },
-        },
+        where: { userId_postId: { userId, postId } },
       });
-
-      const likeCount = await prisma.likes.count({
-        where: { postId: postId },
-      });
-
+      const likeCount = await prisma.likes.count({ where: { postId } });
       this.setStatus(200);
-      return {
-        message: "Post unliked successfully",
-        data: { likeCount },
-      };
+      return { message: "Post unliked successfully", data: { likeCount } };
     } catch (error: any) {
       if (error.code === "P2025") {
         this.setStatus(404);
         return { message: "Like not found" };
       }
       this.setStatus(500);
-      return {
-        message: "Failed to unlike post",
-        error: error.message,
-      };
+      return { message: "Failed to unlike post", error: error.message };
     }
   }
 
@@ -494,36 +376,20 @@ export class SocialController extends Controller {
 
     try {
       await prisma.likes.delete({
-        where: {
-          userId_replyId: {
-            userId: userId,
-            replyId: replyId,
-          },
-        },
+        where: { userId_replyId: { userId, replyId } },
       });
-
-      const likeCount = await prisma.likes.count({
-        where: { replyId: replyId },
-      });
-
+      const likeCount = await prisma.likes.count({ where: { replyId } });
       this.setStatus(200);
-      return {
-        message: "Reply unliked successfully",
-        data: { likeCount },
-      };
+      return { message: "Reply unliked successfully", data: { likeCount } };
     } catch (error: any) {
       if (error.code === "P2025") {
         this.setStatus(404);
         return { message: "Like not found" };
       }
       this.setStatus(500);
-      return {
-        message: "Failed to unlike reply",
-        error: error.message,
-      };
+      return { message: "Failed to unlike reply", error: error.message };
     }
   }
-
 
   @Get("/check-like")
   @Security("bearerAuth")
@@ -538,34 +404,17 @@ export class SocialController extends Controller {
     try {
       if (postId) {
         const like = await prisma.likes.findUnique({
-          where: {
-            userId_postId: {
-              userId: userId,
-              postId: postId,
-            },
-          },
+          where: { userId_postId: { userId, postId } },
         });
-        return {
-          liked: !!like,
-          type: "post",
-        };
+        return { liked: !!like, type: "post" };
       }
 
       if (replyId) {
         const like = await prisma.likes.findUnique({
-          where: {
-            userId_replyId: {
-              userId: userId,
-              replyId: replyId,
-            },
-          },
+          where: { userId_replyId: { userId, replyId } },
         });
-        return {
-          liked: !!like,
-          type: "reply",
-        };
+        return { liked: !!like, type: "reply" };
       }
-
 
       this.setStatus(400);
       return {
@@ -573,10 +422,7 @@ export class SocialController extends Controller {
       };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to check like status",
-        error: error.message,
-      };
+      return { message: "Failed to check like status", error: error.message };
     }
   }
 
@@ -604,31 +450,16 @@ export class SocialController extends Controller {
               },
             },
           },
-          orderBy: {
-            createdAt: "asc",
-          },
+          orderBy: { createdAt: "asc" },
         },
         likes: {
           include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-              },
-            },
+            user: { select: { id: true, first_name: true, last_name: true } },
           },
         },
-        _count: {
-          select: {
-            replies: true,
-            likes: true,
-          },
-        },
+        _count: { select: { replies: true, likes: true } },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     this.setStatus(200);
@@ -643,61 +474,34 @@ export class SocialController extends Controller {
   @Get("/get-post-by-course/{courseId}")
   public async GetPostByCourseId(@Path() courseId: string) {
     try {
-      const course = await prisma.course.findMany({
-        where: {
-          id: courseId,
-        },
-      });
-
+      const course = await prisma.course.findMany({ where: { id: courseId } });
       if (!course) {
         this.setStatus(404);
-        return {
-          message: "Course not found",
-        };
+        return { message: "Course not found" };
       }
 
       const getPost = await prisma.post.findMany({
-        where: {
-          courseId,
-        },
+        where: { courseId },
         include: {
           user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-            },
+            select: { first_name: true, last_name: true, user_pic: true },
           },
-
           replies: {
             select: {
               content: true,
               user: {
-                select: {
-                  first_name: true,
-                  last_name: true,
-                  user_pic: true,
-                },
+                select: { first_name: true, last_name: true, user_pic: true },
               },
               createdAt: true,
             },
-            orderBy: {
-              createdAt: "desc",
-            },
+            orderBy: { createdAt: "desc" },
           },
-          _count: {
-            select: {
-              likes: true,
-              replies: true,
-            },
-          },
+          _count: { select: { likes: true, replies: true } },
         },
       });
+
       this.setStatus(200);
-      return {
-        message: "Post fetched successfuly",
-        data: getPost,
-      };
+      return { message: "Post fetched successfully", data: getPost };
     } catch (error) {
       console.error(error);
     }
@@ -714,12 +518,8 @@ export class SocialController extends Controller {
 
     try {
       const existingReply = await prisma.reply.findFirst({
-        where: {
-          id: replyId,
-          userId: userId,
-        },
+        where: { id: replyId, userId },
       });
-
       if (!existingReply) {
         this.setStatus(404);
         return { message: "Reply not found or no permission to edit" };
@@ -739,34 +539,18 @@ export class SocialController extends Controller {
           },
           likes: {
             include: {
-              user: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                },
-              },
+              user: { select: { id: true, first_name: true, last_name: true } },
             },
           },
-          _count: {
-            select: {
-              likes: true,
-            },
-          },
+          _count: { select: { likes: true } },
         },
       });
 
       this.setStatus(200);
-      return {
-        message: "Reply updated successfully",
-        data: updatedReply,
-      };
+      return { message: "Reply updated successfully", data: updatedReply };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to update reply",
-        error: error.message,
-      };
+      return { message: "Failed to update reply", error: error.message };
     }
   }
 
@@ -780,29 +564,19 @@ export class SocialController extends Controller {
 
     try {
       const existingReply = await prisma.reply.findFirst({
-        where: {
-          id: replyId,
-          userId: userId,
-        },
+        where: { id: replyId, userId },
       });
-
       if (!existingReply) {
         this.setStatus(404);
         return { message: "Reply not found or no permission to delete" };
       }
 
-      await prisma.reply.delete({
-        where: { id: replyId },
-      });
-
+      await prisma.reply.delete({ where: { id: replyId } });
       this.setStatus(200);
       return { message: "Reply deleted successfully" };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to delete reply",
-        error: error.message,
-      };
+      return { message: "Failed to delete reply", error: error.message };
     }
   }
 
@@ -810,7 +584,7 @@ export class SocialController extends Controller {
   public async GetPostLikes(@Path() postId: string): Promise<any> {
     try {
       const likes = await prisma.likes.findMany({
-        where: { postId: postId },
+        where: { postId },
         include: {
           user: {
             select: {
@@ -823,21 +597,14 @@ export class SocialController extends Controller {
         },
         orderBy: { createdAt: "desc" },
       });
-
       this.setStatus(200);
       return {
         message: "Post likes fetched successfully",
-        data: {
-          likes,
-          likeCount: likes.length,
-        },
+        data: { likes, likeCount: likes.length },
       };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to fetch post likes",
-        error: error.message,
-      };
+      return { message: "Failed to fetch post likes", error: error.message };
     }
   }
 
@@ -845,7 +612,7 @@ export class SocialController extends Controller {
   public async GetReplyLikes(@Path() replyId: string): Promise<any> {
     try {
       const likes = await prisma.likes.findMany({
-        where: { replyId: replyId },
+        where: { replyId },
         include: {
           user: {
             select: {
@@ -858,21 +625,14 @@ export class SocialController extends Controller {
         },
         orderBy: { createdAt: "desc" },
       });
-
       this.setStatus(200);
       return {
         message: "Reply likes fetched successfully",
-        data: {
-          likes,
-          likeCount: likes.length,
-        },
+        data: { likes, likeCount: likes.length },
       };
     } catch (error: any) {
       this.setStatus(500);
-      return {
-        message: "Failed to fetch reply likes",
-        error: error.message,
-      };
+      return { message: "Failed to fetch reply likes", error: error.message };
     }
   }
 
@@ -890,18 +650,10 @@ export class SocialController extends Controller {
     >
   ): Promise<any> {
     try {
-      const group = await prisma.group.create({
-        data: {
-          group_title: body.group_title,
-          group_short_description: body.group_short_description,
-          group_description: body.group_description,
-          group_image: body.group_image,
-        },
-      });
-
+      const group = await prisma.group.create({ data: { ...body } });
       this.setStatus(201);
       return {
-        message: "Group created succefully",
+        message: "Group created successfully",
         group: group.group_title,
       };
     } catch (error) {
@@ -913,16 +665,9 @@ export class SocialController extends Controller {
   @Get("/get-group/{id}")
   public async GetGroupById(@Path() id: string): Promise<any> {
     try {
-      const findGroup = await prisma.group.findUnique({
-        where: {
-          id,
-        },
-      });
+      const findGroup = await prisma.group.findUnique({ where: { id } });
       this.setStatus(200);
-      return {
-        message: "Success finding group",
-        data: findGroup,
-      };
+      return { message: "Success finding group", data: findGroup };
     } catch (error) {
       this.setStatus(500);
       console.error(error);
@@ -933,9 +678,7 @@ export class SocialController extends Controller {
   public async GetGroup(): Promise<any> {
     try {
       const groups = await prisma.group.findMany({
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
       });
       this.setStatus(200);
       return {
@@ -961,16 +704,8 @@ export class SocialController extends Controller {
   ): Promise<any> {
     try {
       const updateGroup = await prisma.group.update({
-        where: {
-          id,
-        },
-
-        data: {
-          group_title: body.group_title,
-          group_short_description: body.group_short_description,
-          group_description: body.group_description,
-          group_image: body.group_image,
-        },
+        where: { id },
+        data: { ...body },
       });
       this.setStatus(200);
       return {
@@ -983,77 +718,38 @@ export class SocialController extends Controller {
   }
 
   @Delete("/delete-group/{id}")
-  public async DeleteGroup(@Path() id: string) {
+  public async DeleteGroup(@Path() id: string): Promise<any> {
     try {
-      const deleteGroup = await prisma.group.delete({
-        where: {
-          id,
-        },
-      });
+      await prisma.group.delete({ where: { id } });
       this.setStatus(200);
-      return {
-        message: `You just deleted ${deleteGroup.group_title}`,
-      };
+      return { message: "Group deleted successfully" };
     } catch (error) {
-      this.setStatus(500);
       console.error(error);
     }
   }
 
-  @Post("/upload-group-image/{groupId}")
+  @Post("/upload-group-image")
   public async UploadGroupImage(
-    @Path() groupId: string,
     @Body()
     body: {
+      group_id: string;
       file: string;
       fileName: string;
       mimeType: string;
     }
   ): Promise<any> {
+    const buffer = Buffer.from(body.file, "base64");
     try {
-      const group = await prisma.group.findUnique({
-        where: { id: groupId },
-      });
-
-      if (!group) {
-        this.setStatus(404);
-        return {
-          message: "Group not found",
-        };
-      }
-
-      const fileBuffer = Buffer.from(body.file, "base64");
-      const { url, error } = await MediaService.uploadGroupImage(
-        groupId,
-        fileBuffer,
+      const uploaded = await MediaService.uploadGroupImage(
+        body.group_id,
+        buffer,
         body.fileName,
         body.mimeType
       );
-
-      if (error) {
-        this.setStatus(500);
-        return { message: "Upload failed", error };
-      }
-
-      const updatedGroupImage = await prisma.group.update({
-        where: { id: groupId },
-        data: { group_image: url },
-      });
-
-      this.setStatus(200);
-      return {
-        message: "Group image uploaded successfully",
-        data: {
-          courseId: updatedGroupImage.id,
-          imageUrl: updatedGroupImage.group_image,
-        },
-      };
+      this.setStatus(201);
+      return { message: "Image uploaded successfully", data: uploaded };
     } catch (error) {
-      this.setStatus(500);
-      return {
-        message: "Failed to upload group image",
-        error: error.message,
-      };
+      console.error(error);
     }
   }
 
@@ -1062,107 +758,77 @@ export class SocialController extends Controller {
     @Body() body: Omit<EventDTO, "id">,
     @Path() groupId: string
   ): Promise<any> {
-    const group = await prisma.group.findUnique({
-      where: {
-        id: groupId,
-      },
-    });
-
-    if (!group) {
-      this.setStatus(404);
-      return {
-        message: "Group does not exist",
-      };
+    try {
+      const createEvent = await prisma.event.create({
+        data: {
+          event_name: body.event_name,
+          event_description: body.event_description,
+          event_time: body.event_time,
+          event_type: body.event_time,
+          event_link: body.event_link,
+          groupid: groupId,
+        }
+      });
+      this.setStatus(201);
+      return { message: "Event created successfully", data: createEvent };
+    } catch (error) {
+      console.error(error);
     }
-
-    const event = prisma.event.create({
-      data: {
-        ...(body as any),
-      },
-    });
-
-    this.setStatus(201);
-    return {
-      message: "Create Event",
-      event,
-    };
   }
 
   @Get("/get-event")
   public async GetEvent(): Promise<any> {
-    const getEvent = await prisma.event.findMany();
-    this.setStatus(200);
-    return {
-      message: "Event fetch successfully",
-      getEvent,
-    };
+    try {
+      const event = await prisma.event.findMany({
+        orderBy: { createdAt: "desc" },
+      });
+      this.setStatus(200);
+      return {
+        message: "event fetched successfully",
+        data: event,
+        count: event.length,
+      };
+    } catch (error) {
+      console.error(error);
+    }
   }
 
-  @Get("get-event/{id}")
-  public async GetEventById(@Path() id: string) {
-    const getEventById = await prisma.event.findUnique({
-      where: { id: id },
-    });
-
-    if (!getEventById) {
-      this.setStatus(404);
-      return {
-        message: "Event Not found",
-      };
+  @Get("/get-event/{id}")
+  public async GetEventById(@Path() id: string): Promise<any> {
+    try {
+      const event = await prisma.event.findUnique({ where: { id } });
+      this.setStatus(200);
+      return { message: "Event fetched successfully", data: event };
+    } catch (error) {
+      console.error(error);
     }
-
-    this.setStatus(200);
-    return {
-      message: `Event successfull By Id: ${getEventById.id}`,
-      getEventById,
-    };
   }
 
   @Put("/update-event/{id}")
   public async UpdateEvent(
     @Path() id: string,
-    @Body()
-    body: {
-      id: string;
-      event_name?: string;
-      event_description?: string;
-      event_time?: string;
-      event_date?: string;
-      event_type?: string;
-      event_link?: string;
+    @Body() body: Omit<EventDTO, "id">
+  ): Promise<any> {
+    try {
+      const updateEvent = await prisma.event.update({
+        where: { id },
+        data: { ...body },
+      });
+      this.setStatus(200);
+      return { message: "Event updated successfully", data: updateEvent };
+    } catch (error) {
+      console.error(error);
     }
-  ) {
-    const updateEvent = await prisma.event.update({
-      where: { id },
-      data: {
-        event_name: body.event_name,
-        event_description: body.event_description,
-        event_time: body.event_time,
-        event_data: body.event_date,
-        event_type: body.event_type,
-        event_link: body.event_link,
-      },
-    });
-
-    this.setStatus(201);
-    return {
-      message: "Update successfull",
-      updateEvent,
-    };
   }
 
   @Delete("/delete-event/{id}")
-  public async DeleteEvent(@Path() id: string) {
-    const deleteEvent = await prisma.event.delete({
-      where: {
-        id,
-      },
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Delete event successfull",
-      deleteEvent,
-    };
+  public async DeleteEvent(@Path() id: string): Promise<any> {
+    try {
+      await prisma.event.delete({ where: { id } });
+      this.setStatus(200);
+      return { message: "Event deleted successfully" };
+    } catch (error) {
+      console.error(error);
+    }
   }
 }

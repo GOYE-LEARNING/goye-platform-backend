@@ -125,13 +125,12 @@ model Event {
   event_name        String
   event_description String
   event_time        String
-  event_data        String
   event_type        String
   event_link        String
   group             Group    @relation(fields: [groupid], references: [id])
   groupid           String
   createdAt         DateTime @default(now())
-  updatedAt         DateTime
+  updatedAt         DateTime?
 }
 
 model Enrollment {
