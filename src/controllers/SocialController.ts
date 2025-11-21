@@ -171,7 +171,7 @@ export class SocialController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Post("/reply-other-reply/{replyId}")
+  @Post("/reply-other-reply/{replyId}/{postId}")
   public async ReplyOtherReply(
     @Body() body: Omit<ReplyDTO, "id">,
     @Path() replyId: string, postId: string,
