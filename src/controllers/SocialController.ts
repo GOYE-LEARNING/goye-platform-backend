@@ -174,7 +174,8 @@ export class SocialController extends Controller {
   @Post("/reply-other-reply/{postId}/{replyId}")
   public async ReplyOtherReply(
     @Body() body: Omit<ReplyDTO, "id">,
-    @Path() replyId: string, postId: string,
+    @Path() replyId: string,
+    postId: string,
     @Request() req: any
   ) {
     const userId = req.user?.id;
@@ -211,7 +212,7 @@ export class SocialController extends Controller {
           userId: userId,
           repliedMessage: body.content,
           replyId: replyId,
-          postId
+          postId,
         },
         include: {
           user: {
@@ -456,12 +457,24 @@ export class SocialController extends Controller {
               createdAt: true,
             },
           },
+          _count: {
+            select: {
+              likes: true,
+            },
+          },
+        },
+      });
+
+      const repliesCount = await prisma.replyOtherReplies.count({
+        where: {
+          id: replyId,
         },
       });
       this.setStatus(200);
       return {
         message: "Replies fetched successfully",
         data: repliedMessage,
+        count: repliesCount,
       };
     } catch (error) {
       this.setStatus(500);
