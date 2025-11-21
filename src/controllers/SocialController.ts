@@ -358,7 +358,7 @@ export class SocialController extends Controller {
             },
           },
           orderBy: {
-            createdAt: "asc",
+            createdAt: "desc",
           },
         },
         likes: {
@@ -460,21 +460,16 @@ export class SocialController extends Controller {
           _count: {
             select: {
               likes: true,
+              children: true,
             },
           },
         },
       });
 
-      const repliesCount = await prisma.replyOtherReplies.count({
-        where: {
-          id: replyId,
-        },
-      });
       this.setStatus(200);
       return {
         message: "Replies fetched successfully",
         data: repliedMessage,
-        count: repliesCount,
       };
     } catch (error) {
       this.setStatus(500);
