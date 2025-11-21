@@ -174,7 +174,7 @@ export class SocialController extends Controller {
   @Post("/reply-other-reply/{replyId}")
   public async ReplyOtherReply(
     @Body() body: Omit<ReplyDTO, "id">,
-    @Path() replyId: string,
+    @Path() replyId: string, postId: string,
     @Request() req: any
   ) {
     const userId = req.user?.id;
@@ -197,14 +197,8 @@ export class SocialController extends Controller {
         where: {
           id: replyId,
         },
-        include: {
-          post: {
-            select: { id: true },
-          },
-        },
       });
 
-      const postId = reply.post.id;
 
       if (!reply) {
         this.setStatus(404);
