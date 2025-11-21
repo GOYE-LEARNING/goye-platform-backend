@@ -171,10 +171,10 @@ export class SocialController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Post("/reply-other-reply/{replyId}")
+  @Post("/reply-other-reply/{postId}/{replyId}")
   public async ReplyOtherReply(
     @Body() body: Omit<ReplyDTO, "id">,
-    @Path() replyId: string,
+    @Path() replyId: string, postId: string,
     @Request() req: any
   ) {
     const userId = req.user?.id;
@@ -210,7 +210,8 @@ export class SocialController extends Controller {
         data: {
           userId: userId,
           repliedMessage: body.content,
-          replyId: replyId, // ✅ You're missing this required field!
+          replyId: replyId,
+          postId
         },
         include: {
           user: {

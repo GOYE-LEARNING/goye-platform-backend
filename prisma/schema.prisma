@@ -98,8 +98,9 @@ model ReplyOtherReplies {
   likes          Likes[]
   user           User     @relation(fields: [userId], references: [id])
   Reply          Reply?   @relation(fields: [replyId], references: [id])
-  post           Post?    @relation(fields: [repliedMessage], references: [id])
+  post           Post?    @relation(fields: [postId], references: [id])
   replyId        String?
+  postId         String?
   repliedMessage String
   createdAt      DateTime @default(now())
 }
