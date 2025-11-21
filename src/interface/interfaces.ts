@@ -112,6 +112,7 @@ export interface PostDTO {
 }
 
 export interface ReplyDTO {
+  parentId?: string
   content: string;
 }
 

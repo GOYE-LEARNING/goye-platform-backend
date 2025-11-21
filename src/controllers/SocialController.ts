@@ -109,8 +109,9 @@ export class SocialController extends Controller {
       const createReply = await prisma.reply.create({
         data: {
           content: body.content,
-          userId: userId,
-          postId: postId,
+          userId,
+          postId: postId, // optional if replying to another reply
+          parentId: body.parentId || null, // optional: set if it's a reply to a reply
         },
         include: {
           user: {
@@ -122,32 +123,33 @@ export class SocialController extends Controller {
               role: true,
             },
           },
-          post: {
-            select: {
-              id: true,
-              title: true,
-              user: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                },
-              },
+          likes: {
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true } },
             },
           },
-          likes: {
+          _count: { select: { likes: true } },
+          children: {
+            // fetch nested replies if needed immediately
             include: {
               user: {
                 select: {
                   id: true,
                   first_name: true,
                   last_name: true,
+                  user_pic: true,
+                  role: true,
                 },
               },
+              likes: {
+                include: {
+                  user: {
+                    select: { id: true, first_name: true, last_name: true },
+                  },
+                },
+              },
+              _count: { select: { likes: true } },
             },
-          },
-          _count: {
-            select: { likes: true },
           },
         },
       });
@@ -192,7 +194,6 @@ export class SocialController extends Controller {
     };
   }
 
-  @Security("bearerAuth")
   @Get("/get-post-with-replies/{postId}")
   public async GetPostWithReplies(@Path() postId: string): Promise<any> {
     const post = await prisma.post.findUnique({
@@ -207,34 +208,12 @@ export class SocialController extends Controller {
             role: true,
           },
         },
-        replies: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-                role: true,
-              },
-            },
-            likes: {
-              include: {
-                user: {
-                  select: { id: true, first_name: true, last_name: true },
-                },
-              },
-            },
-            _count: { select: { likes: true } },
-          },
-          orderBy: { createdAt: "desc" },
-        },
         likes: {
           include: {
             user: { select: { id: true, first_name: true, last_name: true } },
           },
         },
-        _count: { select: { replies: true, likes: true } },
+        _count: { select: { likes: true, replies: true } },
       },
     });
 
@@ -243,8 +222,42 @@ export class SocialController extends Controller {
       return { message: "Post not found" };
     }
 
+    // Get top-level replies
+    const topReplies = await prisma.reply.findMany({
+      where: { postId, parentId: null },
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        likes: {
+          include: {
+            user: { select: { id: true, first_name: true, last_name: true } },
+          },
+        },
+        _count: { select: { likes: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Recursively attach children
+    const repliesWithChildren = await Promise.all(
+      topReplies.map(async (reply) => {
+        const children = await repliesWithChildren(reply.id);
+        return { ...reply, children };
+      })
+    );
+
     this.setStatus(200);
-    return { message: "Post with replies fetched successfully", data: post };
+    return {
+      message: "Post with all replies fetched successfully",
+      data: { ...post, replies: repliesWithChildren },
+    };
   }
 
   @Post("/like-post/{postId}")
@@ -767,7 +780,7 @@ export class SocialController extends Controller {
           event_type: body.event_time,
           event_link: body.event_link,
           groupid: groupId,
-        }
+        },
       });
       this.setStatus(201);
       return { message: "Event created successfully", data: createEvent };
