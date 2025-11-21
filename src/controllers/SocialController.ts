@@ -255,9 +255,6 @@ export class SocialController extends Controller {
       };
     } catch (error) {
       console.error(error);
-      return {
-        message: "An internal server occured",
-      };
     }
   }
 
@@ -307,6 +304,7 @@ export class SocialController extends Controller {
   }
 
   // Get post with all replies
+  @Security("bearerAuth")
   @Get("/get-post-with-replies/{postId}")
   public async GetPostWithReplies(@Path() postId: string): Promise<any> {
     const post = await prisma.post.findUnique({
