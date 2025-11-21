@@ -195,36 +195,40 @@ export class SocialController extends Controller {
   }
 
   @Get("/get-post-with-replies/{postId}")
-  public async GetPostWithReplies(@Path() postId: string): Promise<any> {
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
+public async GetPostWithReplies(@Path() postId: string): Promise<any> {
+  // First, fetch the post itself
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          user_pic: true,
+          role: true,
         },
-        likes: {
-          include: {
-            user: { select: { id: true, first_name: true, last_name: true } },
-          },
-        },
-        _count: { select: { likes: true, replies: true } },
       },
-    });
+      likes: {
+        include: {
+          user: {
+            select: { id: true, first_name: true, last_name: true },
+          },
+        },
+      },
+      _count: { select: { likes: true, replies: true } },
+    },
+  });
 
-    if (!post) {
-      this.setStatus(404);
-      return { message: "Post not found" };
-    }
+  if (!post) {
+    this.setStatus(404);
+    return { message: "Post not found" };
+  }
 
-    // Get top-level replies
-    const topReplies = await prisma.reply.findMany({
-      where: { postId, parentId: null },
+  // Recursive function to fetch replies and their children
+  async function fetchRepliesWithChildren(postId: string, parentId: string | null = null) {
+    const replies = await prisma.reply.findMany({
+      where: { postId, parentId },
       include: {
         user: {
           select: {
@@ -245,20 +249,27 @@ export class SocialController extends Controller {
       orderBy: { createdAt: "asc" },
     });
 
-    // Recursively attach children
+    // Recursively fetch children for each reply
     const repliesWithChildren = await Promise.all(
-      topReplies.map(async (reply) => {
-        const children = await repliesWithChildren(reply.id);
+      replies.map(async (reply) => {
+        const children = await fetchRepliesWithChildren(postId, reply.id);
         return { ...reply, children };
       })
     );
 
-    this.setStatus(200);
-    return {
-      message: "Post with all replies fetched successfully",
-      data: { ...post, replies: repliesWithChildren },
-    };
+    return repliesWithChildren;
   }
+
+  // Fetch all top-level replies and their nested children
+  const repliesWithChildren = await fetchRepliesWithChildren(postId);
+
+  this.setStatus(200);
+  return {
+    message: "Post with all replies fetched successfully",
+    data: { ...post, replies: repliesWithChildren },
+  };
+}
+
 
   @Post("/like-post/{postId}")
   @Security("bearerAuth")
