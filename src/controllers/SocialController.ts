@@ -197,7 +197,14 @@ export class SocialController extends Controller {
         where: {
           id: replyId,
         },
+        include: {
+          post: {
+            select: { id: true },
+          },
+        },
       });
+
+      const postId = reply.post.id;
 
       if (!reply) {
         this.setStatus(404);
@@ -211,6 +218,7 @@ export class SocialController extends Controller {
           userId: userId,
           repliedMessage: body.content,
           replyId: replyId,
+          postId,
         },
         include: {
           user: {
@@ -252,12 +260,12 @@ export class SocialController extends Controller {
                 select: {
                   first_name: true,
                   last_name: true,
-                  user_pic: true
-                }
+                  user_pic: true,
+                },
               },
-              repliedMessage: true
-            }
-          }
+              repliedMessage: true,
+            },
+          },
         },
       });
 
@@ -433,7 +441,7 @@ export class SocialController extends Controller {
       }
 
       const repliedMessage = await prisma.replyOtherReplies.findMany({
-        where: {replyId: replyId},
+        where: { replyId: replyId },
         include: {
           user: {
             select: {
@@ -835,8 +843,8 @@ export class SocialController extends Controller {
         where: {
           userId_repliesMessageId: {
             userId,
-            repliesMessageId: repliedMessageId
-          }
+            repliesMessageId: repliedMessageId,
+          },
         },
       });
 
