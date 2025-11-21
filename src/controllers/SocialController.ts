@@ -179,14 +179,14 @@ export class SocialController extends Controller {
   ) {
     const userId = req.user?.id;
     if (!userId) {
-      this.setStatus(404);
+      this.setStatus(401); // ✅ Changed from 404 to 401 for unauthorized
       return {
         message: "Unauthorized",
       };
     }
 
     if (!replyId) {
-      this.setStatus(404);
+      this.setStatus(400); // ✅ Changed from 404 to 400 for bad request
       return {
         message: "The post you want to reply does not exist",
       };
@@ -210,6 +210,7 @@ export class SocialController extends Controller {
         data: {
           userId: userId,
           repliedMessage: body.content,
+          replyId: replyId, // ✅ You're missing this required field!
         },
         include: {
           user: {
@@ -250,11 +251,18 @@ export class SocialController extends Controller {
 
       this.setStatus(201);
       return {
-        message: "Created succefully",
+        message: "Reply created successfully", // ✅ Better message
         data: replyotherReply,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("Error creating reply:", error);
+
+      // ✅ ADD THIS RETURN STATEMENT
+      this.setStatus(500);
+      return {
+        message: "Failed to create reply",
+        error: error.message,
+      };
     }
   }
 
@@ -867,7 +875,9 @@ export class SocialController extends Controller {
       }
 
       this.setStatus(400);
-      return { message: "Must provide either postId or replyId or repliedMessageId" };
+      return {
+        message: "Must provide either postId or replyId or repliedMessageId",
+      };
     } catch (error: any) {
       this.setStatus(500);
       return {
