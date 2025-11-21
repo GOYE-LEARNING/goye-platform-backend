@@ -171,77 +171,105 @@ export class SocialController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Post("/reply-other-reply/{parentId}")
+  @Post("/reply-other-reply/{replyId}")
   public async ReplyOtherReply(
     @Body() body: Omit<ReplyDTO, "id">,
-    @Path() parentId: string,
+    @Path() replyId: string,
     @Request() req: any
   ) {
     const userId = req.user?.id;
     if (!userId) {
-      this.setStatus(401);
-      return { message: "Unauthorized" };
+      this.setStatus(401); // ✅ Changed from 404 to 401 for unauthorized
+      return {
+        message: "Unauthorized",
+      };
+    }
+
+    if (!replyId) {
+      this.setStatus(400); // ✅ Changed from 404 to 400 for bad request
+      return {
+        message: "The post you want to reply does not exist",
+      };
     }
 
     try {
-      // Check if parent exists (could be reply or nested reply)
-      const parentReply = await prisma.reply.findUnique({
-        where: { id: parentId },
+      const reply = await prisma.reply.findUnique({
+        where: {
+          id: replyId,
+        },
       });
 
-      const parentNestedReply = await prisma.replyOtherReplies.findUnique({
-        where: { id: parentId },
-      });
-
-      if (!parentReply && !parentNestedReply) {
+      if (!reply) {
         this.setStatus(404);
-        return { message: "Parent reply not found" };
+        return {
+          message: "Reply not found",
+        };
       }
 
-      const nestedReply = await prisma.replyOtherReplies.create({
+      const replyotherReply = await prisma.replyOtherReplies.create({
         data: {
           userId: userId,
           repliedMessage: body.content,
-          replyId: parentReply ? parentId : null,
-          parentId: parentNestedReply ? parentId : null,
-          postId: parentReply ? parentReply.postId : parentNestedReply.postId,
+          replyId: replyId,
         },
         include: {
           user: {
             select: {
-              id: true,
               first_name: true,
               last_name: true,
               user_pic: true,
             },
           },
-          likes: {
-            include: {
+          Reply: {
+            select: {
+              content: true,
+              createdAt: true,
               user: {
                 select: {
-                  id: true,
                   first_name: true,
                   last_name: true,
+                  user_pic: true,
                 },
               },
             },
           },
-          _count: {
+          post: {
             select: {
-              likes: true,
-              children: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              content: true,
+              createdAt: true,
             },
           },
+          children: {
+            select: {
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true
+                }
+              },
+              repliedMessage: true
+            }
+          }
         },
       });
 
       this.setStatus(201);
       return {
-        message: "Reply created successfully",
-        data: nestedReply,
+        message: "Reply created successfully", // ✅ Better message
+        data: replyotherReply,
       };
     } catch (error: any) {
-      console.error("Error creating nested reply:", error);
+      console.error("Error creating reply:", error);
+
+      // ✅ ADD THIS RETURN STATEMENT
       this.setStatus(500);
       return {
         message: "Failed to create reply",
@@ -385,40 +413,72 @@ export class SocialController extends Controller {
   ) {
     const userId = req.user?.id;
     if (!userId) {
-      this.setStatus(401);
-      return { message: "Unauthorized" };
+      this.setStatus(404);
+      return {
+        message: "Unauthorized",
+      };
     }
-
     try {
       const reply = await prisma.reply.findUnique({
-        where: { id: replyId },
+        where: {
+          id: replyId,
+        },
       });
 
       if (!reply) {
-        this.setStatus(404);
-        return { message: "Reply not found" };
+        this.setStatus(401);
+        return {
+          message: "Reply not found",
+        };
       }
 
-      // ✅ Get nested replies with proper hierarchy
-      const nestedReplies = await prisma.replyOtherReplies.findMany({
-        where: {
-          OR: [
-            { replyId: replyId },
-            { parentId: { not: null } }, // Get all nested replies
-          ],
-        },
+      const repliedMessage = await prisma.replyOtherReplies.findMany({
         include: {
           user: {
             select: {
-              id: true,
               first_name: true,
               last_name: true,
               user_pic: true,
             },
           },
-          likes: {
-            where: { userId: userId }, // Check if current user liked
-            select: { id: true },
+          Reply: {
+            select: {
+              content: true,
+              createdAt: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+            },
+          },
+          post: {
+            select: {
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              content: true,
+              createdAt: true,
+            },
+          },
+          children: {
+            select: {
+              repliedMessage: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              likes: true,
+            },
           },
           _count: {
             select: {
@@ -426,44 +486,23 @@ export class SocialController extends Controller {
               children: true,
             },
           },
-          children: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  user_pic: true,
-                },
-              },
-              likes: {
-                where: { userId: userId },
-                select: { id: true },
-              },
-              _count: {
-                select: {
-                  likes: true,
-                  children: true,
-                },
-              },
-            },
-            orderBy: { createdAt: "asc" },
-          },
         },
-        orderBy: { createdAt: "asc" },
       });
 
       this.setStatus(200);
       return {
-        message: "Nested replies fetched successfully",
-        data: nestedReplies,
+        message: "Replies fetched successfully",
+        data: repliedMessage,
       };
     } catch (error) {
       this.setStatus(500);
       console.error(error);
-      return { message: "Internal server error" };
+      return {
+        message: "Internal server error",
+      };
     }
   }
+
   @Post("/like-post/{postId}")
   @Security("bearerAuth")
   public async LikePost(
@@ -795,8 +834,8 @@ export class SocialController extends Controller {
         where: {
           userId_repliesMessageId: {
             userId,
-            repliesMessageId: repliedMessageId,
-          },
+            repliesMessageId: repliedMessageId
+          }
         },
       });
 
