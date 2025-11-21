@@ -457,6 +457,19 @@ export class SocialController extends Controller {
               createdAt: true,
             },
           },
+          children: {
+            select: {
+              repliedMessage: true,
+              user: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              likes: true,
+            },
+          },
           _count: {
             select: {
               likes: true,
@@ -809,7 +822,10 @@ export class SocialController extends Controller {
 
       const unlikedReply = await prisma.likes.delete({
         where: {
-          id: repliedMessageId,
+          userId_repliesMessageId: {
+            userId,
+            repliesMessageId: repliedMessageId,
+          },
         },
       });
 
