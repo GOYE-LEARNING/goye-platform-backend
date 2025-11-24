@@ -749,8 +749,9 @@ export class CourseController extends Controller {
   }
 
   // ... YOUR QUIZ METHODS (they remain the same) ...
-  @Post("/create-quiz")
+  @Post("/create-quiz/{courseId}")
   public async CreateQuiz(
+    @Path() courseId: string,
     @Body()
     body: {
       title: string;
@@ -770,11 +771,23 @@ export class CourseController extends Controller {
     }
   ): Promise<any> {
     try {
+      const course = await prisma.course.findUnique({
+        where: {
+          id: courseId,
+        },
+      });
+
+      if (!course) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+        };
+      }
       const newQuiz = await prisma.quiz.create({
         data: {
           title: body.title,
           description: body.description,
-          courseId: body.courseId,
+          courseId: courseId,
           duration: body.duration,
           passingScore: body.passingScore || 70,
           maxAttempts: body.maxAttempts || 3,

@@ -31,15 +31,12 @@ export interface Module {
   module_title?: string;
   module_description?: string;
   module_duration?: string;
-  courseId?: string;
   lesson?: Lesson[];
 }
 
 export interface Lesson {
-  id?: string;
   lesson_title?: string;
   lesson_video?: string;
-  moduleId?: string;
 }
 
 export interface Material {
