@@ -41,7 +41,7 @@ model Course {
   course_image             String
   createdAt                DateTime     @default(now()) // Added missing createdAt
   updatedAt                DateTime     @updatedAt // Added missing updatedAt
-  enrollment               Enrollment[]
+  enrollment               Enrollment[] 
   material                 Material[]
   module                   Module[]
   objectives               Objectives[]
@@ -70,7 +70,7 @@ model Post {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   replies   Reply[]  @relation("PostReplies")
   likes     Likes[] // Add this line
-  courses   Course   @relation(fields: [courseId], references: [id])
+  courses   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId  String
 
   @@map("posts")
@@ -85,8 +85,8 @@ model Reply {
   createdAt DateTime @default(now())
 
   user     User    @relation(fields: [userId], references: [id])
-  post     Post?   @relation("PostReplies", fields: [postId], references: [id])
-  parent   Reply?  @relation("ReplyChildren", fields: [parentId], references: [id])
+  post     Post?   @relation("PostReplies", fields: [postId], references: [id], onDelete: Cascade)
+  parent   Reply?  @relation("ReplyChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children Reply[] @relation("ReplyChildren")
   likes    Likes[]
 

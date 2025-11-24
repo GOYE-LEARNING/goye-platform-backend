@@ -10,7 +10,6 @@ import {
   Security,
   Request,
   Delete,
-  Query,
 } from "tsoa";
 import prisma from "../db.js";
 import { CourseResponse, Module } from "../interface/interfaces.js";
@@ -388,7 +387,6 @@ export class CourseController extends Controller {
   }
 
   // FILE UPLOAD ENDPOINTS
-
   @Post("/upload-course-image/{courseId}")
   @Security("bearerAuth")
   public async UploadCourseImage(
@@ -612,18 +610,41 @@ export class CourseController extends Controller {
 
   // ... REST OF YOUR EXISTING METHODS (modules, quizzes, etc.) ...
 
-  @Post("/create-module")
+  @Post("/create-module/{courseId}")
   @Security("bearerAuth")
   public async CreateModule(
     @Body() body: Omit<Module, "id">,
-    @Request() req: any
+    @Path() courseId: string
   ): Promise<any> {
-    const createModule = await prisma.module.create({
-      data: {
-        ...(body as any),
+    const course = await prisma.course.findUnique({
+      where: {
+        id: courseId,
       },
     });
 
+    if (!course) {
+      this.setStatus(404);
+      return {
+        message: "Module not found",
+      };
+    }
+
+    const createModule = await prisma.module.create({
+      data: {
+        module_title: body.module_title,
+        module_description: body.module_description,
+        module_duration: body.module_duration,
+        courseId: courseId,
+        ...((body.lesson as any) && {
+          lesson: {
+            create: body.lesson.map((l) => ({
+              lesson_video: l.lesson_video,
+              lesson_title: l.lesson_video,
+            })),
+          },
+        }),
+      },
+    });
     this.setStatus(201);
     return {
       message: "Module created successfully",
