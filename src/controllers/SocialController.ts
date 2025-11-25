@@ -663,41 +663,40 @@ export class SocialController extends Controller {
   }
 
   @Security("bearerAuth")
-@Post("/create-group")
-public async CreateGroup(
-  @Request() req: any,
-  @Body() body: Omit<Group, "id">
-): Promise<any> {
-  const userId = req.user?.id;
+  @Post("/create-group")
+  public async CreateGroup(
+    @Request() req: any,
+    @Body() body: Omit<Group, "id">
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(404);
-    return { message: "User not found" };
+    if (!userId) {
+      this.setStatus(404);
+      return { message: "User not found" };
+    }
+
+    try {
+      const group = await prisma.group.create({
+        data: {
+          group_title: body.group_title,
+          group_description: body.group_description,
+          group_short_description: body.group_short_description,
+          group_image: body.group_image,
+          userId: userId,
+        },
+      });
+
+      this.setStatus(201);
+      return {
+        message: "Group created successfully",
+        group: group, // return the full group object
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      console.error(error.message);
+      return { message: "Internal server error" };
+    }
   }
-
-  try {
-    const group = await prisma.group.create({
-      data: {
-        group_title: body.group_title,
-        group_description: body.group_description,
-        group_short_description: body.group_short_description,
-        group_image: body.group_image,
-        userId: userId,
-      },
-    });
-
-    this.setStatus(201);
-    return {
-      message: "Group created successfully",
-      group: group, // return the full group object
-    };
-  } catch (error: any) {
-    this.setStatus(500);
-    console.error(error.message);
-    return { message: "Internal server error" };
-  }
-}
-
 
   @Get("/get-group/{id}")
   public async GetGroupById(@Path() id: string): Promise<any> {
@@ -721,9 +720,9 @@ public async CreateGroup(
             select: {
               first_name: true,
               last_name: true,
-              user_pic: true
-            }
-          }
+              user_pic: true,
+            },
+          },
         },
       });
       this.setStatus(200);
@@ -822,7 +821,8 @@ public async CreateGroup(
     }
   }
 
-  @Get("/get-event")
+  @Security("bearerAuth")
+  @Get("/get-all-event")
   public async GetEvent(): Promise<any> {
     try {
       const event = await prisma.event.findMany({
@@ -831,6 +831,34 @@ public async CreateGroup(
       this.setStatus(200);
       return {
         message: "event fetched successfully",
+        data: event,
+        count: event.length,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/get-group-event/{groupId}")
+  public async GetGroupEvent(@Path() groupId: string): Promise<any> {
+    try {
+      if (!groupId) {
+        this.setStatus(404);
+        return {
+          messgae: "Group not found",
+        };
+      }
+      
+      const event = await prisma.event.findMany({
+        where: {
+          groupid: groupId,
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      this.setStatus(200);
+      return {
+        message: "Event from group fetched successfully",
         data: event,
         count: event.length,
       };
