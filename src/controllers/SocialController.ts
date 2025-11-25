@@ -684,6 +684,15 @@ export class SocialController extends Controller {
           group_image: body.group_image,
           userId: userId,
         },
+        include: {
+          createdBy: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+        },
       });
 
       this.setStatus(201);
@@ -701,7 +710,27 @@ export class SocialController extends Controller {
   @Get("/get-group/{id}")
   public async GetGroupById(@Path() id: string): Promise<any> {
     try {
-      const findGroup = await prisma.group.findUnique({ where: { id } });
+      const findGroup = await prisma.group.findUnique({
+        where: { id },
+        include: {
+          createdBy: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          event: {
+            select: {
+              event_name: true,
+              event_description: true,
+              event_link: true,
+              event_type: true,
+              event_time: true,
+            },
+          },
+        },
+      });
       this.setStatus(200);
       return { message: "Success finding group", data: findGroup };
     } catch (error) {
@@ -938,7 +967,7 @@ export class SocialController extends Controller {
           event_name: body.event_name,
           event_description: body.event_description,
           event_time: body.event_time,
-          event_type: body.event_time,
+          event_type: body.event_type,
           event_link: body.event_link,
           groupid: groupId,
         },
