@@ -15,7 +15,6 @@ import {
 import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces.js";
 import prisma from "../db.js";
 import { MediaService } from "../services/mediaServices.js";
-import { tree } from "next/dist/build/templates/app-page.js";
 
 @Route("socials")
 @Tags("Social controllers")
