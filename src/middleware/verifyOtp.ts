@@ -1,4 +1,3 @@
-import { Response } from "express";
 import prisma from "../db.js";
 export async function VerifyOtp(email: string, code: string) {
   const record = await prisma.otp.findFirst({

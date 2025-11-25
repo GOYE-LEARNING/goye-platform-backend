@@ -195,40 +195,10 @@ export class SocialController extends Controller {
   }
 
   @Get("/get-post-with-replies/{postId}")
-public async GetPostWithReplies(@Path() postId: string): Promise<any> {
-  // First, fetch the post itself
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    include: {
-      user: {
-        select: {
-          id: true,
-          first_name: true,
-          last_name: true,
-          user_pic: true,
-          role: true,
-        },
-      },
-      likes: {
-        include: {
-          user: {
-            select: { id: true, first_name: true, last_name: true },
-          },
-        },
-      },
-      _count: { select: { likes: true, replies: true } },
-    },
-  });
-
-  if (!post) {
-    this.setStatus(404);
-    return { message: "Post not found" };
-  }
-
-  // Recursive function to fetch replies and their children
-  async function fetchRepliesWithChildren(postId: string, parentId: string | null = null) {
-    const replies = await prisma.reply.findMany({
-      where: { postId, parentId },
+  public async GetPostWithReplies(@Path() postId: string): Promise<any> {
+    // First, fetch the post itself
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
       include: {
         user: {
           select: {
@@ -241,35 +211,67 @@ public async GetPostWithReplies(@Path() postId: string): Promise<any> {
         },
         likes: {
           include: {
-            user: { select: { id: true, first_name: true, last_name: true } },
+            user: {
+              select: { id: true, first_name: true, last_name: true },
+            },
           },
         },
-        _count: { select: { likes: true } },
+        _count: { select: { likes: true, replies: true } },
       },
-      orderBy: { createdAt: "asc" },
     });
 
-    // Recursively fetch children for each reply
-    const repliesWithChildren = await Promise.all(
-      replies.map(async (reply) => {
-        const children = await fetchRepliesWithChildren(postId, reply.id);
-        return { ...reply, children };
-      })
-    );
+    if (!post) {
+      this.setStatus(404);
+      return { message: "Post not found" };
+    }
 
-    return repliesWithChildren;
+    // Recursive function to fetch replies and their children
+    async function fetchRepliesWithChildren(
+      postId: string,
+      parentId: string | null = null
+    ) {
+      const replies = await prisma.reply.findMany({
+        where: { postId, parentId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          likes: {
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true } },
+            },
+          },
+          _count: { select: { likes: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      });
+
+      // Recursively fetch children for each reply
+      const repliesWithChildren = await Promise.all(
+        replies.map(async (reply) => {
+          const children = await fetchRepliesWithChildren(postId, reply.id);
+          return { ...reply, children };
+        })
+      );
+
+      return repliesWithChildren;
+    }
+
+    // Fetch all top-level replies and their nested children
+    const repliesWithChildren = await fetchRepliesWithChildren(postId);
+
+    this.setStatus(200);
+    return {
+      message: "Post with all replies fetched successfully",
+      data: { ...post, replies: repliesWithChildren },
+    };
   }
-
-  // Fetch all top-level replies and their nested children
-  const repliesWithChildren = await fetchRepliesWithChildren(postId);
-
-  this.setStatus(200);
-  return {
-    message: "Post with all replies fetched successfully",
-    data: { ...post, replies: repliesWithChildren },
-  };
-}
-
 
   @Post("/like-post/{postId}")
   @Security("bearerAuth")
@@ -662,6 +664,7 @@ public async GetPostWithReplies(@Path() postId: string): Promise<any> {
 
   @Post("/create-group")
   public async CreateGroup(
+    @Request() req: any,
     @Body()
     body: Omit<
       {
@@ -673,8 +676,17 @@ public async GetPostWithReplies(@Path() postId: string): Promise<any> {
       "id"
     >
   ): Promise<any> {
+    const userId = req.user?.id;
     try {
-      const group = await prisma.group.create({ data: { ...body } });
+      const group = await prisma.group.create({
+        data: {
+          group_title: body.group_title,
+          group_description: body.group_description,
+          group_short_description: body.group_short_description,
+          group_image: body.group_image,
+          userId: userId,
+        },
+      });
       this.setStatus(201);
       return {
         message: "Group created successfully",
@@ -703,6 +715,7 @@ public async GetPostWithReplies(@Path() postId: string): Promise<any> {
     try {
       const groups = await prisma.group.findMany({
         orderBy: { createdAt: "desc" },
+        include: {},
       });
       this.setStatus(200);
       return {

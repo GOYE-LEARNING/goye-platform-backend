@@ -8,28 +8,29 @@ datasource db {
 }
 
 model User {
-  id                String              @id @default(cuid())
-  first_name        String
-  last_name         String
-  email_address     String              @unique
-  password          String
-  country           String
-  state             String
-  phone_number      String
-  role              String              @default("student")
-  level             String
-  completed         String              @default("false")
-  createdAt         DateTime            @default(now())
-  isOnline          Boolean             @default(false)
-  lastActive        DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-  user_pic          String?
-  enrollment        Enrollment[]
-  post              Post[]
-  reply             Reply[]
-  quizAttempt       QuizAttempt[] // Added missing relation
-  likes             Likes[]
-  Courses           Course[]
+  id            String        @id @default(cuid())
+  first_name    String
+  last_name     String
+  email_address String        @unique
+  password      String
+  country       String
+  state         String
+  phone_number  String
+  role          String        @default("student")
+  level         String
+  completed     String        @default("false")
+  createdAt     DateTime      @default(now())
+  isOnline      Boolean       @default(false)
+  lastActive    DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  user_pic      String?
+  enrollment    Enrollment[]
+  post          Post[]
+  reply         Reply[]
+  quizAttempt   QuizAttempt[] // Added missing relation
+  likes         Likes[]
+  Courses       Course[]
+  Group         Group[]
 }
 
 model Course {
@@ -41,7 +42,7 @@ model Course {
   course_image             String
   createdAt                DateTime     @default(now()) // Added missing createdAt
   updatedAt                DateTime     @updatedAt // Added missing updatedAt
-  enrollment               Enrollment[] 
+  enrollment               Enrollment[]
   material                 Material[]
   module                   Module[]
   objectives               Objectives[]
@@ -108,7 +109,6 @@ model Likes {
   @@unique([userId, replyId], map: "unique_user_reply_like")
 }
 
-
 model Group {
   id                      String   @id @default(uuid())
   group_title             String
@@ -118,18 +118,20 @@ model Group {
   event                   Event[]
   createdAt               DateTime @default(now())
   updatedAt               DateTime @updatedAt
+  createdBy               User     @relation(fields: [userId], references: [id])
+  userId                  String
 }
 
 model Event {
-  id                String   @id @default(ulid())
+  id                String    @id @default(ulid())
   event_name        String
   event_description String
   event_time        String
   event_type        String
   event_link        String
-  group             Group    @relation(fields: [groupid], references: [id])
+  group             Group     @relation(fields: [groupid], references: [id])
   groupid           String
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
   updatedAt         DateTime?
 }
 
