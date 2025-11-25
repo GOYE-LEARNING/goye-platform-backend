@@ -15,6 +15,7 @@ import {
 import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces.js";
 import prisma from "../db.js";
 import { MediaService } from "../services/mediaServices.js";
+import { tree } from "next/dist/build/templates/app-page.js";
 
 @Route("socials")
 @Tags("Social controllers")
@@ -716,7 +717,15 @@ public async CreateGroup(
     try {
       const groups = await prisma.group.findMany({
         orderBy: { createdAt: "desc" },
-        include: {},
+        include: {
+          createdBy: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true
+            }
+          }
+        },
       });
       this.setStatus(200);
       return {
