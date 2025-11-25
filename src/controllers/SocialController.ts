@@ -12,7 +12,7 @@ import {
   Put,
   Query,
 } from "tsoa";
-import { EventDTO, PostDTO, ReplyDTO } from "../interface/interfaces.js";
+import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces.js";
 import prisma from "../db.js";
 import { MediaService } from "../services/mediaServices.js";
 
@@ -662,41 +662,42 @@ export class SocialController extends Controller {
     }
   }
 
-  @Post("/create-group")
-  public async CreateGroup(
-    @Request() req: any,
-    @Body()
-    body: Omit<
-      {
-        group_title: string;
-        group_short_description: string;
-        group_description: string;
-        group_image: string;
-      },
-      "id"
-    >
-  ): Promise<any> {
-    const userId = req.user?.id;
-    try {
-      const group = await prisma.group.create({
-        data: {
-          group_title: body.group_title,
-          group_description: body.group_description,
-          group_short_description: body.group_short_description,
-          group_image: body.group_image,
-          userId: userId,
-        },
-      });
-      this.setStatus(201);
-      return {
-        message: "Group created successfully",
-        group: group.group_title,
-      };
-    } catch (error) {
-      this.setStatus(500);
-      console.error(error.message);
-    }
+  @Security("bearerAuth")
+@Post("/create-group")
+public async CreateGroup(
+  @Request() req: any,
+  @Body() body: Omit<Group, "id">
+): Promise<any> {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    this.setStatus(404);
+    return { message: "User not found" };
   }
+
+  try {
+    const group = await prisma.group.create({
+      data: {
+        group_title: body.group_title,
+        group_description: body.group_description,
+        group_short_description: body.group_short_description,
+        group_image: body.group_image,
+        userId: userId,
+      },
+    });
+
+    this.setStatus(201);
+    return {
+      message: "Group created successfully",
+      group: group, // return the full group object
+    };
+  } catch (error: any) {
+    this.setStatus(500);
+    console.error(error.message);
+    return { message: "Internal server error" };
+  }
+}
+
 
   @Get("/get-group/{id}")
   public async GetGroupById(@Path() id: string): Promise<any> {

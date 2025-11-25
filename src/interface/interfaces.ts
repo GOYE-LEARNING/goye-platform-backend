@@ -103,16 +103,23 @@ export interface CourseResponse {
 }
 
 export interface PostDTO {
-  id?: string
+  id?: string;
   title: string;
   content: string;
 }
 
 export interface ReplyDTO {
-  parentId?: string
+  parentId?: string;
   content: string;
 }
 
+export interface Group {
+  id: string;
+  group_title: string;
+  group_short_description: string;
+  group_description: string;
+  group_image: string;
+}
 
 export interface EventDTO {
   id: string;
@@ -123,5 +130,3 @@ export interface EventDTO {
   event_type?: string;
   event_link?: string;
 }
-
-
