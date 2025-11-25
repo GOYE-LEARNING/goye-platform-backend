@@ -798,6 +798,135 @@ export class SocialController extends Controller {
     }
   }
 
+  @Security("bearerAuth")
+  @Post("/join-group/{groupId}")
+  public async JoinGroup(@Request() req: any, @Path() groupId: string) {
+    const userId = req.user?.id;
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        message: "User not authorized",
+      };
+    }
+
+    if (!groupId) {
+      this.setStatus(404);
+      return {
+        message: "Group not found",
+      };
+    }
+
+    const isJoined = await prisma.joinedGroup.findUnique({
+      where: {
+        groupId_studentId: {
+          studentId: userId,
+          groupId,
+        },
+      },
+    });
+
+    if (isJoined) {
+      if (isJoined.isJoined) {
+        return {
+          message: "Already Joinded",
+        };
+      }
+
+      const joinAgain = await prisma.joinedGroup.update({
+        where: {
+          groupId_studentId: {
+            groupId,
+            studentId: userId,
+          },
+        },
+
+        data: {
+          isJoined: true,
+        },
+
+        include: {
+          group: {
+            select: {
+              group_title: true,
+            },
+          },
+        },
+      });
+
+      return {
+        message: "Rejoined successfull",
+        data: joinAgain,
+      };
+    }
+
+    const joined = await prisma.joinedGroup.create({
+      data: {
+        studentId: userId,
+        groupId,
+        isJoined: true,
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "User has Joinded successfully",
+      data: joined,
+    };
+  }
+
+  @Security("bearerAuth")
+  @Delete("/exit-group/{groupId}")
+  public async ExitGroup(@Path() groupId: string, @Request() req: any) {
+    const userId = req.user?.id;
+    if (!userId) {
+      return {
+        message: "User unauthorized",
+      };
+    }
+
+    const group = await prisma.group.findUnique({
+      where: {
+        id: groupId,
+      },
+    });
+
+    if (!group) {
+      return {
+        message: "This group does not exist",
+      };
+    }
+
+    const isJoined = await prisma.joinedGroup.findUnique({
+      where: {
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
+        },
+      },
+    });
+
+    if (!isJoined) {
+      return {
+        message: "User is not a memeber of this group",
+      };
+    }
+
+    const existgroup = await prisma.joinedGroup.delete({
+      where: {
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
+        },
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Message deleted successfully",
+      data: existgroup,
+    };
+  }
+
   @Post("/create-event/{groupId}")
   public async CreateEvent(
     @Body() body: Omit<EventDTO, "id">,
@@ -849,7 +978,7 @@ export class SocialController extends Controller {
           messgae: "Group not found",
         };
       }
-      
+
       const event = await prisma.event.findMany({
         where: {
           groupid: groupId,

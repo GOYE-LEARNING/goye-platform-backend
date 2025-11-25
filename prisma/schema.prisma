@@ -31,6 +31,7 @@ model User {
   likes         Likes[]
   Courses       Course[]
   Group         Group[]
+  joinedGroups  JoinedGroup[]
 }
 
 model Course {
@@ -110,16 +111,29 @@ model Likes {
 }
 
 model Group {
-  id                      String   @id @default(uuid())
+  id                      String        @id @default(uuid())
   group_title             String
   group_short_description String
   group_description       String
   group_image             String
   event                   Event[]
-  createdAt               DateTime @default(now())
-  updatedAt               DateTime @updatedAt
-  createdBy               User?     @relation(fields: [userId], references: [id])
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
+  createdBy               User?         @relation(fields: [userId], references: [id])
   userId                  String?
+  member                  JoinedGroup[]
+}
+
+model JoinedGroup {
+  id        String   @id @default(uuid())
+  isJoined  Boolean  @default(false)
+  joinedAt  DateTime @default(now())
+  student   User?    @relation(fields: [studentId], references: [id])
+  group     Group?   @relation(fields: [groupId], references: [id])
+  groupId   String
+  studentId String
+
+  @@unique([groupId, studentId])
 }
 
 model Event {
