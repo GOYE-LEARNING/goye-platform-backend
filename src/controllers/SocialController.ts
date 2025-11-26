@@ -802,20 +802,25 @@ export class SocialController extends Controller {
     }
   }
 
-  @Post("/upload-group-image")
+  @Post("/upload-group-image/{groupId}")
   public async UploadGroupImage(
+    @Path() groupId: string,
     @Body()
     body: {
-      group_id: string;
       file: string;
       fileName: string;
       mimeType: string;
     }
   ): Promise<any> {
+    const group = await prisma.group.findUnique({
+      where: {
+        id: groupId,
+      },
+    });
     const buffer = Buffer.from(body.file, "base64");
     try {
       const uploaded = await MediaService.uploadGroupImage(
-        body.group_id,
+        group.id,
         buffer,
         body.fileName,
         body.mimeType
