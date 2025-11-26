@@ -118,7 +118,7 @@ export interface Group {
   group_title: string;
   group_short_description: string;
   group_description: string;
-  group_image: string;
+  group_image?: string;
 }
 
 export interface EventDTO {

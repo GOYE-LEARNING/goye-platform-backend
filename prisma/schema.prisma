@@ -115,7 +115,7 @@ model Group {
   group_title             String
   group_short_description String
   group_description       String
-  group_image             String
+  group_image             String?
   event                   Event[]
   createdAt               DateTime      @default(now())
   updatedAt               DateTime      @updatedAt
