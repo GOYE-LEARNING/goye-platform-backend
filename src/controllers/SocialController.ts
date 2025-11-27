@@ -734,6 +734,7 @@ export class SocialController extends Controller {
             event_description: true,
             event_link: true,
             event_time: true,
+            event_date: true
           },
         },
         createdBy: {
@@ -790,6 +791,7 @@ export class SocialController extends Controller {
               event_link: true,
               event_type: true,
               event_time: true,
+              event_date: true
             },
           },
           _count: {
@@ -840,6 +842,7 @@ export class SocialController extends Controller {
               event_link: true,
               event_type: true,
               event_time: true,
+              event_date: true
             },
           },
           member: {
@@ -903,6 +906,7 @@ export class SocialController extends Controller {
               event_link: true,
               event_type: true,
               event_time: true,
+              event_date: true
             },
           },
           member: {
@@ -1117,6 +1121,7 @@ export class SocialController extends Controller {
           event_time: body.event_time,
           event_type: body.event_type,
           event_link: body.event_link,
+          event_date: body.event_date,
           groupid: groupId,
         },
       });
