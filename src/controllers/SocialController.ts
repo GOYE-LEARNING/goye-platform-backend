@@ -707,6 +707,53 @@ export class SocialController extends Controller {
     }
   }
 
+  @Get("/get-groups-created-by-Id")
+  public async GetGroupByCreator(@Request() req: any) {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        message: "User is not authorized",
+      };
+    }
+
+    const group = await prisma.group.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        event: {
+          select: {
+            event_name: true,
+            event_type: true,
+            event_description: true,
+            event_link: true,
+            event_time: true,
+          },
+        },
+        createdBy: {
+          select: {
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        _count: {
+          select: {
+            member: true,
+          },
+        },
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Group by user fetched successfully",
+      data: group,
+    };
+  }
+
   @Get("/get-group/{id}")
   public async GetGroupById(@Path() id: string): Promise<any> {
     try {
@@ -727,6 +774,11 @@ export class SocialController extends Controller {
               event_link: true,
               event_type: true,
               event_time: true,
+            },
+          },
+          _count: {
+            select: {
+              member: true,
             },
           },
         },
@@ -750,6 +802,11 @@ export class SocialController extends Controller {
               first_name: true,
               last_name: true,
               user_pic: true,
+            },
+          },
+          _count: {
+            select: {
+              member: true,
             },
           },
         },
