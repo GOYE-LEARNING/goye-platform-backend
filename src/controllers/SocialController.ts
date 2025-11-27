@@ -887,11 +887,47 @@ export class SocialController extends Controller {
       const updateGroup = await prisma.group.update({
         where: { id },
         data: { ...body },
+       include: {
+          createdBy: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+
+          event: {
+            select: {
+              event_name: true,
+              event_description: true,
+              event_link: true,
+              event_type: true,
+              event_time: true,
+            },
+          },
+          member: {
+            select: {
+              student: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: {
+              member: true,
+              event: true,
+            },
+          },
+        },
       });
       this.setStatus(200);
       return {
         message: "Group updated successfully",
-        data: updateGroup.group_title,
+        data: updateGroup,
       };
     } catch (error) {
       console.error(error);

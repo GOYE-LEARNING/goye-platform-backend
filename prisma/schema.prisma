@@ -128,8 +128,8 @@ model JoinedGroup {
   id        String   @id @default(uuid())
   isJoined  Boolean  @default(false)
   joinedAt  DateTime @default(now())
-  student   User?    @relation(fields: [studentId], references: [id])
-  group     Group?   @relation(fields: [groupId], references: [id])
+  student   User?    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group     Group?   @relation(fields: [groupId], references: [id], onDelete: Cascade)
   groupId   String
   studentId String
 
