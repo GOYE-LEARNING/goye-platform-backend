@@ -723,6 +723,9 @@ export class SocialController extends Controller {
       where: {
         userId,
       },
+      orderBy: {
+        createdAt: "desc",
+      },
       include: {
         event: {
           select: {
@@ -743,6 +746,18 @@ export class SocialController extends Controller {
         _count: {
           select: {
             member: true,
+          },
+        },
+
+        member: {
+          select: {
+            student: {
+              select: {
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+              },
+            },
           },
         },
       },
@@ -780,6 +795,18 @@ export class SocialController extends Controller {
           _count: {
             select: {
               member: true,
+              event: true,
+            },
+          },
+          member: {
+            select: {
+              student: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
             },
           },
         },
@@ -805,9 +832,31 @@ export class SocialController extends Controller {
               user_pic: true,
             },
           },
+
+          event: {
+            select: {
+              event_name: true,
+              event_description: true,
+              event_link: true,
+              event_type: true,
+              event_time: true,
+            },
+          },
+          member: {
+            select: {
+              student: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+            },
+          },
           _count: {
             select: {
               member: true,
+              event: true,
             },
           },
         },
