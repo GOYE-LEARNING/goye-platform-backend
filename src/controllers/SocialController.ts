@@ -793,6 +793,9 @@ export class SocialController extends Controller {
               event_time: true,
               event_date: true
             },
+            orderBy: {
+              createdAt: 'desc'
+            }
           },
           _count: {
             select: {
