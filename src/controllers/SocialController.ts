@@ -707,12 +707,13 @@ export class SocialController extends Controller {
     }
   }
 
-  @Get("/get-groups-created-by-Id")
+  @Security("bearerAuth")
+  @Get("/get-groups-created-by-tutor")
   public async GetGroupByCreator(@Request() req: any) {
     const userId = req.user?.id;
 
     if (!userId) {
-      this.setStatus(401);
+      this.setStatus(404);
       return {
         message: "User is not authorized",
       };
