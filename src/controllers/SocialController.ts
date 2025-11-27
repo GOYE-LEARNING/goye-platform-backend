@@ -713,7 +713,7 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     if (!userId) {
-      this.setStatus(404);
+      this.setStatus(401);
       return {
         message: "User is not authorized",
       };
