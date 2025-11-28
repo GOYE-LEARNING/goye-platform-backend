@@ -729,12 +729,13 @@ export class SocialController extends Controller {
       include: {
         event: {
           select: {
+            id: true,
             event_name: true,
             event_type: true,
             event_description: true,
             event_link: true,
             event_time: true,
-            event_date: true
+            event_date: true,
           },
         },
         createdBy: {
@@ -786,16 +787,17 @@ export class SocialController extends Controller {
           },
           event: {
             select: {
+              id: true,
               event_name: true,
               event_description: true,
               event_link: true,
               event_type: true,
               event_time: true,
-              event_date: true
+              event_date: true,
             },
             orderBy: {
-              createdAt: 'desc'
-            }
+              createdAt: "desc",
+            },
           },
           _count: {
             select: {
@@ -840,12 +842,13 @@ export class SocialController extends Controller {
 
           event: {
             select: {
+              id: true,
               event_name: true,
               event_description: true,
               event_link: true,
               event_type: true,
               event_time: true,
-              event_date: true
+              event_date: true,
             },
           },
           member: {
@@ -893,7 +896,7 @@ export class SocialController extends Controller {
       const updateGroup = await prisma.group.update({
         where: { id },
         data: { ...body },
-       include: {
+        include: {
           createdBy: {
             select: {
               first_name: true,
@@ -904,12 +907,13 @@ export class SocialController extends Controller {
 
           event: {
             select: {
+              id: true,
               event_name: true,
               event_description: true,
               event_link: true,
               event_type: true,
               event_time: true,
-              event_date: true
+              event_date: true,
             },
           },
           member: {
