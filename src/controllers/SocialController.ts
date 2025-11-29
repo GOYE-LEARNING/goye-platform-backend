@@ -695,10 +695,20 @@ export class SocialController extends Controller {
         },
       });
 
+      const joinGroup = await prisma.joinedGroup.create({
+        data: {
+          isJoined: true,
+          groupId: group.id,
+          studentId: userId,
+        },
+      });
       this.setStatus(201);
       return {
         message: "Group created successfully",
-        group: group, // return the full group object
+        member: `You are now the admin and memeber of ${group.group_title}`,
+        joinGroup,
+        group: group,
+        // return the full group object
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -780,6 +790,7 @@ export class SocialController extends Controller {
         include: {
           createdBy: {
             select: {
+              id: true,
               first_name: true,
               last_name: true,
               user_pic: true,
@@ -809,6 +820,7 @@ export class SocialController extends Controller {
             select: {
               student: {
                 select: {
+                  id: true,
                   first_name: true,
                   last_name: true,
                   user_pic: true,
@@ -834,6 +846,7 @@ export class SocialController extends Controller {
         include: {
           createdBy: {
             select: {
+              id: true,
               first_name: true,
               last_name: true,
               user_pic: true,
@@ -855,6 +868,7 @@ export class SocialController extends Controller {
             select: {
               student: {
                 select: {
+                  id: true,
                   first_name: true,
                   last_name: true,
                   user_pic: true,

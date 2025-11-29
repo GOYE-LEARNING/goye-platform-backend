@@ -14,7 +14,7 @@
     "render-build": "npm install && npm run prisma:generate && npm run tsoa:routes && npm run tsoa:spec && tsc --skipLibCheck --noEmitOnError false"
   },
   "dependencies": {
-    "@prisma/client": "^6.18.0",
+    "@prisma/client": "^7.0.1",
     "@supabase/supabase-js": "^2.80.0",
     "@tsoa/runtime": "^6.6.0",
     "bcryptjs": "^3.0.2",
@@ -28,7 +28,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.10",
-    "prisma": "^6.18.0",
+    "prisma": "^6.19.0",
     "resend": "^6.4.2",
     "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
