@@ -10,10 +10,13 @@ export interface UpdateCourseWithRelationsDTO {
     module_title?: string;
     module_description?: string;
     module_duration?: string;
+    order?: number;
     lessons?: {
       id?: string;
       lesson_title?: string;
       lesson_video?: string;
+      order?: number;
+      duration?: number;
     }[];
   }[];
 
@@ -34,17 +37,19 @@ export interface UpdateCourseWithRelationsDTO {
     objective_title5?: string;
   }[];
 
-  quiz?: {
+  // FIXED: Removed correctAnswer and options from quiz level (they don't exist in Prisma Quiz model)
+   quiz?: {
     id?: string;
     quiz_title?: string;
     quiz_description?: string;
     quiz_duration?: number;
     quiz_score?: number;
-    correctAnswer?: string;
-    options: string[]
+    // REMOVE correctAnswer and options from here
     questions?: {
       id?: string;
       question_name?: string;
+      options?: string[];       // Add this
+      correctAnswer?: string;   // Add this
     }[];
   }[];
 }
