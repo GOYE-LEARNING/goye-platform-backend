@@ -163,6 +163,7 @@ model Enrollment {
   startedAt   DateTime
   createdAt   DateTime         @default(now())
 
+
   @@unique([userId, courseId]) // Prevent duplicate enrollments
 }
 
