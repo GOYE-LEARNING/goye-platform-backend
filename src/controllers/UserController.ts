@@ -617,7 +617,7 @@ export class UserController extends Controller {
 
   @Security("jwt")
   @Post("/logout")
-  public async Logout(@Body() req: any): Promise<any> {
+  public async Logout(@Request() req: any): Promise<any> {
     const id = req.user?.id;
     await prisma.user.update({
       where: { id },
