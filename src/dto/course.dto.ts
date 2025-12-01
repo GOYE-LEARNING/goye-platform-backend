@@ -40,6 +40,8 @@ export interface UpdateCourseWithRelationsDTO {
     quiz_description?: string;
     quiz_duration?: number;
     quiz_score?: number;
+    correctAnswer?: string;
+    options: string[]
     questions?: {
       id?: string;
       question_name?: string;
