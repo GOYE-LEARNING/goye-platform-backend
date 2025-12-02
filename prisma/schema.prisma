@@ -60,9 +60,9 @@ model Notification {
 }
 
 enum Role {
-  admin
-  student
-  tutor
+  ADMIN
+  STUDENT
+  INSTRUCTOR
 }
 
 model Course {

@@ -1,29 +1,17 @@
-// controllers/NotificationController.ts
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Request,
-  Security,
-  Route,
-  Tags,
-  Body,
-  Path,
-} from "tsoa";
+// controllers/NotificationController.ts - COMPLETE FIXED VERSION
+import { Controller, Get, Put, Delete, Request, Security, Route, Tags, Path } from "tsoa";
 import prisma from "../db";
-import { NotificationService } from "../services/notificationServices";
+import { NotificationService, Role } from "../services/notificationServices";
 
 @Route("notifications")
-@Tags("Notification Conroller")
+@Tags("Notification Controller")
 export class NotificationController extends Controller {
-
+  
   @Security("bearerAuth")
   @Get("/fetch-all-notification")
   public async getMyNotifications(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    let userRole = req.user?.role;
 
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -34,13 +22,24 @@ export class NotificationController extends Controller {
     }
 
     try {
+      // Convert role to uppercase to match Prisma enum
+      userRole = userRole.toUpperCase();
+      
+      // Validate role
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
+      if (!validRoles.includes(userRole as Role)) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid user role",
+        };
+      }
+
       const notifications = await prisma.notification.findMany({
         where: {
           OR: [
-            // Notifications sent to user's role
             { to: userRole },
-            // AND user's personal notifications (if userId is set)
-            ...(userId ? [{ userId }] : []),
+            { userId: userId },
           ],
         },
         orderBy: {
@@ -79,6 +78,7 @@ export class NotificationController extends Controller {
         count: notifications.length,
       };
     } catch (error: any) {
+      console.error("Error fetching notifications:", error);
       this.setStatus(500);
       return {
         success: false,
@@ -88,15 +88,11 @@ export class NotificationController extends Controller {
     }
   }
 
-  /**
-   * Get unread notifications only
-   * GET /notifications/unread
-   */
   @Security("bearerAuth")
   @Get("/unread")
   public async getUnreadNotifications(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    let userRole = req.user?.role;
 
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -107,9 +103,25 @@ export class NotificationController extends Controller {
     }
 
     try {
+      // Convert role to uppercase
+      userRole = userRole.toUpperCase();
+      
+      // Validate role
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
+      if (!validRoles.includes(userRole as Role)) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid user role",
+        };
+      }
+
       const notifications = await prisma.notification.findMany({
         where: {
-          OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
+          OR: [
+            { to: userRole },
+            { userId: userId },
+          ],
           isRead: false,
         },
         orderBy: {
@@ -135,6 +147,7 @@ export class NotificationController extends Controller {
         unreadCount: notifications.length,
       };
     } catch (error: any) {
+      console.error("Error fetching unread notifications:", error);
       this.setStatus(500);
       return {
         success: false,
@@ -144,15 +157,11 @@ export class NotificationController extends Controller {
     }
   }
 
-  /**
-   * Get notification counts
-   * GET /notifications/counts
-   */
   @Security("bearerAuth")
   @Get("/counts")
   public async getNotificationCounts(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    let userRole = req.user?.role;
 
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -163,21 +172,35 @@ export class NotificationController extends Controller {
     }
 
     try {
+      // Convert role to uppercase
+      userRole = userRole.toUpperCase();
+      
+      // Validate role
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
+      if (!validRoles.includes(userRole as Role)) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid user role",
+        };
+      }
+
       const [total, unread] = await Promise.all([
         prisma.notification.count({
           where: {
-            OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
+            OR: [
+              { to: userRole },
+              { userId: userId },
+            ],
           },
         }),
         prisma.notification.count({
           where: {
-            OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
+            OR: [
+              { to: userRole },
+              { userId: userId },
+            ],
             isRead: false,
-          },
-        }),
-        prisma.notification.count({
-          where: {
-            OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
           },
         }),
       ]);
@@ -191,6 +214,7 @@ export class NotificationController extends Controller {
         },
       };
     } catch (error: any) {
+      console.error("Error fetching notification counts:", error);
       this.setStatus(500);
       return {
         success: false,
@@ -200,10 +224,6 @@ export class NotificationController extends Controller {
     }
   }
 
-  /**
-   * Mark a notification as read
-   * PUT /notifications/{notificationId}/read
-   */
   @Security("bearerAuth")
   @Put("/{notificationId}/read")
   public async markNotificationAsRead(
@@ -232,6 +252,7 @@ export class NotificationController extends Controller {
         data: notification,
       };
     } catch (error: any) {
+      console.error("Error marking notification as read:", error);
       this.setStatus(404);
       return {
         success: false,
@@ -241,15 +262,11 @@ export class NotificationController extends Controller {
     }
   }
 
-  /**
-   * Mark all notifications as read
-   * PUT /notifications/read-all
-   */
   @Security("bearerAuth")
   @Put("/read-all")
   public async markAllAsRead(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    let userRole = req.user?.role;
 
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -260,9 +277,25 @@ export class NotificationController extends Controller {
     }
 
     try {
+      // Convert role to uppercase
+      userRole = userRole.toUpperCase();
+      
+      // Validate role
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
+      if (!validRoles.includes(userRole as Role)) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid user role",
+        };
+      }
+
       const result = await prisma.notification.updateMany({
         where: {
-          OR: [{ to: userRole }, { userId: userId }],
+          OR: [
+            { to: userRole },
+            { userId: userId },
+          ],
           isRead: false,
         },
         data: {
@@ -277,6 +310,7 @@ export class NotificationController extends Controller {
         data: { count: result.count },
       };
     } catch (error: any) {
+      console.error("Error marking all as read:", error);
       this.setStatus(500);
       return {
         success: false,
@@ -286,13 +320,12 @@ export class NotificationController extends Controller {
     }
   }
 
-  /**
-   * Delete a notification
-   * DELETE /notifications/{notificationId}
-   */
   @Security("bearerAuth")
   @Delete("/{notificationId}")
-  public async deleteNotification(@Request() req: any, notificationId: string) {
+  public async deleteNotification(
+    @Request() req: any,
+    @Path() notificationId: string
+  ) {
     const userId = req.user?.id;
 
     if (!userId) {
@@ -304,13 +337,10 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Only allow users to delete their own notifications
-      const notification = await prisma.notification.delete({
-        where: {
-          id: notificationId,
-          userId: userId,
-        },
-      });
+      const notification = await NotificationService.deleteNotification(
+        notificationId,
+        userId
+      );
 
       return {
         success: true,
@@ -318,10 +348,205 @@ export class NotificationController extends Controller {
         data: notification,
       };
     } catch (error: any) {
+      console.error("Error deleting notification:", error);
       this.setStatus(404);
       return {
         success: false,
         message: "Notification not found or unauthorized",
+        error: error.message,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/user")
+  public async getUserNotifications(@Request() req: any) {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "User is unauthorized",
+      };
+    }
+
+    try {
+      const notifications = await NotificationService.getUserNotifications(userId, 50);
+
+      return {
+        success: true,
+        message: "User notifications fetched successfully",
+        data: notifications,
+        count: notifications.length,
+      };
+    } catch (error: any) {
+      console.error("Error fetching user notifications:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch user notifications",
+        error: error.message,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/unread-count")
+  public async getUnreadCount(@Request() req: any) {
+    const userId = req.user?.id;
+    let userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "User is unauthorized",
+      };
+    }
+
+    try {
+      // Convert role to uppercase
+      userRole = userRole.toUpperCase();
+      
+      // Validate role
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
+      if (!validRoles.includes(userRole as Role)) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid user role",
+        };
+      }
+
+      const [roleUnread, userUnread] = await Promise.all([
+        NotificationService.getUnreadCount(userRole as Role),
+        NotificationService.getUnreadCountForUser(userId),
+      ]);
+
+      return {
+        success: true,
+        message: "Unread counts fetched successfully",
+        data: {
+          roleUnread,
+          userUnread,
+          totalUnread: roleUnread + userUnread,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching unread count:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch unread count",
+        error: error.message,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Put("/{notificationId}/archive")
+  public async archiveNotification(
+    @Request() req: any,
+    @Path() notificationId: string
+  ) {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "User is unauthorized",
+      };
+    }
+
+    try {
+      const notification = await NotificationService.archiveNotification(
+        notificationId,
+        userId
+      );
+
+      return {
+        success: true,
+        message: "Notification archived successfully",
+        data: notification,
+      };
+    } catch (error: any) {
+      console.error("Error archiving notification:", error);
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Notification not found or unauthorized",
+        error: error.message,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Delete("/clear-all")
+  public async clearAllNotifications(@Request() req: any) {
+    const userId = req.user?.id;
+    let userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "User is unauthorized",
+      };
+    }
+
+    try {
+      // Convert role to uppercase
+      userRole = userRole.toUpperCase();
+      
+      // Validate role
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
+      if (!validRoles.includes(userRole as Role)) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid user role",
+        };
+      }
+
+      // Get all notification IDs for this user/role
+      const notifications = await prisma.notification.findMany({
+        where: {
+          OR: [
+            { to: userRole },
+            { userId: userId },
+          ],
+        },
+        select: { id: true },
+      });
+
+      const notificationIds = notifications.map(n => n.id);
+
+      if (notificationIds.length === 0) {
+        return {
+          success: true,
+          message: "No notifications to clear",
+          data: { count: 0 },
+        };
+      }
+
+      const result = await NotificationService.deleteMultipleNotifications(
+        notificationIds,
+        userId
+      );
+
+      return {
+        success: true,
+        message: `${result.count} notifications cleared successfully`,
+        data: { count: result.count },
+      };
+    } catch (error: any) {
+      console.error("Error clearing all notifications:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to clear notifications",
         error: error.message,
       };
     }
