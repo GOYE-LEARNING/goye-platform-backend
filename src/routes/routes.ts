@@ -10,6 +10,8 @@ import { StudentEnrollmentController } from './../controllers/StudentEnrollmentC
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { SocialController } from './../controllers/SocialController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { NotificationController } from './../controllers/NotificationController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { CourseController } from './../controllers/CourseController';
 import { expressAuthentication } from './../auth/authentication';
 // @ts-ignore - no great way to install types from subpackage
@@ -29,6 +31,11 @@ const models: TsoaRoute.Models = {
     "Omit_User.id_": {
         "dataType": "refAlias",
         "type": {"ref":"Pick_User.Exclude_keyofUser.id__","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.EnrollmentStatus": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ENROLLED"]},{"dataType":"enum","enums":["IN_PROGRESS"]},{"dataType":"enum","enums":["COMPLETED"]},{"dataType":"enum","enums":["DROPPED"]},{"dataType":"enum","enums":["NOT_ENROLLED"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_PostDTO.Exclude_keyofPostDTO.id-or-userId__": {
@@ -69,6 +76,11 @@ const models: TsoaRoute.Models = {
     "Omit_EventDTO.id_": {
         "dataType": "refAlias",
         "type": {"ref":"Pick_EventDTO.Exclude_keyofEventDTO.id__","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.Role": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ADMIN"]},{"dataType":"enum","enums":["STUDENT"]},{"dataType":"enum","enums":["INSTRUCTOR"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "CourseResponse": {
@@ -176,17 +188,12 @@ const models: TsoaRoute.Models = {
             "course_description": {"dataType":"string"},
             "course_level": {"dataType":"string"},
             "course_image": {"dataType":"string"},
-            "modules": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"lessons":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"lesson_video":{"dataType":"string"},"lesson_title":{"dataType":"string"},"id":{"dataType":"string"}}}},"module_duration":{"dataType":"string"},"module_description":{"dataType":"string"},"module_title":{"dataType":"string"},"id":{"dataType":"string"}}}},
+            "modules": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"lessons":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"duration":{"dataType":"double"},"order":{"dataType":"double"},"lesson_video":{"dataType":"string"},"lesson_title":{"dataType":"string"},"id":{"dataType":"string"}}}},"order":{"dataType":"double"},"module_duration":{"dataType":"string"},"module_description":{"dataType":"string"},"module_title":{"dataType":"string"},"id":{"dataType":"string"}}}},
             "materials": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"material_document":{"dataType":"string"},"material_pages":{"dataType":"double"},"material_description":{"dataType":"string"},"material_title":{"dataType":"string"},"id":{"dataType":"string"}}}},
             "objectives": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"objective_title5":{"dataType":"string"},"objective_title4":{"dataType":"string"},"objective_title3":{"dataType":"string"},"objective_title2":{"dataType":"string"},"objective_title1":{"dataType":"string"},"id":{"dataType":"string"}}}},
-            "quiz": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"questions":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"question_name":{"dataType":"string"},"id":{"dataType":"string"}}}},"quiz_score":{"dataType":"double"},"quiz_duration":{"dataType":"double"},"quiz_description":{"dataType":"string"},"quiz_title":{"dataType":"string"},"id":{"dataType":"string"}}}},
+            "quiz": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"questions":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"correctAnswer":{"dataType":"string"},"options":{"dataType":"array","array":{"dataType":"string"}},"question_name":{"dataType":"string"},"id":{"dataType":"string"}}}},"quiz_score":{"dataType":"double"},"quiz_duration":{"dataType":"double"},"quiz_description":{"dataType":"string"},"quiz_title":{"dataType":"string"},"id":{"dataType":"string"}}}},
         },
         "additionalProperties": false,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "_36_Enums.EnrollmentStatus": {
-        "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ENROLLED"]},{"dataType":"enum","enums":["IN_PROGRESS"]},{"dataType":"enum","enums":["COMPLETED"]},{"dataType":"enum","enums":["DROPPED"]},{"dataType":"enum","enums":["NOT_ENROLLED"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Lesson": {
@@ -683,7 +690,7 @@ export function RegisterRoutes(app: Router) {
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_Logout: Record<string, TsoaRoute.ParameterSchema> = {
-                req: {"in":"body","name":"req","required":true,"dataType":"any"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
         app.post('/api/user/logout',
             authenticateMiddleware([{"jwt":[]}]),
@@ -765,6 +772,69 @@ export function RegisterRoutes(app: Router) {
 
               await templateService.apiHandler({
                 methodName: 'GetCoursesEnrolledByStudent',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsStudentEnrollmentController_GetAllStudents: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/enroll/fetch-all-students',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(StudentEnrollmentController)),
+            ...(fetchMiddlewares<RequestHandler>(StudentEnrollmentController.prototype.GetAllStudents)),
+
+            async function StudentEnrollmentController_GetAllStudents(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsStudentEnrollmentController_GetAllStudents, request, response });
+
+                const controller = new StudentEnrollmentController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllStudents',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsStudentEnrollmentController_GetAllStudentsById: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                studentId: {"in":"path","name":"studentId","required":true,"dataType":"string"},
+        };
+        app.get('/api/enroll/fetch-student-details/:studentId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(StudentEnrollmentController)),
+            ...(fetchMiddlewares<RequestHandler>(StudentEnrollmentController.prototype.GetAllStudentsById)),
+
+            async function StudentEnrollmentController_GetAllStudentsById(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsStudentEnrollmentController_GetAllStudentsById, request, response });
+
+                const controller = new StudentEnrollmentController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllStudentsById',
                 controller,
                 response,
                 next,
@@ -1710,6 +1780,194 @@ export function RegisterRoutes(app: Router) {
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_getMyNotifications: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/notifications/fetch-all-notification',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.getMyNotifications)),
+
+            async function NotificationController_getMyNotifications(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_getMyNotifications, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'getMyNotifications',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_getUnreadNotifications: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/notifications/unread',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.getUnreadNotifications)),
+
+            async function NotificationController_getUnreadNotifications(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_getUnreadNotifications, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'getUnreadNotifications',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_getNotificationCounts: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/notifications/counts',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.getNotificationCounts)),
+
+            async function NotificationController_getNotificationCounts(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_getNotificationCounts, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'getNotificationCounts',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_markNotificationAsRead: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                notificationId: {"in":"path","name":"notificationId","required":true,"dataType":"string"},
+        };
+        app.put('/api/notifications/:notificationId/read',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.markNotificationAsRead)),
+
+            async function NotificationController_markNotificationAsRead(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_markNotificationAsRead, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'markNotificationAsRead',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_markAllAsRead: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.put('/api/notifications/read-all',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.markAllAsRead)),
+
+            async function NotificationController_markAllAsRead(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_markAllAsRead, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'markAllAsRead',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_deleteNotification: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                notificationId: {"in":"path","name":"notificationId","required":true,"dataType":"string"},
+        };
+        app.delete('/api/notifications/:notificationId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.deleteNotification)),
+
+            async function NotificationController_deleteNotification(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_deleteNotification, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'deleteNotification',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsCourseController_CreateCourse: Record<string, TsoaRoute.ParameterSchema> = {
                 body: {"in":"body","name":"body","required":true,"ref":"CreateCourseDTO"},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
@@ -2198,6 +2456,133 @@ export function RegisterRoutes(app: Router) {
 
               await templateService.apiHandler({
                 methodName: 'CreateQuiz',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_SaveCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+        };
+        app.post('/api/course/save-course/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.SaveCourse)),
+
+            async function CourseController_SaveCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_SaveCourse, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'SaveCourse',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_UnSaveCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+        };
+        app.post('/api/course/unsave-course/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.UnSaveCourse)),
+
+            async function CourseController_UnSaveCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_UnSaveCourse, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'UnSaveCourse',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_CheckedSaveCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+        };
+        app.post('/api/course/check-saved-course/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.CheckedSaveCourse)),
+
+            async function CourseController_CheckedSaveCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_CheckedSaveCourse, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'CheckedSaveCourse',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_FetchSavedCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/course/fetch-saved-courses',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.FetchSavedCourse)),
+
+            async function CourseController_FetchSavedCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_FetchSavedCourse, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'FetchSavedCourse',
                 controller,
                 response,
                 next,
