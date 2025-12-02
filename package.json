@@ -12,7 +12,7 @@
     "tsoa:spec": "tsoa spec",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
-    "render-build": "npm run build"
+    "render-build": "npx prisma generate && npm run build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.1",
