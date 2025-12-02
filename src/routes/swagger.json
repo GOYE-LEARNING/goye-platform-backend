@@ -3503,9 +3503,8 @@
 						}
 					}
 				},
-				"description": "Get all notifications for the current user's role\r\nGET /notifications",
 				"tags": [
-					"Notifications"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -3687,7 +3686,7 @@
 				},
 				"description": "Get unread notifications only\r\nGET /notifications/unread",
 				"tags": [
-					"Notifications"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -3784,7 +3783,7 @@
 				},
 				"description": "Get notification counts\r\nGET /notifications/counts",
 				"tags": [
-					"Notifications"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -3921,7 +3920,7 @@
 				},
 				"description": "Mark a notification as read\r\nPUT /notifications/{notificationId}/read",
 				"tags": [
-					"Notifications"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -4022,7 +4021,7 @@
 				},
 				"description": "Mark all notifications as read\r\nPUT /notifications/read-all",
 				"tags": [
-					"Notifications"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -4159,7 +4158,7 @@
 				},
 				"description": "Delete a notification\r\nDELETE /notifications/{notificationId}",
 				"tags": [
-					"Notifications"
+					"Notification Conroller"
 				],
 				"security": [
 					{
