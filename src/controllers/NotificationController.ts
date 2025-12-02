@@ -2,7 +2,7 @@
 import { Controller, Get, Post, Put, Delete, Request, Security, Route, Tags, Body, Path } from "tsoa";
 import prisma from "../db";
 import { NotificationService } from "../services/notificationServices";
-import { Role } from "@prisma/client";
+
 
 @Route("notifications")
 @Tags("Notifications")
@@ -13,10 +13,10 @@ export class NotificationController extends Controller {
    * GET /notifications
    */
   @Security("bearerAuth")
-  @Get("/")
+  @Get("/fetch-all-notification")
   public async getMyNotifications(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role as Role;
+    const userRole = req.user?.role 
     
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -89,7 +89,7 @@ export class NotificationController extends Controller {
   @Get("/unread")
   public async getUnreadNotifications(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role as Role;
+    const userRole = req.user?.role
     
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -148,7 +148,7 @@ export class NotificationController extends Controller {
   @Get("/counts")
   public async getNotificationCounts(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role as Role;
+    const userRole = req.user?.role 
     
     if (!userId || !userRole) {
       this.setStatus(401);
@@ -254,7 +254,7 @@ export class NotificationController extends Controller {
   @Put("/read-all")
   public async markAllAsRead(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role as Role;
+    const userRole = req.user?.role
     
     if (!userId || !userRole) {
       this.setStatus(401);

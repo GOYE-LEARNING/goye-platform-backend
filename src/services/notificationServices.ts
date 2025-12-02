@@ -1,7 +1,11 @@
 // services/NotificationService.ts
 import prisma from "../db";
-import { Role } from "@prisma/client";
 
+export enum Role {
+  ADMIN = "ADMIN",
+  STUDENT = "STUDENT", 
+  INSTRUCTOR = "INSTRUCTOR"
+}
 export class NotificationService {
   /**
    * Create a single notification
