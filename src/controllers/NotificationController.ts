@@ -1,23 +1,30 @@
 // controllers/NotificationController.ts
-import { Controller, Get, Post, Put, Delete, Request, Security, Route, Tags, Body, Path } from "tsoa";
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Request,
+  Security,
+  Route,
+  Tags,
+  Body,
+  Path,
+} from "tsoa";
 import prisma from "../db";
 import { NotificationService } from "../services/notificationServices";
 
-
 @Route("notifications")
-@Tags("Notifications")
+@Tags("Notification Conroller")
 export class NotificationController extends Controller {
-  
-  /**
-   * Get all notifications for the current user's role
-   * GET /notifications
-   */
+
   @Security("bearerAuth")
   @Get("/fetch-all-notification")
   public async getMyNotifications(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role 
-    
+    const userRole = req.user?.role;
+
     if (!userId || !userRole) {
       this.setStatus(401);
       return {
@@ -33,11 +40,11 @@ export class NotificationController extends Controller {
             // Notifications sent to user's role
             { to: userRole },
             // AND user's personal notifications (if userId is set)
-            ...(userId ? [{ userId }] : [])
+            ...(userId ? [{ userId }] : []),
           ],
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         take: 100,
         include: {
@@ -47,22 +54,22 @@ export class NotificationController extends Controller {
               first_name: true,
               last_name: true,
               user_pic: true,
-            }
+            },
           },
           course: {
             select: {
               id: true,
               course_title: true,
               course_image: true,
-            }
+            },
           },
           group: {
             select: {
               id: true,
               group_title: true,
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       return {
@@ -89,8 +96,8 @@ export class NotificationController extends Controller {
   @Get("/unread")
   public async getUnreadNotifications(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role
-    
+    const userRole = req.user?.role;
+
     if (!userId || !userRole) {
       this.setStatus(401);
       return {
@@ -102,14 +109,11 @@ export class NotificationController extends Controller {
     try {
       const notifications = await prisma.notification.findMany({
         where: {
-          OR: [
-            { to: userRole },
-            ...(userId ? [{ userId }] : [])
-          ],
+          OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
           isRead: false,
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         take: 50,
         include: {
@@ -119,9 +123,9 @@ export class NotificationController extends Controller {
               first_name: true,
               last_name: true,
               user_pic: true,
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       return {
@@ -148,8 +152,8 @@ export class NotificationController extends Controller {
   @Get("/counts")
   public async getNotificationCounts(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role 
-    
+    const userRole = req.user?.role;
+
     if (!userId || !userRole) {
       this.setStatus(401);
       return {
@@ -161,28 +165,19 @@ export class NotificationController extends Controller {
     try {
       const [total, unread] = await Promise.all([
         prisma.notification.count({
-          where: { 
-            OR: [
-              { to: userRole },
-              ...(userId ? [{ userId }] : [])
-            ],
+          where: {
+            OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
           },
         }),
         prisma.notification.count({
-          where: { 
-            OR: [
-              { to: userRole },
-              ...(userId ? [{ userId }] : [])
-            ],
+          where: {
+            OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
             isRead: false,
           },
         }),
         prisma.notification.count({
-          where: { 
-            OR: [
-              { to: userRole },
-              ...(userId ? [{ userId }] : [])
-            ],
+          where: {
+            OR: [{ to: userRole }, ...(userId ? [{ userId }] : [])],
           },
         }),
       ]);
@@ -216,7 +211,7 @@ export class NotificationController extends Controller {
     @Path() notificationId: string
   ) {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       this.setStatus(401);
       return {
@@ -254,8 +249,8 @@ export class NotificationController extends Controller {
   @Put("/read-all")
   public async markAllAsRead(@Request() req: any) {
     const userId = req.user?.id;
-    const userRole = req.user?.role
-    
+    const userRole = req.user?.role;
+
     if (!userId || !userRole) {
       this.setStatus(401);
       return {
@@ -267,10 +262,7 @@ export class NotificationController extends Controller {
     try {
       const result = await prisma.notification.updateMany({
         where: {
-          OR: [
-            { to: userRole },
-            { userId: userId }
-          ],
+          OR: [{ to: userRole }, { userId: userId }],
           isRead: false,
         },
         data: {
@@ -294,19 +286,15 @@ export class NotificationController extends Controller {
     }
   }
 
-
   /**
    * Delete a notification
    * DELETE /notifications/{notificationId}
    */
   @Security("bearerAuth")
   @Delete("/{notificationId}")
-  public async deleteNotification(
-    @Request() req: any,
-    notificationId: string
-  ) {
+  public async deleteNotification(@Request() req: any, notificationId: string) {
     const userId = req.user?.id;
-    
+
     if (!userId) {
       this.setStatus(401);
       return {
