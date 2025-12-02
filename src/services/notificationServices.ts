@@ -2,9 +2,9 @@
 import prisma from "../db";
 
 export enum Role {
-  ADMIN = "ADMIN",
-  STUDENT = "STUDENT", 
-  INSTRUCTOR = "INSTRUCTOR"
+  admin = "admin",
+  student = "student", 
+  tutor = "tutor"
 }
 export class NotificationService {
   /**
@@ -25,8 +25,8 @@ export class NotificationService {
         title: data.title,
         message: data.message,
         type: data.type,
-        role: data.role,
-        to: data.to,
+        role: data.role as any,
+        to: data.to as any,
         userId: data.userId,
         courseId: data.courseId,
         groupId: data.groupId,
@@ -52,7 +52,7 @@ export class NotificationService {
     if (notifications.length === 0) return { count: 0 };
 
     return await prisma.notification.createMany({
-      data: notifications,
+      data: notifications as any,
       skipDuplicates: true,
     });
   }
@@ -99,8 +99,8 @@ export class NotificationService {
     title: "New Student Joined",
     message: `${student?.last_name, student.first_name || 'A student'} has joined your course "${course.course_title}"`,
     type: "COURSE_JOIN",
-    role: Role.STUDENT,
-    to: Role.INSTRUCTOR,
+    role: Role.student,
+    to: Role.tutor,
     userId: studentId,
     courseId: courseId,
   }];
@@ -137,8 +137,8 @@ export class NotificationService {
         student?.last_name + student.first_name || "A student"
       } has joined your group "${group.group_title}"`,
       type: "GROUP_JOIN",
-      role: Role.STUDENT,
-      to: Role.INSTRUCTOR,
+      role: Role.student,
+      to: Role.tutor,
       userId: studentId,
       groupId: groupId,
     });
@@ -163,7 +163,7 @@ export class NotificationService {
       title: title,
       message: message,
       type: "SYSTEM_ANNOUNCEMENT",
-      role: Role.ADMIN, // System announcements come from admin
+      role: Role.admin, // System announcements come from admin
       to: to,
       userId: user.id,
     }));
@@ -207,7 +207,7 @@ export class NotificationService {
   static async getUnreadCount(userRole: Role) {
     return await prisma.notification.count({
       where: {
-        to: userRole,
+        to: userRole as any,
         isRead: false,
       },
     });
