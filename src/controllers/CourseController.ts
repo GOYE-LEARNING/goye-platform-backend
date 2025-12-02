@@ -1093,7 +1093,7 @@ export class CourseController extends Controller {
 
   @Security("bearerAuth")
   @Get("/fetch-saved-courses")
-  public async FetchSavedCourse(@Request() req: any, @Path() courseId: string) {
+  public async FetchSavedCourse(@Request() req: any) {
     const userId = req.user?.ID;
     if (!userId) {
       return {
