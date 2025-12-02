@@ -1,28 +1,28 @@
 generator client {
-  provider = "prisma-client-js"
-  moduleFormat = "cjs" 
+  provider     = "prisma-client-js"
+  moduleFormat = "cjs"
 }
 
 datasource db {
   provider = "postgresql"
-} 
+}
 
 model User {
-  id            String        @id @default(cuid())
+  id            String         @id @default(cuid())
   first_name    String
   last_name     String
-  email_address String        @unique
+  email_address String         @unique
   password      String
   country       String
   state         String
   phone_number  String
-  role          String        @default("student")
+  role          String         @default("student")
   level         String
-  completed     String        @default("false")
-  createdAt     DateTime      @default(now())
-  isOnline      Boolean       @default(false)
-  lastActive    DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  completed     String         @default("false")
+  createdAt     DateTime       @default(now())
+  isOnline      Boolean        @default(false)
+  lastActive    DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   user_pic      String?
   enrollment    Enrollment[]
   post          Post[]
@@ -32,17 +32,48 @@ model User {
   Courses       Course[]
   Group         Group[]
   joinedGroups  JoinedGroup[]
+  notification  Notification[]
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  title     String
+  message   String
+  type      String
+  role      Role
+  to        Role
+  isRead    Boolean  @default(false)
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  course    Course   @relation(fields: [courseId], references: [id])
+  courseId  String
+  group     Group    @relation(fields: [groupId], references: [id])
+  groupId   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime?
+
+  @@index([to, courseId])
+  @@index([to, groupId])
+  @@index([to, createdAt])
+  @@index([to, isRead])
+  @@index([userId])
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+  INSTRUCTOR
 }
 
 model Course {
-  id                       String       @id @default(cuid()) // Changed from uuid() to cuid()
+  id                       String         @id @default(cuid()) // Changed from uuid() to cuid()
   course_title             String
   course_short_description String
   course_description       String
   course_level             String
   course_image             String
-  createdAt                DateTime     @default(now()) // Added missing createdAt
-  updatedAt                DateTime     @updatedAt // Added missing updatedAt
+  createdAt                DateTime       @default(now()) // Added missing createdAt
+  updatedAt                DateTime       @updatedAt // Added missing updatedAt
   enrollment               Enrollment[]
   material                 Material[]
   module                   Module[]
@@ -51,8 +82,9 @@ model Course {
   post                     Post[]
   createdBy                String
   createdUserId            String
-  savedCourse              User         @relation(fields: [createdUserId], references: [id])
-  saved                    Boolean      @default(false)
+  createdByDetails         User           @relation(fields: [createdUserId], references: [id])
+  saved                    Boolean        @default(false)
+  notification             Notification[]
 }
 
 model Otp {
@@ -111,17 +143,18 @@ model Likes {
 }
 
 model Group {
-  id                      String        @id @default(uuid())
+  id                      String         @id @default(uuid())
   group_title             String
   group_short_description String
   group_description       String
   group_image             String?
   event                   Event[]
-  createdAt               DateTime      @default(now())
-  updatedAt               DateTime      @updatedAt
-  createdBy               User?         @relation(fields: [userId], references: [id])
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  createdBy               User?          @relation(fields: [userId], references: [id])
   userId                  String?
   member                  JoinedGroup[]
+  notification            Notification[]
 }
 
 model JoinedGroup {
@@ -162,7 +195,6 @@ model Enrollment {
   completedAt DateTime?
   startedAt   DateTime
   createdAt   DateTime         @default(now())
-
 
   @@unique([userId, courseId]) // Prevent duplicate enrollments
 }
