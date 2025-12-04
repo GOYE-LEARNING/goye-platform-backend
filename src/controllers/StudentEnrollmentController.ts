@@ -181,7 +181,7 @@ export class StudentEnrollmentController extends Controller {
     }
 
     // FIX 12: Better response structure
-    const courses = studentEnrollments.map(enrollment => ({
+    const courses = studentEnrollments.map((enrollment) => ({
       enrollment_id: enrollment.id,
       enrollment_status: enrollment.status,
       progress: enrollment.progress,
@@ -205,9 +205,11 @@ export class StudentEnrollmentController extends Controller {
       message: "Student courses fetched successfully", // FIX 13: Fixed spelling
       data: {
         total_courses: studentEnrollments.length,
-        completed_courses: studentEnrollments.filter(e => e.status === "COMPLETED").length,
-        in_progress_courses: studentEnrollments.filter(e => 
-          e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+        completed_courses: studentEnrollments.filter(
+          (e) => e.status === "COMPLETED"
+        ).length,
+        in_progress_courses: studentEnrollments.filter(
+          (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
         ).length,
         courses: courses,
       },
@@ -289,10 +291,13 @@ export class StudentEnrollmentController extends Controller {
 
         const student = studentsMap.get(studentId);
         student.total_courses_enrolled += 1;
-        
+
         if (enrollment.status === "COMPLETED") {
           student.total_completed_courses += 1;
-        } else if (enrollment.status === "IN_PROGRESS" || enrollment.status === "ENROLLED") {
+        } else if (
+          enrollment.status === "IN_PROGRESS" ||
+          enrollment.status === "ENROLLED"
+        ) {
           student.total_in_progress_courses += 1;
         }
 
@@ -396,15 +401,36 @@ export class StudentEnrollmentController extends Controller {
         };
       }
 
+      const group = await prisma.group.findMany({
+        where: {
+          member: {
+            some: {
+              studentId,
+            },
+          },
+        },
+        include: {
+          member: {
+            select: {
+              joinedAt: true,
+            },
+          },
+        },
+      });
+
       const student = enrollments[0].user;
       const totalEnrollments = enrollments.length;
-      const completedEnrollments = enrollments.filter(e => e.status === "COMPLETED").length;
-      const inProgressEnrollments = enrollments.filter(e => 
-        e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+      const completedEnrollments = enrollments.filter(
+        (e) => e.status === "COMPLETED"
       ).length;
-      const averageProgress = enrollments.length > 0
-        ? enrollments.reduce((sum, e) => sum + e.progress, 0) / enrollments.length
-        : 0;
+      const inProgressEnrollments = enrollments.filter(
+        (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+      ).length;
+      const averageProgress =
+        enrollments.length > 0
+          ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
+            enrollments.length
+          : 0;
 
       this.setStatus(200);
       return {
@@ -424,12 +450,13 @@ export class StudentEnrollmentController extends Controller {
             total_enrollments: totalEnrollments,
             completed_enrollments: completedEnrollments,
             in_progress_enrollments: inProgressEnrollments,
-            completion_rate: totalEnrollments > 0 
-              ? Math.round((completedEnrollments / totalEnrollments) * 100)
-              : 0,
+            completion_rate:
+              totalEnrollments > 0
+                ? Math.round((completedEnrollments / totalEnrollments) * 100)
+                : 0,
             average_progress: Math.round(averageProgress),
           },
-          enrollments: enrollments.map(enrollment => ({
+          enrollments: enrollments.map((enrollment) => ({
             enrollment_id: enrollment.id,
             course_id: enrollment.course.id,
             course_title: enrollment.course.course_title,
@@ -439,6 +466,12 @@ export class StudentEnrollmentController extends Controller {
             enrollment_date: enrollment.enrolledAt,
             started_at: enrollment.startedAt,
             completed_at: enrollment.completedAt,
+          })),
+          group: group.map((group) => ({
+            group_title: group.group_title,
+            joined_at: group.member.map((m) => ({
+              time: m.joinedAt,
+            })),
           })),
         },
       };
