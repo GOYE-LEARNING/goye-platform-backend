@@ -172,14 +172,6 @@ export class StudentEnrollmentController extends Controller {
       },
     });
 
-    if (studentEnrollments.length === 0) {
-      this.setStatus(200);
-      return {
-        message: "No courses enrolled yet",
-        data: [],
-      };
-    }
-
     // FIX 12: Better response structure
     const courses = studentEnrollments.map((enrollment) => ({
       enrollment_id: enrollment.id,
@@ -461,6 +453,7 @@ export class StudentEnrollmentController extends Controller {
             course_id: enrollment.course.id,
             course_title: enrollment.course.course_title,
             course_image: enrollment.course.course_image,
+            course_level: enrollment.course.course_level,
             enrollment_status: enrollment.status,
             progress: enrollment.progress,
             enrollment_date: enrollment.enrolledAt,
