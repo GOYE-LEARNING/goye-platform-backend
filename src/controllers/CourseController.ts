@@ -420,9 +420,9 @@ export class CourseController extends Controller {
               },
               _count: {
                 select: {
-                  post: true
-                }
-              }
+                  post: true,
+                },
+              },
             },
 
             orderBy: {
@@ -436,7 +436,7 @@ export class CourseController extends Controller {
       return {
         message: "Courses fetched successfully",
         data: userCourses,
-        progress: 0
+        progress: 0,
       };
     } catch (error) {
       this.setStatus(500);
@@ -445,15 +445,20 @@ export class CourseController extends Controller {
   }
 
   @Get("/get-course/{courseId}")
-  public async GetCourseById(
-    @Path() courseId: string
-  ): Promise<any> {
+  public async GetCourseById(@Path() courseId: string): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
         where: { id: courseId },
         include: {
           module: {
-            include: { lesson: true },
+            include: {
+              lesson: true,
+              _count: {
+                select: {
+                  lesson: true,
+                },
+              },
+            },
             orderBy: { order: "asc" },
           },
           material: true,
@@ -475,15 +480,14 @@ export class CourseController extends Controller {
                   email_address: true,
                 },
               },
-
             },
           },
           _count: {
             select: {
               post: true,
-              enrollment: true
-            }
-          }
+              enrollment: true,
+            },
+          },
         },
       });
 
@@ -499,7 +503,7 @@ export class CourseController extends Controller {
       return {
         message: "Course fetched successfully",
         data: course,
-        progress: 0
+        progress: 0,
       };
     } catch (error: any) {
       this.setStatus(500);
