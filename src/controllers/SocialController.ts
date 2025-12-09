@@ -1154,10 +1154,24 @@ export class SocialController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Get("/get-all-event")
-  public async GetEvent(): Promise<any> {
+  @Get("/fetch-event-by-the-student-group")
+  public async GetEvent(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
     try {
+      const joinedGroup = await prisma.joinedGroup.findMany({
+        where: {
+          studentId: userId,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      const groupsId = joinedGroup.map((groupId) => groupId.id);
       const event = await prisma.event.findMany({
+        where: {
+          groupid: groupsId as any,
+        },
         orderBy: { createdAt: "desc" },
       });
       this.setStatus(200);

@@ -1132,4 +1132,18 @@ export class CourseController extends Controller {
       };
     }
   }
+
+  @Security("bearerAuth")
+  @Get("/fetch-student_spiritual-growth")
+  public async FetchStudentSpiritualGrowth(@Request() req: any): Promise<any> {
+    const userId = req.user?.id
+
+    if (!userId) {
+      return {
+        message: 'User is unathorized for this action'
+      }
+    }
+
+    
+  }
 }
