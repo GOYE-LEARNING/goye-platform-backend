@@ -403,7 +403,7 @@ export class CourseController extends Controller {
         return {
           message: "User unauthorized",
         };
-      } else if (tutor !== "instructor") {
+      } else if (tutor !== "instructor" || tutor !== "admin") {
         this.setStatus(401);
         return {
           message: "User must be a tutor to fetch his courses",
@@ -424,6 +424,11 @@ export class CourseController extends Controller {
                   questions: true,
                 },
               },
+              _count: {
+                select: {
+                  post: true
+                }
+              }
             },
 
             orderBy: {
@@ -437,6 +442,7 @@ export class CourseController extends Controller {
       return {
         message: "Courses fetched successfully",
         data: userCourses,
+        progress: 0
       };
     } catch (error) {
       this.setStatus(500);
