@@ -447,7 +447,7 @@ export class CourseController extends Controller {
   @Get("/get-course/{courseId}")
   public async GetCourseById(
     @Path() courseId: string
-  ): Promise<CourseResponse> {
+  ): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
         where: { id: courseId },
@@ -475,8 +475,15 @@ export class CourseController extends Controller {
                   email_address: true,
                 },
               },
+
             },
           },
+          _count: {
+            select: {
+              post: true,
+              enrollment: true
+            }
+          }
         },
       });
 
@@ -492,6 +499,7 @@ export class CourseController extends Controller {
       return {
         message: "Course fetched successfully",
         data: course,
+        progress: 0
       };
     } catch (error: any) {
       this.setStatus(500);
