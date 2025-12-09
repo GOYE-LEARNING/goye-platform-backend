@@ -396,17 +396,11 @@ export class CourseController extends Controller {
   @Get("/get-courses-by-tutor")
   public async GetUserCourse(@Request() req: any) {
     const userId = req.user?.id;
-    const tutor = req.user?.role;
     try {
       if (!userId) {
         this.setStatus(401);
         return {
           message: "User unauthorized",
-        };
-      } else if (tutor !== "instructor" || tutor !== "admin") {
-        this.setStatus(401);
-        return {
-          message: "User must be a tutor to fetch his courses",
         };
       }
 
