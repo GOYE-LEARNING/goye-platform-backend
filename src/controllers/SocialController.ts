@@ -1000,40 +1000,37 @@ export class SocialController extends Controller {
     }
   }
 
-  @Security('bearerAuth')
-  @Get("/check-joined/{groupId}")
-  public async CheckJoined(@Request() req: any, @Path() groupId: string) {
-    const userId = req.user?.id
+ @Security('bearerAuth')
+@Get("/check-joined/{groupId}")
+public async CheckJoined(@Request() req: any, @Path() groupId: string) {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      return
-    }
-
-    if (!groupId) {
-      this.setStatus(400)
-      return {
-        message: "This group does not exist"
-      }
-    }
-
-    const isJoined = await prisma.joinedGroup.findUnique({
-      where: {
-        groupId_studentId: {
-          groupId,
-          studentId: userId
-        }
-      },
-      select: {
-        isJoined: true
-      }
-    })
-
-    this.setStatus(200)
+  if (!userId) {
+    this.setStatus(401);
     return {
-      message: "Check group",
-      data: isJoined.isJoined
-    }
+      message: "User not authenticated",
+      data: false
+    };
   }
+
+  const joinedRecord = await prisma.joinedGroup.findUnique({
+    where: {
+      groupId_studentId: {
+        groupId,
+        studentId: userId
+      }
+    },
+    select: {
+      isJoined: true
+    }
+  });
+
+  this.setStatus(200);
+  return {
+    message: "Group join status checked",
+    data: joinedRecord 
+  };
+}
 
   @Security("bearerAuth")
   @Post("/join-group/{groupId}")

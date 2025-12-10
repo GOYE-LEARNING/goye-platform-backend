@@ -33,23 +33,24 @@ model User {
   Group         Group[]
   joinedGroups  JoinedGroup[]
   notification  Notification[]
+  message       Message[]
 }
 
 model Notification {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   title     String
   message   String
   type      String
   role      Role
   to        Role
-  isRead    Boolean  @default(false)
-  user      User     @relation(fields: [userId], references: [id])
+  isRead    Boolean   @default(false)
+  user      User      @relation(fields: [userId], references: [id])
   userId    String
-  course    Course   @relation(fields: [courseId], references: [id])
+  course    Course    @relation(fields: [courseId], references: [id])
   courseId  String
-  group     Group    @relation(fields: [groupId], references: [id])
+  group     Group     @relation(fields: [groupId], references: [id])
   groupId   String
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   updatedAt DateTime?
 
   @@index([to, courseId])
@@ -93,6 +94,16 @@ model Otp {
   code      String
   createdAt DateTime @default(now())
   expiresIn DateTime
+}
+
+model Message {
+  id        String    @id @default(uuid())
+  content   String
+  toUserId  String
+  user      User      @relation(references: [id], fields: [userId])
+  userId    String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
 }
 
 model Post {
