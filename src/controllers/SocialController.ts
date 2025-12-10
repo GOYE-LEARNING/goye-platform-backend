@@ -1028,7 +1028,7 @@ public async CheckJoined(@Request() req: any, @Path() groupId: string) {
   this.setStatus(200);
   return {
     message: "Group join status checked",
-    data: joinedRecord.isJoined
+    data: joinedRecord ? joinedRecord.isJoined : false
   };
 }
 
