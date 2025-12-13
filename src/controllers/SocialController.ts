@@ -838,67 +838,108 @@ export class SocialController extends Controller {
     }
   }
 
-  @Get("/get-groups")
-  public async GetGroup(@Request() req: any): Promise<any> {
-    const userId = req.user?.id;
-    try {
-      const groups = await prisma.group.findMany({
-        orderBy: { createdAt: "desc" },
-        include: {
-          createdBy: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-            },
-          },
-
-          event: {
-            select: {
-              id: true,
-              event_name: true,
-              event_description: true,
-              event_link: true,
-              event_type: true,
-              event_time: true,
-              event_date: true,
-            },
-          },
-          member: {
-            select: {
-              student: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  user_pic: true,
-                },
-              },
-            },
-          },
-          _count: {
-            select: {
-              member: true,
-              event: true,
-            },
+ @Get("/get-groups")
+public async GetGroup(@Request() req: any): Promise<any> {
+  const userId = req.user?.id;
+  
+  console.log("🔍 API User ID:", userId);
+  console.log("🔍 User ID type:", typeof userId);
+  
+  try {
+    const groups = await prisma.group.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        createdBy: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
           },
         },
-      });
-      const groupsWithStatus = groups.map((group) => ({
-        ...group,
-        hasJoinded: group.member.some((member) => member.student.id == userId)
-    }));
-      this.setStatus(200);
+        event: {
+          select: {
+            id: true,
+            event_name: true,
+            event_description: true,
+            event_link: true,
+            event_type: true,
+            event_time: true,
+            event_date: true,
+          },
+        },
+        member: {
+          select: {
+            student: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+              },
+            },
+            // Also select studentId directly if it exists
+            studentId: true,
+          },
+        },
+        _count: {
+          select: {
+            member: true,
+            event: true,
+          },
+        },
+      },
+    });
+
+    console.log(`📊 Found ${groups.length} groups`);
+    
+    const groupsWithStatus = groups.map((group) => {
+      // Debug: Log each group's member IDs
+      const memberIds = group.member.map(m => ({
+        studentId: m.studentId,
+        studentObjectId: m.student?.id,
+        name: `${m.student?.first_name} ${m.student?.last_name}`
+      }));
+      
+      console.log(`Group: ${group.group_title}`);
+      console.log("Member IDs:", memberIds);
+      
+      // Try multiple ways to check
+      const hasJoinedViaStudentId = group.member.some(m => m.studentId === userId);
+      const hasJoinedViaStudentObj = group.member.some(m => m.student?.id === userId);
+      
+      console.log(`Has joined via studentId: ${hasJoinedViaStudentId}`);
+      console.log(`Has joined via student object: ${hasJoinedViaStudentObj}`);
+      
       return {
-        message: "Group fetched successfully",
-        data: groupsWithStatus,
-        length: groups.length,
+        ...group,
+        hasJoined: hasJoinedViaStudentId || hasJoinedViaStudentObj,
+        // Include debug info temporarily
+        _debug: {
+          userId,
+          memberIds,
+          hasJoinedViaStudentId,
+          hasJoinedViaStudentObj
+        }
       };
-    } catch (error) {
-      console.error(error);
-    }
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Group fetched successfully",
+      data: groupsWithStatus,
+      length: groups.length,
+    };
+
+  } catch (error) {
+    console.error("❌ Error fetching groups:", error);
+    this.setStatus(500);
+    return {
+      message: "Error fetching groups",
+      error: error.message
+    };
   }
+}
 
   @Put("/update-group/{id}")
   public async UpdateGroup(
