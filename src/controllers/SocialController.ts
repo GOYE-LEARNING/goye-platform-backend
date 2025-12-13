@@ -839,7 +839,8 @@ export class SocialController extends Controller {
   }
 
   @Get("/get-groups")
-  public async GetGroup(): Promise<any> {
+  public async GetGroup(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
     try {
       const groups = await prisma.group.findMany({
         orderBy: { createdAt: "desc" },
@@ -884,10 +885,14 @@ export class SocialController extends Controller {
           },
         },
       });
+      const groupsWithStatus = groups.map((group) => ({
+        ...group,
+        hasJoinded: group.member.some((member) => member.student.id == userId)
+    }));
       this.setStatus(200);
       return {
         message: "Group fetched successfully",
-        data: groups,
+        data: groupsWithStatus,
         length: groups.length,
       };
     } catch (error) {
@@ -1000,37 +1005,37 @@ export class SocialController extends Controller {
     }
   }
 
- @Security('bearerAuth')
-@Get("/check-joined/{groupId}")
-public async CheckJoined(@Request() req: any, @Path() groupId: string) {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Get("/check-joined/{groupId}")
+  public async CheckJoined(@Request() req: any, @Path() groupId: string) {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        message: "User not authenticated",
+        data: false,
+      };
+    }
+
+    const joinedRecord = await prisma.joinedGroup.findUnique({
+      where: {
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
+        },
+      },
+      select: {
+        isJoined: true,
+      },
+    });
+
+    this.setStatus(200);
     return {
-      message: "User not authenticated",
-      data: false
+      message: "Group join status checked",
+      data: joinedRecord ? joinedRecord.isJoined : false,
     };
   }
-
-  const joinedRecord = await prisma.joinedGroup.findUnique({
-    where: {
-      groupId_studentId: {
-        groupId,
-        studentId: userId
-      }
-    },
-    select: {
-      isJoined: true
-    }
-  });
-
-  this.setStatus(200);
-  return {
-    message: "Group join status checked",
-    data: joinedRecord ? joinedRecord.isJoined : false
-  };
-}
 
   @Security("bearerAuth")
   @Post("/join-group/{groupId}")
@@ -1185,81 +1190,81 @@ public async CheckJoined(@Request() req: any, @Path() groupId: string) {
     }
   }
 
- @Security("bearerAuth")
-@Get("/fetch-event-by-the-student-group")
-public async GetEvent(@Request() req: any): Promise<any> {
-  const userId = req.user?.id;
-  
-  try {
-    // First, get the groups the student has joined
-    const joinedGroups = await prisma.joinedGroup.findMany({
-      where: {
-        studentId: userId,
-      },
-      select: {
-        groupId: true,  // Get the groupId, not the joinedGroup id
-      },
-    });
+  @Security("bearerAuth")
+  @Get("/fetch-event-by-the-student-group")
+  public async GetEvent(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
 
-    // Extract just the group IDs
-    const groupIds = joinedGroups.map((jg) => jg.groupId);
-    
-    // If student hasn't joined any groups, return empty array
-    if (groupIds.length === 0) {
-      this.setStatus(200);
-      return {
-        message: "No groups found for student",
-        data: [],
-        count: 0,
-      };
-    }
-
-    // Find events for these groups
-    const events = await prisma.event.findMany({
-      where: {
-        groupid: {
-          in: groupIds,  // This should match the Prisma schema field name
+    try {
+      // First, get the groups the student has joined
+      const joinedGroups = await prisma.joinedGroup.findMany({
+        where: {
+          studentId: userId,
         },
-      },
-      orderBy: { createdAt: "desc" },
-      include: {
-        // Include related data if needed
-        group: {
-          select: {
-            id: true,
-            group_title: true,
-            createdAt: true,
-            event: {
-              select: {
-                event_name: true,
-                createdAt: true,
-                event_type: true
-              },
-              orderBy: {
-                createdAt: 'desc'
-              }
-            }
+        select: {
+          groupId: true, // Get the groupId, not the joinedGroup id
+        },
+      });
+
+      // Extract just the group IDs
+      const groupIds = joinedGroups.map((jg) => jg.groupId);
+
+      // If student hasn't joined any groups, return empty array
+      if (groupIds.length === 0) {
+        this.setStatus(200);
+        return {
+          message: "No groups found for student",
+          data: [],
+          count: 0,
+        };
+      }
+
+      // Find events for these groups
+      const events = await prisma.event.findMany({
+        where: {
+          groupid: {
+            in: groupIds, // This should match the Prisma schema field name
           },
         },
-      },
-    });
+        orderBy: { createdAt: "desc" },
+        include: {
+          // Include related data if needed
+          group: {
+            select: {
+              id: true,
+              group_title: true,
+              createdAt: true,
+              event: {
+                select: {
+                  event_name: true,
+                  createdAt: true,
+                  event_type: true,
+                },
+                orderBy: {
+                  createdAt: "desc",
+                },
+              },
+            },
+          },
+        },
+      });
 
-    this.setStatus(200);
-    return {
-      message: "Events fetched successfully",
-      data: events,
-      count: events.length,
-    };
-  } catch (error: any) {
-    console.error("Error fetching events:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to fetch events",
-      error: error.message,
-      data: null,
-    };
+      this.setStatus(200);
+      return {
+        message: "Events fetched successfully",
+        data: events,
+        count: events.length,
+      };
+    } catch (error: any) {
+      console.error("Error fetching events:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch events",
+        error: error.message,
+        data: null,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Get("/get-group-event/{groupId}")
