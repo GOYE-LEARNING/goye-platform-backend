@@ -130,3 +130,68 @@ export interface EventDTO {
   event_type?: string;
   event_link?: string;
 }
+
+export interface OrganizationDTO {
+  id: string;
+  organization_name: string;
+  organization_type: OrgType;
+  organization_email: string;
+  organization_phone_number: string;
+  organization_country: string;
+  organization_state: string;
+  organzation_description: string;
+  organization_year: string;
+  //User information
+  user_first_name: string;
+  user_last_name: string;
+  user_email_address: string;
+  user_country: string;
+  user_state: string;
+  user_role: string;
+  user_phone_number: string;
+  user_password: string
+  user_form_type: string;
+  church?: Church;
+  school?: School;
+  club?: Club;
+}
+enum OrgType {
+  CHURCH,
+  SCHOOL,
+  CLUB,
+  OTHER,
+}
+
+export interface Church {
+  church_ministry_name?: string;
+  church_lead_pastor?: string;
+  church_leadership_role?: string;
+  churh_address?: string;
+  church_weekly_service?: string;
+  church_website?: string;
+  church_logo?: string;
+}
+
+export interface School {
+  school_name?: string;
+  school_type?: string;
+  school_address?: string;
+  school_admin_name?: string;
+  school_role?: string;
+  school_website?: string;
+  school_accreditation_number?: string;
+  school_document?: string;
+  school_email_domain?: string
+}
+
+export interface Club {
+  club_name?: string;
+  club_type?: string;
+  club_leader_name?: string;
+  club_meeting_frequency?: string;
+  club_social_link?: string;
+  club_parent_org?: string;
+  club_description?: string;
+  club_document?: string;
+  club_role?: string
+}
