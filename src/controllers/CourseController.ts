@@ -718,7 +718,10 @@ export class CourseController extends Controller {
         return { message: "Upload failed", error };
       }
 
-      const newMaterial = await prisma.material.create({
+      const newMaterial = await prisma.material.update({
+        where: {
+          id: courseId
+        },
         data: {
           material_document: url,
           courseId: courseId,

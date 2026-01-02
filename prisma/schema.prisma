@@ -44,70 +44,71 @@ enum FormType {
 }
 
 model Organization {
-  id                        String                @id @default(uuid())
-  user                      User?                 @relation(fields: [userId], references: [id])
+  id                        String               @id @default(uuid())
+  user                      User?                @relation(fields: [userId], references: [id])
   organization_name         String
-  organization_type         OrgType               @default(OTHER)
+  organization_type         OrgType              @default(OTHER)
   organization_email        String
   organization_phone_number String
   organization_country      String
   organization_state        String
   organization_description  String
   organization_year         String
-  Church                    Church_Organization[]
-  school                    School_Organization[]
-  Club                      Club_Organization[]
+  Church                    Church_Organization?
+  school                    School_Organization?
+  Club                      Club_Organization?
   course                    Course[]
-  userId                    String                @unique
-  createdAt                 DateTime              @default(now())
+  userId                    String               @unique
+  createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
 }
 
 model Church_Organization {
   id                    String       @id @default(uuid())
-  church_min_name       String
-  church_ld_pastor      String
-  church_role           String
-  church_address        String
-  church_weekly_service String
-  church_website        String
-  church_logo           String
+  church_min_name       String?
+  church_ld_pastor      String?
+  church_role           String?
+  church_address        String?
+  church_weekly_service String?
+  church_website        String?
+  church_logo           String?
   organization          Organization @relation(fields: [organzationId], references: [id], onDelete: Cascade)
-  organzationId         String
+  organzationId         String       @unique
   createdAt             DateTime     @default(now())
   updatedAt             DateTime?
 }
 
 model School_Organization {
-  school_name                 String
-  school_type                 String
-  school_address              String
-  school_admin_name           String
-  school_role                 String
-  school_email_domain         String
-  school_website              String
-  school_accreditation_number String
-  school_document             String
   id                          String       @id @default(uuid())
+  school_name                 String?
+  school_type                 String?
+  school_address              String?
+  school_admin_name           String?
+  school_role                 String?
+  school_email_domain         String?
+  school_website              String?
+  school_accreditation_number String?
+  school_document             String?
+  school_logo String?
   organization                Organization @relation(fields: [organzationId], references: [id], onDelete: Cascade)
-  organzationId               String
+  organzationId               String       @unique
   createdAt                   DateTime     @default(now())
   updatedAt                   DateTime?
 }
 
 model Club_Organization {
   id                     String       @id @default(uuid())
-  club_name              String
-  club_type              String
-  club_leader_name       String
-  club_role              String
-  club_meeting_frequency String
-  club_social_link       String
-  club_parent_org        String
-  club_description       String
-  club_document          String
+  club_name              String?
+  club_type              String?
+  club_leader_name       String?
+  club_role              String?
+  club_meeting_frequency String?
+  club_social_link       String?
+  club_parent_org        String?
+  club_description       String?
+  club_document          String?
   organization           Organization @relation(fields: [organzationId], references: [id], onDelete: Cascade)
-  organzationId          String
+  organzationId          String       @unique
   createdAt              DateTime     @default(now())
   updatedAt              DateTime?
 }

@@ -13,7 +13,13 @@ import {
 import { OrganizationDTO } from "../interface/interfaces";
 import prisma from "../db";
 import bcrypt from "bcryptjs";
-
+import { MediaService } from "../services/mediaServices";
+enum OrgType {
+  CHURCH,
+  SCHOOL,
+  CLUB,
+  OTHER,
+}
 @Route("organizations")
 @Tags("Organization Controllers")
 export class OrganizationController extends Controller {
@@ -103,19 +109,352 @@ export class OrganizationController extends Controller {
   }
 
   @Get("/fetch-organizations")
-  public async FetchOrganization() {}
+  public async FetchOrganization(): Promise<any> {
+    try {
+      const fetchOrganizationsType = await prisma.organization.findMany({
+        include: {
+          user: true,
+          Church: true,
+          school: true,
+          Club: true,
+        },
+      });
+
+      return {
+        message: "Organization Fetched successfully",
+        data: fetchOrganizationsType,
+      };
+    } catch (error: any) {
+      console.error(error);
+    }
+  }
 
   @Get("/fetch-specific-organization/{id}")
-  public async FetchSpecificOrganization(@Path() id: string) {}
+  public async FetchSpecificOrganization(@Path() id: string) {
+    try {
+      const fetchSpecificOrganization = await prisma.organization.findUnique({
+        where: {
+          id,
+        },
+      });
+
+      return {
+        message: "Organization fetched successfully",
+        data: fetchSpecificOrganization,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  @Post("/upload-church-logo/{organizationId}")
+  public async UploadChurchLogo(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      file: string;
+      fileName: string;
+      mimeType: string;
+    }
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: organizationId,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "Organization not found" };
+      }
+
+      const fileBuffer = Buffer.from(body.file, "base64");
+
+      const { url, error } = await MediaService.UploadOrganizationChurchLogo(
+        organizationId,
+        fileBuffer,
+        body.fileName,
+        body.mimeType
+      );
+
+      if (error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error };
+      }
+
+      const updateOrganizationChurch = await prisma.organization.update({
+        where: {
+          id: organizationId,
+        },
+        data: {
+          Church: {
+            update: {
+              church_logo: url,
+            },
+          },
+        },
+        select: {
+          Church: {
+            select: {
+              id: true,
+              church_logo: true,
+            },
+          },
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Church image uploaded successfully",
+        data: {
+          organizationId: updateOrganizationChurch.Church.id,
+          imageUrl: updateOrganizationChurch.Church.church_logo,
+        },
+      };
+    } catch (error) {}
+  }
+
+  @Post("/upload-school-logo/{organizationId}")
+  public async UploadSchoolLogo(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      file: string;
+      fileName: string;
+      mimeType: string;
+    }
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: organizationId,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "Organization not found" };
+      }
+
+      const fileBuffer = Buffer.from(body.file, "base64");
+
+      const { url, error } = await MediaService.UploadOrganizationSchoolLogo(
+        organizationId,
+        fileBuffer,
+        body.fileName,
+        body.mimeType
+      );
+
+      if (error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error };
+      }
+
+      const updateOrganizationSchool = await prisma.organization.update({
+        where: {
+          id: organizationId,
+        },
+        data: {
+          school: {
+            update: {
+              school_logo: url,
+            },
+          },
+        },
+        select: {
+          school: {
+            select: {
+              id: true,
+              school_logo: true,
+            },
+          },
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "School image uploaded successfully",
+        data: {
+          organizationId: updateOrganizationSchool.school.id,
+          imageUrl: updateOrganizationSchool.school.school_logo,
+        },
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  @Post("/upload-school-document/{orgqanizationId}")
+  public async UploadOrganizationMaterial(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      file: string;
+      fileName: string;
+      mimeType: string;
+    }
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "organization not found" };
+      }
+
+      const fileBuffer = Buffer.from(body.file, "base64");
+
+      const { url, error } = await MediaService.uploadSchoolMaterial(
+        organizationId,
+        fileBuffer,
+        body.fileName,
+        body.mimeType
+      );
+
+      if (error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error };
+      }
+
+      const updateOrganization = await prisma.organization.update({
+        where: {
+          id: organizationId,
+        },
+
+        data: {
+          school: {
+            update: {
+              school_document: url,
+            },
+          },
+        },
+        include: {
+          school: {
+            select: {
+              id: true,
+              school_document: true,
+            },
+          },
+        },
+      });
+
+      this.setStatus(201);
+      return {
+        message: "organization material uploaded successfully",
+        data: updateOrganization,
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Failed to upload organization material",
+        error: error.message,
+      };
+    }
+  }
 
   @Put("/update-organization/{id}")
   public async UpdateOrganization(
     @Path() id: string,
     @Body() body: OrganizationDTO
-  ) {}
+  ) {
+    const hashedPassword = bcrypt.hash(body.user_password, 10);
+    try {
+      const updateOrganization = await prisma.organization.update({
+        where: {
+          id,
+        },
+
+        data: {
+          organization_name: body.organization_name,
+          organization_email: body.organization_email,
+          organization_description: body.organzation_description,
+          organization_country: body.organization_country,
+          organization_state: body.organization_state,
+          organization_phone_number: body.organization_phone_number,
+          organization_year: body.organization_year,
+          organization_type: body.organization_type as any,
+          Church: {
+            create: {
+              church_min_name: body.church.church_ministry_name,
+              church_ld_pastor: body.church.church_lead_pastor,
+              church_role: body.church.church_leadership_role,
+              church_address: body.church.churh_address,
+              church_logo: body.church.church_logo,
+              church_website: body.church.church_website,
+              church_weekly_service: body.church.church_weekly_service,
+            },
+          },
+          school: {
+            create: {
+              school_name: body.school.school_name,
+              school_type: body.school.school_type,
+              school_address: body.school.school_address,
+              school_admin_name: body.school.school_admin_name,
+              school_role: body.school.school_role,
+              school_accreditation_number:
+                body.school.school_accreditation_number,
+              school_document: body.school.school_document,
+              school_email_domain: body.school.school_email_domain,
+              school_website: body.school.school_website,
+            },
+          },
+          Club: {
+            create: {
+              club_name: body.club.club_name,
+              club_type: body.club.club_type,
+              club_leader_name: body.club.club_leader_name,
+              club_description: body.club.club_description,
+              club_document: body.club.club_document,
+              club_meeting_frequency: body.club.club_meeting_frequency,
+              club_parent_org: body.club.club_parent_org,
+              club_role: body.club.club_role,
+              club_social_link: body.club.club_social_link,
+            },
+          },
+          user: {
+            create: {
+              first_name: body.user_first_name,
+              last_name: body.user_last_name,
+              email_address: body.user_email_address,
+              country: body.user_country,
+              state: body.user_state,
+              phone_number: body.user_phone_number,
+              password: hashedPassword as any,
+              role: body.user_role,
+              form_type: body.user_form_type as any,
+              level: "ORGANIZATION",
+            },
+          },
+        },
+      });
+
+      return {
+        message: "update done succefully",
+        data: updateOrganization,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
 
   @Delete("/delete-organization/{id}")
-  public async DeleteOrganization(
-    @Path() id: string,
-  ) {}
+  public async DeleteOrganization(@Path() id: string) {
+    try {
+      const deleteOrganization = await prisma.organization.delete({
+        where: {
+          id,
+        },
+      });
+
+      return {
+        message: "Organization Deleted succesfully",
+        data: deleteOrganization,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
 }

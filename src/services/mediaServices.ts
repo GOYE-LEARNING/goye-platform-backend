@@ -115,13 +115,18 @@ export class MediaService {
           console.error("❌ Video file too large:", file.length, "bytes");
           resolve({
             url: "",
-            error: `Video too large. Maximum size is 500MB. Your file: ${(file.length / (1024 * 1024)).toFixed(2)}MB`,
+            error: `Video too large. Maximum size is 500MB. Your file: ${(
+              file.length /
+              (1024 * 1024)
+            ).toFixed(2)}MB`,
           });
           return;
         }
 
         console.log("📤 Uploading video to Cloudinary (streaming)...");
-        console.log(`📊 Video size: ${(file.length / (1024 * 1024)).toFixed(2)}MB`);
+        console.log(
+          `📊 Video size: ${(file.length / (1024 * 1024)).toFixed(2)}MB`
+        );
 
         // Create upload stream for better performance with large files
         const uploadStream = cloudinary.uploader.upload_stream(
@@ -149,7 +154,7 @@ export class MediaService {
               resolve({ url: "", error: error.message });
             } else {
               console.log("✅ Video upload successful:", result.secure_url);
-              
+
               // Get video details
               const videoInfo = {
                 url: result.secure_url,
@@ -159,7 +164,7 @@ export class MediaService {
                 thumbnail_url: result.eager?.[0]?.secure_url, // Thumbnail URL
                 streaming_url: result.eager?.[1]?.secure_url, // Streaming URL if available
               };
-              
+
               console.log("📊 Video details:", videoInfo);
               resolve({ url: result.secure_url, error: null });
             }
@@ -174,7 +179,6 @@ export class MediaService {
 
         // Write buffer to stream
         uploadStream.end(file);
-
       } catch (error: any) {
         console.error("❌ Unexpected error in uploadLessonVideo:", error);
         resolve({ url: "", error: error.message });
@@ -194,14 +198,16 @@ export class MediaService {
 
         // Check if it's a large file and use streaming
         const isLargeFile = file.length > 10 * 1024 * 1024; // > 10MB
-        
+
         if (isLargeFile) {
           console.log("📊 Large file detected, using streaming upload...");
-          
+
           const uploadStream = cloudinary.uploader.upload_stream(
             {
               folder: "course_materials",
-              public_id: `material_${courseId}_${Date.now()}_${fileName.split(".")[0]}`,
+              public_id: `material_${courseId}_${Date.now()}_${
+                fileName.split(".")[0]
+              }`,
               resource_type: "auto", // Handles PDFs, docs, etc.
               chunk_size: 10000000, // 10MB chunks for large files
               timeout: 120000, // 2 minutes for large files
@@ -211,22 +217,29 @@ export class MediaService {
                 console.error("❌ Course material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
-                console.log("✅ Course material upload successful:", result.secure_url);
+                console.log(
+                  "✅ Course material upload successful:",
+                  result.secure_url
+                );
                 resolve({ url: result.secure_url, error: null });
               }
             }
           );
-          
+
           uploadStream.end(file);
         } else {
           // For small files, use base64
-          const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
-          
+          const base64File = `data:${mimeType};base64,${file.toString(
+            "base64"
+          )}`;
+
           cloudinary.uploader.upload(
             base64File,
             {
               folder: "course_materials",
-              public_id: `material_${courseId}_${Date.now()}_${fileName.split(".")[0]}`,
+              public_id: `material_${courseId}_${Date.now()}_${
+                fileName.split(".")[0]
+              }`,
               resource_type: "auto",
             },
             (error, result) => {
@@ -234,7 +247,10 @@ export class MediaService {
                 console.error("❌ Course material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
-                console.log("✅ Course material upload successful:", result.secure_url);
+                console.log(
+                  "✅ Course material upload successful:",
+                  result.secure_url
+                );
                 resolve({ url: result.secure_url, error: null });
               }
             }
@@ -247,14 +263,17 @@ export class MediaService {
     });
   }
 
-  static async deleteFile(publicId: string, resourceType: string = "image"): Promise<{ success: boolean; error: string | null }> {
+  static async deleteFile(
+    publicId: string,
+    resourceType: string = "image"
+  ): Promise<{ success: boolean; error: string | null }> {
     try {
       console.log(`🗑️ Deleting file: ${publicId}`);
       const result = await cloudinary.uploader.destroy(publicId, {
         resource_type: resourceType, // Can be "image", "video", or "raw"
         invalidate: true, // Invalidate CDN cache
       });
-      
+
       if (result.result === "ok") {
         console.log(`✅ File deleted successfully: ${publicId}`);
         return { success: true, error: null };
@@ -266,6 +285,224 @@ export class MediaService {
       console.error("❌ Delete error:", error);
       return { success: false, error: error.message };
     }
+  }
+
+  static async UploadOrganizationChurchLogo(
+    organizationId: string,
+    file: Buffer,
+    fileName: string,
+    mimeType: string
+  ): Promise<{ url: string; error: string | null }> {
+    try {
+      console.log("Uploading organization church logo");
+      const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: "org_church_logo",
+        public_id: `org_${organizationId}_${Date.now()}`,
+        overwrite: true,
+        resource_type: "image",
+        chunk_size: 6000000,
+        timeout: 30000,
+        quality: "auto",
+        transformation: [{ width: 1200, height: 675, crop: "limit" }],
+      });
+
+      console.log("Organization Church Logo uploaded successfully.");
+
+      return {
+        url: result.secure_url,
+        error: null,
+      };
+    } catch (error: any) {
+      console.error("❌ Church image upload error:", error);
+      return { url: "", error: error.message };
+    }
+  }
+
+  static async UploadOrganizationSchoolLogo(
+    organizationId: string,
+    file: Buffer,
+    fileName: string,
+    mimeType: string
+  ): Promise<{ url: string; error: string | null }> {
+    try {
+      console.log("Uploading organization school logo");
+      const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: "org_school_logo",
+        public_id: `org_${organizationId}_${Date.now()}`,
+        overwrite: true,
+        resource_type: "image",
+        chunk_size: 6000000,
+        timeout: 30000,
+        quality: "auto",
+        transformation: [{ width: 1200, height: 675, crop: "limit" }],
+      });
+
+      console.log("Organization School Logo uploaded successfully.");
+
+      return {
+        url: result.secure_url,
+        error: null,
+      };
+    } catch (error: any) {
+      console.error("❌ School image upload error:", error);
+      return { url: "", error: error.message };
+    }
+  }
+
+  static async uploadSchoolMaterial(
+    organizationId: string,
+    file: Buffer,
+    fileName: string,
+    mimeType: string
+  ): Promise<{ url: string; error: string | null }> {
+    return new Promise((resolve) => {
+      try {
+        console.log("📤 Uploading school material to Cloudinary...");
+
+        // Check if it's a large file and use streaming
+        const isLargeFile = file.length > 10 * 1024 * 1024; // > 10MB
+
+        if (isLargeFile) {
+          console.log("📊 Large file detected, using streaming upload...");
+
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: "school_materials",
+              public_id: `material_${organizationId}_${Date.now()}_${
+                fileName.split(".")[0]
+              }`,
+              resource_type: "auto", // Handles PDFs, docs, etc.
+              chunk_size: 10000000, // 10MB chunks for large files
+              timeout: 120000, // 2 minutes for large files
+            },
+            (error, result) => {
+              if (error) {
+                console.error("❌ School material upload error:", error);
+                resolve({ url: "", error: error.message });
+              } else {
+                console.log(
+                  "✅ School material upload successful:",
+                  result.secure_url
+                );
+                resolve({ url: result.secure_url, error: null });
+              }
+            }
+          );
+
+          uploadStream.end(file);
+        } else {
+          // For small files, use base64
+          const base64File = `data:${mimeType};base64,${file.toString(
+            "base64"
+          )}`;
+
+          cloudinary.uploader.upload(
+            base64File,
+            {
+              folder: "school_materials",
+              public_id: `material_${organizationId}_${Date.now()}_${
+                fileName.split(".")[0]
+              }`,
+              resource_type: "auto",
+            },
+            (error, result) => {
+              if (error) {
+                console.error("❌ School material upload error:", error);
+                resolve({ url: "", error: error.message });
+              } else {
+                console.log(
+                  "✅ School material upload successful:",
+                  result.secure_url
+                );
+                resolve({ url: result.secure_url, error: null });
+              }
+            }
+          );
+        }
+      } catch (error: any) {
+        console.error("❌ Unexpected error in uploadSchoolMaterial:", error);
+        resolve({ url: "", error: error.message });
+      }
+    });
+  }
+
+  static async uploadClubMaterial(
+    organizationId: string,
+    file: Buffer,
+    fileName: string,
+    mimeType: string
+  ): Promise<{ url: string; error: string | null }> {
+    return new Promise((resolve) => {
+      try {
+        console.log("📤 Uploading club material to Cloudinary...");
+
+        // Check if it's a large file and use streaming
+        const isLargeFile = file.length > 10 * 1024 * 1024; // > 10MB
+
+        if (isLargeFile) {
+          console.log("📊 Large file detected, using streaming upload...");
+
+          const uploadStream = cloudinary.uploader.upload_stream(
+            {
+              folder: "club_materials",
+              public_id: `material_${organizationId}_${Date.now()}_${
+                fileName.split(".")[0]
+              }`,
+              resource_type: "auto", // Handles PDFs, docs, etc.
+              chunk_size: 10000000, // 10MB chunks for large files
+              timeout: 120000, // 2 minutes for large files
+            },
+            (error, result) => {
+              if (error) {
+                console.error("❌ Club material upload error:", error);
+                resolve({ url: "", error: error.message });
+              } else {
+                console.log(
+                  "✅ Club material upload successful:",
+                  result.secure_url
+                );
+                resolve({ url: result.secure_url, error: null });
+              }
+            }
+          );
+
+          uploadStream.end(file);
+        } else {
+          // For small files, use base64
+          const base64File = `data:${mimeType};base64,${file.toString(
+            "base64"
+          )}`;
+
+          cloudinary.uploader.upload(
+            base64File,
+            {
+              folder: "club_materials",
+              public_id: `material_${organizationId}_${Date.now()}_${
+                fileName.split(".")[0]
+              }`,
+              resource_type: "auto",
+            },
+            (error, result) => {
+              if (error) {
+                console.error("❌ Club material upload error:", error);
+                resolve({ url: "", error: error.message });
+              } else {
+                console.log(
+                  "✅ Club material upload successful:",
+                  result.secure_url
+                );
+                resolve({ url: result.secure_url, error: null });
+              }
+            }
+          );
+        }
+      } catch (error: any) {
+        console.error("❌ Unexpected error in uploadClubMaterial:", error);
+        resolve({ url: "", error: error.message });
+      }
+    });
   }
 
   // Additional utility method for getting video info
@@ -285,9 +522,9 @@ export class MediaService {
   static async generateVideoThumbnail(videoUrl: string): Promise<string> {
     try {
       // Extract public ID from URL
-      const urlParts = videoUrl.split('/');
-      const publicIdWithExtension = urlParts.slice(-2).join('/').split('.')[0];
-      
+      const urlParts = videoUrl.split("/");
+      const publicIdWithExtension = urlParts.slice(-2).join("/").split(".")[0];
+
       // Generate thumbnail URL
       const thumbnailUrl = cloudinary.url(publicIdWithExtension, {
         resource_type: "video",
@@ -297,7 +534,7 @@ export class MediaService {
           { quality: "auto" },
         ],
       });
-      
+
       return thumbnailUrl;
     } catch (error) {
       console.error("❌ Error generating thumbnail:", error);
