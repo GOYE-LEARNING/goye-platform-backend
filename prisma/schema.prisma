@@ -35,7 +35,7 @@ model User {
   joinedGroups  JoinedGroup[]
   notification  Notification[]
   message       Message[]
-  organization  Organization?
+  organization  Organization[]
 }
 
 enum FormType {
@@ -48,17 +48,20 @@ model Organization {
   user                      User?                @relation(fields: [userId], references: [id])
   organization_name         String
   organization_type         OrgType              @default(OTHER)
-  organization_email        String
+  organization_email        String               @unique
   organization_phone_number String
   organization_country      String
   organization_state        String
   organization_description  String
+  organization_password     String
   organization_year         String
+  isOnline                  Boolean?              @default(false)
+  lastActive                DateTime
   Church                    Church_Organization?
   school                    School_Organization?
   Club                      Club_Organization?
   course                    Course[]
-  userId                    String               @unique
+  userId                    String
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
 }
@@ -72,6 +75,7 @@ model Church_Organization {
   church_weekly_service String?
   church_website        String?
   church_logo           String?
+  church_email          String?      @unique
   organization          Organization @relation(fields: [organzationId], references: [id], onDelete: Cascade)
   organzationId         String       @unique
   createdAt             DateTime     @default(now())
@@ -85,11 +89,11 @@ model School_Organization {
   school_address              String?
   school_admin_name           String?
   school_role                 String?
-  school_email_domain         String?
+  school_email                String?      @unique
   school_website              String?
   school_accreditation_number String?
   school_document             String?
-  school_logo String?
+  school_logo                 String?
   organization                Organization @relation(fields: [organzationId], references: [id], onDelete: Cascade)
   organzationId               String       @unique
   createdAt                   DateTime     @default(now())
@@ -107,6 +111,7 @@ model Club_Organization {
   club_parent_org        String?
   club_description       String?
   club_document          String?
+  club_email             String?
   organization           Organization @relation(fields: [organzationId], references: [id], onDelete: Cascade)
   organzationId          String       @unique
   createdAt              DateTime     @default(now())

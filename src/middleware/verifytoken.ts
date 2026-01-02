@@ -49,6 +49,16 @@ export async function VerifyToken(
         })
         .then(() => console.log(`✅ User ${decoded.id} marked online`))
         .catch((err) => console.error("⚠️ Failed to mark user online:", err));
+
+      prisma.organization
+        .update({
+          where: { id: decoded.id },
+          data: { isOnline: true, lastActive: new Date() },
+        })
+        .then(() => console.log(`✅ Organization ${decoded.id} marked online`))
+        .catch((err) =>
+          console.error("⚠️ Failed to mark organization online:", err)
+        );
     }
 
     return next();

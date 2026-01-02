@@ -6,13 +6,16 @@ import {
   Path,
   Post,
   Put,
+  Request,
   Route,
   Security,
   Tags,
 } from "tsoa";
 import { OrganizationDTO } from "../interface/interfaces";
 import prisma from "../db";
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { MediaService } from "../services/mediaServices";
 enum OrgType {
   CHURCH,
@@ -24,16 +27,18 @@ enum OrgType {
 @Tags("Organization Controllers")
 export class OrganizationController extends Controller {
   @Security("bearerAuth")
-  @Post("/create-organization")
+  @Post("/auth/create-organization")
   public async CreateOrganization(
     @Body() body: Omit<OrganizationDTO, "id">
   ): Promise<any> {
-    const hashedPassword = await bcrypt.hash(body.user_password, 10);
+    const hashedPassword = await bcrypt.hash(body.organization_password, 10);
     try {
       const createOrganization = await prisma.organization.create({
         data: {
           organization_name: body.organization_name,
           organization_email: body.organization_email,
+          organization_password: hashedPassword,
+          lastActive: new Date(),
           organization_description: body.organzation_description,
           organization_country: body.organization_country,
           organization_state: body.organization_state,
@@ -61,7 +66,7 @@ export class OrganizationController extends Controller {
               school_accreditation_number:
                 body.school.school_accreditation_number,
               school_document: body.school.school_document,
-              school_email_domain: body.school.school_email_domain,
+              school_email: body.school.school_email_domain,
               school_website: body.school.school_website,
             },
           },
@@ -95,6 +100,8 @@ export class OrganizationController extends Controller {
         },
       });
 
+      this.setStatus(201);
+
       return {
         message: "Perfecto organization created successfully.",
         data: createOrganization,
@@ -105,6 +112,72 @@ export class OrganizationController extends Controller {
         message: "Error created successfully.",
         error: error.message,
       };
+    }
+  }
+
+  @Post("/auth/org/login")
+  public async OrgLogin(
+    @Request() req: any,
+    @Body() credential: { org_email: string; org_password: string }
+  ) {
+    try {
+      const orgnaization = await prisma.organization.findUnique({
+        where: {
+          organization_email: credential.org_email,
+        },
+      });
+
+      if (!orgnaization) {
+        this.setStatus(404);
+        return {
+          message: "Organization not found or invalid creditials",
+        };
+      }
+
+      const unHashedPassword = bcrypt.compare(
+        credential.org_password,
+        orgnaization.organization_password
+      );
+
+      if (!unHashedPassword) {
+        this.setStatus(400);
+        return {
+          message: "Password is incorrect",
+        };
+      }
+
+      const updateOrg = await prisma.organization.update({
+        where: {
+          id: orgnaization.id,
+        },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+      });
+
+      const token = jwt.sign(
+        {
+          id: updateOrg.id,
+          org_name: orgnaization.organization_name,
+          org_email: orgnaization.organization_email,
+          org_password: credential.org_password,
+          updatedStatus: updateOrg.isOnline,
+        },
+        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+        { expiresIn: "5d" }
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true, // because you're on localhost
+          sameSite: "none", // must be none for cross-port cookie sharing
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+    } catch (error) {
+      console.error(error);
     }
   }
 
@@ -358,7 +431,7 @@ export class OrganizationController extends Controller {
   @Put("/update-organization/{id}")
   public async UpdateOrganization(
     @Path() id: string,
-    @Body() body: OrganizationDTO
+    @Body() body: Omit<OrganizationDTO, "id">
   ) {
     const hashedPassword = bcrypt.hash(body.user_password, 10);
     try {
@@ -397,7 +470,7 @@ export class OrganizationController extends Controller {
               school_accreditation_number:
                 body.school.school_accreditation_number,
               school_document: body.school.school_document,
-              school_email_domain: body.school.school_email_domain,
+              school_email: body.school.school_email_domain,
               school_website: body.school.school_website,
             },
           },
@@ -434,6 +507,51 @@ export class OrganizationController extends Controller {
       return {
         message: "update done succefully",
         data: updateOrganization,
+      };
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  @Post("/organization-password-generated/{organizationId}")
+  public async OrganizationPasswordGenerator(@Path() organizationId: string) {
+    const generatedPassword = crypto
+      .randomBytes(9)
+      .toString("base64")
+      .slice(0, 12);
+
+    const hashedPassword = bcrypt.hash(generatedPassword, 10);
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: organizationId,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          message: "Organization not found",
+        };
+      }
+
+      await prisma.organization.update({
+        where: {
+          id: organizationId,
+        },
+        data: {
+          user: {
+            update: {
+              password: hashedPassword as any,
+            },
+          },
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "password done successfully",
+        generatedPassword: generatedPassword,
       };
     } catch (error) {
       console.error(error);

@@ -141,6 +141,7 @@ export interface OrganizationDTO {
   organization_state: string;
   organzation_description: string;
   organization_year: string;
+  organization_password: string
   //User information
   user_first_name: string;
   user_last_name: string;
