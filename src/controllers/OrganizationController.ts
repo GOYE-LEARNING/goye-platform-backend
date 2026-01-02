@@ -165,7 +165,7 @@ export class OrganizationController extends Controller {
           updatedStatus: updateOrg.isOnline,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "5d" }
+        { expiresIn: "7d" }
       );
 
       if (req.res) {
