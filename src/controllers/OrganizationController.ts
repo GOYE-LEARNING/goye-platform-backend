@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Path, Post, Route, Security, Tags } from "tsoa";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Path,
+  Post,
+  Put,
+  Route,
+  Security,
+  Tags,
+} from "tsoa";
 import { OrganizationDTO } from "../interface/interfaces";
 import prisma from "../db";
 import bcrypt from "bcryptjs";
@@ -8,7 +19,9 @@ import bcrypt from "bcryptjs";
 export class OrganizationController extends Controller {
   @Security("bearerAuth")
   @Post("/create-organization")
-  public async CreateOrganization(@Body() body: OrganizationDTO): Promise<any> {
+  public async CreateOrganization(
+    @Body() body: Omit<OrganizationDTO, "id">
+  ): Promise<any> {
     const hashedPassword = await bcrypt.hash(body.user_password, 10);
     try {
       const createOrganization = await prisma.organization.create({
@@ -94,4 +107,15 @@ export class OrganizationController extends Controller {
 
   @Get("/fetch-specific-organization/{id}")
   public async FetchSpecificOrganization(@Path() id: string) {}
+
+  @Put("/update-organization/{id}")
+  public async UpdateOrganization(
+    @Path() id: string,
+    @Body() body: OrganizationDTO
+  ) {}
+
+  @Delete("/delete-organization/{id}")
+  public async DeleteOrganization(
+    @Path() id: string,
+  ) {}
 }

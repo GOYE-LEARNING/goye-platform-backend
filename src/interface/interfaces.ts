@@ -134,7 +134,7 @@ export interface EventDTO {
 export interface OrganizationDTO {
   id: string;
   organization_name: string;
-  organization_type: OrgType;
+  organization_type: string;
   organization_email: string;
   organization_phone_number: string;
   organization_country: string;
