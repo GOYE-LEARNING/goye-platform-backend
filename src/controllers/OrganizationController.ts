@@ -285,7 +285,7 @@ export class OrganizationController extends Controller {
     }
   }
 
-  @Post("/upload-school-document/{orgqanizationId}")
+  @Post("/upload-school-document/{organizationId}")
   public async UploadOrganizationMaterial(
     @Path() organizationId: string,
     @Body()
