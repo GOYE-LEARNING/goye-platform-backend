@@ -26,7 +26,6 @@ enum OrgType {
 @Route("organizations")
 @Tags("Organization Controllers")
 export class OrganizationController extends Controller {
-  @Security("bearerAuth")
   @Post("/auth/create-organization")
   public async CreateOrganization(
     @Body() body: Omit<OrganizationDTO, "id">
