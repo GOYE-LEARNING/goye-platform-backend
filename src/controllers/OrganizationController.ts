@@ -426,6 +426,7 @@ export class OrganizationController extends Controller {
     }
   }
 
+  @Post("/upload-club-document/{organizationId}")
   public async UploadClubOrganizationMaterial(
     @Path() organizationId: string,
     @Body()
