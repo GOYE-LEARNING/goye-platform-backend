@@ -279,8 +279,8 @@ export class OrganizationController extends Controller {
         message: "Church image uploaded successfully",
         data: {
           organizationId: updateOrganizationChurch.Church.id,
-          imageUrl: updateOrganizationChurch.Church.church_logo,
         },
+        url: updateOrganizationChurch.Church.church_logo
       };
     } catch (error) {}
   }
@@ -347,8 +347,8 @@ export class OrganizationController extends Controller {
         message: "School image uploaded successfully",
         data: {
           organizationId: updateOrganizationSchool.school.id,
-          imageUrl: updateOrganizationSchool.school.school_logo,
         },
+        url: updateOrganizationSchool.school.school_logo
       };
     } catch (error) {
       console.error(error);
@@ -356,7 +356,7 @@ export class OrganizationController extends Controller {
   }
 
   @Post("/upload-school-document/{organizationId}")
-  public async UploadOrganizationMaterial(
+  public async UploadSchoolOrganizationMaterial(
     @Path() organizationId: string,
     @Body()
     body: {
@@ -415,6 +415,77 @@ export class OrganizationController extends Controller {
       return {
         message: "organization material uploaded successfully",
         data: updateOrganization,
+        url: updateOrganization.school.school_document
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Failed to upload organization material",
+        error: error.message,
+      };
+    }
+  }
+
+  public async UploadClubOrganizationMaterial(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      file: string;
+      fileName: string;
+      mimeType: string;
+    }
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "organization not found" };
+      }
+
+      const fileBuffer = Buffer.from(body.file, "base64");
+
+      const { url, error } = await MediaService.uploadClubMaterial(
+        organizationId,
+        fileBuffer,
+        body.fileName,
+        body.mimeType
+      );
+
+      if (error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error };
+      }
+
+      const updateOrganization = await prisma.organization.update({
+        where: {
+          id: organizationId,
+        },
+
+        data: {
+          Club: {
+            update: {
+              club_document: url,
+            },
+          },
+        },
+        include: {
+          Club: {
+            select: {
+              id: true,
+              club_document: true,
+            },
+          },
+        },
+      });
+
+      this.setStatus(201);
+      return {
+        message: "organization material uploaded successfully",
+        data: updateOrganization,
+        url: updateOrganization.Club.club_document
       };
     } catch (error: any) {
       this.setStatus(500);
