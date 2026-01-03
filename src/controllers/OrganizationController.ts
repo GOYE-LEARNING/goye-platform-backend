@@ -42,44 +42,8 @@ export class OrganizationController extends Controller {
           organization_phone_number: body.organization_phone_number,
           organization_year: body.organization_year,
           organization_type: body.organization_type as any,
-          Church: {
-            create: {
-              church_min_name: body.church.church_ministry_name,
-              church_ld_pastor: body.church.church_lead_pastor,
-              church_role: body.church.church_leadership_role,
-              church_address: body.church.church_address,
-              church_logo: body.church.church_logo,
-              church_website: body.church.church_website,
-              church_weekly_service: body.church.church_weekly_service,
-            },
-          },
-          school: {
-            create: {
-              school_name: body.school.school_name,
-              school_type: body.school.school_type,
-              school_address: body.school.school_address,
-              school_admin_name: body.school.school_admin_name,
-              school_role: body.school.school_role,
-              school_accreditation_number:
-                body.school.school_accreditation_number,
-              school_document: body.school.school_document,
-              school_email: body.school.school_email_domain,
-              school_website: body.school.school_website,
-            },
-          },
-          Club: {
-            create: {
-              club_name: body.club.club_name,
-              club_type: body.club.club_type,
-              club_leader_name: body.club.club_leader_name,
-              club_description: body.club.club_description,
-              club_document: body.club.club_document,
-              club_meeting_frequency: body.club.club_meeting_frequency,
-              club_parent_org: body.club.club_parent_org,
-              club_role: body.club.club_role,
-              club_social_link: body.club.club_social_link,
-            },
-          },
+
+          // ✅ USER (always exists)
           user: {
             create: {
               first_name: body.user_first_name,
@@ -93,19 +57,69 @@ export class OrganizationController extends Controller {
               level: "ORGANIZATION",
             },
           },
+
+          // ✅ CHURCH (only if sent)
+          ...(body.church && {
+            Church: {
+              create: {
+                church_min_name: body.church.church_ministry_name,
+                church_ld_pastor: body.church.church_lead_pastor,
+                church_role: body.church.church_leadership_role,
+                church_address: body.church.church_address,
+                church_logo: body.church.church_logo,
+                church_website: body.church.church_website,
+                church_weekly_service: body.church.church_weekly_service,
+              },
+            },
+          }),
+
+          // ✅ SCHOOL (only if sent)
+          ...(body.school && {
+            school: {
+              create: {
+                school_name: body.school.school_name,
+                school_type: body.school.school_type,
+                school_address: body.school.school_address,
+                school_admin_name: body.school.school_admin_name,
+                school_role: body.school.school_role,
+                school_accreditation_number:
+                  body.school.school_accreditation_number,
+                school_document: body.school.school_document,
+                school_email: body.school.school_email_domain,
+                school_website: body.school.school_website,
+              },
+            },
+          }),
+
+          // ✅ CLUB (only if sent)
+          ...(body.club && {
+            Club: {
+              create: {
+                club_name: body.club.club_name,
+                club_type: body.club.club_type,
+                club_leader_name: body.club.club_leader_name,
+                club_description: body.club.club_description,
+                club_document: body.club.club_document,
+                club_meeting_frequency: body.club.club_meeting_frequency,
+                club_parent_org: body.club.club_parent_org,
+                club_role: body.club.club_role,
+                club_social_link: body.club.club_social_link,
+              },
+            },
+          }),
         },
       });
 
       this.setStatus(201);
-
       return {
         message: "Perfecto organization created successfully.",
         data: createOrganization,
       };
     } catch (error: any) {
       console.error(error);
+      this.setStatus(500);
       return {
-        message: "Error created successfully.",
+        message: "Organization creation failed.",
         error: error.message,
       };
     }
@@ -279,7 +293,7 @@ export class OrganizationController extends Controller {
         data: {
           organizationId: updateOrganizationChurch.Church.id,
         },
-        url: updateOrganizationChurch.Church.church_logo
+        url: updateOrganizationChurch.Church.church_logo,
       };
     } catch (error) {}
   }
@@ -347,7 +361,7 @@ export class OrganizationController extends Controller {
         data: {
           organizationId: updateOrganizationSchool.school.id,
         },
-        url: updateOrganizationSchool.school.school_logo
+        url: updateOrganizationSchool.school.school_logo,
       };
     } catch (error) {
       console.error(error);
@@ -414,7 +428,7 @@ export class OrganizationController extends Controller {
       return {
         message: "organization material uploaded successfully",
         data: updateOrganization,
-        url: updateOrganization.school.school_document
+        url: updateOrganization.school.school_document,
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -485,7 +499,7 @@ export class OrganizationController extends Controller {
       return {
         message: "organization material uploaded successfully",
         data: updateOrganization,
-        url: updateOrganization.Club.club_document
+        url: updateOrganization.Club.club_document,
       };
     } catch (error: any) {
       this.setStatus(500);
