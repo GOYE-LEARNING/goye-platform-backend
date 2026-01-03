@@ -31,13 +31,11 @@ export class OrganizationController extends Controller {
   public async CreateOrganization(
     @Body() body: Omit<OrganizationDTO, "id">
   ): Promise<any> {
-    const hashedPassword = await bcrypt.hash(body.organization_password, 10);
     try {
       const createOrganization = await prisma.organization.create({
         data: {
           organization_name: body.organization_name,
           organization_email: body.organization_email,
-          organization_password: hashedPassword,
           lastActive: new Date(),
           organization_description: body.organzation_description,
           organization_country: body.organization_country,
@@ -91,7 +89,6 @@ export class OrganizationController extends Controller {
               country: body.user_country,
               state: body.user_state,
               phone_number: body.user_phone_number,
-              password: hashedPassword,
               role: body.user_role,
               form_type: body.user_form_type as any,
               level: "ORGANIZATION",

@@ -41,6 +41,13 @@ export class UserController extends Controller {
       };
     }
 
+    if (body.password == "") {
+      this.setStatus(400)
+      return {
+        message: "Password must be filled"
+      }
+    }
+
     const updateUser = await prisma.user.update({
       where: { id: user.id },
       data: {
