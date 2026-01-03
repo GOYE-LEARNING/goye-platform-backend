@@ -430,7 +430,6 @@ export class OrganizationController extends Controller {
     @Path() id: string,
     @Body() body: Omit<OrganizationDTO, "id">
   ) {
-    const hashedPassword = bcrypt.hash(body.user_password, 10);
     try {
       const updateOrganization = await prisma.organization.update({
         where: {
@@ -492,7 +491,6 @@ export class OrganizationController extends Controller {
               country: body.user_country,
               state: body.user_state,
               phone_number: body.user_phone_number,
-              password: hashedPassword as any,
               role: body.user_role,
               form_type: body.user_form_type as any,
               level: "ORGANIZATION",
