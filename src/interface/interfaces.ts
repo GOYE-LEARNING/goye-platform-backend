@@ -139,7 +139,7 @@ export interface OrganizationDTO {
   organization_phone_number: string;
   organization_country: string;
   organization_state: string;
-  organzation_description: string;
+  organization_description: string;
   organization_year: string;
   //User information
   user_first_name: string;
@@ -165,7 +165,7 @@ export interface Church {
   church_ministry_name?: string;
   church_lead_pastor?: string;
   church_leadership_role?: string;
-  churh_address?: string;
+  church_address?: string;
   church_weekly_service?: string;
   church_website?: string;
   church_logo?: string;
