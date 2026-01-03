@@ -30,6 +30,11 @@ export class OrganizationController extends Controller {
   public async CreateOrganization(
     @Body() body: Omit<OrganizationDTO, "id">
   ): Promise<any> {
+    const orgTypeMap: Record<string, "CHURCH" | "SCHOOL" | "CLUB"> = {
+      church: "CHURCH",
+      school: "SCHOOL",
+      club: "CLUB",
+    };
     try {
       const createOrganization = await prisma.organization.create({
         data: {
@@ -41,7 +46,7 @@ export class OrganizationController extends Controller {
           organization_state: body.organization_state,
           organization_phone_number: body.organization_phone_number,
           organization_year: body.organization_year,
-          organization_type: body.organization_type as any,
+          organization_type: orgTypeMap[body.organization_type],
 
           // ✅ USER (always exists)
           user: {
