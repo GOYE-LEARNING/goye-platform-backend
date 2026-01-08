@@ -57,13 +57,6 @@
 				"$ref": "#/components/schemas/Pick_User.Exclude_keyofUser.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
-			"_36_Enums.FormType": {
-				"type": "string",
-				"enum": [
-					"ORGANIZATION",
-					"INDIVIDUAL"
-				]
-			},
 			"_36_Enums.EnrollmentStatus": {
 				"type": "string",
 				"enum": [
@@ -167,193 +160,6 @@
 			"Omit_EventDTO.id_": {
 				"$ref": "#/components/schemas/Pick_EventDTO.Exclude_keyofEventDTO.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"Church": {
-				"properties": {
-					"church_ministry_name": {
-						"type": "string"
-					},
-					"church_lead_pastor": {
-						"type": "string"
-					},
-					"church_leadership_role": {
-						"type": "string"
-					},
-					"church_address": {
-						"type": "string"
-					},
-					"church_weekly_service": {
-						"type": "string"
-					},
-					"church_website": {
-						"type": "string"
-					},
-					"church_logo": {
-						"type": "string"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"School": {
-				"properties": {
-					"school_name": {
-						"type": "string"
-					},
-					"school_type": {
-						"type": "string"
-					},
-					"school_address": {
-						"type": "string"
-					},
-					"school_admin_name": {
-						"type": "string"
-					},
-					"school_role": {
-						"type": "string"
-					},
-					"school_website": {
-						"type": "string"
-					},
-					"school_accreditation_number": {
-						"type": "string"
-					},
-					"school_document": {
-						"type": "string"
-					},
-					"school_email_domain": {
-						"type": "string"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Club": {
-				"properties": {
-					"club_name": {
-						"type": "string"
-					},
-					"club_type": {
-						"type": "string"
-					},
-					"club_leader_name": {
-						"type": "string"
-					},
-					"club_meeting_frequency": {
-						"type": "string"
-					},
-					"club_social_link": {
-						"type": "string"
-					},
-					"club_parent_org": {
-						"type": "string"
-					},
-					"club_description": {
-						"type": "string"
-					},
-					"club_document": {
-						"type": "string"
-					},
-					"club_role": {
-						"type": "string"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__": {
-				"properties": {
-					"organization_name": {
-						"type": "string"
-					},
-					"organization_type": {
-						"type": "string"
-					},
-					"organization_email": {
-						"type": "string"
-					},
-					"organization_phone_number": {
-						"type": "string"
-					},
-					"organization_country": {
-						"type": "string"
-					},
-					"organization_state": {
-						"type": "string"
-					},
-					"organization_description": {
-						"type": "string"
-					},
-					"organization_year": {
-						"type": "string"
-					},
-					"user_first_name": {
-						"type": "string"
-					},
-					"user_last_name": {
-						"type": "string"
-					},
-					"user_email_address": {
-						"type": "string"
-					},
-					"user_country": {
-						"type": "string"
-					},
-					"user_state": {
-						"type": "string"
-					},
-					"user_role": {
-						"type": "string"
-					},
-					"user_phone_number": {
-						"type": "string"
-					},
-					"user_form_type": {
-						"type": "string"
-					},
-					"church": {
-						"$ref": "#/components/schemas/Church"
-					},
-					"school": {
-						"$ref": "#/components/schemas/School"
-					},
-					"club": {
-						"$ref": "#/components/schemas/Club"
-					}
-				},
-				"required": [
-					"organization_name",
-					"organization_type",
-					"organization_email",
-					"organization_phone_number",
-					"organization_country",
-					"organization_state",
-					"organization_description",
-					"organization_year",
-					"user_first_name",
-					"user_last_name",
-					"user_email_address",
-					"user_country",
-					"user_state",
-					"user_role",
-					"user_phone_number",
-					"user_form_type"
-				],
-				"type": "object",
-				"description": "From T, pick a set of properties whose keys are in the union K"
-			},
-			"Omit_OrganizationDTO.id_": {
-				"$ref": "#/components/schemas/Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__",
-				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"_36_Enums.OrgType": {
-				"type": "string",
-				"enum": [
-					"CHURCH",
-					"SCHOOL",
-					"CLUB",
-					"OTHER"
-				]
 			},
 			"_36_Enums.Role": {
 				"type": "string",
@@ -1235,9 +1041,6 @@
 													"type": "string",
 													"format": "date-time"
 												},
-												"form_type": {
-													"$ref": "#/components/schemas/_36_Enums.FormType"
-												},
 												"completed": {
 													"type": "string"
 												},
@@ -1281,7 +1084,6 @@
 												"lastActive",
 												"isOnline",
 												"createdAt",
-												"form_type",
 												"completed",
 												"updatedAt",
 												"level",
@@ -1413,9 +1215,6 @@
 															"type": "string",
 															"format": "date-time"
 														},
-														"form_type": {
-															"$ref": "#/components/schemas/_36_Enums.FormType"
-														},
 														"completed": {
 															"type": "string"
 														},
@@ -1459,7 +1258,6 @@
 														"lastActive",
 														"isOnline",
 														"createdAt",
-														"form_type",
 														"completed",
 														"updatedAt",
 														"level",
@@ -1639,6 +1437,22 @@
 												}
 											},
 											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"items": {},
+													"type": "array"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
 												"message"
 											],
 											"type": "object"
@@ -2967,11 +2781,7 @@
 				"tags": [
 					"Social controllers"
 				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
+				"security": [],
 				"parameters": []
 			}
 		},
@@ -3116,53 +2926,6 @@
 						}
 					}
 				}
-			}
-		},
-		"/socials/check-joined/{groupId}": {
-			"get": {
-				"operationId": "CheckJoined",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"data": {
-											"type": "boolean"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Social controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "groupId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
 			}
 		},
 		"/socials/join-group/{groupId}": {
@@ -3380,7 +3143,7 @@
 				}
 			}
 		},
-		"/socials/fetch-event-by-the-student-group": {
+		"/socials/get-all-event": {
 			"get": {
 				"operationId": "GetEvent",
 				"responses": {
@@ -3534,725 +3297,6 @@
 				]
 			}
 		},
-		"/organizations/auth/create-organization": {
-			"post": {
-				"operationId": "CreateOrganization",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_OrganizationDTO.id_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/auth/org/login": {
-			"post": {
-				"operationId": "OrgLogin",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"org_password": {
-										"type": "string"
-									},
-									"org_email": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"org_password",
-									"org_email"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/fetch-organizations": {
-			"get": {
-				"operationId": "FetchOrganization",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": []
-			}
-		},
-		"/organizations/fetch-specific-organization/{id}": {
-			"get": {
-				"operationId": "FetchSpecificOrganization",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"data": {
-											"properties": {
-												"organization_password": {
-													"type": "string"
-												},
-												"organization_year": {
-													"type": "string"
-												},
-												"organization_description": {
-													"type": "string"
-												},
-												"organization_state": {
-													"type": "string"
-												},
-												"organization_country": {
-													"type": "string"
-												},
-												"organization_phone_number": {
-													"type": "string"
-												},
-												"organization_email": {
-													"type": "string"
-												},
-												"organization_type": {
-													"$ref": "#/components/schemas/_36_Enums.OrgType"
-												},
-												"organization_name": {
-													"type": "string"
-												},
-												"userId": {
-													"type": "string"
-												},
-												"lastActive": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isOnline": {
-													"type": "boolean"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"organization_password",
-												"organization_year",
-												"organization_description",
-												"organization_state",
-												"organization_country",
-												"organization_phone_number",
-												"organization_email",
-												"organization_type",
-												"organization_name",
-												"userId",
-												"lastActive",
-												"isOnline",
-												"createdAt",
-												"updatedAt",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/organizations/upload-church-logo/{organizationId}": {
-			"post": {
-				"operationId": "UploadChurchLogo",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "organizationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/upload-school-logo/{organizationId}": {
-			"post": {
-				"operationId": "UploadSchoolLogo",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "organizationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/upload-school-document/{organizationId}": {
-			"post": {
-				"operationId": "UploadSchoolOrganizationMaterial",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "organizationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/upload-club-document/{organizationId}": {
-			"post": {
-				"operationId": "UploadClubOrganizationMaterial",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "organizationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
-										"type": "string"
-									}
-								},
-								"required": [
-									"mimeType",
-									"fileName",
-									"file"
-								],
-								"type": "object"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/update-organization/{id}": {
-			"put": {
-				"operationId": "UpdateOrganization",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"data": {
-											"properties": {
-												"organization_password": {
-													"type": "string"
-												},
-												"organization_year": {
-													"type": "string"
-												},
-												"organization_description": {
-													"type": "string"
-												},
-												"organization_state": {
-													"type": "string"
-												},
-												"organization_country": {
-													"type": "string"
-												},
-												"organization_phone_number": {
-													"type": "string"
-												},
-												"organization_email": {
-													"type": "string"
-												},
-												"organization_type": {
-													"$ref": "#/components/schemas/_36_Enums.OrgType"
-												},
-												"organization_name": {
-													"type": "string"
-												},
-												"userId": {
-													"type": "string"
-												},
-												"lastActive": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isOnline": {
-													"type": "boolean"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"organization_password",
-												"organization_year",
-												"organization_description",
-												"organization_state",
-												"organization_country",
-												"organization_phone_number",
-												"organization_email",
-												"organization_type",
-												"organization_name",
-												"userId",
-												"lastActive",
-												"isOnline",
-												"createdAt",
-												"updatedAt",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/Omit_OrganizationDTO.id_"
-							}
-						}
-					}
-				}
-			}
-		},
-		"/organizations/organization-password-generated/{organizationId}": {
-			"post": {
-				"operationId": "OrganizationPasswordGenerator",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"generatedPassword": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"generatedPassword": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"generatedPassword",
-												"message"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "organizationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/organizations/delete-organization/{id}": {
-			"delete": {
-				"operationId": "DeleteOrganization",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"properties": {
-										"data": {
-											"properties": {
-												"organization_password": {
-													"type": "string"
-												},
-												"organization_year": {
-													"type": "string"
-												},
-												"organization_description": {
-													"type": "string"
-												},
-												"organization_state": {
-													"type": "string"
-												},
-												"organization_country": {
-													"type": "string"
-												},
-												"organization_phone_number": {
-													"type": "string"
-												},
-												"organization_email": {
-													"type": "string"
-												},
-												"organization_type": {
-													"$ref": "#/components/schemas/_36_Enums.OrgType"
-												},
-												"organization_name": {
-													"type": "string"
-												},
-												"userId": {
-													"type": "string"
-												},
-												"lastActive": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isOnline": {
-													"type": "boolean"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"organization_password",
-												"organization_year",
-												"organization_description",
-												"organization_state",
-												"organization_country",
-												"organization_phone_number",
-												"organization_email",
-												"organization_type",
-												"organization_name",
-												"userId",
-												"lastActive",
-												"isOnline",
-												"createdAt",
-												"updatedAt",
-												"id"
-											],
-											"type": "object"
-										},
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "id",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
 		"/notifications/fetch-all-notification": {
 			"get": {
 				"operationId": "GetMyNotifications",
@@ -4369,6 +3413,9 @@
 																	"type": {
 																		"type": "string"
 																	},
+																	"message": {
+																		"type": "string"
+																	},
 																	"groupId": {
 																		"type": "string"
 																	},
@@ -4379,9 +3426,6 @@
 																		"type": "string"
 																	},
 																	"userId": {
-																		"type": "string"
-																	},
-																	"message": {
 																		"type": "string"
 																	},
 																	"createdAt": {
@@ -4403,11 +3447,11 @@
 																	"isRead",
 																	"to",
 																	"type",
+																	"message",
 																	"groupId",
 																	"title",
 																	"courseId",
 																	"userId",
-																	"message",
 																	"createdAt",
 																	"updatedAt",
 																	"role",
@@ -4460,7 +3504,7 @@
 					}
 				},
 				"tags": [
-					"Notification Controller"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -4550,6 +3594,9 @@
 																	"type": {
 																		"type": "string"
 																	},
+																	"message": {
+																		"type": "string"
+																	},
 																	"groupId": {
 																		"type": "string"
 																	},
@@ -4560,9 +3607,6 @@
 																		"type": "string"
 																	},
 																	"userId": {
-																		"type": "string"
-																	},
-																	"message": {
 																		"type": "string"
 																	},
 																	"createdAt": {
@@ -4584,11 +3628,11 @@
 																	"isRead",
 																	"to",
 																	"type",
+																	"message",
 																	"groupId",
 																	"title",
 																	"courseId",
 																	"userId",
-																	"message",
 																	"createdAt",
 																	"updatedAt",
 																	"role",
@@ -4640,8 +3684,9 @@
 						}
 					}
 				},
+				"description": "Get unread notifications only\r\nGET /notifications/unread",
 				"tags": [
-					"Notification Controller"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -4736,8 +3781,9 @@
 						}
 					}
 				},
+				"description": "Get notification counts\r\nGET /notifications/counts",
 				"tags": [
-					"Notification Controller"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -4788,6 +3834,9 @@
 														"type": {
 															"type": "string"
 														},
+														"message": {
+															"type": "string"
+														},
 														"groupId": {
 															"type": "string"
 														},
@@ -4798,9 +3847,6 @@
 															"type": "string"
 														},
 														"userId": {
-															"type": "string"
-														},
-														"message": {
 															"type": "string"
 														},
 														"createdAt": {
@@ -4822,11 +3868,11 @@
 														"isRead",
 														"to",
 														"type",
+														"message",
 														"groupId",
 														"title",
 														"courseId",
 														"userId",
-														"message",
 														"createdAt",
 														"updatedAt",
 														"role",
@@ -4872,8 +3918,9 @@
 						}
 					}
 				},
+				"description": "Mark a notification as read\r\nPUT /notifications/{notificationId}/read",
 				"tags": [
-					"Notification Controller"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -4972,8 +4019,9 @@
 						}
 					}
 				},
+				"description": "Mark all notifications as read\r\nPUT /notifications/read-all",
 				"tags": [
-					"Notification Controller"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -5024,6 +4072,9 @@
 														"type": {
 															"type": "string"
 														},
+														"message": {
+															"type": "string"
+														},
 														"groupId": {
 															"type": "string"
 														},
@@ -5034,9 +4085,6 @@
 															"type": "string"
 														},
 														"userId": {
-															"type": "string"
-														},
-														"message": {
 															"type": "string"
 														},
 														"createdAt": {
@@ -5058,11 +4106,11 @@
 														"isRead",
 														"to",
 														"type",
+														"message",
 														"groupId",
 														"title",
 														"courseId",
 														"userId",
-														"message",
 														"createdAt",
 														"updatedAt",
 														"role",
@@ -5108,8 +4156,9 @@
 						}
 					}
 				},
+				"description": "Delete a notification\r\nDELETE /notifications/{notificationId}",
 				"tags": [
-					"Notification Controller"
+					"Notification Conroller"
 				],
 				"security": [
 					{
@@ -5126,544 +4175,6 @@
 						}
 					}
 				]
-			}
-		},
-		"/notifications/user": {
-			"get": {
-				"operationId": "GetUserNotifications",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"error": {},
-												"count": {},
-												"data": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"error": {},
-												"count": {
-													"type": "number",
-													"format": "double"
-												},
-												"data": {
-													"items": {
-														"allOf": [
-															{
-																"properties": {
-																	"group": {
-																		"properties": {
-																			"group_title": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"group_title"
-																		],
-																		"type": "object"
-																	},
-																	"course": {
-																		"properties": {
-																			"course_title": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"course_title"
-																		],
-																		"type": "object"
-																	},
-																	"user": {
-																		"properties": {
-																			"user_pic": {
-																				"type": "string"
-																			},
-																			"last_name": {
-																				"type": "string"
-																			},
-																			"first_name": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"user_pic",
-																			"last_name",
-																			"first_name"
-																		],
-																		"type": "object"
-																	}
-																},
-																"required": [
-																	"group",
-																	"course",
-																	"user"
-																],
-																"type": "object"
-															},
-															{
-																"properties": {
-																	"isRead": {
-																		"type": "boolean"
-																	},
-																	"to": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
-																	},
-																	"type": {
-																		"type": "string"
-																	},
-																	"groupId": {
-																		"type": "string"
-																	},
-																	"title": {
-																		"type": "string"
-																	},
-																	"courseId": {
-																		"type": "string"
-																	},
-																	"userId": {
-																		"type": "string"
-																	},
-																	"message": {
-																		"type": "string"
-																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"updatedAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"role": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
-																	},
-																	"id": {
-																		"type": "string"
-																	}
-																},
-																"required": [
-																	"isRead",
-																	"to",
-																	"type",
-																	"groupId",
-																	"title",
-																	"courseId",
-																	"userId",
-																	"message",
-																	"createdAt",
-																	"updatedAt",
-																	"role",
-																	"id"
-																],
-																"type": "object"
-															}
-														]
-													},
-													"type": "array"
-												},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"count",
-												"data",
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"count": {},
-												"data": {},
-												"error": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"error",
-												"message",
-												"success"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Notification Controller"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": []
-			}
-		},
-		"/notifications/unread-count": {
-			"get": {
-				"operationId": "GetUnreadCount",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"error": {},
-												"data": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"error": {},
-												"data": {
-													"properties": {
-														"totalUnread": {
-															"type": "number",
-															"format": "double"
-														},
-														"userUnread": {
-															"type": "number",
-															"format": "double"
-														},
-														"roleUnread": {
-															"type": "number",
-															"format": "double"
-														}
-													},
-													"required": [
-														"totalUnread",
-														"userUnread",
-														"roleUnread"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"data",
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"data": {},
-												"error": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"error",
-												"message",
-												"success"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Notification Controller"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": []
-			}
-		},
-		"/notifications/{notificationId}/archive": {
-			"put": {
-				"operationId": "ArchiveNotification",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"error": {},
-												"data": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"error": {},
-												"data": {
-													"properties": {
-														"isRead": {
-															"type": "boolean"
-														},
-														"to": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
-														},
-														"type": {
-															"type": "string"
-														},
-														"groupId": {
-															"type": "string"
-														},
-														"title": {
-															"type": "string"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"userId": {
-															"type": "string"
-														},
-														"message": {
-															"type": "string"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"role": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"isRead",
-														"to",
-														"type",
-														"groupId",
-														"title",
-														"courseId",
-														"userId",
-														"message",
-														"createdAt",
-														"updatedAt",
-														"role",
-														"id"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"data",
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"data": {},
-												"error": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"error",
-												"message",
-												"success"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Notification Controller"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "notificationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/notifications/clear-all": {
-			"delete": {
-				"operationId": "ClearAllNotifications",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"error": {},
-												"data": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"error": {},
-												"data": {
-													"properties": {
-														"count": {
-															"type": "number",
-															"format": "double"
-														}
-													},
-													"required": [
-														"count"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"data",
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"data": {},
-												"error": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"error",
-												"message",
-												"success"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Notification Controller"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": []
 			}
 		},
 		"/course/create-course": {
@@ -5785,7 +4296,6 @@
 									"anyOf": [
 										{
 											"properties": {
-												"progress": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -5798,10 +4308,6 @@
 										},
 										{
 											"properties": {
-												"progress": {
-													"type": "number",
-													"format": "double"
-												},
 												"data": {
 													"items": {
 														"properties": {
@@ -5810,18 +4316,6 @@
 																	"allOf": [
 																		{
 																			"properties": {
-																				"_count": {
-																					"properties": {
-																						"post": {
-																							"type": "number",
-																							"format": "double"
-																						}
-																					},
-																					"required": [
-																						"post"
-																					],
-																					"type": "object"
-																				},
 																				"quiz": {
 																					"items": {
 																						"allOf": [
@@ -6128,7 +4622,6 @@
 																				}
 																			},
 																			"required": [
-																				"_count",
 																				"quiz",
 																				"objectives",
 																				"module",
@@ -6141,9 +4634,6 @@
 																			"properties": {
 																				"saved": {
 																					"type": "boolean"
-																				},
-																				"organizationId": {
-																					"type": "string"
 																				},
 																				"createdUserId": {
 																					"type": "string"
@@ -6180,7 +4670,6 @@
 																			},
 																			"required": [
 																				"saved",
-																				"organizationId",
 																				"createdUserId",
 																				"createdBy",
 																				"course_image",
@@ -6211,7 +4700,6 @@
 												}
 											},
 											"required": [
-												"progress",
 												"data",
 												"message"
 											],
@@ -6242,7 +4730,9 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"$ref": "#/components/schemas/CourseResponse"
+								}
 							}
 						}
 					}
@@ -6885,9 +5375,6 @@
 														"saved": {
 															"type": "boolean"
 														},
-														"organizationId": {
-															"type": "string"
-														},
 														"createdUserId": {
 															"type": "string"
 														},
@@ -6923,7 +5410,6 @@
 													},
 													"required": [
 														"saved",
-														"organizationId",
 														"createdUserId",
 														"createdBy",
 														"course_image",
@@ -7002,9 +5488,6 @@
 														"saved": {
 															"type": "boolean"
 														},
-														"organizationId": {
-															"type": "string"
-														},
 														"createdUserId": {
 															"type": "string"
 														},
@@ -7040,7 +5523,6 @@
 													},
 													"required": [
 														"saved",
-														"organizationId",
 														"createdUserId",
 														"createdBy",
 														"course_image",
@@ -7123,9 +5605,6 @@
 														"saved": {
 															"type": "boolean"
 														},
-														"organizationId": {
-															"type": "string"
-														},
 														"createdUserId": {
 															"type": "string"
 														},
@@ -7161,7 +5640,6 @@
 													},
 													"required": [
 														"saved",
-														"organizationId",
 														"createdUserId",
 														"createdBy",
 														"course_image",
@@ -7242,9 +5720,6 @@
 															"saved": {
 																"type": "boolean"
 															},
-															"organizationId": {
-																"type": "string"
-															},
 															"createdUserId": {
 																"type": "string"
 															},
@@ -7280,7 +5755,6 @@
 														},
 														"required": [
 															"saved",
-															"organizationId",
 															"createdUserId",
 															"createdBy",
 															"course_image",
@@ -7308,30 +5782,6 @@
 										}
 									]
 								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Course Control APIs"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": []
-			}
-		},
-		"/course/fetch-student_spiritual-growth": {
-			"get": {
-				"operationId": "FetchStudentSpiritualGrowth",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {}
 							}
 						}
 					}

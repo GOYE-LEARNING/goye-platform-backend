@@ -3,22 +3,17 @@
   "version": "1.0.0",
   "description": "GOYE Education Platform API",
   "main": "dist/app.js",
-"scripts": {
-  "postinstall": "npx prisma generate",
-  "build": "npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
-  "start": "node dist/app.js",
-  "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-
-  "tsoa:routes": "tsoa routes",
-  "tsoa:spec": "tsoa spec",
-
-  "prisma:generate": "npx prisma generate",
-  "prisma:push": "npx prisma db push",
-
-  "prisma:migrate:deploy": "npx -p prisma@7.0.1 -p @prisma/config@7.0.1 prisma migrate deploy",
-
-  "render-build": "npx prisma generate && npm run build"
-},
+  "scripts": {
+    "postinstall": "npx prisma generate",
+    "build": "npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
+    "start": "node dist/app.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "tsoa:routes": "tsoa routes",
+    "tsoa:spec": "tsoa spec",
+    "prisma:generate": "npx prisma generate",
+    "prisma:push": "npx prisma db push",
+    "render-build": "npx prisma generate && npm run build"
+  },
   "dependencies": {
     "@prisma/adapter-pg": "^7.0.1",
     "@prisma/client": "^7.0.1",
@@ -30,7 +25,6 @@
     "cloudinary": "^2.8.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
     "express": "^4.19.0",
     "firebase": "^12.5.0",
     "firebase-admin": "^13.6.0",
