@@ -11,13 +11,13 @@ import {
   Delete,
   Path,
 } from "tsoa";
-import prisma from "../db.js";
+import prisma from "../db";
 import { User } from "../interface/interfaces.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { SendEmail } from "../utils/utils.js";
-import { MediaService } from "../services/mediaServices.js";
+import { SendEmail } from "../utils/utils";
+import { MediaService } from "../services/mediaServices";
 //User route start here
 @Route("user")
 @Tags("User control APIs")

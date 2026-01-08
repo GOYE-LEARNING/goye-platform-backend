@@ -12,9 +12,9 @@ import {
   Put,
   Query,
 } from "tsoa";
-import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces.js";
-import prisma from "../db.js";
-import { MediaService } from "../services/mediaServices.js";
+import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces";
+import prisma from "../db";
+import { MediaService } from "../services/mediaServices";
 
 @Route("socials")
 @Tags("Social controllers")

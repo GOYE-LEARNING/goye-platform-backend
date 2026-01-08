@@ -11,13 +11,13 @@ import {
   Request,
   Delete,
 } from "tsoa";
-import prisma from "../db.js";
-import { CourseResponse, Module } from "../interface/interfaces.js";
+import prisma from "../db";
+import { CourseResponse, Module } from "../interface/interfaces";
 import {
   CreateCourseDTO,
   UpdateCourseWithRelationsDTO,
-} from "../dto/course.dto.js";
-import { MediaService } from "../services/mediaServices.js";
+} from "../dto/course.dto";
+import { MediaService } from "../services/mediaServices";
 
 @Route("course")
 @Tags("Course Control APIs")

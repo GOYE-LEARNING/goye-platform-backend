@@ -1,4 +1,4 @@
-import cloudinary from "../utils/cloudinary.js";
+import cloudinary from "../utils/cloudinary";
 
 export class MediaService {
   static async uploadUserAvatar(

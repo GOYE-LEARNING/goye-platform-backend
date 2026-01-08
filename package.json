@@ -7,7 +7,7 @@
     "postinstall": "npx prisma generate",
     "build": "npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
     "start": "node dist/app.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
     "tsoa:routes": "tsoa routes",
     "tsoa:spec": "tsoa spec",
     "prisma:generate": "npx prisma generate",

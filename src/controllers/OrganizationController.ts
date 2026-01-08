@@ -35,6 +35,12 @@ export class OrganizationController extends Controller {
       school: "SCHOOL",
       club: "CLUB",
     };
+
+    const formTypeMap: Record<string, "ORGANIZATION" | "INDIVIDUAL"> = {
+      organization: "ORGANIZATION",
+      individual: "INDIVIDUAL",
+    };
+
     try {
       const createOrganization = await prisma.organization.create({
         data: {
@@ -58,7 +64,7 @@ export class OrganizationController extends Controller {
               state: body.user_state,
               phone_number: body.user_phone_number,
               role: body.user_role,
-              form_type: body.user_form_type as any,
+              form_type: formTypeMap[body.organization_type],
               level: "ORGANIZATION",
             },
           },
@@ -149,7 +155,7 @@ export class OrganizationController extends Controller {
         };
       }
 
-      const unHashedPassword = bcrypt.compare(
+      const unHashedPassword = await bcrypt.compare(
         credential.org_password,
         orgnaization.organization_password
       );
@@ -176,7 +182,6 @@ export class OrganizationController extends Controller {
           id: updateOrg.id,
           org_name: orgnaization.organization_name,
           org_email: orgnaization.organization_email,
-          org_password: credential.org_password,
           updatedStatus: updateOrg.isOnline,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
@@ -535,42 +540,39 @@ export class OrganizationController extends Controller {
           organization_phone_number: body.organization_phone_number,
           organization_year: body.organization_year,
           organization_type: body.organization_type as any,
-          Church: {
-            create: {
-              church_min_name: body.church.church_ministry_name,
-              church_ld_pastor: body.church.church_lead_pastor,
-              church_role: body.church.church_leadership_role,
-              church_address: body.church.church_address,
-              church_logo: body.church.church_logo,
-              church_website: body.church.church_website,
-              church_weekly_service: body.church.church_weekly_service,
+          Church: body.church && {
+            upsert: {
+              create: {
+                church_min_name: body.church.church_ministry_name,
+                church_ld_pastor: body.church.church_lead_pastor,
+              },
+              update: {
+                church_ld_pastor: body.church.church_lead_pastor,
+              },
             },
           },
-          school: {
-            create: {
-              school_name: body.school.school_name,
-              school_type: body.school.school_type,
-              school_address: body.school.school_address,
-              school_admin_name: body.school.school_admin_name,
-              school_role: body.school.school_role,
-              school_accreditation_number:
-                body.school.school_accreditation_number,
-              school_document: body.school.school_document,
-              school_email: body.school.school_email_domain,
-              school_website: body.school.school_website,
+
+          school: body.school && {
+            upsert: {
+              create: {
+                school_name: body.school.school_name,
+                school_type: body.school.school_type,
+              },
+              update: {
+                school_type: body.school.school_type,
+              },
             },
           },
-          Club: {
-            create: {
-              club_name: body.club.club_name,
-              club_type: body.club.club_type,
-              club_leader_name: body.club.club_leader_name,
-              club_description: body.club.club_description,
-              club_document: body.club.club_document,
-              club_meeting_frequency: body.club.club_meeting_frequency,
-              club_parent_org: body.club.club_parent_org,
-              club_role: body.club.club_role,
-              club_social_link: body.club.club_social_link,
+
+          Club: body.club && {
+            upsert: {
+              create: {
+                club_name: body.club.club_name,
+                club_type: body.club.club_type,
+              },
+              update: {
+                club_type: body.club.club_type,
+              },
             },
           },
           user: {
@@ -605,7 +607,7 @@ export class OrganizationController extends Controller {
       .toString("base64")
       .slice(0, 12);
 
-    const hashedPassword = bcrypt.hash(generatedPassword, 10);
+    const hashedPassword = await bcrypt.hash(generatedPassword, 10);
     try {
       const organization = await prisma.organization.findUnique({
         where: {
