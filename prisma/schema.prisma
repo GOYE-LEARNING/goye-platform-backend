@@ -53,6 +53,7 @@ model Organization {
   organization_country      String
   organization_state        String
   organization_description  String
+  organization_role         String
   organization_password     String?
   organization_year         String
   isOnline                  Boolean?              @default(false)

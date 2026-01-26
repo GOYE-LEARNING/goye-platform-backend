@@ -39,14 +39,16 @@ export class OrganizationController extends Controller {
     const formTypeMap: Record<string, "ORGANIZATION" | "INDIVIDUAL"> = {
       organization: "ORGANIZATION",
       individual: "INDIVIDUAL",
-    };
+    };    
 
+    
     try {
       const createOrganization = await prisma.organization.create({
         data: {
           organization_name: body.organization_name,
           organization_email: body.organization_email,
           lastActive: new Date(),
+          organization_role: body.organization_role,
           organization_description: body.organization_description,
           organization_country: body.organization_country,
           organization_state: body.organization_state,

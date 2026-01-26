@@ -140,6 +140,7 @@ export interface OrganizationDTO {
   organization_country: string;
   organization_state: string;
   organization_description: string;
+  organization_role: string;
   organization_year: string;
   //User information
   user_first_name: string;
