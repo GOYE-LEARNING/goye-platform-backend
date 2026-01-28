@@ -39,9 +39,8 @@ export class OrganizationController extends Controller {
     const formTypeMap: Record<string, "ORGANIZATION" | "INDIVIDUAL"> = {
       organization: "ORGANIZATION",
       individual: "INDIVIDUAL",
-    };    
+    };
 
-    
     try {
       const createOrganization = await prisma.organization.create({
         data: {
@@ -78,6 +77,7 @@ export class OrganizationController extends Controller {
                 church_min_name: body.church.church_ministry_name,
                 church_ld_pastor: body.church.church_lead_pastor,
                 church_role: body.church.church_leadership_role,
+                church_email: body.church.church_email,
                 church_address: body.church.church_address,
                 church_logo: body.church.church_logo,
                 church_website: body.church.church_website,
@@ -634,6 +634,7 @@ export class OrganizationController extends Controller {
               password: hashedPassword as any,
             },
           },
+          organization_password: hashedPassword,
         },
       });
 

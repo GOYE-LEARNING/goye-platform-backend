@@ -166,6 +166,7 @@ export interface Church {
   church_ministry_name?: string;
   church_lead_pastor?: string;
   church_leadership_role?: string;
+  church_email?: string;
   church_address?: string;
   church_weekly_service?: string;
   church_website?: string;
