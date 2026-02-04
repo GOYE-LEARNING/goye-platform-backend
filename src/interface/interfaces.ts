@@ -182,7 +182,7 @@ export interface School {
   school_website?: string;
   school_accreditation_number?: string;
   school_document?: string;
-  school_email_domain?: string
+  school_email?: string
 }
 
 export interface Club {

@@ -98,7 +98,7 @@ export class OrganizationController extends Controller {
                 school_accreditation_number:
                   body.school.school_accreditation_number,
                 school_document: body.school.school_document,
-                school_email: body.school.school_email_domain,
+                school_email: body.school.school_email,
                 school_website: body.school.school_website,
               },
             },
