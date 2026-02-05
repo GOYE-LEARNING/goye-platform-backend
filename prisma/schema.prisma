@@ -59,7 +59,7 @@ model InviteUser {
 
 model Organization {
   id                        String               @id @default(uuid())
-  user                      User?                @relation(fields: [userId], references: [id])
+  user                      User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization_name         String
   organization_type         OrgType              @default(OTHER)
   organization_email        String               @unique

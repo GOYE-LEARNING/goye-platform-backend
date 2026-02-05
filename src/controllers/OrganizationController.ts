@@ -66,7 +66,7 @@ export class OrganizationController extends Controller {
               state: body.user_state,
               phone_number: body.user_phone_number,
               role: body.user_role,
-              form_type: formTypeMap[body.organization_type],
+              form_type: 'ORGANIZATION',
               level: "ORGANIZATION",
             },
           },
