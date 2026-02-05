@@ -649,76 +649,83 @@ export class OrganizationController extends Controller {
     }
   }
 
-  @Post("/invite-user-to-organization/${organizationId}/${sentByUserId}")
-  public async InviteUserToOrganization(
+  @Post("/invite-users-to-organization/${organizationId}/${sentByUserId}")
+  public async InviteUsersToOrganization(
     @Path() organizationId: string,
     @Path() sentByUserId: string,
-    @Body() body: { email: string; role: string },
+    // Change body to accept an array of users
+    @Body() body: { users: { email: string; role: string }[] },
   ): Promise<any> {
     try {
-      const tokencode = jwt.sign(
-        {
-          organizationId,
-        },
-        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "24h" },
-      );
+      const { users } = body;
 
-      if (!tokencode) {
-        this.setStatus(500);
-        return {
-          message: "Failed to generate token",
-        };
-      }
-
+      // 1. Check if organization exists first (once)
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          message: "Organization not found",
-        };
+        return { message: "Organization not found" };
       }
 
-      const InviteUser = await prisma.inviteUser.create({
-        data: {
-          email: body.email,
-          role: body.role,
-          code: tokencode,
-          organizationId: organizationId,
-          sentById: sentByUserId,
-          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), //24 hours from now
-        },
+      const invitePromises = users.map(async (user) => {
+        const existingInvite = await prisma.inviteUser.findFirst({
+          where: {
+            email: user.email,
+            organizationId: organizationId,
+            expiresIn: { gt: new Date() }, // Only block if the invite hasn't expired yet
+          },
+        });
+
+        if (existingInvite) {
+          return {
+            email: user.email,
+            status: "already_invited",
+            message: "User has an active invitation.",
+          };
+        }
+        // Generate a unique token for EACH user
+        const tokencode = jwt.sign(
+          { organizationId, email: user.email }, // Include email to make token unique
+          process.env.BEARERAUTH_SECRET || "secret-key",
+          { expiresIn: "24h" },
+        );
+
+        // Create DB record
+        const inviteEntry = await prisma.inviteUser.create({
+          data: {
+            email: user.email,
+            role: user.role,
+            code: tokencode,
+            organizationId: organizationId,
+            sentById: sentByUserId,
+            expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          },
+        });
+
+        // Send Email
+        const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
+        const inviteLink = `http://localhost:3000/dashboard/${organizationId}/accept-invite?token=${tokencode}`;
+        const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
+
+        await SendEmail(user.email, emailSubject, emailText);
+
+        return { email: user.email, status: "success", data: inviteEntry };
       });
 
-      const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-      const inviteLink = `localhost:3000/dashboard/${organizationId}/accept-invite?token=${tokencode}`;
-      const emailText = `You have been invited to join the organization "${organization.organization_name}" on the GOYE Platform. Please use the following link to accept the invitation: ${inviteLink}. This link will expire in 2 hours.`;
+      // 3. Execute all invites in parallel
+      const results = await Promise.all(invitePromises);
 
-      await SendEmail(body.email, emailSubject, emailText);
       this.setStatus(200);
       return {
-        message: "Token generated successfully",
-        token: tokencode,
-        data: InviteUser,
+        message: `${results.length} invitations sent successfully`,
+        data: results,
       };
     } catch (error: any) {
-      if (error.name == "TokenExpiredError") {
-        this.setStatus(410);
-        return {
-          message: "Sorry token has expired",
-          status: 400,
-        };
-      }
       console.error(error);
       this.setStatus(500);
-      return {
-        message: "Error generating token",
-      };
+      return { message: "Error processing bulk invitations" };
     }
   }
 
