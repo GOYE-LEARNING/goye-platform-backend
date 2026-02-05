@@ -17,6 +17,7 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { MediaService } from "../services/mediaServices";
+import { SendEmail } from "../utils/sendmail";
 enum OrgType {
   CHURCH,
   SCHOOL,
@@ -28,7 +29,7 @@ enum OrgType {
 export class OrganizationController extends Controller {
   @Post("/auth/create-organization")
   public async CreateOrganization(
-    @Body() body: Omit<OrganizationDTO, "id">
+    @Body() body: Omit<OrganizationDTO, "id">,
   ): Promise<any> {
     const orgTypeMap: Record<string, "CHURCH" | "SCHOOL" | "CLUB"> = {
       church: "CHURCH",
@@ -141,7 +142,7 @@ export class OrganizationController extends Controller {
   @Post("/auth/org/login")
   public async OrgLogin(
     @Request() req: any,
-    @Body() credential: { org_email: string; org_password: string }
+    @Body() credential: { org_email: string; org_password: string },
   ) {
     try {
       const orgnaization = await prisma.organization.findUnique({
@@ -159,7 +160,7 @@ export class OrganizationController extends Controller {
 
       const unHashedPassword = await bcrypt.compare(
         credential.org_password,
-        orgnaization.organization_password
+        orgnaization.organization_password,
       );
 
       if (!unHashedPassword) {
@@ -187,7 +188,7 @@ export class OrganizationController extends Controller {
           updatedStatus: updateOrg.isOnline,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "7d" }
+        { expiresIn: "7d" },
       );
 
       if (req.res) {
@@ -250,7 +251,7 @@ export class OrganizationController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
@@ -270,7 +271,7 @@ export class OrganizationController extends Controller {
         organizationId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -318,7 +319,7 @@ export class OrganizationController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
@@ -338,7 +339,7 @@ export class OrganizationController extends Controller {
         organizationId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -388,7 +389,7 @@ export class OrganizationController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
@@ -406,7 +407,7 @@ export class OrganizationController extends Controller {
         organizationId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -459,7 +460,7 @@ export class OrganizationController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
@@ -477,7 +478,7 @@ export class OrganizationController extends Controller {
         organizationId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -525,7 +526,7 @@ export class OrganizationController extends Controller {
   @Put("/update-organization/{id}")
   public async UpdateOrganization(
     @Path() id: string,
-    @Body() body: Omit<OrganizationDTO, "id">
+    @Body() body: Omit<OrganizationDTO, "id">,
   ) {
     try {
       const updateOrganization = await prisma.organization.update({
@@ -645,6 +646,79 @@ export class OrganizationController extends Controller {
       };
     } catch (error) {
       console.error(error);
+    }
+  }
+
+  @Post("/invite-user-to-organization/${organizationId}/${sentByUserId}")
+  public async InviteUserToOrganization(
+    @Path() organizationId: string,
+    @Path() sentByUserId: string,
+    @Body() body: { email: string; role: string },
+  ): Promise<any> {
+    try {
+      const tokencode = jwt.sign(
+        {
+          organizationId,
+        },
+        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+        { expiresIn: "24h" },
+      );
+
+      if (!tokencode) {
+        this.setStatus(500);
+        return {
+          message: "Failed to generate token",
+        };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: organizationId,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          message: "Organization not found",
+        };
+      }
+
+      const InviteUser = await prisma.inviteUser.create({
+        data: {
+          email: body.email,
+          role: body.role,
+          code: tokencode,
+          organizationId: organizationId,
+          sentById: sentByUserId,
+          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), //24 hours from now
+        },
+      });
+
+      const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
+      const inviteLink = `localhost:3000/dashboard/${organizationId}/accept-invite?token=${tokencode}`;
+      const emailText = `You have been invited to join the organization "${organization.organization_name}" on the GOYE Platform. Please use the following link to accept the invitation: ${inviteLink}. This link will expire in 2 hours.`;
+
+      await SendEmail(body.email, emailSubject, emailText);
+      this.setStatus(200);
+      return {
+        message: "Token generated successfully",
+        token: tokencode,
+        data: InviteUser,
+      };
+    } catch (error: any) {
+      if (error.name == "TokenExpiredError") {
+        this.setStatus(410);
+        return {
+          message: "Sorry token has expired",
+          status: 400,
+        };
+      }
+      console.error(error);
+      this.setStatus(500);
+      return {
+        message: "Error generating token",
+      };
     }
   }
 

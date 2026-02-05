@@ -16,7 +16,7 @@ import { User } from "../interface/interfaces.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { SendEmail } from "../utils/utils";
+import { SendEmail } from "../utils/sendmail";
 import { MediaService } from "../services/mediaServices";
 //User route start here
 @Route("user")

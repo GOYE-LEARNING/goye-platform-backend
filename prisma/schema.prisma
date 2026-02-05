@@ -36,11 +36,25 @@ model User {
   notification  Notification[]
   message       Message[]
   organization  Organization[]
+  inviteUser    InviteUser[]
 }
 
 enum FormType {
   ORGANIZATION
   INDIVIDUAL
+}
+
+model InviteUser {
+  id             String       @id @default(cuid())
+  email          String
+  role String
+  code           String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId String
+  sentBy         User         @relation(fields: [sentById], references: [id], onDelete: Cascade)
+  sentById       String
+  createdAt      DateTime     @default(now())
+  expiresIn      DateTime
 }
 
 model Organization {
@@ -56,12 +70,13 @@ model Organization {
   organization_role         String
   organization_password     String?
   organization_year         String
-  isOnline                  Boolean?              @default(false)
+  isOnline                  Boolean?             @default(false)
   lastActive                DateTime
   Church                    Church_Organization?
   school                    School_Organization?
   Club                      Club_Organization?
   course                    Course[]
+  inviteUser                InviteUser[]
   userId                    String
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
