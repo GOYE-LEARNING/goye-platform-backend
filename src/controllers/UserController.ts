@@ -26,7 +26,7 @@ export class UserController extends Controller {
   @Post("/signup")
   public async CreateUser(
     @Body() body: Omit<User, "id">,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const hashedPassword = await bcrypt.hash(body.password, 10);
     //To store password in token
@@ -42,10 +42,10 @@ export class UserController extends Controller {
     }
 
     if (body.password == "") {
-      this.setStatus(400)
+      this.setStatus(400);
       return {
-        message: "Password must be filled"
-      }
+        message: "Password must be filled",
+      };
     }
 
     const updateUser = await prisma.user.update({
@@ -53,6 +53,12 @@ export class UserController extends Controller {
       data: {
         isOnline: true,
         lastActive: new Date(),
+      },
+    });
+
+        const organizationId = await prisma.organization.findFirst({
+      where: {
+        userId: updateUser.id,
       },
     });
 
@@ -66,7 +72,7 @@ export class UserController extends Controller {
         updateStatus: updateUser.isOnline,
       },
       (process.env.BEARERAUTH_SECRET as string) || "secret-key",
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
 
     if (req.res) {
@@ -88,6 +94,7 @@ export class UserController extends Controller {
         last_name: updateUser.last_name,
         email_address: updateUser.email_address,
       },
+      organizationId: organizationId
     };
   }
 
@@ -95,7 +102,7 @@ export class UserController extends Controller {
   @Post("/login")
   public async Login(
     @Body() creditials: { email: string; password: string },
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const user = await prisma.user.findUnique({
       where: {
@@ -109,6 +116,13 @@ export class UserController extends Controller {
         isOnline: true,
         lastActive: new Date(),
       },
+
+    });
+
+    const organizationId = await prisma.organization.findFirst({
+      where: {
+        userId: updateUser.id,
+      },
     });
 
     const token = jwt.sign(
@@ -121,7 +135,7 @@ export class UserController extends Controller {
         updateStatus: updateUser.isOnline,
       },
       (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-      { expiresIn: "7d" }
+      { expiresIn: "7d" },
     );
     if (!user) {
       this.setStatus(404);
@@ -132,7 +146,7 @@ export class UserController extends Controller {
 
     const isPasswordValid = await bcrypt.compare(
       creditials.password,
-      user.password
+      user.password,
     );
 
     if (!isPasswordValid) {
@@ -162,6 +176,7 @@ export class UserController extends Controller {
           last_name: user.last_name,
           role: user.role,
         },
+        organizationId: organizationId || null,
       },
     };
   }
@@ -183,13 +198,13 @@ export class UserController extends Controller {
     const sessionToken = jwt.sign(
       { email: body.email, otpId: otp },
       process.env.JWT_SECRET || "secret-key",
-      { expiresIn: "6min" }
+      { expiresIn: "6min" },
     );
 
     await SendEmail(
       newOtp.email,
       "GOYE VERIFICATION",
-      `Your Otp ${newOtp.code}`
+      `Your Otp ${newOtp.code}`,
     );
 
     this.setStatus(200);
@@ -206,7 +221,7 @@ export class UserController extends Controller {
     const { otp, sessionToken } = body;
     const decoded = jwt.verify(
       sessionToken,
-      process.env.JWT_SECRET || "secret-key"
+      process.env.JWT_SECRET || "secret-key",
     ) as {
       email: string;
       otp: string;
@@ -254,7 +269,7 @@ export class UserController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     const userId = req.user?.id;
     const fileBuffer = Buffer.from(body.file, "base64");
@@ -264,13 +279,13 @@ export class UserController extends Controller {
       userId,
       fileBuffer,
       body.fileName,
-      body.mimeType
+      body.mimeType,
     );
 
     if (error) {
       this.setStatus(500);
       return { message: "Upload failed", error };
-    }  
+    }
 
     try {
       // 2. Try to update user with Prisma
@@ -337,7 +352,7 @@ export class UserController extends Controller {
   @Put("/update-password")
   public async UpdatePassword(
     @Request() req: any,
-    @Body() body: { newPassword: string }
+    @Body() body: { newPassword: string },
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -405,7 +420,7 @@ export class UserController extends Controller {
       country: string;
       state: string;
       phone_number: string;
-    }
+    },
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -454,7 +469,7 @@ export class UserController extends Controller {
   private formatLastActive(lastActive: Date): string {
     const now = new Date();
     const diffInMinutes = Math.floor(
-      (now.getTime() - lastActive.getTime()) / (1000 * 60)
+      (now.getTime() - lastActive.getTime()) / (1000 * 60),
     );
 
     if (diffInMinutes < 1) return "Just now";
@@ -564,7 +579,7 @@ export class UserController extends Controller {
 
   @Post("/forgot-password")
   public async ForgotPassword(
-    @Body() body: { email: string; link: string }
+    @Body() body: { email: string; link: string },
   ): Promise<any> {
     const checkEmail = await prisma.user.findUnique({
       where: { email_address: body.email },
@@ -580,7 +595,7 @@ export class UserController extends Controller {
     await SendEmail(
       checkEmail.email_address,
       "Forgot Password Link",
-      body.link
+      body.link,
     );
     this.setStatus(200);
     return {
