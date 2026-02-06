@@ -176,7 +176,7 @@ export class UserController extends Controller {
           last_name: user.last_name,
           role: user.role,
         },
-        organizationId: organizationId || null,
+      organizationId: organizationId.id || null,
       },
     };
   }
