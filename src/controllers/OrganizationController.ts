@@ -234,6 +234,13 @@ export class OrganizationController extends Controller {
         },
       });
 
+      if (!fetchSpecificOrganization) {
+        return {
+          message: 'Sorry this Organization does not exist',
+          status: 404
+        }
+      }
+
       return {
         message: "Organization fetched successfully",
         data: fetchSpecificOrganization,

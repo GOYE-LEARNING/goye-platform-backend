@@ -56,7 +56,7 @@ export class UserController extends Controller {
       },
     });
 
-        const organizationId = await prisma.organization.findFirst({
+    const organizationId = await prisma.organization.findFirst({
       where: {
         userId: updateUser.id,
       },
@@ -116,7 +116,6 @@ export class UserController extends Controller {
         isOnline: true,
         lastActive: new Date(),
       },
-
     });
 
     const organizationId = await prisma.organization.findFirst({
@@ -176,7 +175,7 @@ export class UserController extends Controller {
           last_name: user.last_name,
           role: user.role,
         },
-      organizationId: organizationId.id || null,
+        organizationId: organizationId.id || null,
       },
     };
   }
