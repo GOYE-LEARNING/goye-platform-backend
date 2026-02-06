@@ -94,7 +94,7 @@ export class UserController extends Controller {
         last_name: updateUser.last_name,
         email_address: updateUser.email_address,
       },
-      organizationId: organizationId
+      organizationId: organizationId.id || null,
     };
   }
 
