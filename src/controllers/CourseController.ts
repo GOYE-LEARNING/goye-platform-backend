@@ -28,13 +28,23 @@ export class CourseController extends Controller {
   @Post("/create-course")
   public async CreateCourse(
     @Body() body: CreateCourseDTO,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<CourseResponse> {
     const tutorName = req.user?.full_name;
     const tutorId = req.user?.id;
+    const orgId = req.org?.organizationId;
+    const orgName = req.org?.organization_name;
     try {
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+
       const course = await prisma.course.create({
         data: {
+          organizationId: organization ? orgId : null,
+          organizationName: organization ? orgName : null,
           createdBy: tutorName,
           createdUserId: tutorId,
           course_title: body.course_title,
@@ -155,7 +165,7 @@ export class CourseController extends Controller {
   @Put("/update-course/{courseId}")
   public async UpdateCourse(
     @Path() courseId: string,
-    @Body() body: UpdateCourseWithRelationsDTO
+    @Body() body: UpdateCourseWithRelationsDTO,
   ): Promise<CourseResponse> {
     try {
       // First, check if course exists
@@ -560,7 +570,7 @@ export class CourseController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
@@ -578,7 +588,7 @@ export class CourseController extends Controller {
         courseId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -618,7 +628,7 @@ export class CourseController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const module = await prisma.module.findFirst({
@@ -640,7 +650,7 @@ export class CourseController extends Controller {
         moduleId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -692,7 +702,7 @@ export class CourseController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
@@ -710,7 +720,7 @@ export class CourseController extends Controller {
         courseId,
         fileBuffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
 
       if (error) {
@@ -720,7 +730,7 @@ export class CourseController extends Controller {
 
       const newMaterial = await prisma.material.update({
         where: {
-          id: courseId
+          id: courseId,
         },
         data: {
           material_document: url,
@@ -781,7 +791,7 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   public async CreateModule(
     @Body() body: Omit<Module, "id">,
-    @Path() courseId: string
+    @Path() courseId: string,
   ): Promise<any> {
     const course = await prisma.course.findUnique({
       where: {
@@ -847,7 +857,7 @@ export class CourseController extends Controller {
   @Get("/get-module/{courseId}/{moduleId}")
   public async GetModuleById(
     @Path() courseId: string,
-    @Path() moduleId: string
+    @Path() moduleId: string,
   ): Promise<any> {
     const getModuleById = await prisma.module.findFirst({
       where: { id: moduleId, courseId: courseId },
@@ -887,7 +897,7 @@ export class CourseController extends Controller {
       module_title?: string;
       module_description?: string;
       module_duration?: string;
-    }
+    },
   ): Promise<any> {
     const updateModule = await prisma.module.update({
       where: { id: id },
@@ -935,7 +945,7 @@ export class CourseController extends Controller {
         points?: number;
         order: number;
       }>;
-    }
+    },
   ): Promise<any> {
     try {
       const course = await prisma.course.findUnique({
@@ -1076,7 +1086,7 @@ export class CourseController extends Controller {
   @Post("/check-saved-course/{courseId}")
   public async CheckedSaveCourse(
     @Request() req: any,
-    @Path() courseId: string
+    @Path() courseId: string,
   ) {
     const userId = req.user?.ID;
     if (!userId) {
@@ -1139,14 +1149,12 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   @Get("/fetch-student_spiritual-growth")
   public async FetchStudentSpiritualGrowth(@Request() req: any): Promise<any> {
-    const userId = req.user?.id
+    const userId = req.user?.id;
 
     if (!userId) {
       return {
-        message: 'User is unathorized for this action'
-      }
+        message: "User is unathorized for this action",
+      };
     }
-
-    
   }
 }

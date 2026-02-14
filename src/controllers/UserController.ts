@@ -118,11 +118,21 @@ export class UserController extends Controller {
       },
     });
 
+    //Let check if the organization password actually matches the body password.
     const organizationId = await prisma.organization.findFirst({
       where: {
         userId: updateUser.id,
       },
+      include: {
+        user: {
+          select: {
+            email_address: true,
+          },
+        },
+      },
     });
+
+    const checkOrg = creditials.email == organizationId.user.email_address;
 
     const token = jwt.sign(
       {
@@ -130,16 +140,28 @@ export class UserController extends Controller {
         full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         email: updateUser.email_address,
         role: updateUser.role,
-        password: creditials.password,
         updateStatus: updateUser.isOnline,
+        // To save information for organization if it signed as an organization
+        organization_id: checkOrg ? organizationId.id : null,
+        organization_name:
+          creditials.password == organizationId.organization_password
+            ? organizationId.organization_name
+            : null,
+        organization_email:
+          creditials.email == organizationId.user.email_address
+            ? organizationId.user.email_address
+            : null,
+        organization_role: checkOrg ? organizationId.organization_role : null,
+        organization_online: checkOrg ? organizationId.isOnline : null
       },
       (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
       { expiresIn: "7d" },
     );
+
     if (!user) {
       this.setStatus(404);
       return {
-        message: "User does not exist with this account",
+        message: "User or Organization does not exist with this account",
       };
     }
 

@@ -39,6 +39,7 @@ export async function VerifyToken(
     }
 
     req.user = decoded;
+    req.org = decoded
 
     // OPTIONAL: mark user online
     if (decoded.id) {
