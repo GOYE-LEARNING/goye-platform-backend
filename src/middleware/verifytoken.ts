@@ -42,7 +42,7 @@ export async function VerifyToken(
     //Attach Orgnization
     const organization = await prisma.organization.findUnique({
       where: {
-        id: decoded.organization_id
+        id: decoded.organizationId
       }
     })
 
@@ -60,7 +60,7 @@ export async function VerifyToken(
     if (organization) {
       await prisma.organization.update({
         where: {
-          id: decoded.organization_id,
+          id: decoded.organizationId,
         },
         data: {
           isOnline: true,
