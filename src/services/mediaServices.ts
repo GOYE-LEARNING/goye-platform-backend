@@ -47,7 +47,7 @@ export class MediaService {
       const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
       // Upload to Cloudinary
       const result = await cloudinary.uploader.upload(base64File, {
-        folder: "user_avatars",
+        folder: "organization_image",
         public_id: `avatar_${organizationId}_${Date.now()}`,
         overwrite: true,
         resource_type: "image",
