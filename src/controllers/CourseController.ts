@@ -32,7 +32,7 @@ export class CourseController extends Controller {
   ): Promise<CourseResponse> {
     const tutorName = req.user?.full_name;
     const tutorId = req.user?.id;
-    const orgId = req.org?.organization_id;
+    const orgId = req.org?.id;
     const orgName = req.org?.organization_name;
     try {
       const organization = await prisma.organization.findUnique({
