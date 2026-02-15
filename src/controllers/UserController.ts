@@ -175,6 +175,13 @@ export class UserController extends Controller {
       where: {
         organization_email: creditials.email,
       },
+      include: {
+        user: {
+          select: {
+            role: true
+          }
+        }
+      }
     });
 
     if (organization) {
@@ -198,6 +205,7 @@ export class UserController extends Controller {
           isOnline: true,
           lastActive: new Date(),
         },
+
       });
 
       const token = jwt.sign(
@@ -207,7 +215,7 @@ export class UserController extends Controller {
           organization_id: organization.id ?? null,
           organization_name: organization.organization_name ?? null,
           organization_email: organization.organization_email ?? null,
-          organization_role: organization.organization_role ?? null,
+          organization_role: organization.user.role ?? null,
           organization_online: organization.isOnline ?? null,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
@@ -233,7 +241,7 @@ export class UserController extends Controller {
             id: organization.id,
             organization_name: organization.organization_name,
             organization_email: organization.organization_email,
-            organization_role: organization.organization_role,
+            organization_role: organization.user.role,
             organization_isOnline: organization.isOnline,
           },
         },
