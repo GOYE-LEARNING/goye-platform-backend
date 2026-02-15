@@ -227,7 +227,7 @@ export class UserController extends Controller {
         data: {
           message: "Login successfull",
           token,
-          user: {
+          organization: {
             id: organization.id,
             organization_name: organization.organization_name,
             organization_email: organization.organization_email,
