@@ -651,6 +651,26 @@ export class OrganizationController extends Controller {
     }
   }
 
+  
+  @Security("bearerAuth")
+  @Get("/profile")
+  public async GetProfile(@Request() req: any) {
+    const organizationId = req.org?.id;
+
+    if (!organizationId) {
+      this.setStatus(401);
+      return { message: "Unauthorized", status: 401 };
+    }
+
+    const organization = await prisma.organization.findUnique({ where: { id: organizationId } });
+
+    this.setStatus(200);
+    return {
+      message: "Profile fetched succfully",
+      organization,
+    };
+  }
+
   @Post("/invite-users-to-organization/${organizationId}/${sentByUserId}")
   public async InviteUsersToOrganization(
     @Path() organizationId: string,
