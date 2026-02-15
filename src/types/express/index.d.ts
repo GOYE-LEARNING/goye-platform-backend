@@ -1,10 +1,10 @@
-import { JwtPayload } from "jsonwebtoken";
-
+import { Organization, User } from "@prisma/client";
 declare global {
   namespace Express {
-    export interface Request {
-      user?: JwtPayload | string | any;
-      org?: JwtPayload | string | any;
+    interface Request {
+      user?: User | null;
+
+      org?:Organization | null;
     }
   }
 }

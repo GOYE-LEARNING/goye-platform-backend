@@ -107,7 +107,7 @@ export class UserController extends Controller {
     const user = await prisma.user.findUnique({
       where: {
         email_address: creditials.email,
-      },
+      }, 
     });
 
     const updateUser = await prisma.user.update({
@@ -132,7 +132,7 @@ export class UserController extends Controller {
       },
     });
 
-    const checkOrg = creditials.email == organizationId.user.email_address;
+    const checkOrg = creditials.email == organizationId.organization_email;
 
     const token = jwt.sign(
       {
