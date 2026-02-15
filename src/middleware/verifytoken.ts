@@ -33,7 +33,6 @@ export async function VerifyToken(
 
     req.user = user;
 
-    // ✅ mark user online
     await prisma.user.update({
       where: { id: user.id },
       data: { isOnline: true, lastActive: new Date() },
@@ -53,6 +52,8 @@ export async function VerifyToken(
         status: 404
       })
     }
+
+    req.org = organization
 
     if (organization) {
       await prisma.organization.update({
