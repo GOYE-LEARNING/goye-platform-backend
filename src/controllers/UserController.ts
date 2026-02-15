@@ -160,6 +160,7 @@ export class UserController extends Controller {
           message: "Login successfull",
           token,
           user: {
+            type: 'user',
             id: user.id,
             first_name: user.first_name,
             last_name: user.last_name,
@@ -228,6 +229,7 @@ export class UserController extends Controller {
           message: "Login successfull",
           token,
           organization: {
+            type: 'organization',
             id: organization.id,
             organization_name: organization.organization_name,
             organization_email: organization.organization_email,
