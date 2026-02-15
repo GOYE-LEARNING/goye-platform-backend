@@ -56,11 +56,6 @@ export class UserController extends Controller {
       },
     });
 
-    const organizationId = await prisma.organization.findFirst({
-      where: {
-        userId: updateUser.id,
-      },
-    });
 
     const token = jwt.sign(
       {
@@ -70,7 +65,6 @@ export class UserController extends Controller {
         role: updateUser.role,
         password: body.password,
         updateStatus: updateUser.isOnline,
-        organizationId: organizationId?.id || null,
       },
       (process.env.BEARERAUTH_SECRET as string) || "secret-key",
       { expiresIn: "7d" },
@@ -95,7 +89,6 @@ export class UserController extends Controller {
         last_name: updateUser.last_name,
         email_address: updateUser.email_address,
       },
-      organizationId: organizationId.id || null,
     };
   }
 
@@ -183,11 +176,7 @@ export class UserController extends Controller {
         organization_email: creditials.email,
       },
       include: {
-        user: {
-          select: {
-            role: true,
-          },
-        },
+        user: true,
       },
     });
 
@@ -217,12 +206,14 @@ export class UserController extends Controller {
       const token = jwt.sign(
         {
           type: "ORGANIZATION",
-          // To save information for organization if it signed as an organization
+          id: organization.user.id, // Include the user ID so middleware can find the user
           organizationId: organization.id ?? null,
           organization_name: organization.organization_name ?? null,
           organization_email: organization.organization_email ?? null,
           organization_role: organization.user.role ?? null,
           organization_online: organization.isOnline ?? null,
+          full_name: `${organization.user.first_name} ${organization.user.last_name}`,
+          email: organization.user.email_address,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
         { expiresIn: "7d" },

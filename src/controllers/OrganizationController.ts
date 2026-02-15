@@ -138,15 +138,18 @@ export class OrganizationController extends Controller {
   public async OrgLogin(
     @Request() req: any,
     @Body() credential: { org_email: string; org_password: string },
-  ) {
+  ): Promise<any> {
     try {
-      const orgnaization = await prisma.organization.findUnique({
+      const organization = await prisma.organization.findUnique({
         where: {
           organization_email: credential.org_email,
         },
+        include: {
+          user: true,
+        },
       });
 
-      if (!orgnaization) {
+      if (!organization) {
         this.setStatus(404);
         return {
           message: "Organization not found or invalid creditials",
@@ -155,7 +158,7 @@ export class OrganizationController extends Controller {
 
       const unHashedPassword = await bcrypt.compare(
         credential.org_password,
-        orgnaization.organization_password,
+        organization.organization_password,
       );
 
       if (!unHashedPassword) {
@@ -167,7 +170,7 @@ export class OrganizationController extends Controller {
 
       const updateOrg = await prisma.organization.update({
         where: {
-          id: orgnaization.id,
+          id: organization.id,
         },
         data: {
           isOnline: true,
@@ -175,11 +178,16 @@ export class OrganizationController extends Controller {
         },
       });
 
+      // Create token with user ID and organization ID
       const token = jwt.sign(
         {
-          id: updateOrg.id,
-          org_name: orgnaization.organization_name,
-          org_email: orgnaization.organization_email,
+          type: "ORGANIZATION",
+          id: organization.user.id, // The user's ID associated with this organization
+          organizationId: updateOrg.id, // The organization ID
+          org_name: organization.organization_name,
+          org_email: organization.organization_email,
+          full_name: `${organization.user.first_name} ${organization.user.last_name}`,
+          email: organization.user.email_address,
           updatedStatus: updateOrg.isOnline,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
@@ -194,8 +202,29 @@ export class OrganizationController extends Controller {
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
       }
-    } catch (error) {
+
+      this.setStatus(200);
+      return {
+        message: "Organization login successful",
+        token,
+        organization: {
+          id: organization.id,
+          organization_name: organization.organization_name,
+          organization_email: organization.organization_email,
+          user: {
+            id: organization.user.id,
+            first_name: organization.user.first_name,
+            last_name: organization.user.last_name,
+          },
+        },
+      };
+    } catch (error: any) {
       console.error(error);
+      this.setStatus(500);
+      return {
+        message: "Organization login failed",
+        error: error.message,
+      };
     }
   }
 
