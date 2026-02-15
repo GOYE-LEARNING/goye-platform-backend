@@ -39,35 +39,30 @@ export async function VerifyToken(
     });
 
     
-    //Attach Orgnization
-    const organization = await prisma.organization.findUnique({
-      where: {
-        id: decoded.organizationId
-      }
-    })
-
-    if (!organization) {
-      return res.status(404).json({
-        message: 'Organization not found',
-        status: 404
-      })
-    }
-
-    req.org = organization
-
-    console.log("Check the decoded: " + decoded)
-
-    if (organization) {
-      await prisma.organization.update({
+    //Attach Organization if organizationId exists
+    if (decoded.organizationId) {
+      const organization = await prisma.organization.findUnique({
         where: {
-          id: decoded.organizationId,
-        },
-        data: {
-          isOnline: true,
-          lastActive: new Date()
+          id: decoded.organizationId
         }
       })
+
+      if (organization) {
+        req.org = organization
+
+        await prisma.organization.update({
+          where: {
+            id: decoded.organizationId,
+          },
+          data: {
+            isOnline: true,
+            lastActive: new Date()
+          }
+        })
+      }
     }
+
+    console.log("Check the decoded: " + decoded)
 
     return next();
   } catch (err) {

@@ -711,7 +711,7 @@ export class OrganizationController extends Controller {
   @Security("bearerAuth")
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
-    const organizationId = req.org?.organizationId;
+    const organizationId = req.org?.id;
 
     if (!organizationId) {
       this.setStatus(401);
