@@ -70,6 +70,7 @@ export class UserController extends Controller {
         role: updateUser.role,
         password: body.password,
         updateStatus: updateUser.isOnline,
+        organizationId: organizationId?.id || null,
       },
       (process.env.BEARERAUTH_SECRET as string) || "secret-key",
       { expiresIn: "7d" },
@@ -133,6 +134,10 @@ export class UserController extends Controller {
         },
       });
 
+      const organizationData = await prisma.organization.findFirst({
+        where: { userId: user.id },
+      });
+
       const token = jwt.sign(
         {
           type: "USER",
@@ -141,6 +146,7 @@ export class UserController extends Controller {
           email: updateUser.email_address,
           role: updateUser.role,
           updateStatus: updateUser.isOnline,
+          organizationId: organizationData?.id || null,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
         { expiresIn: "7d" },
