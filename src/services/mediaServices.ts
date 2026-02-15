@@ -5,7 +5,7 @@ export class MediaService {
     userId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     try {
       console.log("📤 Uploading avatar to Cloudinary...");
@@ -36,11 +36,42 @@ export class MediaService {
     }
   }
 
+  static async UploadOrganizationImage(
+    organizationId: string,
+    file: Buffer,
+    fileName: string,
+    mimeType: string,
+  ): Promise<{ url: string; error: string | null }> {
+    try {
+      console.log("📤 Uploading avatar to Cloudinary...");
+      const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
+      // Upload to Cloudinary
+      const result = await cloudinary.uploader.upload(base64File, {
+        folder: "user_avatars",
+        public_id: `avatar_${organizationId}_${Date.now()}`,
+        overwrite: true,
+        resource_type: "image",
+        chunk_size: 6000000, // 6MB chunks
+        timeout: 30000, // 30 second timeout
+        quality: "auto",
+        transformation: [
+          { width: 200, height: 200, crop: "fill" }, // Resize avatar
+          { quality: "auto:good" }, // Optimize quality
+        ],
+      });
+      console.log("✅ Avatar upload successful:", result.secure_url);
+      return { url: result.secure_url, error: null };
+    } catch (error: any) {
+      console.error("❌ Cloudinary avatar upload error:", error);
+      return { url: "", error: error.message };
+    }
+  }
+
   static async uploadGroupImage(
     group_id: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     try {
       console.log("📤 Uploading group image to Cloudinary...");
@@ -73,7 +104,7 @@ export class MediaService {
     courseId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     try {
       console.log("📤 Uploading course image to Cloudinary...");
@@ -105,7 +136,7 @@ export class MediaService {
     moduleId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     return new Promise((resolve) => {
       try {
@@ -125,7 +156,7 @@ export class MediaService {
 
         console.log("📤 Uploading video to Cloudinary (streaming)...");
         console.log(
-          `📊 Video size: ${(file.length / (1024 * 1024)).toFixed(2)}MB`
+          `📊 Video size: ${(file.length / (1024 * 1024)).toFixed(2)}MB`,
         );
 
         // Create upload stream for better performance with large files
@@ -168,7 +199,7 @@ export class MediaService {
               console.log("📊 Video details:", videoInfo);
               resolve({ url: result.secure_url, error: null });
             }
-          }
+          },
         );
 
         // Error handling for the stream
@@ -190,7 +221,7 @@ export class MediaService {
     courseId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     return new Promise((resolve) => {
       try {
@@ -219,18 +250,18 @@ export class MediaService {
               } else {
                 console.log(
                   "✅ Course material upload successful:",
-                  result.secure_url
+                  result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
               }
-            }
+            },
           );
 
           uploadStream.end(file);
         } else {
           // For small files, use base64
           const base64File = `data:${mimeType};base64,${file.toString(
-            "base64"
+            "base64",
           )}`;
 
           cloudinary.uploader.upload(
@@ -249,11 +280,11 @@ export class MediaService {
               } else {
                 console.log(
                   "✅ Course material upload successful:",
-                  result.secure_url
+                  result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
               }
-            }
+            },
           );
         }
       } catch (error: any) {
@@ -265,7 +296,7 @@ export class MediaService {
 
   static async deleteFile(
     publicId: string,
-    resourceType: string = "image"
+    resourceType: string = "image",
   ): Promise<{ success: boolean; error: string | null }> {
     try {
       console.log(`🗑️ Deleting file: ${publicId}`);
@@ -291,7 +322,7 @@ export class MediaService {
     organizationId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     try {
       console.log("Uploading organization church logo");
@@ -323,7 +354,7 @@ export class MediaService {
     organizationId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     try {
       console.log("Uploading organization school logo");
@@ -355,7 +386,7 @@ export class MediaService {
     organizationId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     return new Promise((resolve) => {
       try {
@@ -384,18 +415,18 @@ export class MediaService {
               } else {
                 console.log(
                   "✅ School material upload successful:",
-                  result.secure_url
+                  result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
               }
-            }
+            },
           );
 
           uploadStream.end(file);
         } else {
           // For small files, use base64
           const base64File = `data:${mimeType};base64,${file.toString(
-            "base64"
+            "base64",
           )}`;
 
           cloudinary.uploader.upload(
@@ -414,11 +445,11 @@ export class MediaService {
               } else {
                 console.log(
                   "✅ School material upload successful:",
-                  result.secure_url
+                  result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
               }
-            }
+            },
           );
         }
       } catch (error: any) {
@@ -432,7 +463,7 @@ export class MediaService {
     organizationId: string,
     file: Buffer,
     fileName: string,
-    mimeType: string
+    mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
     return new Promise((resolve) => {
       try {
@@ -461,18 +492,18 @@ export class MediaService {
               } else {
                 console.log(
                   "✅ Club material upload successful:",
-                  result.secure_url
+                  result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
               }
-            }
+            },
           );
 
           uploadStream.end(file);
         } else {
           // For small files, use base64
           const base64File = `data:${mimeType};base64,${file.toString(
-            "base64"
+            "base64",
           )}`;
 
           cloudinary.uploader.upload(
@@ -491,11 +522,11 @@ export class MediaService {
               } else {
                 console.log(
                   "✅ Club material upload successful:",
-                  result.secure_url
+                  result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
               }
-            }
+            },
           );
         }
       } catch (error: any) {

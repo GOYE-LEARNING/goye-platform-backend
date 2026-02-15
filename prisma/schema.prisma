@@ -70,6 +70,7 @@ model Organization {
   organization_role         String
   organization_password     String?
   organization_year         String
+  organization_image        String?
   isOnline                  Boolean?             @default(false)
   lastActive                DateTime
   Church                    Church_Organization?

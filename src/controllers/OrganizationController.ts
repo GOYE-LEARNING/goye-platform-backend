@@ -61,7 +61,7 @@ export class OrganizationController extends Controller {
               state: body.user_state,
               phone_number: body.user_phone_number,
               role: body.user_role,
-              form_type: 'ORGANIZATION',
+              form_type: "ORGANIZATION",
               level: "ORGANIZATION",
             },
           },
@@ -231,9 +231,9 @@ export class OrganizationController extends Controller {
 
       if (!fetchSpecificOrganization) {
         return {
-          message: 'Sorry this Organization does not exist',
-          status: 404
-        }
+          message: "Sorry this Organization does not exist",
+          status: 404,
+        };
       }
 
       return {
@@ -242,6 +242,63 @@ export class OrganizationController extends Controller {
       };
     } catch (error) {
       console.error(error);
+    }
+  }
+
+  @Post("/upload-organization-profile_picture/{organizationId}")
+  public async UploadOrganizationImage(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      file: string;
+      fileName: string;
+      mimeType: string;
+    },
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: organizationId,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "Organization not found" };
+      }
+      const fileBuffer = Buffer.from(body.file, "base64");
+
+      const { url, error } = await MediaService.UploadOrganizationImage(
+        organizationId,
+        fileBuffer,
+        body.fileName,
+        body.mimeType,
+      );
+
+      if (error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error };
+      }
+
+      const updateOrganization = await prisma.organization.update({
+        where: {
+          id: organizationId,
+        },
+        data: {
+          organization_image: url,
+        },
+      });
+
+      this.setStatus(201);
+      return {
+        message: "Success uploading image",
+        url: updateOrganization.organization_image,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      return {
+        message: "Error creating organization",
+      };
     }
   }
 
@@ -651,7 +708,6 @@ export class OrganizationController extends Controller {
     }
   }
 
-  
   @Security("bearerAuth")
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
@@ -662,7 +718,9 @@ export class OrganizationController extends Controller {
       return { message: "Unauthorized", status: 401 };
     }
 
-    const organization = await prisma.organization.findUnique({ where: { id: organizationId } });
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
 
     this.setStatus(200);
     return {
