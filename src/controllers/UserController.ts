@@ -104,6 +104,7 @@ export class UserController extends Controller {
     @Body() creditials: { email: string; password: string },
     @Request() req: any,
   ): Promise<any> {
+    const orgId = req.org?.organizationId;
     //To check if it is a user that logged in.
     const user = await prisma.user.findUnique({
       where: {
@@ -134,7 +135,7 @@ export class UserController extends Controller {
 
       const token = jwt.sign(
         {
-          type: 'USER',
+          type: "USER",
           id: updateUser.id,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
           email: updateUser.email_address,
@@ -160,7 +161,7 @@ export class UserController extends Controller {
           message: "Login successfull",
           token,
           user: {
-            type: 'user',
+            type: "user",
             id: user.id,
             first_name: user.first_name,
             last_name: user.last_name,
@@ -178,10 +179,10 @@ export class UserController extends Controller {
       include: {
         user: {
           select: {
-            role: true
-          }
-        }
-      }
+            role: true,
+          },
+        },
+      },
     });
 
     if (organization) {
@@ -205,12 +206,11 @@ export class UserController extends Controller {
           isOnline: true,
           lastActive: new Date(),
         },
-
       });
 
       const token = jwt.sign(
         {
-          type: 'ORGANIZATION',
+          type: "ORGANIZATION",
           // To save information for organization if it signed as an organization
           organizationId: organization.id ?? null,
           organization_name: organization.organization_name ?? null,
@@ -236,8 +236,9 @@ export class UserController extends Controller {
         data: {
           message: "Login successfull",
           token,
+          tokenId: orgId,
           organization: {
-            type: 'organization',
+            type: "organization",
             id: organization.id,
             organization_name: organization.organization_name,
             organization_email: organization.organization_email,
