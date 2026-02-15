@@ -104,102 +104,139 @@ export class UserController extends Controller {
     @Body() creditials: { email: string; password: string },
     @Request() req: any,
   ): Promise<any> {
+    //To check if it is a user that logged in.
     const user = await prisma.user.findUnique({
       where: {
         email_address: creditials.email,
-      }, 
-    });
-
-    const updateUser = await prisma.user.update({
-      where: { id: user?.id },
-      data: {
-        isOnline: true,
-        lastActive: new Date(),
       },
     });
 
-    //Let check if the organization password actually matches the body password.
-    const organizationId = await prisma.organization.findFirst({
-      where: {
-        userId: updateUser.id,
-      },
-      include: {
-        user: {
-          select: {
-            email_address: true,
+    if (user) {
+      const isPasswordValid = await bcrypt.compare(
+        creditials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return {
+          message: "Password is in valid",
+        };
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user?.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+      });
+
+      const token = jwt.sign(
+        {
+          type: 'USER',
+          id: updateUser.id,
+          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+          email: updateUser.email_address,
+          role: updateUser.role,
+          updateStatus: updateUser.isOnline,
+        },
+        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+        { expiresIn: "7d" },
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true, // because you're on localhost
+          sameSite: "none", // must be none for cross-port cookie sharing
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successfull",
+          token,
+          user: {
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            role: user.role,
           },
         },
+      };
+    }
+
+    //Let check if the organization password actually matches the body password.
+    const organization = await prisma.organization.findFirst({
+      where: {
+        organization_email: creditials.email,
       },
     });
 
-    const checkOrg = creditials.email == organizationId.organization_email;
+    if (organization) {
+      const isPasswordValid = await bcrypt.compare(
+        creditials.password,
+        organization.organization_password,
+      );
 
-    const token = jwt.sign(
-      {
-        id: updateUser.id,
-        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        email: updateUser.email_address,
-        role: updateUser.role,
-        updateStatus: updateUser.isOnline,
-        // To save information for organization if it signed as an organization
-        organization_id: checkOrg ? organizationId.id : null,
-        organization_name:
-          creditials.password == organizationId.organization_password
-            ? organizationId.organization_name
-            : null,
-        organization_email:
-          creditials.email == organizationId.user.email_address
-            ? organizationId.user.email_address
-            : null,
-        organization_role: checkOrg ? organizationId.organization_role : null,
-        organization_online: checkOrg ? organizationId.isOnline : null
-      },
-      (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-      { expiresIn: "7d" },
-    );
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return {
+          message: "Password is in valid",
+        };
+      }
 
-    if (!user) {
-      this.setStatus(404);
-      return {
-        message: "User or Organization does not exist with this account",
-      };
-    }
-
-    const isPasswordValid = await bcrypt.compare(
-      creditials.password,
-      user.password,
-    );
-
-    if (!isPasswordValid) {
-      this.setStatus(401);
-      return {
-        message: "Password is in valid",
-      };
-    }
-
-    if (req.res) {
-      req.res.cookie("token", token, {
-        httpOnly: true,
-        secure: true, // because you're on localhost
-        sameSite: "none", // must be none for cross-port cookie sharing
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-    }
-
-    this.setStatus(200);
-    return {
-      data: {
-        message: "Login successfull",
-        token,
-        user: {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          role: user.role,
+      await prisma.organization.update({
+        where: {
+          organization_email: creditials.email,
         },
-        organizationId: organizationId.id || null,
-      },
-    };
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+      });
+
+      const token = jwt.sign(
+        {
+          type: 'ORGANIZATION',
+          // To save information for organization if it signed as an organization
+          organization_id: organization.id ?? null,
+          organization_name: organization.organization_name ?? null,
+          organization_email: organization.organization_email ?? null,
+          organization_role: organization.organization_role ?? null,
+          organization_online: organization.isOnline ?? null,
+        },
+        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+        { expiresIn: "7d" },
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true, // because you're on localhost
+          sameSite: "none", // must be none for cross-port cookie sharing
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successfull",
+          token,
+          user: {
+            id: organization.id,
+            organization_name: organization.organization_name,
+            organization_email: organization.organization_email,
+            organization_role: organization.organization_role,
+            organization_isOnline: organization.isOnline,
+          },
+        },
+      };
+    }
   }
 
   //create and send Otp

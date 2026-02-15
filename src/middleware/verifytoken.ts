@@ -55,6 +55,8 @@ export async function VerifyToken(
 
     req.org = organization
 
+    console.log("Check the decoded: " + decoded)
+
     if (organization) {
       await prisma.organization.update({
         where: {
