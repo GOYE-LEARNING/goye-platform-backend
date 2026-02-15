@@ -212,7 +212,7 @@ export class UserController extends Controller {
         {
           type: 'ORGANIZATION',
           // To save information for organization if it signed as an organization
-          organization_id: organization.id ?? null,
+          id: organization.id ?? null,
           organization_name: organization.organization_name ?? null,
           organization_email: organization.organization_email ?? null,
           organization_role: organization.user.role ?? null,
