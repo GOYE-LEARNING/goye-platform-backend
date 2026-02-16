@@ -24,24 +24,34 @@ export class SocialController extends Controller {
   public async CreatePost(
     @Request() req: any,
     @Path() courseId: string,
-    @Body() body: Omit<PostDTO, "id" | "userId">
+    @Body() body: Omit<PostDTO, "id" | "userId">,
   ): Promise<any> {
     const userId = req.user?.id;
+    const orgId = req.org?.id;
 
+    // Use organizationId if it exists, otherwise use userId
     const createPost = await prisma.post.create({
       data: {
         title: body.title,
         content: body.content,
-        userId: userId,
+        userId: orgId ? null : userId ?? null,        // Only use userId if no orgId
+        organizationId: orgId ?? null,                // Only use orgId if it exists
         courseId,
       },
       include: {
         user: {
           select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
+            id: userId ? true : false,
+            first_name: userId ? true : false,
+            last_name: userId ? true : false,
+            user_pic: userId ? true : false,
+          },
+        },
+        organization: {
+          select: {
+            id: orgId ? true : false,
+            organization_name: orgId ? true : false,
+            organization_image: orgId ? true : false,
           },
         },
         courses: true,
@@ -92,7 +102,7 @@ export class SocialController extends Controller {
   public async CreateReply(
     @Request() req: any,
     @Path() postId: string,
-    @Body() body: Omit<ReplyDTO, "id" | "userId">
+    @Body() body: Omit<ReplyDTO, "id" | "userId">,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -228,7 +238,7 @@ export class SocialController extends Controller {
     // Recursive function to fetch replies and their children
     async function fetchRepliesWithChildren(
       postId: string,
-      parentId: string | null = null
+      parentId: string | null = null,
     ) {
       const replies = await prisma.reply.findMany({
         where: { postId, parentId },
@@ -257,7 +267,7 @@ export class SocialController extends Controller {
         replies.map(async (reply) => {
           const children = await fetchRepliesWithChildren(postId, reply.id);
           return { ...reply, children };
-        })
+        }),
       );
 
       return repliesWithChildren;
@@ -277,7 +287,7 @@ export class SocialController extends Controller {
   @Security("bearerAuth")
   public async LikePost(
     @Path() postId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -324,7 +334,7 @@ export class SocialController extends Controller {
   @Security("bearerAuth")
   public async LikeReply(
     @Path() replyId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -371,7 +381,7 @@ export class SocialController extends Controller {
   @Security("bearerAuth")
   public async UnlikePost(
     @Path() postId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -396,7 +406,7 @@ export class SocialController extends Controller {
   @Security("bearerAuth")
   public async UnlikeReply(
     @Path() replyId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -423,7 +433,7 @@ export class SocialController extends Controller {
     @Request() req: any,
     @Query() postId?: string,
     @Query() replyId?: string,
-    @Query() repliedMessageId?: string
+    @Query() repliedMessageId?: string,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -538,7 +548,7 @@ export class SocialController extends Controller {
   public async UpdateReply(
     @Path() replyId: string,
     @Request() req: any,
-    @Body() body: { content: string }
+    @Body() body: { content: string },
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -584,7 +594,7 @@ export class SocialController extends Controller {
   @Security("bearerAuth")
   public async DeleteReply(
     @Path() replyId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -666,7 +676,7 @@ export class SocialController extends Controller {
   @Post("/create-group")
   public async CreateGroup(
     @Request() req: any,
-    @Body() body: Omit<Group, "id">
+    @Body() body: Omit<Group, "id">,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -838,7 +848,6 @@ export class SocialController extends Controller {
     }
   }
 
-
   @Security("bearerAuth")
   @Get("/get-groups")
   public async GetGroup(@Request() req: any): Promise<any> {
@@ -908,10 +917,10 @@ export class SocialController extends Controller {
 
         // Try multiple ways to check
         const hasJoinedViaStudentId = group.member.some(
-          (m) => m.studentId === userId
+          (m) => m.studentId === userId,
         );
         const hasJoinedViaStudentObj = group.member.some(
-          (m) => m.student?.id === userId
+          (m) => m.student?.id === userId,
         );
 
         console.log(`Has joined via studentId: ${hasJoinedViaStudentId}`);
@@ -955,7 +964,7 @@ export class SocialController extends Controller {
       group_description: string;
       group_image: string;
     },
-    @Path() id: string
+    @Path() id: string,
   ): Promise<any> {
     try {
       const updateGroup = await prisma.group.update({
@@ -1029,7 +1038,7 @@ export class SocialController extends Controller {
       file: string;
       fileName: string;
       mimeType: string;
-    }
+    },
   ): Promise<any> {
     const group = await prisma.group.findUnique({
       where: {
@@ -1042,7 +1051,7 @@ export class SocialController extends Controller {
         group.id,
         buffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
       this.setStatus(201);
       return { message: "Image uploaded successfully", data: uploaded };
@@ -1215,7 +1224,7 @@ export class SocialController extends Controller {
   @Post("/create-event/{groupId}")
   public async CreateEvent(
     @Body() body: Omit<EventDTO, "id">,
-    @Path() groupId: string
+    @Path() groupId: string,
   ): Promise<any> {
     try {
       const createEvent = await prisma.event.create({
@@ -1354,7 +1363,7 @@ export class SocialController extends Controller {
   @Put("/update-event/{id}")
   public async UpdateEvent(
     @Path() id: string,
-    @Body() body: Omit<EventDTO, "id">
+    @Body() body: Omit<EventDTO, "id">,
   ): Promise<any> {
     try {
       const updateEvent = await prisma.event.update({

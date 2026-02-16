@@ -35,18 +35,13 @@ export class CourseController extends Controller {
     const orgId = req.org?.id;
     const orgName = req.org?.organization_name;
     try {
-      const organization = await prisma.organization.findUnique({
-        where: {
-          id: orgId,
-        },
-      });
-
+      // Use organizationId if exists, otherwise use createdUserId
       const course = await prisma.course.create({
         data: {
-          organizationId: organization ? orgId : null,
-          organizationName: organization ? orgName : null,
+          organizationId: orgId ?? null,
+          organizationName: orgId ? orgName : null,
           createdBy: tutorName,
-          createdUserId: tutorId,
+          createdUserId: orgId ? null : tutorId,
           course_title: body.course_title,
           course_short_description: body.course_short_description,
           course_description: body.course_description,
@@ -1017,7 +1012,7 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   @Post("/save-course/{courseId}")
   public async SaveCourse(@Request() req: any, @Path() courseId: string) {
-    const userId = req.user?.ID;
+    const userId = req.user?.id;
     if (!userId) {
       return {
         message: "User is unauthorized",
@@ -1051,7 +1046,7 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   @Post("/unsave-course/{courseId}")
   public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
-    const userId = req.user?.ID;
+    const userId = req.user?.id;
     if (!userId) {
       return {
         message: "User is unauthorized",
@@ -1088,7 +1083,7 @@ export class CourseController extends Controller {
     @Request() req: any,
     @Path() courseId: string,
   ) {
-    const userId = req.user?.ID;
+    const userId = req.user?.id;
     if (!userId) {
       return {
         message: "User is unauthorized",
@@ -1119,7 +1114,7 @@ export class CourseController extends Controller {
   @Security("bearerAuth")
   @Get("/fetch-saved-courses")
   public async FetchSavedCourse(@Request() req: any) {
-    const userId = req.user?.ID;
+    const userId = req.user?.id;
     if (!userId) {
       return {
         message: "User is unauthorized",

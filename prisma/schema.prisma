@@ -81,6 +81,7 @@ model Organization {
   userId                    String
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
+  posts                     Post[]
 }
 
 model Church_Organization {
@@ -216,16 +217,18 @@ model Message {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  title     String
-  content   String
-  userId    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replies   Reply[]  @relation("PostReplies")
-  likes     Likes[] // Add this line
-  courses   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId  String
+  id             String        @id @default(cuid())
+  title          String
+  content        String
+  userId         String
+  createdAt      DateTime      @default(now())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies        Reply[]       @relation("PostReplies")
+  likes          Likes[] // Add this line
+  courses        Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  courseId       String
+  organizationId String?
 
   @@map("posts")
 }
