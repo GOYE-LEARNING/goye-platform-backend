@@ -750,8 +750,11 @@ export class OrganizationController extends Controller {
     const organization = await prisma.organization.findUnique({
       where: { id: organizationId },
       include: {
-        user: true
-      }
+        user: true,
+        Church: true ? true : null,
+        school: true ? true : null,
+        Club: true ? true : null,
+      },
     });
 
     this.setStatus(200);
