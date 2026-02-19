@@ -19,7 +19,7 @@ model User {
   role          String         @default("student")
   level         String
   completed     String         @default("false")
-  form_type     FormType       @default(INDIVIDUAL)
+  form_type     FormType?       @default(INDIVIDUAL)
   createdAt     DateTime       @default(now())
   isOnline      Boolean        @default(false)
   lastActive    DateTime       @default(now())

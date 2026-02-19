@@ -619,67 +619,87 @@ export class OrganizationController extends Controller {
     try {
       const findOrganization = await prisma.organization.findUnique({
         where: {
-          id
-        }
-      })
+          id,
+        },
+        include: {
+          Church: true,
+          school: true,
+          Club: true,
+          user: true,
+        },
+      });
 
       if (!findOrganization) {
-        this.setStatus(404)
+        this.setStatus(404);
         return {
-          message: 'This organization does not exist.'
-        }
+          message: "This organization does not exist.",
+        };
       }
+
       const updateOrganization = await prisma.organization.update({
         where: {
           id,
         },
-
         data: {
           organization_name: body.organization_name,
-          organization_email: body.organization_email,
           organization_description: body.organization_description,
           organization_country: body.organization_country,
           organization_state: body.organization_state,
           organization_phone_number: body.organization_phone_number,
           organization_year: body.organization_year,
           organization_type: body.organization_type as any,
-          Church: body.church && {
-            upsert: {
-              create: {
-                church_min_name: body.church.church_ministry_name,
-                church_ld_pastor: body.church.church_lead_pastor,
-              },
-              update: {
-                church_ld_pastor: body.church.church_lead_pastor,
-              },
-            },
-          },
 
-          school: body.school && {
-            upsert: {
-              create: {
-                school_name: body.school.school_name,
-                school_type: body.school.school_type,
-              },
-              update: {
-                school_type: body.school.school_type,
-              },
-            },
-          },
+          // Church update - assumes it exists
+          Church: body.church
+            ? {
+                update: {
+                  church_min_name: body.church.church_ministry_name,
+                  church_ld_pastor: body.church.church_lead_pastor,
+                  church_address: body.church.church_address,
+                  church_weekly_service: body.church.church_weekly_service,
+                  church_website: body.church.church_website,
+                  church_logo: body.church.church_logo,
+                },
+              }
+            : undefined,
 
-          Club: body.club && {
-            upsert: {
-              create: {
-                club_name: body.club.club_name,
-                club_type: body.club.club_type,
-              },
-              update: {
-                club_type: body.club.club_type,
-              },
-            },
-          },
+          // School update - assumes it exists
+          school: body.school
+            ? {
+                update: {
+                  school_name: body.school.school_name,
+                  school_type: body.school.school_type,
+                  school_address: body.school.school_address,
+                  school_admin_name: body.school.school_admin_name,
+                  school_role: body.school.school_role,
+                  school_website: body.school.school_website,
+                  school_accreditation_number:
+                    body.school.school_accreditation_number,
+                  school_document: body.school.school_document,
+                },
+              }
+            : undefined,
+
+          // Club update - assumes it exists
+          Club: body.club
+            ? {
+                update: {
+                  club_name: body.club.club_name,
+                  club_type: body.club.club_type,
+                  club_leader_name: body.club.club_leader_name,
+                  club_meeting_frequency: body.club.club_meeting_frequency,
+                  club_social_link: body.club.club_social_link,
+                  club_parent_org: body.club.club_parent_org,
+                  club_description: body.club.club_description,
+                  club_document: body.club.club_document,
+                  club_role: body.club.club_role,
+                },
+              }
+            : undefined,
+
+          // User update - assumes user exists
           user: {
-            create: {
+            update: {
               first_name: body.user_first_name,
               last_name: body.user_last_name,
               email_address: body.user_email_address,
@@ -688,18 +708,28 @@ export class OrganizationController extends Controller {
               phone_number: body.user_phone_number,
               role: body.user_role,
               form_type: body.user_form_type as any,
-              level: "ORGANIZATION",
             },
           },
+        },
+        include: {
+          Church: true,
+          school: true,
+          Club: true,
+          user: true,
         },
       });
 
       return {
-        message: "update done succefully",
+        message: "Organization updated successfully",
         data: updateOrganization,
       };
-    } catch (error) {
-      console.error(error);
+    } catch (error: any) {
+      console.error("Error updating organization:", error.message);
+      this.setStatus(500);
+      return {
+        message: "Failed to update organization",
+        error: error.message,
+      };
     }
   }
 
