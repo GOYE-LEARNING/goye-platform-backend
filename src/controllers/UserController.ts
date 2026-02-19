@@ -430,30 +430,72 @@ export class UserController extends Controller {
   ): Promise<any> {
     const userId = req.user?.id;
     const orgId = req.org?.id;
-
     const hashedPassword = await bcrypt.hash(body.newPassword, 10);
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        password: hashedPassword,
-        updatedAt: new Date(),
-      },
-    });
 
-    await prisma.organization.update({
-      where: {
-        id: orgId,
-      },
-      data: {
-        organization_password: hashedPassword,
-        updatedAt: new Date
-      },
-    });
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        const checkPassword = await bcrypt.compare(
+          body.newPassword,
+          user.password,
+        );
+        if (checkPassword) {
+          this.setStatus(400);
+          return {
+            message: "This password must be different from the old one",
+          };
+        }
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            password: hashedPassword,
+            updatedAt: new Date(),
+          },
+        });
+      }
 
-    this.setStatus(200);
-    return {
-      message: "Password updated successfully",
-    };
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+
+      if (organization) {
+        const checkPassword = await bcrypt.compare(
+          body.newPassword,
+          organization.organization_password,
+        );
+        if (checkPassword) {
+          this.setStatus(400);
+          return {
+            message: "This password must be different from the old one",
+          };
+        }
+
+        await prisma.organization.update({
+          where: { id: orgId },
+          data: {
+            organization_password: hashedPassword,
+            updatedAt: new Date(),
+            user: {
+              update: {
+                password: hashedPassword,
+              },
+            },
+          },
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Password updated successfully",
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: `An error occured while updating password  ${error.message}`,
+      };
+    }
   }
 
   @Get("/get-user/{id}")
