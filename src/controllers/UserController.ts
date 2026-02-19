@@ -677,6 +677,7 @@ export class UserController extends Controller {
     };
   }
 
+  @Security("bearerAuth")
   @Post("/check-password")
   public async CheckPassword(
     @Body() body: { password: string },
