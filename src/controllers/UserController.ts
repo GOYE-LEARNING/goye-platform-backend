@@ -682,13 +682,13 @@ export class UserController extends Controller {
     @Body() body: { password: string },
     @Request() req: any,
   ) {
-    const userId = req.user?.id;
-    const orgId = req.org?.id;
+    const userEmail = req.user?.email;
+    const orgEmail = req.org?.organization_email;
 
     try {
       const user = await prisma.user.findUnique({
         where: {
-          id: userId,
+          email_address: userEmail,
         },
       });
 
@@ -714,7 +714,7 @@ export class UserController extends Controller {
 
       const organization = await prisma.organization.findUnique({
         where: {
-          id: orgId,
+          organization_email: orgEmail,
         },
       });
 
