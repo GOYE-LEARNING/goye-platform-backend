@@ -477,11 +477,15 @@ export class UserController extends Controller {
           data: {
             organization_password: hashedPassword,
             updatedAt: new Date(),
-            user: {
-              update: {
-                password: hashedPassword,
-              },
-            },
+          },
+        });
+
+        await prisma.user.update({
+          where: {
+            id: organization.userId,
+          },
+          data: {
+            password: hashedPassword,
           },
         });
       }
