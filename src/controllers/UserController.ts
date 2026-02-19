@@ -247,7 +247,6 @@ export class UserController extends Controller {
       return {
         message: "User or Login not found",
       };
-      return;
     } catch (error: any) {
       this.setStatus(500);
       return {

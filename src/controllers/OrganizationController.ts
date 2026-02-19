@@ -617,6 +617,18 @@ export class OrganizationController extends Controller {
     @Body() body: Omit<OrganizationDTO, "id">,
   ) {
     try {
+      const findOrganization = await prisma.organization.findUnique({
+        where: {
+          id
+        }
+      })
+
+      if (!findOrganization) {
+        this.setStatus(404)
+        return {
+          message: 'This organization does not exist.'
+        }
+      }
       const updateOrganization = await prisma.organization.update({
         where: {
           id,
