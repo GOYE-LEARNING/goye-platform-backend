@@ -677,6 +677,74 @@ export class UserController extends Controller {
     };
   }
 
+  @Post("/check-password")
+  public async CheckPassword(
+    @Body() body: { password: string },
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+      if (user) {
+        const checkPassword = await bcrypt.compare(
+          body.password,
+          user.password,
+        );
+        if (!checkPassword) {
+          this.setStatus(400);
+          return {
+            status: 400,
+            message: "Password is invalid",
+          };
+        }
+
+        this.setStatus(200);
+        return {
+          message: "Password is correct",
+          status: 200,
+        };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+
+      if (organization) {
+        const checkPassword = await bcrypt.compare(
+          body.password,
+          organization.organization_password,
+        );
+        if (!checkPassword) {
+          this.setStatus(400);
+          return {
+            message: "Password is invalid",
+          };
+        }
+
+        this.setStatus(200);
+        return {
+          message: "Password is valid",
+          status: 200,
+        };
+      }
+
+      return {
+        message: "An error occured",
+      };
+    } catch (error: any) {
+      console.error(error.message);
+    }
+  }
+
   @Get("/user-student-status")
   public async GetUserStatus(): Promise<any> {
     const totalStudents = await prisma.user.count({
