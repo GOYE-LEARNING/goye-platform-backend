@@ -429,6 +429,7 @@ export class UserController extends Controller {
     @Body() body: { newPassword: string },
   ): Promise<any> {
     const userId = req.user?.id;
+    const orgId = req.org?.id;
 
     const hashedPassword = await bcrypt.hash(body.newPassword, 10);
     await prisma.user.update({
@@ -436,6 +437,16 @@ export class UserController extends Controller {
       data: {
         password: hashedPassword,
         updatedAt: new Date(),
+      },
+    });
+
+    await prisma.organization.update({
+      where: {
+        id: orgId,
+      },
+      data: {
+        organization_password: hashedPassword,
+        updatedAt: new Date
       },
     });
 
