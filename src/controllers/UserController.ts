@@ -98,7 +98,6 @@ export class UserController extends Controller {
     @Body() creditials: { email: string; password: string },
     @Request() req: any,
   ): Promise<any> {
-    const orgId = req.org?.organizationId;
     //To check if it is a user that logged in.
     const user = await prisma.user.findUnique({
       where: {
@@ -171,7 +170,7 @@ export class UserController extends Controller {
     }
 
     //Let check if the organization password actually matches the body password.
-    const organization = await prisma.organization.findFirst({
+    const organization = await prisma.organization.findUnique({
       where: {
         organization_email: creditials.email,
       },
@@ -235,7 +234,6 @@ export class UserController extends Controller {
           token,
           organization: {
             type: "organization",
-            tokenId: orgId,
             id: organization.id,
             organization_name: organization.organization_name,
             organization_email: organization.organization_email,
