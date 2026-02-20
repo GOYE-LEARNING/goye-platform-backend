@@ -1,12 +1,23 @@
 // controllers/NotificationController.ts - COMPLETE FIXED VERSION
-import { Controller, Get, Put, Delete, Request, Security, Route, Tags, Path } from "tsoa";
+import {
+  Controller,
+  Get,
+  Put,
+  Delete,
+  Request,
+  Security,
+  Route,
+  Tags,
+  Path,
+  Post,
+  Body,
+} from "tsoa";
 import prisma from "../db";
 import { NotificationService, Role } from "../services/notificationServices";
 
 @Route("notifications")
 @Tags("Notification Controller")
 export class NotificationController extends Controller {
-  
   @Security("bearerAuth")
   @Get("/fetch-all-notification")
   public async getMyNotifications(@Request() req: any) {
@@ -24,7 +35,7 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase to match Prisma enum
       userRole = userRole.toUpperCase();
-      
+
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
       if (!validRoles.includes(userRole as Role)) {
@@ -37,10 +48,7 @@ export class NotificationController extends Controller {
 
       const notifications = await prisma.notification.findMany({
         where: {
-          OR: [
-            { to: userRole },
-            { userId: userId },
-          ],
+          OR: [{ to: userRole }, { userId: userId }],
         },
         orderBy: {
           createdAt: "desc",
@@ -105,7 +113,7 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase
       userRole = userRole.toUpperCase();
-      
+
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
       if (!validRoles.includes(userRole as Role)) {
@@ -118,10 +126,7 @@ export class NotificationController extends Controller {
 
       const notifications = await prisma.notification.findMany({
         where: {
-          OR: [
-            { to: userRole },
-            { userId: userId },
-          ],
+          OR: [{ to: userRole }, { userId: userId }],
           isRead: false,
         },
         orderBy: {
@@ -174,7 +179,7 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase
       userRole = userRole.toUpperCase();
-      
+
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
       if (!validRoles.includes(userRole as Role)) {
@@ -188,18 +193,12 @@ export class NotificationController extends Controller {
       const [total, unread] = await Promise.all([
         prisma.notification.count({
           where: {
-            OR: [
-              { to: userRole },
-              { userId: userId },
-            ],
+            OR: [{ to: userRole }, { userId: userId }],
           },
         }),
         prisma.notification.count({
           where: {
-            OR: [
-              { to: userRole },
-              { userId: userId },
-            ],
+            OR: [{ to: userRole }, { userId: userId }],
             isRead: false,
           },
         }),
@@ -228,7 +227,7 @@ export class NotificationController extends Controller {
   @Put("/{notificationId}/read")
   public async markNotificationAsRead(
     @Request() req: any,
-    @Path() notificationId: string
+    @Path() notificationId: string,
   ) {
     const userId = req.user?.id;
 
@@ -243,7 +242,7 @@ export class NotificationController extends Controller {
     try {
       const notification = await NotificationService.markAsRead(
         notificationId,
-        userId
+        userId,
       );
 
       return {
@@ -279,7 +278,7 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase
       userRole = userRole.toUpperCase();
-      
+
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
       if (!validRoles.includes(userRole as Role)) {
@@ -292,10 +291,7 @@ export class NotificationController extends Controller {
 
       const result = await prisma.notification.updateMany({
         where: {
-          OR: [
-            { to: userRole },
-            { userId: userId },
-          ],
+          OR: [{ to: userRole }, { userId: userId }],
           isRead: false,
         },
         data: {
@@ -324,7 +320,7 @@ export class NotificationController extends Controller {
   @Delete("/{notificationId}")
   public async deleteNotification(
     @Request() req: any,
-    @Path() notificationId: string
+    @Path() notificationId: string,
   ) {
     const userId = req.user?.id;
 
@@ -339,7 +335,7 @@ export class NotificationController extends Controller {
     try {
       const notification = await NotificationService.deleteNotification(
         notificationId,
-        userId
+        userId,
       );
 
       return {
@@ -372,7 +368,10 @@ export class NotificationController extends Controller {
     }
 
     try {
-      const notifications = await NotificationService.getUserNotifications(userId, 50);
+      const notifications = await NotificationService.getUserNotifications(
+        userId,
+        50,
+      );
 
       return {
         success: true,
@@ -408,7 +407,7 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase
       userRole = userRole.toUpperCase();
-      
+
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
       if (!validRoles.includes(userRole as Role)) {
@@ -448,7 +447,7 @@ export class NotificationController extends Controller {
   @Put("/{notificationId}/archive")
   public async archiveNotification(
     @Request() req: any,
-    @Path() notificationId: string
+    @Path() notificationId: string,
   ) {
     const userId = req.user?.id;
 
@@ -463,7 +462,7 @@ export class NotificationController extends Controller {
     try {
       const notification = await NotificationService.archiveNotification(
         notificationId,
-        userId
+        userId,
       );
 
       return {
@@ -499,7 +498,7 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase
       userRole = userRole.toUpperCase();
-      
+
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
       if (!validRoles.includes(userRole as Role)) {
@@ -513,15 +512,12 @@ export class NotificationController extends Controller {
       // Get all notification IDs for this user/role
       const notifications = await prisma.notification.findMany({
         where: {
-          OR: [
-            { to: userRole },
-            { userId: userId },
-          ],
+          OR: [{ to: userRole }, { userId: userId }],
         },
         select: { id: true },
       });
 
-      const notificationIds = notifications.map(n => n.id);
+      const notificationIds = notifications.map((n) => n.id);
 
       if (notificationIds.length === 0) {
         return {
@@ -533,7 +529,7 @@ export class NotificationController extends Controller {
 
       const result = await NotificationService.deleteMultipleNotifications(
         notificationIds,
-        userId
+        userId,
       );
 
       return {
@@ -549,6 +545,137 @@ export class NotificationController extends Controller {
         message: "Failed to clear notifications",
         error: error.message,
       };
+    }
+  }
+
+  @Post("/change-notification-settings")
+  public async ChangeNotificationsSettings(
+    @Body()
+    body: {
+      userId?: string | null;
+      organizationId: string | null;
+      enable_push_notification: boolean;
+      course_updates: boolean;
+      event: boolean;
+      achievement: boolean;
+      daily_reminders: boolean;
+      group_activity: boolean;
+      email_notification: boolean;
+      darkMode: boolean;
+    },
+    @Request() req: any,
+  ) {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
+    const settingsUserId = req.user?.settingsId;
+    const settingsOrganizationId = req.org?.settingsId;
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+      if (user) {
+        // It should first create a settings database
+        // After creating the settings database.
+        // Check if the settigns actually exist.
+
+        const checkSettingsExists = await prisma.settings.findUnique({
+          where: {
+            id: settingsUserId,
+          },
+        });
+
+        if (!checkSettingsExists) {
+          this.setStatus(200);
+          return {
+            message:
+              "You are not eligible for any type of settings contact us for more detailed help.",
+          };
+        }
+
+        const changeSettings = await prisma.settings.update({
+          where: {
+            id: settingsUserId,
+          },
+
+          data: {
+            enable_push_notification: body.enable_push_notification,
+            course_updates: body.course_updates,
+            event: body.event,
+            achievement: body.achievement,
+            daily_reminders: body.daily_reminders,
+            darkMode: body.darkMode,
+            email_notification: body.email_notification,
+            updatedAt: new Date(),
+            userId,
+            organizationId: null,
+          },
+        });
+
+        this.setStatus(200);
+        return {
+          message: "Updated Successfully",
+          status: 200,
+          data: changeSettings,
+        };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+
+      if (organization) {
+        // It should first create a settings database
+        // After creating the settings database.
+        // Check if the settigns actually exist.
+
+        const checkSettingsExists = await prisma.settings.findUnique({
+          where: {
+            id: settingsOrganizationId,
+          },
+        });
+
+        if (!checkSettingsExists) {
+          this.setStatus(200);
+          return {
+            message:
+              "You are not eligible for any type of settings contact us for more detailed help.",
+          };
+        }
+
+        const changeSettings = await prisma.settings.update({
+          where: {
+            id: settingsOrganizationId,
+          },
+
+          data: {
+            enable_push_notification: body.enable_push_notification,
+            course_updates: body.course_updates,
+            event: body.event,
+            achievement: body.achievement,
+            daily_reminders: body.daily_reminders,
+            darkMode: body.darkMode,
+            email_notification: body.email_notification,
+            updatedAt: new Date(),
+            userId: null,
+            organizationId: organization.id,
+          },
+        });
+
+        this.setStatus(200);
+        return {
+          message: "Updated Successfully",
+          status: 200,
+          data: changeSettings,
+        };
+      }
+    } catch (error: any) {
+      console.log(`An error occured ${error.message}`);
     }
   }
 }

@@ -34,6 +34,24 @@ export class UserController extends Controller {
       data: { ...body, password: hashedPassword },
     });
 
+    //After creating Users.
+    //It is necessary to automatically create settings database for the users.
+    const createSettings = await prisma.settings.create({
+      data: {
+        enable_push_notification: true,
+        course_updates: true,
+        event: true,
+        achievement: true,
+        daily_reminders: true,
+        darkMode: false,
+        email_notification: true,
+        updatedAt: null,
+        userId: user.id,
+        organizationId: null,
+      },
+    });
+
+    //Let check if the User exist
     if (!user) {
       this.setStatus(401);
       return {
@@ -59,6 +77,7 @@ export class UserController extends Controller {
     const token = jwt.sign(
       {
         id: updateUser.id,
+        settingsId: createSettings.id,
         full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         email: updateUser.email_address,
         role: updateUser.role,
@@ -180,6 +199,20 @@ export class UserController extends Controller {
       });
 
       if (organization) {
+        const createSettings = await prisma.settings.create({
+          data: {
+            enable_push_notification: true,
+            course_updates: true,
+            event: true,
+            achievement: true,
+            daily_reminders: true,
+            darkMode: false,
+            email_notification: true,
+            updatedAt: null,
+            userId: null,
+            organizationId: organization.id,
+          },
+        });
         const isPasswordValid = await bcrypt.compare(
           creditials.password,
           organization.organization_password,
@@ -205,7 +238,8 @@ export class UserController extends Controller {
         const token = jwt.sign(
           {
             type: "ORGANIZATION",
-            id: organization.user.id, // Include the user ID so middleware can find the user
+            id: organization.user.id,
+            settingsId: createSettings.id, // Include the user ID so middleware can find the user
             organizationId: organization.id ?? null,
             organization_name: organization.organization_name ?? null,
             organization_email: organization.organization_email ?? null,
