@@ -119,6 +119,22 @@ export class OrganizationController extends Controller {
         },
       });
 
+      //To automatically generate the settings for it
+      await prisma.settings.create({
+        data: {
+          enable_push_notification: true,
+          course_updates: true,
+          event: true,
+          achievement: true,
+          daily_reminders: true,
+          darkMode: false,
+          email_notification: true,
+          updatedAt: new Date(),
+          userId: null,
+          organizationId: createOrganization.id,
+        },
+      });
+
       this.setStatus(201);
       return {
         message: "Perfecto organization created successfully.",

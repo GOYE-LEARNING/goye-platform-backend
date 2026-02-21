@@ -116,6 +116,7 @@ export class UserController extends Controller {
     @Body() creditials: { email: string; password: string },
     @Request() req: any,
   ): Promise<any> {
+    const settingsId = req.org?.settingsId;
     try {
       //To check if it is a user that logged in.
       const user = await prisma.user.findUnique({
@@ -199,20 +200,6 @@ export class UserController extends Controller {
       });
 
       if (organization) {
-        const createSettings = await prisma.settings.create({
-          data: {
-            enable_push_notification: true,
-            course_updates: true,
-            event: true,
-            achievement: true,
-            daily_reminders: true,
-            darkMode: false,
-            email_notification: true,
-            updatedAt: new Date(),
-            userId: null,
-            organizationId: organization.id,
-          },
-        });
         const isPasswordValid = await bcrypt.compare(
           creditials.password,
           organization.organization_password,
@@ -239,7 +226,7 @@ export class UserController extends Controller {
           {
             type: "ORGANIZATION",
             id: organization.user.id,
-            settingsId: createSettings.id, // Include the user ID so middleware can find the user
+            settingsId: settingsId, // Include the user ID so middleware can find the user
             organizationId: organization.id ?? null,
             organization_name: organization.organization_name ?? null,
             organization_email: organization.organization_email ?? null,
