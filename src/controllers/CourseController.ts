@@ -684,73 +684,77 @@ export class CourseController extends Controller {
     }
   }
 
-  @Post("/upload-course-material/{courseId}")
-  @Security("bearerAuth")
-  public async UploadCourseMaterial(
-    @Path() courseId: string,
-    @Body()
-    body: {
-      file: string;
-      fileName: string;
-      mimeType: string;
-    },
-  ): Promise<any> {
-    try {
-      const course = await prisma.course.findUnique({
-        where: { id: courseId },
-      });
+ @Post("/upload-course-material/{courseId}/{materialId}")
+@Security("bearerAuth")
+public async UploadCourseMaterial(
+  @Path() courseId: string,
+  @Path() materialId: string,
+  @UploadedFile() file: Express.Multer.File,
+): Promise<any> {
+  try {
+    // Verify the material exists and belongs to this course
+    const material = await prisma.material.findFirst({
+      where: {
+        id: materialId,
+        courseId: courseId,
+      },
+    });
 
-      if (!course) {
-        this.setStatus(404);
-        return { message: "Course not found" };
-      }
-
-      const fileBuffer = Buffer.from(body.file, "base64");
-
-      const { url, error } = await MediaService.uploadCourseMaterial(
-        courseId,
-        fileBuffer,
-        body.fileName,
-        body.mimeType,
-      );
-
-      if (error) {
-        this.setStatus(500);
-        return { message: "Upload failed", error };
-      }
-
-      const newMaterial = await prisma.material.update({
-        where: {
-          id: courseId,
-        },
-        data: {
-          material_document: url,
-          courseId: courseId,
-        },
-        include: {
-          course: {
-            select: {
-              id: true,
-              course_title: true,
-            },
-          },
-        },
-      });
-
-      this.setStatus(201);
-      return {
-        message: "Course material uploaded successfully",
-        data: newMaterial,
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: "Failed to upload course material",
-        error: error.message,
+    if (!material) {
+      this.setStatus(404);
+      return { 
+        message: "Material not found in this course" 
       };
     }
-  }
 
+    // Upload to Cloudinary
+    const { url, error } = await MediaService.uploadCourseMaterial(
+      courseId,
+      file.buffer,
+      file.originalname,
+      file.mimetype,
+    );
+
+    if (error) {
+      this.setStatus(500);
+      return { message: "Upload failed", error };
+    }
+
+    // Update the material with the new document URL
+    const updatedMaterial = await prisma.material.update({
+      where: { id: materialId },
+      data: { 
+        material_document: url 
+      },
+      include: {
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+          },
+        },
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Course material uploaded successfully",
+      data: {
+        id: updatedMaterial.id,
+        material_document: updatedMaterial.material_document,
+        material_title: updatedMaterial.material_title,
+        courseId: updatedMaterial.courseId,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error uploading course material:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to upload course material",
+      error: error.message,
+    };
+  }
+}
   @Get("/get-course-materials/{courseId}")
   public async GetCourseMaterials(@Path() courseId: string): Promise<any> {
     const materials = await prisma.material.findMany({
