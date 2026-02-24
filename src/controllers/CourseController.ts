@@ -11,6 +11,7 @@ import {
   Request,
   Delete,
   UploadedFile,
+  FormField,
 } from "tsoa";
 import prisma from "../db";
 import { CourseResponse, Module } from "../interface/interfaces";
@@ -619,13 +620,9 @@ export class CourseController extends Controller {
   public async UploadLessonVideo(
     @Path() courseId: string,
     @Path() moduleId: string,
-    @Body()
-    body: {
-      file: string;
-      fileName: string;
-      mimeType: string;
-    },
     @UploadedFile() file: Express.Multer.File,
+    @FormField() fileName?: string,
+    @FormField() mimeType?: string,
   ): Promise<any> {
     try {
       const module = await prisma.module.findFirst({
