@@ -43,7 +43,7 @@ export class CourseController extends Controller {
           organizationId: orgId ?? null,
           organizationName: orgId ? orgName : null,
           createdBy: tutorName,
-          createdUserId: orgId ? orgId : tutorId,
+          createdUserId: tutorId,
           course_title: body.course_title,
           course_short_description: body.course_short_description,
           course_description: body.course_description,
