@@ -10,6 +10,7 @@ import {
   Security,
   Request,
   Delete,
+  UploadedFile,
 } from "tsoa";
 import prisma from "../db";
 import { CourseResponse, Module } from "../interface/interfaces";
@@ -624,6 +625,7 @@ export class CourseController extends Controller {
       fileName: string;
       mimeType: string;
     },
+    @UploadedFile() file: Express.Multer.File,
   ): Promise<any> {
     try {
       const module = await prisma.module.findFirst({
@@ -638,14 +640,11 @@ export class CourseController extends Controller {
         return { message: "Module not found in this course" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
-
       const { url, error } = await MediaService.uploadLessonVideo(
         courseId,
         moduleId,
-        fileBuffer,
-        body.fileName,
-        body.mimeType,
+        file.buffer,
+        file.originalname,
       );
 
       if (error) {

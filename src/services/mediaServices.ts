@@ -131,91 +131,40 @@ export class MediaService {
     }
   }
 
-  static async uploadLessonVideo(
-    courseId: string,
-    moduleId: string,
-    file: Buffer,
-    fileName: string,
-    mimeType: string,
-  ): Promise<{ url: string; error: string | null }> {
-    return new Promise((resolve) => {
-      try {
-        // Check file size before upload (optional)
-        const MAX_VIDEO_SIZE = 500 * 1024 * 1024; // 500MB max
-        if (file.length > MAX_VIDEO_SIZE) {
-          console.error("❌ Video file too large:", file.length, "bytes");
-          resolve({
-            url: "",
-            error: `Video too large. Maximum size is 500MB. Your file: ${(
-              file.length /
-              (1024 * 1024)
-            ).toFixed(2)}MB`,
-          });
-          return;
+ static async uploadLessonVideo(
+  courseId: string,
+  moduleId: string,
+  file: Buffer,
+  fileName: string,
+): Promise<{ url: string; error: string | null }> {
+  return new Promise((resolve) => {
+    console.log("📤 Streaming video to Cloudinary...");
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: `lesson_videos/${courseId}/${moduleId}`,
+        public_id: `video_${Date.now()}`,
+        resource_type: "video", // CRITICAL
+        chunk_size: 6000000, 
+        // Use eager for processing so the main upload returns faster
+        eager: [
+          { streaming_profile: "hd", format: "m3u8" }, // Better for web playback
+          { width: 640, height: 360, crop: "pad", format: "jpg" } // Thumbnail
+        ],
+        eager_async: true, // Don't make the user wait for transcoding
+      },
+      (error, result) => {
+        if (error) {
+          console.error("❌ Cloudinary Error:", error);
+          return resolve({ url: "", error: error.message });
         }
-
-        console.log("📤 Uploading video to Cloudinary (streaming)...");
-        console.log(
-          `📊 Video size: ${(file.length / (1024 * 1024)).toFixed(2)}MB`,
-        );
-
-        // Create upload stream for better performance with large files
-        const uploadStream = cloudinary.uploader.upload_stream(
-          {
-            folder: `lesson_videos/${courseId}/${moduleId}`,
-            public_id: `video_${Date.now()}_${fileName.split(".")[0]}`, // Include original filename
-            resource_type: "video",
-            chunk_size: 10000000, // 10MB chunks for videos
-            timeout: 300000, // 5 minutes timeout for large videos
-            quality: "auto",
-            eager: [
-              { width: 640, height: 360, crop: "pad", format: "jpg" }, // Thumbnail
-              { streaming_profile: "hd" }, // Adaptive streaming profile
-            ],
-            eager_async: true,
-            transformation: [
-              { width: 1280, height: 720, crop: "limit" }, // HD quality
-              { quality: "auto:good" },
-            ],
-            allowed_formats: ["mp4", "mov", "avi", "mkv", "webm"], // Restrict formats if needed
-          },
-          (error, result) => {
-            if (error) {
-              console.error("❌ Cloudinary video upload error:", error);
-              resolve({ url: "", error: error.message });
-            } else {
-              console.log("✅ Video upload successful:", result.secure_url);
-
-              // Get video details
-              const videoInfo = {
-                url: result.secure_url,
-                duration: result.duration,
-                format: result.format,
-                bytes: result.bytes,
-                thumbnail_url: result.eager?.[0]?.secure_url, // Thumbnail URL
-                streaming_url: result.eager?.[1]?.secure_url, // Streaming URL if available
-              };
-
-              console.log("📊 Video details:", videoInfo);
-              resolve({ url: result.secure_url, error: null });
-            }
-          },
-        );
-
-        // Error handling for the stream
-        uploadStream.on("error", (error) => {
-          console.error("❌ Stream error:", error);
-          resolve({ url: "", error: error.message });
-        });
-
-        // Write buffer to stream
-        uploadStream.end(file);
-      } catch (error: any) {
-        console.error("❌ Unexpected error in uploadLessonVideo:", error);
-        resolve({ url: "", error: error.message });
+        resolve({ url: result?.secure_url || "", error: null });
       }
-    });
-  }
+    );
+
+    uploadStream.end(file);
+  });
+}
 
   static async uploadCourseMaterial(
     courseId: string,
