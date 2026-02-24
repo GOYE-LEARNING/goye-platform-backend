@@ -548,7 +548,8 @@ export class NotificationController extends Controller {
     }
   }
 
-  @Post("/change-notification-settings")
+  @Security("bearerAuth")
+  @Put("/change-notification-settings/{settingsId}")
   public async ChangeNotificationsSettings(
     @Body()
     body: {
@@ -564,6 +565,7 @@ export class NotificationController extends Controller {
       darkMode: boolean;
     },
     @Request() req: any,
+    @Path() settingsId: string
   ) {
     const userId = req.user?.id;
     const orgId = req.org?.id;
@@ -650,7 +652,7 @@ export class NotificationController extends Controller {
 
         const changeSettings = await prisma.settings.update({
           where: {
-            id: settingsOrganizationId,
+            id: settingsId,
           },
 
           data: {
