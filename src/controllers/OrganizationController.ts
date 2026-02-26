@@ -822,7 +822,7 @@ export class OrganizationController extends Controller {
     };
   }
 
-  @Post("/invite-users-to-organization/${organizationId}/${sentByUserId}")
+  @Post("/invite-users-to-organization/{organizationId}/{sentByUserId}")
   public async InviteUsersToOrganization(
     @Path() organizationId: string,
     @Path() sentByUserId: string,
