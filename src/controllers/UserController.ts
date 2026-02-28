@@ -17,7 +17,11 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { SendEmail } from "../utils/sendmail";
+
 import { MediaService } from "../services/mediaServices";
+type primaryRole = "member" | "student";
+type secondaryRole = "admin";
+
 //User route start here
 @Route("user")
 @Tags("User control APIs")
@@ -631,83 +635,223 @@ export class UserController extends Controller {
   }
 
   //fetch student
+  @Security("bearerAuth")
   @Get("/fetch-users-student")
-  public async GetStudent(): Promise<any> {
-    const students = await prisma.user.findMany({
-      where: {
-        role: "student",
-      },
-      select: {
-        id: true,
-        user_pic: true,
-        first_name: true,
-        last_name: true,
-        email_address: true,
-        role: true,
-        isOnline: true,
-        lastActive: true,
-        enrollment: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
-    const enhancedStudents = students.map((student) => ({
-      ...student,
-      // Calculate if user was active in last 5 minutes
-      isCurrentlyOnline:
-        student.isOnline &&
-        student.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-      // Format last active time
-      lastActiveFormatted: this.formatLastActive(student.lastActive),
-      // Full name for display
-      full_name: `${student.first_name} ${student.last_name}`,
-    }));
+  public async GetStudent(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
 
-    this.setStatus(200);
-    return {
-      message: "Student fetched successfully",
-      enhancedStudents,
-    };
+    try {
+      const users = await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
+
+      if (users) {
+        const students = await prisma.user.findMany({
+          where: {
+            role: "student",
+          },
+          select: {
+            id: true,
+            user_pic: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+            role: true,
+            isOnline: true,
+            lastActive: true,
+            enrollment: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+        const enhancedStudents = students.map((student) => ({
+          ...student,
+          // Calculate if user was active in last 5 minutes
+          isCurrentlyOnline:
+            student.isOnline &&
+            student.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+          // Format last active time
+          lastActiveFormatted: this.formatLastActive(student.lastActive),
+          // Full name for display
+          full_name: `${student.first_name} ${student.last_name}`,
+        }));
+
+        this.setStatus(200);
+        return {
+          message: "Student fetched successfully",
+          enhancedStudents,
+        };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+
+      //To fetch Student in an orgniazation
+      if (organization) {
+        const students = await prisma.organization.findMany({
+          where: {
+            user: {
+              role: 'student'
+            }
+          },
+          select: {
+            user: {
+              select: {
+                id: true,
+                user_pic: true,
+                first_name: true,
+                last_name: true,
+                email_address: true,
+                role: true,
+                isOnline: true,
+                lastActive: true,
+                enrollment: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+        const enhancedStudents = students.map((student) => ({
+          ...student,
+          // Calculate if user was active in last 5 minutes
+          isCurrentlyOnline:
+            student.user.isOnline &&
+            student.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+          // Format last active time
+          lastActiveFormatted: this.formatLastActive(student.user.lastActive),
+          // Full name for display
+          full_name: `${student.user.first_name} ${student.user.last_name}`,
+        }));
+
+        this.setStatus(200);
+        return {
+          message: "Student fetched successfully",
+          enhancedStudents,
+        };
+      }
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+    }
   }
 
   //fetch tutors
+  @Security("bearerAuth")
   @Get("/fetch-users-tutors")
-  public async GetTutor(): Promise<any> {
-    const tutor = await prisma.user.findMany({
-      where: {
-        role: "tutor",
-      },
-      select: {
-        id: true,
-        user_pic: true,
-        first_name: true,
-        last_name: true,
-        email_address: true,
-        role: true,
-        isOnline: true,
-        lastActive: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+  public async GetTutor(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
 
-    const enhancedTutors = tutor.map((tutor) => ({
-      ...tutor,
-      isCurrentlyOnline:
-        tutor.isOnline &&
-        tutor.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-      lastActiveFormatted: this.formatLastActive(tutor.lastActive),
-      // Full name for display
-      full_name: `${tutor.first_name} ${tutor.last_name}`,
-    }));
+    try {
+      const tutor = await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
+      });
 
-    this.setStatus(200);
-    return {
-      message: "Tutor fetched successfully",
-      enhancedTutors,
-    };
+      if (tutor) {
+        const tutors = await prisma.user.findMany({
+          where: {
+            role: "tutor",
+          },
+          select: {
+            id: true,
+            user_pic: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+            role: true,
+            isOnline: true,
+            lastActive: true,
+            enrollment: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+        const enhancedStudents = tutors.map((tutors) => ({
+          ...tutors,
+          // Calculate if user was active in last 5 minutes
+          isCurrentlyOnline:
+            tutors.isOnline &&
+            tutors.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+          // Format last active time
+          lastActiveFormatted: this.formatLastActive(tutors.lastActive),
+          // Full name for display
+          full_name: `${tutors.first_name} ${tutors.last_name}`,
+        }));
+
+        this.setStatus(200);
+        return {
+          message: "Tutor fetched successfully",
+          enhancedStudents,
+        };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+
+      //To fetch Student in an orgniazation
+      if (organization) {
+        const tutors = await prisma.organization.findMany({
+          where: {
+            user: {
+              role: 'tutor'
+            }
+          },
+          select: {
+            user: {
+              select: {
+                id: true,
+                user_pic: true,
+                first_name: true,
+                last_name: true,
+                email_address: true,
+                role: true,
+                isOnline: true,
+                lastActive: true,
+                enrollment: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        });
+        const enhancedStudents = tutors.map((tutors) => ({
+          ...tutors,
+          // Calculate if user was active in last 5 minutes
+          isCurrentlyOnline:
+            tutors.user.isOnline &&
+            tutors.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+          // Format last active time
+          lastActiveFormatted: this.formatLastActive(tutors.user.lastActive),
+          // Full name for display
+          full_name: `${tutors.user.first_name} ${tutors.user.last_name}`,
+        }));
+
+        this.setStatus(200);
+        return {
+          message: "Tutor fetched successfully",
+          enhancedStudents,
+        };
+      }
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+    }
   }
 
   @Security("bearerAuth")

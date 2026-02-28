@@ -17,7 +17,7 @@ export class StudentEnrollmentController extends Controller {
   @Post("/student-enroll/{courseId}")
   public async StudentEnroll(
     @Request() req: any,
-    @Path() courseId: string
+    @Path() courseId: string,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -186,7 +186,7 @@ export class StudentEnrollmentController extends Controller {
         total_modules: enrollment.course.module.length,
         total_lessons: enrollment.course.module.reduce(
           (acc, module) => acc + module._count.lesson,
-          0
+          0,
         ),
         total_quizzes: enrollment.course.quiz.length,
       },
@@ -198,140 +198,190 @@ export class StudentEnrollmentController extends Controller {
       data: {
         total_courses: studentEnrollments.length,
         completed_courses: studentEnrollments.filter(
-          (e) => e.status === "COMPLETED"
+          (e) => e.status === "COMPLETED",
         ).length,
         in_progress_courses: studentEnrollments.filter(
-          (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+          (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
         ).length,
         courses: courses,
       },
     };
   }
 
-  @Security("bearerAuth")
-  @Get("/fetch-all-students")
-  public async GetAllStudents(@Request() req: any): Promise<any> {
-    try {
-      const userId = req.user?.id;
-      const userRole = req.user?.role;
+ @Security("bearerAuth")
+@Get("/fetch-all-students")
+public async GetAllStudents(@Request() req: any): Promise<any> {
+  try {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
+    const orgRole = req.org?.organization_role;
+    const userRole = req.user?.role;
 
-      if (!userId || userRole !== "instructor") {
-        this.setStatus(401);
-        return {
-          message: "Only instructors can view enrolled students",
-          data: null,
-        };
-      }
-
-      const enrollments = await prisma.enrollment.findMany({
-        where: {
-          course: {
-            createdUserId: userId,
-          },
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              user_pic: true,
-              level: true,
-              isOnline: true,
-              createdAt: true,
-              lastActive: true,
-            },
-          },
-          course: {
-            select: {
-              id: true,
-              course_title: true,
-              course_image: true,
-              course_level: true,
-            },
-          },
-        },
-        orderBy: {
-          enrolledAt: "desc",
-        },
-      });
-
-      const studentsMap = new Map();
-
-      enrollments.forEach((enrollment) => {
-        const studentId = enrollment.user.id;
-
-        if (!studentsMap.has(studentId)) {
-          studentsMap.set(studentId, {
-            student_id: enrollment.user.id,
-            full_name: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
-            first_name: enrollment.user.first_name,
-            last_name: enrollment.user.last_name,
-            email: enrollment.user.email_address,
-            profile_picture: enrollment.user.user_pic,
-            level: enrollment.user.level,
-            is_online: enrollment.user.isOnline,
-            joined_date: enrollment.user.createdAt,
-            last_active: enrollment.user.lastActive,
-            total_courses_enrolled: 0,
-            total_completed_courses: 0,
-            total_in_progress_courses: 0,
-            courses: [],
-          });
-        }
-
-        const student = studentsMap.get(studentId);
-        student.total_courses_enrolled += 1;
-
-        if (enrollment.status === "COMPLETED") {
-          student.total_completed_courses += 1;
-        } else if (
-          enrollment.status === "IN_PROGRESS" ||
-          enrollment.status === "ENROLLED"
-        ) {
-          student.total_in_progress_courses += 1;
-        }
-
-        student.courses.push({
-          course_id: enrollment.course.id,
-          course_title: enrollment.course.course_title,
-          course_image: enrollment.course.course_image,
-          course_level: enrollment.course.course_level,
-          enrollment_id: enrollment.id,
-          enrollment_date: enrollment.enrolledAt,
-          enrollment_status: enrollment.status,
-          progress: enrollment.progress,
-          started_at: enrollment.startedAt,
-          completed_at: enrollment.completedAt,
-        });
-      });
-
-      const students = Array.from(studentsMap.values());
-
-      this.setStatus(200);
+    // Check authorization - allow both instructors and org admins
+    if (!userId) {
+      this.setStatus(401);
       return {
-        message: "Students fetched successfully",
-        data: {
-          total_students: students.length,
-          total_enrollments: enrollments.length,
-          students: students,
-        },
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: "Error fetching students: " + error.message,
+        message: "Authentication required",
         data: null,
       };
     }
+
+    // Determine if user is authorized (instructor OR org admin)
+    const isInstructor = userRole === "instructor" || userRole == 'INSTRUCTOR';
+    const isOrgAdmin = orgRole === "admin" || orgRole === "owner" || orgRole == 'Administrator';
+    
+    if (!isInstructor && !isOrgAdmin) {
+      this.setStatus(401);
+      return {
+        message: "Only instructors or organization admins can view enrolled students",
+        data: null,
+      };
+    }
+
+    // Build the where clause based on user type
+    let whereClause: any = {};
+    
+    if (orgId && isOrgAdmin) {
+      // Organization admin - fetch all students from organization's courses
+      whereClause = {
+        course: {
+          organizationId: orgId
+        }
+      };
+    } else {
+      // Individual instructor - fetch only their own courses' students
+      whereClause = {
+        course: {
+          createdUserId: userId
+        }
+      };
+    }
+
+    const enrollments = await prisma.enrollment.findMany({
+      where: whereClause,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+            user_pic: true,
+            level: true,
+            isOnline: true,
+            createdAt: true,
+            lastActive: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+            course_image: true,
+            course_level: true,
+            createdUserId: true,
+            organizationId: true,
+          },
+        },
+      },
+      orderBy: {
+        enrolledAt: "desc",
+      },
+    });
+
+    const studentsMap = new Map();
+
+    enrollments.forEach((enrollment) => {
+      const studentId = enrollment.user.id;
+
+      if (!studentsMap.has(studentId)) {
+        studentsMap.set(studentId, {
+          student_id: enrollment.user.id,
+          full_name: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
+          first_name: enrollment.user.first_name,
+          last_name: enrollment.user.last_name,
+          email: enrollment.user.email_address,
+          profile_picture: enrollment.user.user_pic,
+          level: enrollment.user.level,
+          is_online: enrollment.user.isOnline,
+          joined_date: enrollment.user.createdAt,
+          last_active: enrollment.user.lastActive,
+          total_courses_enrolled: 0,
+          total_completed_courses: 0,
+          total_in_progress_courses: 0,
+          total_organizations: 0,
+          organizations: [],
+          courses: [],
+        });
+      }
+
+      const student = studentsMap.get(studentId);
+      student.total_courses_enrolled += 1;
+
+      if (enrollment.status === "COMPLETED") {
+        student.total_completed_courses += 1;
+      } else if (
+        enrollment.status === "IN_PROGRESS" ||
+        enrollment.status === "ENROLLED"
+      ) {
+        student.total_in_progress_courses += 1;
+      }
+
+      // Track organization info if available
+      if (enrollment.course.organizationId) {
+        student.total_organizations += 1;
+        if (!student.organizations.includes(enrollment.course.organizationId)) {
+          student.organizations.push(enrollment.course.organizationId);
+        }
+      }
+
+      student.courses.push({
+        course_id: enrollment.course.id,
+        course_title: enrollment.course.course_title,
+        course_image: enrollment.course.course_image,
+        course_level: enrollment.course.course_level,
+        enrollment_id: enrollment.id,
+        enrollment_date: enrollment.enrolledAt,
+        enrollment_status: enrollment.status,
+        progress: enrollment.progress,
+        started_at: enrollment.startedAt,
+        completed_at: enrollment.completedAt,
+        organization_id: enrollment.course.organizationId,
+        instructor_id: enrollment.course.createdUserId,
+      });
+    });
+
+    const students = Array.from(studentsMap.values());
+
+    // Add context about who is viewing
+    const viewContext = orgId && isOrgAdmin 
+      ? { view_type: "organization", organization_id: orgId }
+      : { view_type: "individual", instructor_id: userId };
+
+    this.setStatus(200);
+    return {
+      message: "Students fetched successfully",
+      data: {
+        ...viewContext,
+        total_students: students.length,
+        total_enrollments: enrollments.length,
+        students: students,
+      },
+    };
+  } catch (error: any) {
+    this.setStatus(500);
+    return {
+      message: "Error fetching students: " + error.message,
+      data: null,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Get("/fetch-student-details/{studentId}")
   public async GetAllStudentsById(
     @Request() req: any,
-    @Path() studentId: string
+    @Path() studentId: string,
   ): Promise<any> {
     try {
       const userId = req.user?.id;
@@ -413,10 +463,10 @@ export class StudentEnrollmentController extends Controller {
       const student = enrollments[0].user;
       const totalEnrollments = enrollments.length;
       const completedEnrollments = enrollments.filter(
-        (e) => e.status === "COMPLETED"
+        (e) => e.status === "COMPLETED",
       ).length;
       const inProgressEnrollments = enrollments.filter(
-        (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+        (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
       ).length;
       const averageProgress =
         enrollments.length > 0
