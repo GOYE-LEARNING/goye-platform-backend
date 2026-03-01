@@ -25,6 +25,7 @@ model User {
   lastActive    DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   user_pic      String?
+  invited       Boolean?        @default(false)
   enrollment    Enrollment[]
   post          Post[]
   reply         Reply[]
@@ -176,21 +177,21 @@ enum Role {
 }
 
 model Settings {
-  id                       String       @id @default(uuid())
-  enable_push_notification Boolean?     @default(true)
-  course_updates           Boolean?     @default(true)
-  event                    Boolean?     @default(true)
-  achievement              Boolean?     @default(true)
-  daily_reminders          Boolean?     @default(false)
-  group_activity           Boolean?     @default(true)
-  email_notification       Boolean?     @default(true)
-  darkMode                 Boolean?     @default(true)
+  id                       String        @id @default(uuid())
+  enable_push_notification Boolean?      @default(true)
+  course_updates           Boolean?      @default(true)
+  event                    Boolean?      @default(true)
+  achievement              Boolean?      @default(true)
+  daily_reminders          Boolean?      @default(false)
+  group_activity           Boolean?      @default(true)
+  email_notification       Boolean?      @default(true)
+  darkMode                 Boolean?      @default(true)
   user                     User?         @relation(fields: [userId], references: [id])
   organization             Organization? @relation(fields: [organizationId], references: [id])
   userId                   String?
   organizationId           String?
   updatedAt                DateTime
-  createdAt                DateTime     @default(now())
+  createdAt                DateTime      @default(now())
 }
 
 model Course {
