@@ -236,6 +236,7 @@ export class UserController extends Controller {
             organization_email: organization.organization_email ?? null,
             organization_role: organization.user.role ?? null,
             organization_online: organization.isOnline ?? null,
+            userId: organization.user.id,
             full_name: `${organization.user.first_name} ${organization.user.last_name}`,
             email: organization.user.email_address,
           },

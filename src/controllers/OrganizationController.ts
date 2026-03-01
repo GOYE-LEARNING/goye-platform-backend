@@ -832,13 +832,15 @@ export class OrganizationController extends Controller {
     };
   }
 
-  @Post("/invite-users-to-organization/{organizationId}/{sentByUserId}")
+  @Security("bearerAuth")
+  @Post("/invite-users-to-organization/{organizationId}")
   public async InviteUsersToOrganization(
     @Path() organizationId: string,
-    @Path() sentByUserId: string,
+    @Request() req: any,
     // Change body to accept an array of users
     @Body() body: { users: { email: string; role: string }[] },
   ): Promise<any> {
+    const userIdFromOrganization = req.org?.userId
     try {
       const { users } = body;
 
@@ -882,7 +884,7 @@ export class OrganizationController extends Controller {
             role: user.role,
             code: tokencode,
             organizationId: organizationId,
-            sentById: sentByUserId,
+            sentById: userIdFromOrganization,
             expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
           },
         });
