@@ -24,6 +24,7 @@ enum OrgType {
   CLUB,
   OTHER,
 }
+
 @Route("organizations")
 @Tags("Organization Controllers")
 export class OrganizationController extends Controller {
@@ -837,80 +838,139 @@ export class OrganizationController extends Controller {
   public async InviteUsersToOrganization(
     @Path() organizationId: string,
     @Request() req: any,
-    // Change body to accept an array of users
     @Body() body: { users: { email: string; role: string }[] },
   ): Promise<any> {
-    const userIdFromOrganization = req.org?.userId
+    const userIdFromOrganization = req.org?.userId;
     try {
       const { users } = body;
 
-      // 1. Check if organization exists first (once)
+      // Check if organization exists first
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return { message: "Organization not found" };
+        return {
+          success: false,
+          message: "Organization not found",
+        };
       }
 
+      const results = {
+        successful: [] as any[],
+        failed: [] as any[],
+        alreadyInvited: [] as any[],
+      };
+
       const invitePromises = users.map(async (user) => {
-        const existingInvite = await prisma.inviteUser.findFirst({
-          where: {
-            email: user.email,
-            organizationId: organizationId,
-            expiresIn: { gt: new Date() }, // Only block if the invite hasn't expired yet
-          },
-        });
+        try {
+          const existingInvite = await prisma.inviteUser.findFirst({
+            where: {
+              email: user.email,
+              organizationId: organizationId,
+              expiresIn: { gt: new Date() },
+            },
+          });
 
-        if (existingInvite) {
-          return {
-            email: user.email,
-            status: "already_invited",
-            message: "User has an active invitation.",
-          };
-        }
-        // Generate a unique token for EACH user
-        const tokencode = jwt.sign(
-          { organizationId, email: user.email }, // Include email to make token unique
-          process.env.BEARERAUTH_SECRET || "secret-key",
-          { expiresIn: "24h" },
-        );
+          if (existingInvite) {
+            results.alreadyInvited.push({
+              email: user.email,
+              role: user.role,
+              message: "User already has an active invitation",
+            });
+            return;
+          }
 
-        // Create DB record
-        const inviteEntry = await prisma.inviteUser.create({
-          data: {
+          // Generate a unique token
+          const tokencode = jwt.sign(
+            { organizationId, email: user.email },
+            process.env.BEARERAUTH_SECRET || "secret-key",
+            { expiresIn: "24h" },
+          );
+
+          // Create DB record
+          const inviteEntry = await prisma.inviteUser.create({
+            data: {
+              email: user.email,
+              role: user.role,
+              code: tokencode,
+              organizationId: organizationId,
+              sentById: userIdFromOrganization,
+              expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            },
+          });
+
+          // Send Email
+          const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
+          const inviteLink = `http://localhost:3000/dashboard/${organizationId}/accept-invite?token=${tokencode}`;
+          const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
+
+          await SendEmail(user.email, emailSubject, emailText);
+
+          results.successful.push({
             email: user.email,
             role: user.role,
-            code: tokencode,
-            organizationId: organizationId,
-            sentById: userIdFromOrganization,
-            expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          },
-        });
-
-        // Send Email
-        const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-        const inviteLink = `http://localhost:3000/dashboard/${organizationId}/accept-invite?token=${tokencode}`;
-        const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
-
-        await SendEmail(user.email, emailSubject, emailText);
-
-        return { email: user.email, status: "success", data: inviteEntry };
+            inviteId: inviteEntry.id,
+          });
+        } catch (error: any) {
+          results.failed.push({
+            email: user.email,
+            role: user.role,
+            message: error.message || "Failed to send invitation",
+          });
+        }
       });
 
-      // 3. Execute all invites in parallel
-      const results = await Promise.all(invitePromises);
+      // Execute all invites
+      await Promise.all(invitePromises);
 
-      this.setStatus(200);
+      // Determine overall success status
+      const hasSuccess = results.successful.length > 0;
+      const hasPartialSuccess =
+        hasSuccess &&
+        (results.failed.length > 0 || results.alreadyInvited.length > 0);
+
+      let statusCode = 200;
+      let message = "";
+
+      if (results.successful.length === users.length) {
+        // All successful
+        message = `Successfully invited ${results.successful.length} user(s)`;
+        statusCode = 200;
+      } else if (results.successful.length > 0) {
+        // Partial success
+        message = `Invited ${results.successful.length} user(s). ${results.alreadyInvited.length} already invited, ${results.failed.length} failed.`;
+        statusCode = 207; // Multi-Status
+      } else if (results.alreadyInvited.length === users.length) {
+        // All already invited
+        message = `All ${results.alreadyInvited.length} user(s) already have active invitations`;
+        statusCode = 409; // Conflict
+      } else {
+        // All failed
+        message = "Failed to send invitations";
+        statusCode = 500;
+      }
+
+      this.setStatus(statusCode);
       return {
-        message: `${results.length} invitations sent successfully`,
-        data: results,
+        success: hasSuccess,
+        message: message,
+        data: {
+          totalProcessed: users.length,
+          successful: results.successful,
+          alreadyInvited: results.alreadyInvited,
+          failed: results.failed,
+        },
       };
     } catch (error: any) {
       console.error(error);
       this.setStatus(500);
-      return { message: "Error processing bulk invitations" };
+      return {
+        success: false,
+        message: "Error processing bulk invitations",
+        error: error.message,
+      };
     }
   }
 
@@ -951,11 +1011,62 @@ export class OrganizationController extends Controller {
         },
       });
 
-      this.setStatus(200)
+      this.setStatus(200);
       return {
         message: "Invited users fetched successfully",
-        data: fetchInviteusers
+        data: fetchInviteusers,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      return {
+        message: "An error occured",
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/fetch-invited-users-with-access/{organizationId}")
+  public async FetchInviteUsersWithAccess(@Path() organizationId: string) {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: {
+          id: organizationId,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          message: "Organization not found",
+        };
       }
+
+      const fetchInviteusers = await prisma.organization.findMany({
+        where: {
+          user: {
+            invited: true,
+            role: "admin",
+          },
+        },
+
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              role: true,
+              user_pic: true,
+            },
+          },
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Invited users with access fetched successfully",
+        data: fetchInviteusers,
+      };
     } catch (error) {
       this.setStatus(500);
       return {
