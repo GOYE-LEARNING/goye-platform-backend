@@ -8,37 +8,42 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  first_name    String
-  last_name     String
-  email_address String         @unique
-  password      String?
-  country       String
-  state         String
-  phone_number  String
-  role          String         @default("student")
-  level         String
-  completed     String         @default("false")
-  form_type     FormType?      @default(INDIVIDUAL)
-  createdAt     DateTime       @default(now())
-  isOnline      Boolean        @default(false)
-  lastActive    DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  user_pic      String?
-  invited       Boolean?        @default(false)
-  enrollment    Enrollment[]
-  post          Post[]
-  reply         Reply[]
-  quizAttempt   QuizAttempt[] // Added missing relation
-  likes         Likes[]
-  Courses       Course[]
-  Group         Group[]
-  joinedGroups  JoinedGroup[]
-  notification  Notification[]
-  message       Message[]
-  organization  Organization[]
-  inviteUser    InviteUser[]
-  settings      Settings[]
+  id               String                 @id @default(cuid())
+  first_name       String
+  last_name        String
+  email_address    String                 @unique
+  password         String?
+  country          String
+  state            String
+  phone_number     String
+  role             String                 @default("student")
+  level            String
+  completed        String                 @default("false")
+  form_type        FormType?              @default(INDIVIDUAL)
+  createdAt        DateTime               @default(now())
+  isOnline         Boolean                @default(false)
+  lastActive       DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  user_pic         String?
+  invited          Boolean?               @default(false)
+  progress         Int?
+  completedCourses Int?
+  completedLessons Int?
+  completedVideo   Int?
+  enrollment       Enrollment[]
+  post             Post[]
+  reply            Reply[]
+  quizAttempt      QuizAttempt[] // Added missing relation
+  likes            Likes[]
+  Courses          Course[]
+  Group            Group[]
+  joinedGroups     JoinedGroup[]
+  notification     Notification[]
+  message          Message[]
+  organization     Organization[]
+  inviteUser       InviteUser[]
+  settings         Settings[]
+  badgesAndLevel   BadgesAndLevelEarned[]
 }
 
 enum FormType {
@@ -195,14 +200,14 @@ model Settings {
 }
 
 model Course {
-  id                       String         @id @default(cuid()) // Changed from uuid() to cuid()
+  id                       String                 @id @default(cuid()) // Changed from uuid() to cuid()
   course_title             String
   course_short_description String
   course_description       String
   course_level             String
   course_image             String
-  createdAt                DateTime       @default(now()) // Added missing createdAt
-  updatedAt                DateTime       @updatedAt // Added missing updatedAt
+  createdAt                DateTime               @default(now()) // Added missing createdAt
+  updatedAt                DateTime               @updatedAt // Added missing updatedAt
   enrollment               Enrollment[]
   material                 Material[]
   module                   Module[]
@@ -211,12 +216,54 @@ model Course {
   post                     Post[]
   createdBy                String
   createdUserId            String
-  createdByDetails         User           @relation(fields: [createdUserId], references: [id])
+  createdByDetails         User                   @relation(fields: [createdUserId], references: [id])
   organizationName         String?
-  organization             Organization?  @relation(fields: [organizationId], references: [id])
+  organization             Organization?          @relation(fields: [organizationId], references: [id])
   organizationId           String?
-  saved                    Boolean        @default(false)
+  saved                    Boolean                @default(false)
   notification             Notification[]
+  videosTracked            VideoTracker[]
+  badgesAndLevel           BadgesAndLevelEarned[]
+}
+
+model VideoTracker {
+  id             String    @id @default(uuid())
+  videoFinished  Boolean   @default(false)
+  videoTrackTime String
+  course         Course?   @relation(references: [id], fields: [courseId])
+  lesson         Lesson?   @relation(fields: [lessonId], references: [id])
+  lessonId       String?
+  courseId       String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime?
+}
+
+model BadgesAndLevelEarned {
+  id        String    @id @default(uuid())
+  badges    Badges    @default(CADET_BADGE)
+  level     Levels    @default(LEVEL1_SEEKER)
+  course    Course?   @relation(fields: [courseId], references: [id])
+  user      User?     @relation(fields: [userId], references: [id])
+  userId    String?
+  courseId  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime?
+}
+
+enum Badges {
+  CADET_BADGE
+  COURSE_COMPLETION_BADGE
+  CONSISTENCY_BADGE
+  MASTERY_BADGE
+  MILESTONES_BADGES
+}
+
+enum Levels {
+  LEVEL1_SEEKER
+  LEVEL2_LEARNER
+  LEVEL3_DISCIPLE
+  LEVEL4_AMBASSADOR
+  LEVEL5_MENTOR
 }
 
 model Otp {
@@ -365,15 +412,16 @@ model Module {
 }
 
 model Lesson {
-  id           String   @id @default(cuid()) // Changed from ulid() to cuid()
+  id           String         @id @default(cuid()) // Changed from ulid() to cuid()
   lesson_title String?
   lesson_video String
+  videoTracker VideoTracker[]
   moduleId     String
-  order        Int?     @default(0) // Added for ordering
+  order        Int?           @default(0) // Added for ordering
   duration     Int? // Added duration in minutes
-  createdAt    DateTime @default(now()) // Added missing createdAt
-  updatedAt    DateTime @updatedAt // Added missing updatedAt
-  module       Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now()) // Added missing createdAt
+  updatedAt    DateTime       @updatedAt // Added missing updatedAt
+  module       Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 }
 
 model Material {

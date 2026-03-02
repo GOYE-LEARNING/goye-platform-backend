@@ -159,220 +159,377 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Put("/update-course/{courseId}")
-  public async UpdateCourse(
-    @Path() courseId: string,
-    @Body() body: UpdateCourseWithRelationsDTO,
-  ): Promise<CourseResponse> {
-    try {
-      // First, check if course exists
-      const existingCourse = await prisma.course.findUnique({
-        where: { id: courseId },
-      });
-
-      if (!existingCourse) {
-        this.setStatus(404);
-        return {
-          message: "Course not found",
-          data: null,
-        };
-      }
-
-      // Update course fields
-      await prisma.course.update({
-        where: { id: courseId },
-        data: {
-          ...(body.course_title && { course_title: body.course_title }),
-          ...(body.course_short_description && {
-            course_short_description: body.course_short_description,
-          }),
-          ...(body.course_description && {
-            course_description: body.course_description,
-          }),
-          ...(body.course_level && { course_level: body.course_level }),
-          ...(body.course_image && { course_image: body.course_image }),
-        },
-      });
-
-      // Handle modules update
-      if (body.modules) {
-        for (const moduleData of body.modules) {
-          if (moduleData.id) {
-            // Update existing module
-            await prisma.module.update({
-              where: { id: moduleData.id },
-              data: {
-                ...(moduleData.module_title && {
-                  module_title: moduleData.module_title,
-                }),
-                ...(moduleData.module_description && {
-                  module_description: moduleData.module_description,
-                }),
-                ...(moduleData.module_duration && {
-                  module_duration: moduleData.module_duration,
-                }),
-              },
-            });
-
-            // Handle lessons for this module
-            if (moduleData.lessons) {
-              for (const lessonData of moduleData.lessons) {
-                if (lessonData.id) {
-                  // Update existing lesson
-                  await prisma.lesson.update({
-                    where: { id: lessonData.id },
-                    data: {
-                      ...(lessonData.lesson_title && {
-                        lesson_title: lessonData.lesson_title,
-                      }),
-                      ...(lessonData.lesson_video && {
-                        lesson_video: lessonData.lesson_video,
-                      }),
-                    },
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // Handle materials update
-      if (body.materials) {
-        for (const materialData of body.materials) {
-          if (materialData.id) {
-            await prisma.material.update({
-              where: { id: materialData.id },
-              data: {
-                ...(materialData.material_title && {
-                  material_title: materialData.material_title,
-                }),
-                ...(materialData.material_description && {
-                  material_description: materialData.material_description,
-                }),
-                ...(materialData.material_pages && {
-                  material_pages: materialData.material_pages,
-                }),
-                ...(materialData.material_document && {
-                  material_document: materialData.material_document,
-                }),
-              },
-            });
-          }
-        }
-      }
-
-      // Handle objectives update
-      if (body.objectives) {
-        for (const objectiveData of body.objectives) {
-          if (objectiveData.id) {
-            await prisma.objectives.update({
-              where: { id: objectiveData.id },
-              data: {
-                ...(objectiveData.objective_title1 && {
-                  objective_title1: objectiveData.objective_title1,
-                }),
-                ...(objectiveData.objective_title2 && {
-                  objective_title2: objectiveData.objective_title2,
-                }),
-                ...(objectiveData.objective_title3 && {
-                  objective_title3: objectiveData.objective_title3,
-                }),
-                ...(objectiveData.objective_title4 && {
-                  objective_title4: objectiveData.objective_title4,
-                }),
-                ...(objectiveData.objective_title5 && {
-                  objective_title5: objectiveData.objective_title5,
-                }),
-              },
-            });
-          }
-        }
-      }
-
-      // Handle quiz update - FIXED: Removed correctAnswer from Quiz update
-      if (body.quiz) {
-        for (const quizData of body.quiz) {
-          if (quizData.id) {
-            // Update quiz - only fields that exist on Quiz model
-            await prisma.quiz.update({
-              where: { id: quizData.id },
-              data: {
-                ...(quizData.quiz_title && { title: quizData.quiz_title }),
-                ...(quizData.quiz_description && {
-                  description: quizData.quiz_description,
-                }),
-                ...(quizData.quiz_duration && {
-                  duration: quizData.quiz_duration,
-                }),
-                ...(quizData.quiz_score && {
-                  passingScore: quizData.quiz_score,
-                }),
-                // Note: Quiz model doesn't have correctAnswer or options fields
-                // These are on the Question model
-              },
-            });
-
-            // Handle questions for this quiz
-            if (quizData.questions) {
-              for (const questionData of quizData.questions) {
-                if (questionData.id) {
-                  await prisma.question.update({
-                    where: { id: questionData.id },
-                    data: {
-                      ...(questionData.question_name && {
-                        question: questionData.question_name,
-                      }),
-                      // Add other question fields if needed
-                      ...(questionData.options && {
-                        options: questionData.options,
-                      }),
-                      ...(questionData.correctAnswer && {
-                        correctAnswer: questionData.correctAnswer,
-                      }),
-                    },
-                  });
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // Return the fully updated course with all relations
-      const updatedCourse = await prisma.course.findUnique({
-        where: { id: courseId },
-        include: {
-          module: {
-            include: { lesson: true },
-            orderBy: { order: "asc" },
-          },
-          material: true,
-          objectives: true,
-          quiz: {
-            include: {
-              questions: {
-                orderBy: { order: "asc" },
-              },
-            },
+@Put("/update-course/{courseId}")
+public async UpdateCourse(
+  @Path() courseId: string,
+  @Body() body: UpdateCourseWithRelationsDTO,
+): Promise<CourseResponse> {
+  try {
+    // First, check if course exists
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        module: {
+          include: {
+            lesson: true,
           },
         },
-      });
+        material: true,
+        objectives: true,
+        quiz: {
+          include: {
+            questions: true,
+          },
+        },
+      },
+    });
 
-      this.setStatus(200);
+    if (!existingCourse) {
+      this.setStatus(404);
       return {
-        message: "Course updated successfully",
-        data: updatedCourse,
-      };
-    } catch (error: any) {
-      console.error("Error updating course:", error);
-      this.setStatus(500);
-      return {
-        message: "Error updating course: " + error.message,
+        message: "Course not found",
         data: null,
       };
     }
+
+    // Update course fields
+    await prisma.course.update({
+      where: { id: courseId },
+      data: {
+        ...(body.course_title && { course_title: body.course_title }),
+        ...(body.course_short_description && {
+          course_short_description: body.course_short_description,
+        }),
+        ...(body.course_description && {
+          course_description: body.course_description,
+        }),
+        ...(body.course_level && { course_level: body.course_level }),
+        ...(body.course_image && { course_image: body.course_image }),
+      },
+    });
+
+    // Handle modules update
+    if (body.modules) {
+      // Get existing module IDs for this course
+      const existingModuleIds = existingCourse.module.map(m => m.id);
+      
+      for (const moduleData of body.modules) {
+        if (moduleData.id && existingModuleIds.includes(moduleData.id)) {
+          // Update existing module
+          await prisma.module.update({
+            where: { id: moduleData.id },
+            data: {
+              ...(moduleData.module_title && {
+                module_title: moduleData.module_title,
+              }),
+              ...(moduleData.module_description && {
+                module_description: moduleData.module_description,
+              }),
+              ...(moduleData.module_duration && {
+                module_duration: moduleData.module_duration,
+              }),
+            },
+          });
+
+          // Handle lessons for this module
+          if (moduleData.lessons) {
+            // Get existing lesson IDs for this module
+            const existingModule = existingCourse.module.find(m => m.id === moduleData.id);
+            const existingLessonIds = existingModule?.lesson.map(l => l.id) || [];
+            
+            // Track processed lesson IDs
+            const processedLessonIds = new Set();
+
+            for (const lessonData of moduleData.lessons) {
+              if (lessonData.id && existingLessonIds.includes(lessonData.id)) {
+                // Update existing lesson
+                await prisma.lesson.update({
+                  where: { id: lessonData.id },
+                  data: {
+                    ...(lessonData.lesson_title && {
+                      lesson_title: lessonData.lesson_title,
+                    }),
+                    ...(lessonData.lesson_video && {
+                      lesson_video: lessonData.lesson_video,
+                    }),
+                  },
+                });
+                processedLessonIds.add(lessonData.id);
+              } else {
+                // Create new lesson
+                await prisma.lesson.create({
+                  data: {
+                    lesson_title: lessonData.lesson_title || "",
+                    lesson_video: lessonData.lesson_video || "",
+                    moduleId: moduleData.id,
+                    order: lessonData.order || 0,
+                    duration: lessonData.duration || 0,
+                  },
+                });
+              }
+            }
+
+            // Delete lessons that were in the database but not in the update payload
+            const lessonsToDelete = existingLessonIds.filter(id => !processedLessonIds.has(id));
+            if (lessonsToDelete.length > 0) {
+              await prisma.lesson.deleteMany({
+                where: {
+                  id: { in: lessonsToDelete },
+                },
+              });
+            }
+          }
+        } else {
+          // Create new module with its lessons
+          await prisma.module.create({
+            data: {
+              module_title: moduleData.module_title || "",
+              module_description: moduleData.module_description || "",
+              module_duration: moduleData.module_duration || "0",
+              courseId: courseId,
+              order: moduleData.order || 0,
+              ...(moduleData.lessons && {
+                lesson: {
+                  create: moduleData.lessons.map((lesson, index) => ({
+                    lesson_title: lesson.lesson_title || "",
+                    lesson_video: lesson.lesson_video || "",
+                    order: lesson.order || index,
+                    duration: lesson.duration || 0,
+                  })),
+                },
+              }),
+            },
+          });
+        }
+      }
+
+      // Delete modules that were in the database but not in the update payload
+      const updatedModuleIds = body.modules
+        .filter(m => m.id)
+        .map(m => m.id as string);
+      
+      const modulesToDelete = existingModuleIds.filter(id => !updatedModuleIds.includes(id));
+      if (modulesToDelete.length > 0) {
+        await prisma.module.deleteMany({
+          where: {
+            id: { in: modulesToDelete },
+          },
+        });
+      }
+    }
+
+    // Handle materials update (similar pattern)
+    if (body.materials) {
+      const existingMaterialIds = existingCourse.material.map(m => m.id);
+      const processedMaterialIds = new Set();
+
+      for (const materialData of body.materials) {
+        if (materialData.id && existingMaterialIds.includes(materialData.id)) {
+          // Update existing material
+          await prisma.material.update({
+            where: { id: materialData.id },
+            data: {
+              ...(materialData.material_title && {
+                material_title: materialData.material_title,
+              }),
+              ...(materialData.material_description && {
+                material_description: materialData.material_description,
+              }),
+              ...(materialData.material_pages && {
+                material_pages: materialData.material_pages,
+              }),
+              ...(materialData.material_document && {
+                material_document: materialData.material_document,
+              }),
+            },
+          });
+          processedMaterialIds.add(materialData.id);
+        } else {
+          // Create new material
+          await prisma.material.create({
+            data: {
+              material_title: materialData.material_title || "",
+              material_description: materialData.material_description || "",
+              material_pages: materialData.material_pages || 0,
+              material_document: materialData.material_document || "",
+              courseId: courseId,
+            },
+          });
+        }
+      }
+
+      // Delete materials not in update
+      const materialsToDelete = existingMaterialIds.filter(id => !processedMaterialIds.has(id));
+      if (materialsToDelete.length > 0) {
+        await prisma.material.deleteMany({
+          where: {
+            id: { in: materialsToDelete },
+          },
+        });
+      }
+    }
+
+    // Handle objectives update (similar pattern)
+    if (body.objectives) {
+      // For simplicity, assuming you want to replace objectives
+      await prisma.objectives.deleteMany({
+        where: { courseId: courseId },
+      });
+
+      if (body.objectives.length > 0) {
+        await prisma.objectives.createMany({
+          data: body.objectives.map(obj => ({
+            objective_title1: obj.objective_title1 || "",
+            objective_title2: obj.objective_title2 || "",
+            objective_title3: obj.objective_title3 || "",
+            objective_title4: obj.objective_title4 || "",
+            objective_title5: obj.objective_title5 || "",
+            courseId: courseId,
+          })),
+        });
+      }
+    }
+
+    // Handle quiz update (similar pattern with questions)
+    if (body.quiz) {
+      const existingQuizIds = existingCourse.quiz.map(q => q.id);
+      const processedQuizIds = new Set();
+
+      for (const quizData of body.quiz) {
+        if (quizData.id && existingQuizIds.includes(quizData.id)) {
+          // Update existing quiz
+          await prisma.quiz.update({
+            where: { id: quizData.id },
+            data: {
+              ...(quizData.quiz_title && { title: quizData.quiz_title }),
+              ...(quizData.quiz_description && {
+                description: quizData.quiz_description,
+              }),
+              ...(quizData.quiz_duration && {
+                duration: quizData.quiz_duration,
+              }),
+              ...(quizData.quiz_score && {
+                passingScore: quizData.quiz_score,
+              }),
+            },
+          });
+
+          // Handle questions
+          if (quizData.questions) {
+            const existingQuiz = existingCourse.quiz.find(q => q.id === quizData.id);
+            const existingQuestionIds = existingQuiz?.questions.map(q => q.id) || [];
+            const processedQuestionIds = new Set();
+
+            for (const questionData of quizData.questions) {
+              if (questionData.id && existingQuestionIds.includes(questionData.id)) {
+                // Update existing question
+                await prisma.question.update({
+                  where: { id: questionData.id },
+                  data: {
+                    ...(questionData.question_name && {
+                      question: questionData.question_name,
+                    }),
+                    ...(questionData.options && {
+                      options: questionData.options,
+                    }),
+                    ...(questionData.correctAnswer && {
+                      correctAnswer: questionData.correctAnswer,
+                    }),
+                  },
+                });
+                processedQuestionIds.add(questionData.id);
+              } else {
+                // Create new question
+                await prisma.question.create({
+                  data: {
+                    question: questionData.question_name || "",
+                    options: questionData.options || [],
+                    correctAnswer: questionData.correctAnswer || "",
+                    quizId: quizData.id,
+                  },
+                });
+              }
+            }
+
+            // Delete questions not in update
+            const questionsToDelete = existingQuestionIds.filter(id => !processedQuestionIds.has(id));
+            if (questionsToDelete.length > 0) {
+              await prisma.question.deleteMany({
+                where: {
+                  id: { in: questionsToDelete },
+                },
+              });
+            }
+          }
+          processedQuizIds.add(quizData.id);
+        } else {
+          // Create new quiz with questions
+          await prisma.quiz.create({
+            data: {
+              title: quizData.quiz_title || "",
+              description: quizData.quiz_description || "",
+              duration: quizData.quiz_duration || 30,
+              passingScore: quizData.quiz_score || 70,
+              courseId: courseId,
+              ...(quizData.questions && {
+                questions: {
+                  create: quizData.questions.map(q => ({
+                    question: q.question_name || "",
+                    options: q.options || [],
+                    correctAnswer: q.correctAnswer || "",
+                  })),
+                },
+              }),
+            },
+          });
+        }
+      }
+
+      // Delete quizzes not in update
+      const quizzesToDelete = existingQuizIds.filter(id => !processedQuizIds.has(id));
+      if (quizzesToDelete.length > 0) {
+        await prisma.quiz.deleteMany({
+          where: {
+            id: { in: quizzesToDelete },
+          },
+        });
+      }
+    }
+
+    // Return the fully updated course with all relations
+    const updatedCourse = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: {
+        module: {
+          include: { lesson: true },
+          orderBy: { order: "asc" },
+        },
+        material: true,
+        objectives: true,
+        quiz: {
+          include: {
+            questions: {
+              orderBy: { order: "asc" },
+            },
+          },
+        },
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Course updated successfully",
+      data: updatedCourse,
+    };
+  } catch (error: any) {
+    console.error("Error updating course:", error);
+    this.setStatus(500);
+    return {
+      message: "Error updating course: " + error.message,
+      data: null,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Get("/get-all-courses")
