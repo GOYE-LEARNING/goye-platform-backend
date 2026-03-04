@@ -151,7 +151,7 @@ export class UserController extends Controller {
         });
 
         const organizationData = await prisma.organization.findFirst({
-          where: { userId: user.id },
+          where: { userId: user.id, },
         });
 
         const token = jwt.sign(
@@ -265,6 +265,78 @@ export class UserController extends Controller {
               organization_email: organization.organization_email,
               organization_role: organization.user.role,
               organization_isOnline: organization.isOnline,
+            },
+          },
+        };
+      }
+
+      //To get invited Users
+      const invitedUsers = await prisma.user.findUnique({
+        where: {
+          invited: true,
+          email_address: creditials.email,
+        },
+      });
+
+      if (invitedUsers) {
+        const isPasswordValid = await bcrypt.compare(
+          creditials.password,
+          invitedUsers.password,
+        );
+
+        if (!isPasswordValid) {
+          this.setStatus(401);
+          return {
+            message: "Password is in valid",
+          };
+        }
+
+        const updateUser = await prisma.user.update({
+          where: { id: invitedUsers?.id },
+          data: {
+            isOnline: true,
+            lastActive: new Date(),
+          },
+        });
+
+        const organizationData = await prisma.organization.findFirst({
+          where: { userId: invitedUsers.id },
+        });
+
+        const token = jwt.sign(
+          {
+            type: "USER",
+            id: updateUser.id,
+            full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+            email: updateUser.email_address,
+            role: updateUser.role,
+            updateStatus: updateUser.isOnline,
+            organizationId: organizationData?.id || null,
+          },
+          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+          { expiresIn: "7d" },
+        );
+
+        if (req.res) {
+          req.res.cookie("token", token, {
+            httpOnly: true,
+            secure: true, // because you're on localhost
+            sameSite: "none", // must be none for cross-port cookie sharing
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          data: {
+            message: "Login successfull",
+            token,
+            user: {
+              type: "INVITED_USER",
+              id: user.id,
+              first_name: user.first_name,
+              last_name: user.last_name,
+              role: user.role,
             },
           },
         };
@@ -699,8 +771,8 @@ export class UserController extends Controller {
         const students = await prisma.organization.findMany({
           where: {
             user: {
-              role: 'student'
-            }
+              role: "student",
+            },
           },
           select: {
             user: {
@@ -809,8 +881,8 @@ export class UserController extends Controller {
         const tutors = await prisma.organization.findMany({
           where: {
             user: {
-              role: 'tutor'
-            }
+              role: "tutor",
+            },
           },
           select: {
             user: {
