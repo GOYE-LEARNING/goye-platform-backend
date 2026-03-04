@@ -333,10 +333,10 @@ export class UserController extends Controller {
             token,
             user: {
               type: "INVITED_USER",
-              id: user.id,
-              first_name: user.first_name,
-              last_name: user.last_name,
-              role: user.role,
+              id: invitedUsers.id,
+              first_name: invitedUsers.first_name,
+              last_name: invitedUsers.last_name,
+              role: invitedUsers.role,
             },
           },
         };
