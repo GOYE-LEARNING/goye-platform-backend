@@ -838,86 +838,109 @@ export class OrganizationController extends Controller {
     @Body() body: Omit<User, "id">,
     @Request() req: any,
   ): Promise<any> {
-    const hashedPassword = await bcrypt.hash(body.password, 10);
-    //To store password in token
-    const user = await prisma.user.create({
-      data: { ...body, password: hashedPassword, invited: true, form_type: 'INVITED' },
-    });
-
-    //After creating Users.
-    //It is necessary to automatically create settings database for the users.
-    const createSettings = await prisma.settings.create({
-      data: {
-        enable_push_notification: true,
-        course_updates: true,
-        event: true,
-        achievement: true,
-        daily_reminders: true,
-        darkMode: false,
-        email_notification: true,
-        updatedAt: new Date(),
-        userId: user.id,
-        organizationId: null,
-      },
-    });
-
-    //Let check if the User exist
-    if (!user) {
-      this.setStatus(401);
-      return {
-        messgae: "User already exist",
-      };
-    }
-
-    if (body.password == "") {
-      this.setStatus(400);
-      return {
-        message: "Password must be filled",
-      };
-    }
-
-    const updateUser = await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        isOnline: true,
-        lastActive: new Date(),
-      },
-    });
-
-    const token = jwt.sign(
-      {
-        id: updateUser.id,
-        settingsId: createSettings.id,
-        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        email: updateUser.email_address,
-        role: updateUser.role,
-        password: body.password,
-        updateStatus: updateUser.isOnline,
-      },
-      (process.env.BEARERAUTH_SECRET as string) || "secret-key",
-      { expiresIn: "7d" },
-    );
-
-    if (req.res) {
-      req.res.cookie("token", token, {
-        httpOnly: true,
-        secure: true, // because you're on localhost
-        sameSite: "none", // must be none for cross-port cookie sharing
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+    try {
+      const hashedPassword = await bcrypt.hash(body.password, 10);
+      const invitation = await prisma.inviteUser.findFirst({
+        where: {
+          email: body.email_address
+        },
       });
-    }
+      if (invitation) {
+        //To store password in token
+        const user = await prisma.user.create({
+          data: {
+            ...body,
+            password: hashedPassword,
+            invited: true,
+            form_type: "INVITED",
+          },
+        });
 
-    this.setStatus(201);
-    return {
-      message: "Signup successfull",
-      token,
-      user: {
-        id: updateUser.id,
-        first_name: updateUser.first_name,
-        last_name: updateUser.last_name,
-        email_address: updateUser.email_address,
-      },
-    };
+        //After creating Users.
+        //It is necessary to automatically create settings database for the users.
+        const createSettings = await prisma.settings.create({
+          data: {
+            enable_push_notification: true,
+            course_updates: true,
+            event: true,
+            achievement: true,
+            daily_reminders: true,
+            darkMode: false,
+            email_notification: true,
+            updatedAt: new Date(),
+            userId: user.id,
+            organizationId: null,
+          },
+        });
+
+        //Let check if the User exist
+        if (!user) {
+          this.setStatus(401);
+          return {
+            messgae: "User already exist",
+          };
+        }
+
+        if (body.password == "") {
+          this.setStatus(400);
+          return {
+            message: "Password must be filled",
+          };
+        }
+
+        const updateUser = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            isOnline: true,
+            lastActive: new Date(),
+          },
+        });
+
+        const token = jwt.sign(
+          {
+            id: updateUser.id,
+            settingsId: createSettings.id,
+            full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+            email: updateUser.email_address,
+            role: updateUser.role,
+            password: body.password,
+            updateStatus: updateUser.isOnline,
+          },
+          (process.env.BEARERAUTH_SECRET as string) || "secret-key",
+          { expiresIn: "7d" },
+        );
+
+        if (req.res) {
+          req.res.cookie("token", token, {
+            httpOnly: true,
+            secure: true, // because you're on localhost
+            sameSite: "none", // must be none for cross-port cookie sharing
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        this.setStatus(201);
+        return {
+          message: "Signup successfull",
+          token,
+          user: {
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            email_address: updateUser.email_address,
+          },
+        };
+      } else {
+        this.setStatus(400);
+        return {
+          message: "The code does not exist",
+          status: 400,
+        };
+      }
+    } catch (error) {
+      this.setStatus(500)
+      console.error(error);
+    }
   }
 
   @Security("bearerAuth")
