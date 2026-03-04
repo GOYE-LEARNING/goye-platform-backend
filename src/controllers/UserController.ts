@@ -271,23 +271,21 @@ export class UserController extends Controller {
       }
 
       //To get invited Users
-      const invitation = await prisma.inviteUser.findFirst({
+      const invitation = await prisma.user.findUnique({
         where: {
-          email: creditials.email,
+          email_address: creditials.email,
         },
       });
 
       if (invitation) {
-        const invitedUsers = await prisma.user.findUnique({
+        const invitationOrgId = await prisma.inviteUser.findFirst({
           where: {
-            invited: true,
-            email_address: creditials.email,
-          },
-        });
-        if (invitedUsers) {
+            email: creditials.email
+          }
+        })
           const isPasswordValid = await bcrypt.compare(
             creditials.password,
-            invitedUsers.password,
+            invitation.password,
           );
 
           if (!isPasswordValid) {
@@ -298,7 +296,7 @@ export class UserController extends Controller {
           }
 
           const updateUser = await prisma.user.update({
-            where: { id: invitedUsers?.id },
+            where: { id: invitation?.id },
             data: {
               isOnline: true,
               lastActive: new Date(),
@@ -321,7 +319,7 @@ export class UserController extends Controller {
               email: updateUser.email_address,
               role: updateUser.role,
               updateStatus: updateUser.isOnline,
-              organizationId: invitation.organizationId || null,
+              organizationId: invitationOrgId.organizationId || null,
             },
             (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
             { expiresIn: "7d" },
@@ -339,19 +337,19 @@ export class UserController extends Controller {
           this.setStatus(200);
           return {
             data: {
-              message: "Login successfull",
+              message: "Login successfull For Invited Users",
               token,
               user: {
                 type: "INVITED_USER",
-                id: invitedUsers.id,
-                first_name: invitedUsers.first_name,
-                last_name: invitedUsers.last_name,
-                role: invitedUsers.role,
-                organizationId: invitation.organizationId
+                id: invitation.id,
+                first_name: invitation.first_name,
+                last_name: invitation.last_name,
+                role: invitation.role,
+                organizationId: invitationOrgId.organizationId
               },
             },
           };
-        }
+        
       }
       this.setStatus(404);
       return {
