@@ -11,7 +11,7 @@ import {
   Security,
   Tags,
 } from "tsoa";
-import { OrganizationDTO } from "../interface/interfaces";
+import { OrganizationDTO, User } from "../interface/interfaces";
 import prisma from "../db";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
@@ -830,6 +830,69 @@ export class OrganizationController extends Controller {
     return {
       message: "Profile fetched succfully",
       organization,
+    };
+  }
+
+  @Post("/invite-user/signup")
+  public async CreateUser(
+    @Body() body: Omit<User, "id">,
+    @Request() req: any,
+  ): Promise<any> {
+    const hashedPassword = await bcrypt.hash(body.password, 10);
+    //To store password in token
+    const user = await prisma.user.create({
+      data: { ...body, password: hashedPassword, invited: true, form_type: 'INVITED' },
+    });
+
+    //After creating Users.
+    //It is necessary to automatically create settings database for the users.
+    const createSettings = await prisma.settings.create({
+      data: {
+        enable_push_notification: true,
+        course_updates: true,
+        event: true,
+        achievement: true,
+        daily_reminders: true,
+        darkMode: false,
+        email_notification: true,
+        updatedAt: new Date(),
+        userId: user.id,
+        organizationId: null,
+      },
+    });
+
+    //Let check if the User exist
+    if (!user) {
+      this.setStatus(401);
+      return {
+        messgae: "User already exist",
+      };
+    }
+
+    if (body.password == "") {
+      this.setStatus(400);
+      return {
+        message: "Password must be filled",
+      };
+    }
+
+    const updateUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isOnline: true,
+        lastActive: new Date(),
+      },
+    });
+
+    this.setStatus(201);
+    return {
+      message: "Signup successfull",
+      user: {
+        id: updateUser.id,
+        first_name: updateUser.first_name,
+        last_name: updateUser.last_name,
+        email_address: updateUser.email_address,
+      },
     };
   }
 
