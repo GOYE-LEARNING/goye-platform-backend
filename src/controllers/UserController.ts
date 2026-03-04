@@ -303,12 +303,16 @@ export class UserController extends Controller {
               isOnline: true,
               lastActive: new Date(),
             },
+            include: {
+              organization: {
+                select: {
+                  id: true
+                }
+              }
+            }
           });
 
-          const organizationData = await prisma.organization.findFirst({
-            where: { userId: invitedUsers.id },
-          });
-
+ 
           const token = jwt.sign(
             {
               type: "USER",
@@ -343,6 +347,7 @@ export class UserController extends Controller {
                 first_name: invitedUsers.first_name,
                 last_name: invitedUsers.last_name,
                 role: invitedUsers.role,
+                organizationId: invitation.organizationId
               },
             },
           };
