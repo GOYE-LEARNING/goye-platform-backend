@@ -188,6 +188,7 @@ export class UserController extends Controller {
               first_name: user.first_name,
               last_name: user.last_name,
               role: user.role,
+              form_type: user.form_type
             },
           },
         };
@@ -313,7 +314,7 @@ export class UserController extends Controller {
  
           const token = jwt.sign(
             {
-              type: "USER",
+              type: "INVITED_USER",
               id: updateUser.id,
               full_name: `${updateUser.first_name} ${updateUser.last_name}`,
               email: updateUser.email_address,
@@ -345,6 +346,7 @@ export class UserController extends Controller {
                 first_name: invitation.first_name,
                 last_name: invitation.last_name,
                 role: invitation.role,
+                form_type: invitation.form_type,
                 organizationId: invitationOrgId.organizationId
               },
             },
