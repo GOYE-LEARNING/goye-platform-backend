@@ -845,6 +845,7 @@ export class OrganizationController extends Controller {
           email: body.email_address
         },
       });
+      
       if (invitation) {
         //To store password in token
         const user = await prisma.user.create({
