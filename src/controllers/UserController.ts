@@ -115,24 +115,94 @@ export class UserController extends Controller {
   }
 
   //login
- @Post("/login")
+//login
+@Post("/login")
 public async Login(
   @Body() creditials: { email: string; password: string },
   @Request() req: any,
 ): Promise<any> {
   const settingsId = req.org?.settingsId;
   try {
-    //To check if it is a user that logged in.
-    const user = await prisma.user.findUnique({
+    //Check For invited Users
+    const invitedUser = await prisma.user.findUnique({
       where: {
         email_address: creditials.email,
       },
     });
 
-    if (user) {
+    if (invitedUser && invitedUser.form_type === 'INVITED') {
+      const invitationOrg = await prisma.inviteUser.findFirst({
+        where: {
+          email: creditials.email
+        }
+      });
+
       const isPasswordValid = await bcrypt.compare(
         creditials.password,
-        user.password,
+        invitedUser.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return {
+          message: "Password is invalid",
+        };
+      }
+
+      const updateInvitedUser = await prisma.user.update({
+        where: { id: invitedUser.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+      });
+
+      const token = jwt.sign(
+        {
+          type: "INVITED_USER",
+          id: updateInvitedUser.id,
+          full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
+          email: updateInvitedUser.email_address,
+          role: updateInvitedUser.role,
+          updateStatus: updateInvitedUser.isOnline,
+          organizationId: invitationOrg?.organizationId || null,
+        },
+        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+        { expiresIn: "7d" },
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful for invited user",
+          token,
+          user: {
+            type: "INVITED_USER",
+            id: updateInvitedUser.id, 
+            first_name: updateInvitedUser.first_name,
+            last_name: updateInvitedUser.last_name,
+            role: updateInvitedUser.role,
+            form_type: updateInvitedUser.form_type,
+            organizationId: invitationOrg?.organizationId || null
+          },
+        },
+      };
+    }
+
+    //  Check for regular users
+    if (invitedUser) {
+      const isPasswordValid = await bcrypt.compare(
+        creditials.password,
+        invitedUser.password,
       );
 
       if (!isPasswordValid) {
@@ -143,7 +213,7 @@ public async Login(
       }
 
       const updateUser = await prisma.user.update({
-        where: { id: user?.id },
+        where: { id: invitedUser?.id },
         data: {
           isOnline: true,
           lastActive: new Date(),
@@ -151,7 +221,7 @@ public async Login(
       });
 
       const organizationData = await prisma.organization.findFirst({
-        where: { userId: user.id },
+        where: { userId: invitedUser.id },
       });
 
       const token = jwt.sign(
@@ -194,7 +264,7 @@ public async Login(
       };
     }
 
-    //Let check if the organization password actually matches the body password.
+    //  Check for organization
     const organization = await prisma.organization.findUnique({
       where: {
         organization_email: creditials.email,
@@ -269,81 +339,6 @@ public async Login(
             organization_email: updatedOrganization.organization_email,
             organization_role: updatedOrganization.user.role,
             organization_isOnline: updatedOrganization.isOnline,
-          },
-        },
-      };
-    }
-
-    //To get invited Users - FIXED SECTION
-    const invitation = await prisma.user.findUnique({
-      where: {
-        email_address: creditials.email,
-      },
-    });
-
-    if (invitation && invitation.form_type === 'INVITED') {
-      const invitationOrg = await prisma.inviteUser.findFirst({
-        where: {
-          email: creditials.email
-        }
-      });
-
-      const isPasswordValid = await bcrypt.compare(
-        creditials.password,
-        invitation.password,
-      );
-
-      if (!isPasswordValid) {
-        this.setStatus(401);
-        return {
-          message: "Password is invalid",
-        };
-      }
-
-      const updateInvitedUser = await prisma.user.update({
-        where: { id: invitation.id },
-        data: {
-          isOnline: true,
-          lastActive: new Date(),
-        },
-      });
-
-      const token = jwt.sign(
-        {
-          type: "INVITED_USER",
-          id: updateInvitedUser.id,
-          full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
-          email: updateInvitedUser.email_address,
-          role: updateInvitedUser.role,
-          updateStatus: updateInvitedUser.isOnline,
-          organizationId: invitationOrg?.organizationId || null,
-        },
-        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "7d" },
-      );
-
-      if (req.res) {
-        req.res.cookie("token", token, {
-          httpOnly: true,
-          secure: true,
-          sameSite: "none",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
-      }
-
-      this.setStatus(200);
-      return {
-        data: {
-          message: "Login successful for invited user",
-          token,
-          user: {
-            type: "INVITED_USER",
-            id: updateInvitedUser.id, 
-            first_name: updateInvitedUser.first_name,
-            last_name: updateInvitedUser.last_name,
-            role: updateInvitedUser.role,
-            form_type: updateInvitedUser.form_type,
-            organizationId: invitationOrg?.organizationId || null
           },
         },
       };
