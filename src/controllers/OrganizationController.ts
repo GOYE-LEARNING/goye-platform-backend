@@ -884,9 +884,33 @@ export class OrganizationController extends Controller {
       },
     });
 
+    const token = jwt.sign(
+      {
+        id: updateUser.id,
+        settingsId: createSettings.id,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        password: body.password,
+        updateStatus: updateUser.isOnline,
+      },
+      (process.env.BEARERAUTH_SECRET as string) || "secret-key",
+      { expiresIn: "7d" },
+    );
+
+    if (req.res) {
+      req.res.cookie("token", token, {
+        httpOnly: true,
+        secure: true, // because you're on localhost
+        sameSite: "none", // must be none for cross-port cookie sharing
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
+
     this.setStatus(201);
     return {
       message: "Signup successfull",
+      token,
       user: {
         id: updateUser.id,
         first_name: updateUser.first_name,
