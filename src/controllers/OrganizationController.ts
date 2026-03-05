@@ -842,10 +842,10 @@ export class OrganizationController extends Controller {
       const hashedPassword = await bcrypt.hash(body.password, 10);
       const invitation = await prisma.inviteUser.findFirst({
         where: {
-          email: body.email_address
+          email: body.email_address,
         },
       });
-      
+
       if (invitation) {
         //To store password in token
         const user = await prisma.user.create({
@@ -939,7 +939,7 @@ export class OrganizationController extends Controller {
         };
       }
     } catch (error) {
-      this.setStatus(500)
+      this.setStatus(500);
       console.error(error);
     }
   }
@@ -1202,5 +1202,27 @@ export class OrganizationController extends Controller {
     } catch (error) {
       console.error(error);
     }
+  }
+
+  @Security("bearerAuth")
+  @Post("/logout")
+  public async Logout(@Request() req: any): Promise<any> {
+    const orgId = req.org?.id;
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: {
+        isOnline: false,
+        lastActive: new Date(),
+      },
+    });
+
+    if (req.res) {
+      req.res.clearCookie("token");
+    }
+
+    this.setStatus(200);
+    return {
+      message: "Logout successfull",
+    };
   }
 }
