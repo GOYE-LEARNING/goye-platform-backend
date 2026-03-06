@@ -1,7 +1,7 @@
 import prisma from "../db";
 
-export class GrowthServive {
-  static async AchivementMessage(data: {
+export class GrowthService {  // Fixed spelling
+  static async AchievementMessage(data: {  // Fixed spelling
     message_title: string;
     message_content: string;
     point?: number;
@@ -11,8 +11,13 @@ export class GrowthServive {
     courseId?: string;
     badge?: string
   }) {
-    //Let start with Sending message for the achievement
     try {
+      if (!data.userId) {
+        return {
+          error: "User ID is required",
+        };
+      }
+
       const achievementMessage = {
         title: data.message_title,
         content: data.message_content,
@@ -20,33 +25,28 @@ export class GrowthServive {
         badges: data.badge,
         progressMessage: data.progress_message,
       };
-      const achivement = await prisma.achievement.create({
+
+      const achievement = await prisma.achievement.create({
         data: {
           ...achievementMessage,
           badge: {
             create: {
-              badges: "CADET_BADGE",
-              userId: data.userId
+              badges:  "CADET_BADGE",
+              userId: data.userId,
             },
           },
           badges_and_levels: {
             create: {
-                level: 'LEVEL1_SEEKER',
-                userId: data.userId
+              level: 'LEVEL1_SEEKER',
+              userId: data.userId
             }
           }
         },
       });
 
-      if (!data.userId) {
-        return {
-          message: "This user is unauthorized to view message",
-        };
-      }
-
       return {
         message: "Success sending Message",
-        data: achivement,
+        data: achievement,
       };
     } catch (error) {
       return {

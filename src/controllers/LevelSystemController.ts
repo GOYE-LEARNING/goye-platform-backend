@@ -9,67 +9,77 @@ import {
   Tags,
 } from "tsoa";
 import prisma from "../db";
-import { GrowthServive } from "../services/growthService";
+import { GrowthService } from "../services/growthService";
 
 @Tags("Levels and Badges Controller")
 @Route("growth")
 export class LevelSystem extends Controller {
-  @Security("bearerAuth")
-  @Post("/start-journey")
-  public async StartJourney(@Request() req: any): Promise<any> {
-    const userId = req.user?.id;
+ @Security("bearerAuth")
+@Post("/start-journey")
+public async StartJourney(@Request() req: any): Promise<any> {
+  const userId = req.user?.id;
 
-    try {
-      if (!userId) {
-        this.setStatus(401);
-        return {
-          message: "User Not authorized.",
-        };
-      }
-
-      //Now let the user start his journey
-      const startJourney = await prisma.progress.create({
-        data: {
-          userId,
-          startedJourney: true,
-          progressBar: 0,
-        },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-            },
-          },
-        },
-      });
-
-      //Let drop a message for achiement
-      const startAchiementMessage = GrowthServive.AchivementMessage({
-        message_title: "Christian Cadet",
-        message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
-        point: 10,
-        progress_message: "",
-        userId,
-        badge: 'CADET_BADGE'
-      });
-
-      const achiementData = (await startAchiementMessage).data
-
-      this.setStatus(200);
+  try {
+    if (!userId) {
+      this.setStatus(401);
       return {
-        message: "Journey created successfully",
-        data: startJourney,
-        achivementMessage: achiementData,
-      };
-    } catch (error) {
-      this.setStatus(500);
-      return {
-        message: "An error occured while starting your journey",
-        error: error,
+        message: "User Not authorized.",
       };
     }
+
+    // Now let the user start his journey
+    const startJourney = await prisma.progress.create({
+      data: {
+        userId,
+        startedJourney: true,
+        progressBar: 0,
+      },
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    // Create achievement message
+    const achievementResult = await GrowthService.AchievementMessage({
+      message_title: "Christian Cadet",
+      message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
+      point: 10,
+      progress_message: "",
+      userId,
+      badge: 'CADET_BADGE'
+    });
+
+    // Check if achievement was created successfully
+    if (achievementResult.error) {
+      console.error("Achievement creation failed:", achievementResult.error);
+      // Still return success for journey but with achievement error
+      this.setStatus(200);
+      return {
+        message: "Journey created successfully, but achievement creation failed",
+        data: startJourney,
+        achievementError: achievementResult.error,
+      };
+    }
+
+    this.setStatus(200);
+    return {
+      message: "Journey created successfully",
+      data: startJourney,
+      achievementMessage: achievementResult.data || achievementResult,
+    };
+  } catch (error) {
+    this.setStatus(500);
+    return {
+      message: "An error occurred while starting your journey",
+      error: error instanceof Error ? error.message : error,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Get("/check-journey-status/{progressId}")
