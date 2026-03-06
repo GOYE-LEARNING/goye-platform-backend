@@ -235,24 +235,25 @@ model Course {
 }
 
 model Achievement {
-  id              String         @id @default(uuid())
-  title           String
-  content         String
-  point           Int
-  totalPoint      Int?
-  progressMessage String?
-  badge           Badges[]
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime?
-  progress        Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  progressId      String?
-  course          Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId        String?
-  group           Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  groupId         String?
-  notification    Notification[]
-  user            User?          @relation(fields: [userId], references: [id])
-  userId          String?
+  id                String                 @id @default(uuid())
+  title             String
+  content           String
+  point             Int
+  totalPoint        Int?
+  progressMessage   String?
+  badge             Badges[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime?
+  progress          Progress?              @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  progressId        String?
+  course            Course?                @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId          String?
+  group             Group?                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  groupId           String?
+  notification      Notification[]
+  badges_and_levels BadgesAndLevelEarned[]
+  user              User?                  @relation(fields: [userId], references: [id])
+  userId            String?
 }
 
 model Progress {
@@ -284,17 +285,19 @@ model VideoTracker {
 }
 
 model BadgesAndLevelEarned {
-  id        String    @id @default(uuid())
-  progress  Progress? @relation(fields: [prgressId], references: [id])
-  badges    Badges[]
-  level     Levels    @default(LEVEL1_SEEKER)
-  course    Course?   @relation(fields: [courseId], references: [id])
-  user      User?     @relation(fields: [userId], references: [id])
-  userId    String?
-  courseId  String?
-  prgressId String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime?
+  id            String       @id @default(uuid())
+  progress      Progress?    @relation(fields: [prgressId], references: [id])
+  badges        Badges[]
+  level         Levels       @default(LEVEL1_SEEKER)
+  course        Course?      @relation(fields: [courseId], references: [id])
+  user          User?        @relation(fields: [userId], references: [id])
+  userId        String?
+  courseId      String?
+  prgressId     String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime?
+  achievement   Achievement? @relation(fields: [achievementId], references: [id])
+  achievementId String?
 }
 
 model Badges {

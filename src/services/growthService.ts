@@ -26,8 +26,15 @@ export class GrowthServive {
           badge: {
             create: {
               badges: "CADET_BADGE",
+              userId: data.userId
             },
           },
+          badges_and_levels: {
+            create: {
+                level: 'LEVEL1_SEEKER',
+                userId: data.userId
+            }
+          }
         },
       });
 
