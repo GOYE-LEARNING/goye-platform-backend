@@ -45,6 +45,7 @@ model User {
   achievement      Achievement[]
   badgesAndLevel   BadgesAndLevelEarned[]
   progress         Progress[]
+  badges           Badges[]
 }
 
 enum FormType {
@@ -299,12 +300,14 @@ model BadgesAndLevelEarned {
 model Badges {
   id                     String                @id @default(uuid())
   badges                 BadgesEnum            @default(CADET_BADGE)
-  badgesAndLevelEarned   BadgesAndLevelEarned? @relation(fields: [badgesAndLevelEarnedId], references: [id])
+  badgesAndLevelEarned   BadgesAndLevelEarned? @relation(fields: [badgesAndLevelEarnedId], references: [id], onDelete: Cascade)
   badgesAndLevelEarnedId String?
   createdAt              DateTime              @default(now())
   updatedAt              DateTime?
-  achievement            Achievement?          @relation(fields: [achievementId], references: [id])
+  achievement            Achievement?          @relation(fields: [achievementId], references: [id], onDelete: Cascade)
   achievementId          String?
+  user                   User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                 String?
 }
 
 enum BadgesEnum {

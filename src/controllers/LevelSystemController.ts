@@ -33,11 +33,6 @@ export class LevelSystem extends Controller {
           userId,
           startedJourney: true,
           progressBar: 0,
-          badges_and_levels: {
-            create: {
-              level: "LEVEL1_SEEKER",
-            },
-          },
         },
         include: {
           user: {
