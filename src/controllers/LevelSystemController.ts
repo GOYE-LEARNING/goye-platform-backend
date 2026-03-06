@@ -49,13 +49,6 @@ export class LevelSystem extends Controller {
         },
       });
 
-      if (startJourney) {
-        this.setStatus(404)
-        return {
-            message: "You have joined before"
-        }
-      }
-
       //Let drop a message for achiement
       const startAchiementMessage = GrowthServive.AchivementMessage({
         message_title: "Christian Cadet",
