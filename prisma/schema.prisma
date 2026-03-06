@@ -26,7 +26,6 @@ model User {
   updatedAt        DateTime               @updatedAt
   user_pic         String?
   invited          Boolean?               @default(false)
-  progress         Int?
   completedCourses Int?
   completedLessons Int?
   completedVideo   Int?
@@ -44,6 +43,7 @@ model User {
   inviteUser       InviteUser[]
   settings         Settings[]
   badgesAndLevel   BadgesAndLevelEarned[]
+  progress         Progress[]
 }
 
 enum FormType {
@@ -153,21 +153,23 @@ enum OrgType {
 }
 
 model Notification {
-  id        String    @id @default(uuid())
-  title     String
-  message   String
-  type      String
-  role      Role
-  to        Role
-  isRead    Boolean   @default(false)
-  user      User      @relation(fields: [userId], references: [id])
-  userId    String
-  course    Course    @relation(fields: [courseId], references: [id])
-  courseId  String
-  group     Group     @relation(fields: [groupId], references: [id])
-  groupId   String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime?
+  id            String       @id @default(uuid())
+  title         String
+  message       String
+  type          String
+  role          Role
+  to            Role
+  isRead        Boolean      @default(false)
+  user          User         @relation(fields: [userId], references: [id])
+  userId        String
+  course        Course       @relation(fields: [courseId], references: [id])
+  courseId      String
+  group         Group        @relation(fields: [groupId], references: [id])
+  groupId       String
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime?
+  achievement   Achievement? @relation(fields: [achievementId], references: [id])
+  achievementId String?
 
   @@index([to, courseId])
   @@index([to, groupId])
@@ -222,9 +224,45 @@ model Course {
   organization             Organization?          @relation(fields: [organizationId], references: [id])
   organizationId           String?
   saved                    Boolean                @default(false)
+  achivement               Achievement[]
   notification             Notification[]
   videosTracked            VideoTracker[]
   badgesAndLevel           BadgesAndLevelEarned[]
+  progress                 Progress?              @relation(fields: [progressId], references: [id])
+  progressId               String?
+}
+
+model Achievement {
+  id              String         @id @default(uuid())
+  title           String
+  content         String
+  point           Int
+  totalPoint      Int?
+  progressMessage String?
+  badge           Badges[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime?
+  progress        Progress?      @relation(fields: [progressId], references: [id])
+  progressId      String?
+  course          Course?        @relation(fields: [courseId], references: [id])
+  courseId        String?
+  group           Group?         @relation(fields: [groupId], references: [id])
+  groupId         String?
+  notification    Notification[]
+}
+
+model Progress {
+  id                String                 @id @default(uuid())
+  progressBar       Int
+  startedJourney    Boolean                @default(false)
+  achivement        Achievement[]
+  badges_and_levels BadgesAndLevelEarned[]
+  videoTracker      VideoTracker[]
+  courses           Course[]
+  user              User?                  @relation(fields: [userId], references: [id])
+  userId            String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime?
 }
 
 model VideoTracker {
@@ -233,6 +271,8 @@ model VideoTracker {
   videoTrackTime String
   course         Course?   @relation(references: [id], fields: [courseId])
   lesson         Lesson?   @relation(fields: [lessonId], references: [id])
+  progress       Progress? @relation(fields: [progressId], references: [id])
+  progressId     String
   lessonId       String?
   courseId       String?
   createdAt      DateTime  @default(now())
@@ -241,17 +281,30 @@ model VideoTracker {
 
 model BadgesAndLevelEarned {
   id        String    @id @default(uuid())
-  badges    Badges    @default(CADET_BADGE)
+  progress  Progress? @relation(fields: [prgressId], references: [id])
+  badges    Badges[]
   level     Levels    @default(LEVEL1_SEEKER)
   course    Course?   @relation(fields: [courseId], references: [id])
   user      User?     @relation(fields: [userId], references: [id])
   userId    String?
   courseId  String?
+  prgressId String?
   createdAt DateTime  @default(now())
   updatedAt DateTime?
 }
 
-enum Badges {
+model Badges {
+  id                     String                @id @default(uuid())
+  badges                 BadgesEnum            @default(CADET_BADGE)
+  badgesAndLevelEarned   BadgesAndLevelEarned? @relation(fields: [badgesAndLevelEarnedId], references: [id])
+  badgesAndLevelEarnedId String?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime?
+  achievement            Achievement?          @relation(fields: [achievementId], references: [id])
+  achievementId          String?
+}
+
+enum BadgesEnum {
   CADET_BADGE
   COURSE_COMPLETION_BADGE
   CONSISTENCY_BADGE
@@ -346,6 +399,7 @@ model Group {
   createdBy               User?          @relation(fields: [userId], references: [id])
   userId                  String?
   member                  JoinedGroup[]
+  achievement             Achievement[]
   notification            Notification[]
 }
 
@@ -379,7 +433,6 @@ model Enrollment {
   id          String           @id @default(cuid()) // Changed from uuid() to cuid()
   userId      String
   courseId    String
-  progress    Int              @default(0)
   status      EnrollmentStatus @default(NOT_ENROLLED) // Fixed typo: "oncomplete" → "incomplete"
   course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)

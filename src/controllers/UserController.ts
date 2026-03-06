@@ -38,6 +38,21 @@ export class UserController extends Controller {
       data: { ...body, password: hashedPassword },
     });
 
+    //Let check if the User exist
+    if (!user) {
+      this.setStatus(401);
+      return {
+        messgae: "User already exist",
+      };
+    }
+
+    if (body.password == "") {
+      this.setStatus(400);
+      return {
+        message: "Password must be filled",
+      };
+    }
+
     //After creating Users.
     //It is necessary to automatically create settings database for the users.
     const createSettings = await prisma.settings.create({
@@ -54,21 +69,6 @@ export class UserController extends Controller {
         organizationId: null,
       },
     });
-
-    //Let check if the User exist
-    if (!user) {
-      this.setStatus(401);
-      return {
-        messgae: "User already exist",
-      };
-    }
-
-    if (body.password == "") {
-      this.setStatus(400);
-      return {
-        message: "Password must be filled",
-      };
-    }
 
     const updateUser = await prisma.user.update({
       where: { id: user.id },

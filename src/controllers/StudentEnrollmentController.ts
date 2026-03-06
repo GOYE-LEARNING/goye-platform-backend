@@ -70,7 +70,6 @@ export class StudentEnrollmentController extends Controller {
         enrolledAt: true,
         status: true,
         startedAt: true,
-        progress: true,
       },
     });
 
@@ -104,7 +103,6 @@ export class StudentEnrollmentController extends Controller {
       select: {
         id: true, // FIX 10: Include enrollment ID
         status: true,
-        progress: true,
         enrolledAt: true,
         startedAt: true,
         completedAt: true,
@@ -176,7 +174,6 @@ export class StudentEnrollmentController extends Controller {
     const courses = studentEnrollments.map((enrollment) => ({
       enrollment_id: enrollment.id,
       enrollment_status: enrollment.status,
-      progress: enrollment.progress,
       enrollment_date: enrollment.enrolledAt,
       started_at: enrollment.startedAt,
       completed_at: enrollment.completedAt,
@@ -343,7 +340,6 @@ public async GetAllStudents(@Request() req: any): Promise<any> {
         enrollment_id: enrollment.id,
         enrollment_date: enrollment.enrolledAt,
         enrollment_status: enrollment.status,
-        progress: enrollment.progress,
         started_at: enrollment.startedAt,
         completed_at: enrollment.completedAt,
         organization_id: enrollment.course.organizationId,
@@ -468,11 +464,7 @@ public async GetAllStudents(@Request() req: any): Promise<any> {
       const inProgressEnrollments = enrollments.filter(
         (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
       ).length;
-      const averageProgress =
-        enrollments.length > 0
-          ? enrollments.reduce((sum, e) => sum + e.progress, 0) /
-            enrollments.length
-          : 0;
+
 
       this.setStatus(200);
       return {
@@ -496,7 +488,6 @@ public async GetAllStudents(@Request() req: any): Promise<any> {
               totalEnrollments > 0
                 ? Math.round((completedEnrollments / totalEnrollments) * 100)
                 : 0,
-            average_progress: Math.round(averageProgress),
           },
           enrollments: enrollments.map((enrollment) => ({
             enrollment_id: enrollment.id,
@@ -505,7 +496,6 @@ public async GetAllStudents(@Request() req: any): Promise<any> {
             course_image: enrollment.course.course_image,
             course_level: enrollment.course.course_level,
             enrollment_status: enrollment.status,
-            progress: enrollment.progress,
             enrollment_date: enrollment.enrolledAt,
             started_at: enrollment.startedAt,
             completed_at: enrollment.completedAt,
