@@ -56,6 +56,7 @@ export class LevelSystem extends Controller {
         point: 10,
         progress_message: "",
         userId,
+        badge: 'CADET_BADGE'
       });
 
       const achiementData = (await startAchiementMessage).data

@@ -9,6 +9,7 @@ export class GrowthServive {
     userId: string;
     groupId?: string;
     courseId?: string;
+    badge?: string
   }) {
     //Let start with Sending message for the achievement
     try {
@@ -16,6 +17,7 @@ export class GrowthServive {
         title: data.message_title,
         content: data.message_content,
         point: data.point,
+        badges: data.badge,
         progressMessage: data.progress_message,
       };
       const achivement = await prisma.achievement.create({
