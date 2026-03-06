@@ -58,11 +58,13 @@ export class LevelSystem extends Controller {
         userId,
       });
 
+      const achiementData = (await startAchiementMessage).data
+
       this.setStatus(200);
       return {
         message: "Journey created successfully",
         data: startJourney,
-        achivementMessage: startAchiementMessage,
+        achivementMessage: achiementData,
       };
     } catch (error) {
       this.setStatus(500);

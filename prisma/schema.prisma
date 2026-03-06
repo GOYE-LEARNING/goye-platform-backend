@@ -242,11 +242,11 @@ model Achievement {
   badge           Badges[]
   createdAt       DateTime       @default(now())
   updatedAt       DateTime?
-  progress        Progress?      @relation(fields: [progressId], references: [id])
+  progress        Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId      String?
-  course          Course?        @relation(fields: [courseId], references: [id])
+  course          Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId        String?
-  group           Group?         @relation(fields: [groupId], references: [id])
+  group           Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
   groupId         String?
   notification    Notification[]
 }
