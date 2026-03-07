@@ -1,7 +1,7 @@
 import prisma from "../db";
 
-export class GrowthService {  // Fixed spelling
-  static async AchievementMessage(data: {  // Fixed spelling
+export class GrowthService {
+  static async AchievementMessage(data: {
     message_title: string;
     message_content: string;
     point?: number;
@@ -9,7 +9,7 @@ export class GrowthService {  // Fixed spelling
     userId: string;
     groupId?: string;
     courseId?: string;
-    badge?: string
+    badge?: string;
   }) {
     try {
       if (!data.userId) {
@@ -18,27 +18,79 @@ export class GrowthService {  // Fixed spelling
         };
       }
 
-      const achievementMessage = {
-        title: data.message_title,
-        content: data.message_content,
-        point: data.point,
-        badges: data.badge,
-        progressMessage: data.progress_message,
-      };
-
+      // First, create the achievement
       const achievement = await prisma.achievement.create({
         data: {
-          ...achievementMessage,
-          badge: {
-            create: {
-              badges:  "CADET_BADGE",
-              userId: data.userId,
+          title: data.message_title,
+          content: data.message_content,
+          point: data.point || 0,
+          progressMessage: data.progress_message,
+          // Connect to user if needed
+          ...(data.userId && {
+            user: {
+              connect: { id: data.userId }
+            }
+          }),
+          ...(data.courseId && {
+            course: {
+              connect: { id: data.courseId }
+            }
+          }),
+          ...(data.groupId && {
+            group: {
+              connect: { id: data.groupId }
+            }
+          })
+        },
+      });
+
+      // Then create the badge separately and connect it to the achievement
+      if (data.badge) {
+        await prisma.badges.create({
+          data: {
+            badges: 'CADET_BADGE',
+            achievement: {
+              connect: { id: achievement.id }
             },
+            user: {
+              connect: { id: data.userId }
+            }
           },
+        });
+      }
+
+      // Create badges_and_levels entry
+      await prisma.badgesAndLevelEarned.create({
+        data: {
+          level: 'LEVEL1_SEEKER',
+          user: {
+            connect: { id: data.userId }
+          },
+          achievement: {
+            connect: { id: achievement.id }
+          },
+          ...(data.courseId && {
+            course: {
+              connect: { id: data.courseId }
+            }
+          })
+        },
+      });
+
+      // Fetch the complete achievement with all relations
+      const completeAchievement = await prisma.achievement.findUnique({
+        where: { id: achievement.id },
+        include: {
+          badge: true,
           badges_and_levels: {
-            create: {
-              level: 'LEVEL1_SEEKER',
-              userId: data.userId
+            include: {
+              badges: true
+            }
+          },
+          user: {
+            select: {
+              first_name: true,
+              last_name: true
             }
           }
         },
@@ -46,9 +98,10 @@ export class GrowthService {  // Fixed spelling
 
       return {
         message: "Success sending Message",
-        data: achievement,
+        data: completeAchievement,
       };
     } catch (error) {
+      console.error("Achievement creation error:", error);
       return {
         error,
       };
