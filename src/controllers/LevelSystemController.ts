@@ -146,6 +146,7 @@ export class LevelSystem extends Controller {
       this.setStatus(200);
       return {
         message: "Fetched successfully",
+        data: achivement
       };
     } catch (error) {
       this.setStatus(500);
