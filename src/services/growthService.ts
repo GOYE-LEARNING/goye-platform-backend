@@ -26,6 +26,11 @@ export class GrowthService {
           content: data.message_content,
           point: data.point || 0,
           progressMessage: data.progress_message,
+          progress: {
+            connect: {
+                id: data.progressId
+            }
+          },
           // Connect to user if needed
           ...(data.userId && {
             user: {
