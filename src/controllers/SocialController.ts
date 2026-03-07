@@ -1141,16 +1141,16 @@ export class SocialController extends Controller {
       type: "group",
       role: Role.STUDENT,
       to: Role.STUDENT,
-      userId: isJoined.student.id,
-      groupId: isJoined.group.id,
+      userId: userId,
+      groupId: isJoined.group?.id,
     });
 
     await GrowthService.AchievementMessage({
       message_title: "Group Achivement",
       message_content: `You just joined ${isJoined.group.group_title}`,
       point: 10,
-      userId: isJoined.student.id,
-      groupId: isJoined.group.id,
+      userId: userId,
+      groupId: isJoined?.group?.id,
     });
 
     if (isJoined) {
