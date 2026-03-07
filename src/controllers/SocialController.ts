@@ -1253,7 +1253,27 @@ export class SocialController extends Controller {
           studentId: userId,
         },
       },
+
+      include: {
+        group: {
+          select: {
+            achievement: {
+              select: {
+                id: true
+              }
+            }
+          }
+        }
+      }
     });
+
+    const getId = existgroup.group.achievement.map(a => a.id as string)
+    const specificAchievement = getId[0]
+    await prisma.achievement.delete({
+      where: {
+        id: specificAchievement
+      }
+    })
 
     this.setStatus(200);
     return {
