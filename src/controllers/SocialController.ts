@@ -1177,10 +1177,18 @@ export class SocialController extends Controller {
         groupId,
         isJoined: true,
       },
+
+      include: {
+        student: {
+          select: {
+            first_name: true
+          }
+        }
+      }
     });
 
       await NotificationService.createNotification({
-      message: `Hello ${isJoined.student.first_name}, you just joined ${isJoined.group.group_title}`,
+      message: `Hello ${joined.student?.first_name}, you just joined ${isJoined.group.group_title}`,
       title: "Group Message",
       type: "group",
       role: Role.STUDENT,
