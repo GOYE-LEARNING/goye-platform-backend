@@ -162,12 +162,12 @@ model Notification {
   role          Role
   to            Role
   isRead        Boolean      @default(false)
-  user          User         @relation(fields: [userId], references: [id])
-  userId        String
-  course        Course       @relation(fields: [courseId], references: [id])
-  courseId      String
-  group         Group        @relation(fields: [groupId], references: [id])
-  groupId       String
+  user          User?         @relation(fields: [userId], references: [id])
+  userId        String?
+  course        Course?       @relation(fields: [courseId], references: [id])
+  courseId      String?
+  group         Group?      @relation(fields: [groupId], references: [id])
+  groupId       String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime?
   achievement   Achievement? @relation(fields: [achievementId], references: [id])

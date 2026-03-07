@@ -5,11 +5,10 @@ import prisma from "../db";
 export enum Role {
   ADMIN = "ADMIN",
   STUDENT = "STUDENT",
-  INSTRUCTOR = "INSTRUCTOR"
+  INSTRUCTOR = "INSTRUCTOR",
 }
 
 export class NotificationService {
-  
   /**
    * Create a single notification
    * userId is REQUIRED (matches Prisma schema)
@@ -20,7 +19,7 @@ export class NotificationService {
     type: string;
     role: Role;
     to: Role;
-    userId: string;  // REQUIRED - not optional
+    userId: string;
     courseId?: string;
     groupId?: string;
   }) {
@@ -32,9 +31,20 @@ export class NotificationService {
           type: data.type,
           role: data.role,
           to: data.to,
-          userId: data.userId,  // Required
-          courseId: data.courseId,
-          groupId: data.groupId,
+          // Use connect for relations
+          user: {
+            connect: { id: data.userId },
+          },
+          ...(data.courseId && {
+            course: {
+              connect: { id: data.courseId },
+            },
+          }),
+          ...(data.groupId && {
+            group: {
+              connect: { id: data.groupId },
+            },
+          }),
         },
       });
     } catch (error) {
@@ -42,7 +52,6 @@ export class NotificationService {
       throw error;
     }
   }
-
   /**
    * Create multiple notifications at once (BULK)
    * userId is REQUIRED for each notification
@@ -54,10 +63,10 @@ export class NotificationService {
       type: string;
       role: Role;
       to: Role;
-      userId: string;  // REQUIRED - not optional
+      userId: string; // REQUIRED - not optional
       courseId?: string;
       groupId?: string;
-    }>
+    }>,
   ) {
     if (notifications.length === 0) {
       return { count: 0 };
@@ -65,15 +74,17 @@ export class NotificationService {
 
     try {
       // Filter out any notifications without userId (just in case)
-      const validNotifications = notifications.filter(n => n.userId && n.userId.trim() !== "");
-      
+      const validNotifications = notifications.filter(
+        (n) => n.userId && n.userId.trim() !== "",
+      );
+
       if (validNotifications.length === 0) {
         console.warn("No valid notifications (all missing userId)");
         return { count: 0 };
       }
 
       // Add default title if missing
-      const notificationsWithDefaults = validNotifications.map(n => ({
+      const notificationsWithDefaults = validNotifications.map((n) => ({
         title: n.title || "Notification",
         message: n.message,
         type: n.type,
@@ -110,9 +121,9 @@ export class NotificationService {
               last_name: true,
               user_pic: true,
               role: true,
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       if (!course || !course.createdByDetails) {
@@ -122,30 +133,34 @@ export class NotificationService {
 
       // 2. Check if the creator is actually an instructor
       if (course.createdByDetails.role.toUpperCase() !== Role.INSTRUCTOR) {
-        console.log("Course creator is not an instructor, skipping notification");
+        console.log(
+          "Course creator is not an instructor, skipping notification",
+        );
         return { count: 0 };
       }
 
       // 3. Get student details
       const student = await prisma.user.findUnique({
         where: { id: studentId },
-        select: { first_name: true, last_name: true }
+        select: { first_name: true, last_name: true },
       });
 
-      const studentName = student 
+      const studentName = student
         ? `${student.first_name} ${student.last_name}`.trim()
         : "A student";
 
       // 4. Prepare notification for the course instructor
-      const notificationData = [{
-        title: "New Student Joined",
-        message: `${studentName} has joined your course "${course.course_title}"`,
-        type: "COURSE_JOIN",
-        role: Role.STUDENT,
-        to: Role.INSTRUCTOR,
-        userId: course.createdByDetails.id, // REQUIRED - sending to instructor
-        courseId: courseId,
-      }];
+      const notificationData = [
+        {
+          title: "New Student Joined",
+          message: `${studentName} has joined your course "${course.course_title}"`,
+          type: "COURSE_JOIN",
+          role: Role.STUDENT,
+          to: Role.INSTRUCTOR,
+          userId: course.createdByDetails.id, // REQUIRED - sending to instructor
+          courseId: courseId,
+        },
+      ];
 
       // 5. Create the notification
       return await this.createBulkNotifications(notificationData);
@@ -170,7 +185,7 @@ export class NotificationService {
               first_name: true,
               last_name: true,
               role: true,
-            }
+            },
           },
         },
       });
@@ -192,7 +207,7 @@ export class NotificationService {
         select: { first_name: true, last_name: true },
       });
 
-      const studentName = student 
+      const studentName = student
         ? `${student.first_name} ${student.last_name}`.trim()
         : "A student";
 
@@ -218,16 +233,16 @@ export class NotificationService {
   static async createSystemAnnouncement(
     message: string,
     title: string,
-    to: Role
+    to: Role,
   ) {
     try {
       // 1. Get all users of the target role
       const users = await prisma.user.findMany({
-        where: { 
+        where: {
           role: {
             equals: to,
-            mode: 'insensitive'
-          }
+            mode: "insensitive",
+          },
         },
         select: { id: true },
       });
@@ -379,7 +394,7 @@ export class NotificationService {
           userId: userId,
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         take: limit,
         include: {
@@ -388,19 +403,19 @@ export class NotificationService {
               first_name: true,
               last_name: true,
               user_pic: true,
-            }
+            },
           },
           course: {
             select: {
               course_title: true,
-            }
+            },
           },
           group: {
             select: {
               group_title: true,
-            }
-          }
-        }
+            },
+          },
+        },
       });
     } catch (error) {
       console.error("Error in getUserNotifications:", error);
@@ -418,7 +433,7 @@ export class NotificationService {
           to: role,
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
         take: limit,
         include: {
@@ -427,9 +442,9 @@ export class NotificationService {
               first_name: true,
               last_name: true,
               user_pic: true,
-            }
+            },
           },
-        }
+        },
       });
     } catch (error) {
       console.error("Error in getNotificationsByRole:", error);
@@ -457,7 +472,10 @@ export class NotificationService {
   /**
    * Delete multiple notifications
    */
-  static async deleteMultipleNotifications(notificationIds: string[], userId: string) {
+  static async deleteMultipleNotifications(
+    notificationIds: string[],
+    userId: string,
+  ) {
     try {
       return await prisma.notification.deleteMany({
         where: {

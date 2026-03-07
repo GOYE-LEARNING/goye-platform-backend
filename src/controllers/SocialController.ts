@@ -1100,16 +1100,12 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
     if (!userId) {
       this.setStatus(401);
-      return {
-        message: "User not authorized",
-      };
+      return { message: "User not authorized" };
     }
 
     if (!groupId) {
       this.setStatus(404);
-      return {
-        message: "Group not found",
-      };
+      return { message: "Group not found" };
     }
 
     const isJoined = await prisma.joinedGroup.findUnique({
@@ -1135,85 +1131,81 @@ export class SocialController extends Controller {
       },
     });
 
-  
+    let result;
+    let studentName;
+    let groupTitle;
 
     if (isJoined) {
       if (isJoined.isJoined) {
-        return {
-          message: "Already Joinded",
-        };
+        return { message: "Already Joined" };
       }
 
-      const joinAgain = await prisma.joinedGroup.update({
+      // Rejoining case
+      studentName = isJoined.student.first_name;
+      groupTitle = isJoined.group.group_title;
+
+      result = await prisma.joinedGroup.update({
         where: {
           groupId_studentId: {
             groupId,
             studentId: userId,
           },
         },
-
-        data: {
-          isJoined: true,
-        },
-
+        data: { isJoined: true },
         include: {
           group: {
-            select: {
-              group_title: true,
-            },
+            select: { group_title: true },
+          },
+        },
+      });
+    } else {
+      // First time joining
+      result = await prisma.joinedGroup.create({
+        data: {
+          studentId: userId,
+          groupId,
+          isJoined: true,
+        },
+        include: {
+          student: {
+            select: { first_name: true },
+          },
+          group: {
+            select: { group_title: true },
           },
         },
       });
 
-      return {
-        message: "Rejoined successfull",
-        data: joinAgain,
-      };
+      studentName = result.student?.first_name || "User";
+      groupTitle = result.group.group_title;
     }
 
-    const joined = await prisma.joinedGroup.create({
-      data: {
-        studentId: userId,
-        groupId,
-        isJoined: true,
-      },
-
-      include: {
-        student: {
-          select: {
-            first_name: true
-          }
-        },
-        group: {
-          select: {
-            group_title: true
-          }
-        }
-      }
-    });
-
-      await NotificationService.createNotification({
-      message: `Hello ${joined.student?.first_name}, you just joined ${joined.group.group_title}`,
+    // Now create notification with proper Prisma syntax
+    await NotificationService.createNotification({
+      message: `Hello ${studentName}, you just joined ${groupTitle}`,
       title: "Group Message",
       type: "group",
       role: Role.STUDENT,
       to: Role.STUDENT,
       userId: userId,
-      groupId: joined.id,
+      groupId: groupId, // Use the original groupId, not result.id
     });
 
+    // Fix achievement message to use the correct data
     await GrowthService.AchievementMessage({
-      message_title: "Group Achivement",
-      message_content: `You just joined ${isJoined.group.group_title}`,
+      message_title: "Group Achievement",
+      message_content: `You just joined ${groupTitle}`,
       point: 10,
       userId: userId,
-      groupId: joined.id,
+      groupId: groupId,
     });
 
     this.setStatus(200);
     return {
-      message: "User has Joinded successfully",
-      data: joined,
+      message: isJoined
+        ? "Rejoined successfully"
+        : "User has joined successfully",
+      data: result,
     };
   }
 
