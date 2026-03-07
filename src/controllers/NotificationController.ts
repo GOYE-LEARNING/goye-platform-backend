@@ -38,7 +38,7 @@ export class NotificationController extends Controller {
 
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role)) {
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,
@@ -116,7 +116,7 @@ export class NotificationController extends Controller {
 
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role)) {
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,
@@ -182,7 +182,7 @@ export class NotificationController extends Controller {
 
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role)) {
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,
@@ -281,7 +281,7 @@ export class NotificationController extends Controller {
 
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role)) {
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,
@@ -410,7 +410,7 @@ export class NotificationController extends Controller {
 
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role)) {
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,
@@ -501,7 +501,7 @@ export class NotificationController extends Controller {
 
       // Validate role
       const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role)) {
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,

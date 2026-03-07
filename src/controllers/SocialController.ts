@@ -1277,7 +1277,7 @@ export class SocialController extends Controller {
 
     this.setStatus(200);
     return {
-      message: "Message deleted successfully",
+      message: "This user juist left the group.",
       data: existgroup,
     };
   }
