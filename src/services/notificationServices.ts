@@ -199,7 +199,7 @@ export class NotificationService {
       // 4. Create notification for the group instructor
       return await this.createNotification({
         title: "New Group Member",
-        message: `${studentName} has joined your group "${group.group_title}"`,
+        message: `${studentName} you  joined your group "${group.group_title}"`,
         type: "GROUP_JOIN",
         role: Role.STUDENT,
         to: Role.INSTRUCTOR,

@@ -10,7 +10,7 @@ export class GrowthService {
     groupId?: string;
     courseId?: string;
     badge?: string;
-    progressId: string;
+    progressId?: string;
   }) {
     try {
       if (!data.userId) {

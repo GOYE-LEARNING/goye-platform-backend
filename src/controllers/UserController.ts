@@ -19,6 +19,7 @@ import crypto from "crypto";
 import { SendEmail } from "../utils/sendmail";
 
 import { MediaService } from "../services/mediaServices";
+import { NotificationService, Role } from "../services/notificationServices";
 type primaryRole = "member" | "student";
 type secondaryRole = "admin";
 
@@ -68,6 +69,16 @@ export class UserController extends Controller {
         userId: user.id,
         organizationId: null,
       },
+    });
+
+    //Greeting user with notifications
+      await NotificationService.createNotification({
+      message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
+      title: "Welcome New User",
+      type: "greeting",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: user.id,
     });
 
     const updateUser = await prisma.user.update({

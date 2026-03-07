@@ -15,6 +15,8 @@ import {
 import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces";
 import prisma from "../db";
 import { MediaService } from "../services/mediaServices";
+import { NotificationService, Role } from "../services/notificationServices";
+import { GrowthService } from "../services/growthService";
 
 @Route("socials")
 @Tags("Social controllers")
@@ -34,8 +36,8 @@ export class SocialController extends Controller {
       data: {
         title: body.title,
         content: body.content,
-        userId: orgId ? null : userId ?? null,        // Only use userId if no orgId
-        organizationId: orgId ?? null,                // Only use orgId if it exists
+        userId: orgId ? null : (userId ?? null), // Only use userId if no orgId
+        organizationId: orgId ?? null, // Only use orgId if it exists
         courseId,
       },
       include: {
@@ -1117,6 +1119,38 @@ export class SocialController extends Controller {
           groupId,
         },
       },
+      include: {
+        student: {
+          select: {
+            id: true,
+            first_name: true,
+          },
+        },
+        group: {
+          select: {
+            id: true,
+            group_title: true,
+          },
+        },
+      },
+    });
+
+    await NotificationService.createNotification({
+      message: `Hello ${isJoined.student.first_name}, you just joined ${isJoined.group.group_title}`,
+      title: "Group Message",
+      type: "group",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: isJoined.student.id,
+      groupId: isJoined.group.id,
+    });
+
+    await GrowthService.AchievementMessage({
+      message_title: "Group Achivement",
+      message_content: `You just joined ${isJoined.group.group_title}`,
+      point: 10,
+      userId: isJoined.student.id,
+      groupId: isJoined.group.id,
     });
 
     if (isJoined) {
