@@ -51,7 +51,8 @@ public async StartJourney(@Request() req: any): Promise<any> {
       point: 10,
       progress_message: "",
       userId,
-      badge: 'CADET_BADGE'
+      badge: 'CADET_BADGE',
+      progressId: startJourney.id
     });
 
     // Check if achievement was created successfully

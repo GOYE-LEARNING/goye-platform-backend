@@ -10,6 +10,7 @@ export class GrowthService {
     groupId?: string;
     courseId?: string;
     badge?: string;
+    progressId: string;
   }) {
     try {
       if (!data.userId) {
@@ -28,19 +29,42 @@ export class GrowthService {
           // Connect to user if needed
           ...(data.userId && {
             user: {
-              connect: { id: data.userId }
-            }
+              connect: { id: data.userId },
+            },
           }),
           ...(data.courseId && {
             course: {
-              connect: { id: data.courseId }
-            }
+              connect: { id: data.courseId },
+            },
           }),
           ...(data.groupId && {
             group: {
-              connect: { id: data.groupId }
+              connect: { id: data.groupId },
+            },
+          }),
+        },
+      });
+
+      // Create badges_and_levels entry
+      const badgesandLevels = await prisma.badgesAndLevelEarned.create({
+        data: {
+          level: "LEVEL1_SEEKER",
+          user: {
+            connect: { id: data.userId },
+          },
+          progress: {
+            connect: {
+                id: data.progressId
             }
-          })
+          },
+          achievement: {
+            connect: { id: achievement.id },
+          },
+          ...(data.courseId && {
+            course: {
+              connect: { id: data.courseId },
+            },
+          }),
         },
       });
 
@@ -48,34 +72,26 @@ export class GrowthService {
       if (data.badge) {
         await prisma.badges.create({
           data: {
-            badges: 'CADET_BADGE',
+            badges: "CADET_BADGE",
+            badgesAndLevelEarned: {
+              connect: {
+                id: badgesandLevels.id,
+              },
+            },
+            progress: {
+              connect: {
+                id: data.progressId,
+              },
+            },
             achievement: {
-              connect: { id: achievement.id }
+              connect: { id: achievement.id },
             },
             user: {
-              connect: { id: data.userId }
-            }
+              connect: { id: data.userId },
+            },
           },
         });
       }
-
-      // Create badges_and_levels entry
-      await prisma.badgesAndLevelEarned.create({
-        data: {
-          level: 'LEVEL1_SEEKER',
-          user: {
-            connect: { id: data.userId }
-          },
-          achievement: {
-            connect: { id: achievement.id }
-          },
-          ...(data.courseId && {
-            course: {
-              connect: { id: data.courseId }
-            }
-          })
-        },
-      });
 
       // Fetch the complete achievement with all relations
       const completeAchievement = await prisma.achievement.findUnique({
@@ -84,15 +100,15 @@ export class GrowthService {
           badge: true,
           badges_and_levels: {
             include: {
-              badges: true
-            }
+              badges: true,
+            },
           },
           user: {
             select: {
               first_name: true,
-              last_name: true
-            }
-          }
+              last_name: true,
+            },
+          },
         },
       });
 
