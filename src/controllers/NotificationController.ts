@@ -115,8 +115,8 @@ export class NotificationController extends Controller {
       userRole = userRole.toUpperCase();
 
       // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role) && userRole !== "INVITED") {
+      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR, "Member"];
+      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
         this.setStatus(400);
         return {
           success: false,
