@@ -1135,23 +1135,7 @@ export class SocialController extends Controller {
       },
     });
 
-    await NotificationService.createNotification({
-      message: `Hello ${isJoined.student.first_name}, you just joined ${isJoined.group.group_title}`,
-      title: "Group Message",
-      type: "group",
-      role: Role.STUDENT,
-      to: Role.STUDENT,
-      userId: userId,
-      groupId: isJoined.group?.id,
-    });
-
-    await GrowthService.AchievementMessage({
-      message_title: "Group Achivement",
-      message_content: `You just joined ${isJoined.group.group_title}`,
-      point: 10,
-      userId: userId,
-      groupId: isJoined?.group?.id,
-    });
+  
 
     if (isJoined) {
       if (isJoined.isJoined) {
@@ -1193,6 +1177,24 @@ export class SocialController extends Controller {
         groupId,
         isJoined: true,
       },
+    });
+
+      await NotificationService.createNotification({
+      message: `Hello ${isJoined.student.first_name}, you just joined ${isJoined.group.group_title}`,
+      title: "Group Message",
+      type: "group",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: userId,
+      groupId: joined.id,
+    });
+
+    await GrowthService.AchievementMessage({
+      message_title: "Group Achivement",
+      message_content: `You just joined ${isJoined.group.group_title}`,
+      point: 10,
+      userId: userId,
+      groupId: joined.id,
     });
 
     this.setStatus(200);
