@@ -34,17 +34,7 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase to match Prisma enum
-      userRole = userRole.toUpperCase();
-
-      // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid user role",
-        };
-      }
+  
 
       const notifications = await prisma.notification.findMany({
         where: {
@@ -178,17 +168,7 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase
-      userRole = userRole.toUpperCase();
-
-      // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid user role",
-        };
-      }
+  
 
       const [total, unread] = await Promise.all([
         prisma.notification.count({
@@ -277,17 +257,7 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase
-      userRole = userRole.toUpperCase();
-
-      // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid user role",
-        };
-      }
+  
 
       const result = await prisma.notification.updateMany({
         where: {
@@ -406,17 +376,7 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase
-      userRole = userRole.toUpperCase();
-
-      // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid user role",
-        };
-      }
+  
 
       const [roleUnread, userUnread] = await Promise.all([
         NotificationService.getUnreadCount(userRole as Role),
@@ -497,17 +457,7 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase
-      userRole = userRole.toUpperCase();
-
-      // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR];
-      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid user role",
-        };
-      }
+  
 
       // Get all notification IDs for this user/role
       const notifications = await prisma.notification.findMany({
