@@ -40,8 +40,10 @@ export class OrganizationController extends Controller {
 
     try {
       if (
-        body.church.church_email == body.user_email_address ||
-        body.school.school_email == body.user_email_address
+        (body.church?.church_email &&
+          body.church.church_email === body.user_email_address) ||
+        (body.school?.school_email &&
+          body.school.school_email === body.user_email_address)
       ) {
         return {
           errorType: "SAME_EMAIL_ISSUE",
@@ -49,6 +51,7 @@ export class OrganizationController extends Controller {
             "Your personal information email address should not be the same as your organization email address.",
         };
       }
+
       const createOrganization = await prisma.organization.create({
         data: {
           organization_name: body.organization_name,
