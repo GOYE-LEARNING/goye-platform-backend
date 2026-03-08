@@ -34,8 +34,7 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase to match Prisma enum
-  
-
+      userRole = userRole.toUpperCase()
       const notifications = await prisma.notification.findMany({
         where: {
           OR: [{ to: userRole }, { userId: userId }],

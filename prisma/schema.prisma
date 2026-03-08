@@ -184,6 +184,7 @@ enum Role {
   ADMIN
   STUDENT
   INSTRUCTOR
+  MEMBER
 }
 
 model Settings {
