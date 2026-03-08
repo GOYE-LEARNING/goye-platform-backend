@@ -102,18 +102,6 @@ export class NotificationController extends Controller {
 
     try {
       // Convert role to uppercase
-      userRole = userRole.toUpperCase();
-
-      // Validate role
-      const validRoles = [Role.ADMIN, Role.STUDENT, Role.INSTRUCTOR, "Member"];
-      if (!validRoles.includes(userRole as Role) && userRole !== "Member") {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid user role",
-        };
-      }
-
       const notifications = await prisma.notification.findMany({
         where: {
           OR: [{ to: userRole }, { userId: userId }],
