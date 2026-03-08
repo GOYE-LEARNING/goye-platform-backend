@@ -159,8 +159,8 @@ model Notification {
   title         String
   message       String
   type          String
-  role          Role
-  to            Role
+  role          String
+  to            String
   isRead        Boolean      @default(false)
   user          User?         @relation(fields: [userId], references: [id])
   userId        String?
@@ -178,13 +178,6 @@ model Notification {
   @@index([to, createdAt])
   @@index([to, isRead])
   @@index([userId])
-}
-
-enum Role {
-  ADMIN
-  STUDENT
-  INSTRUCTOR
-  MEMBER
 }
 
 model Settings {
