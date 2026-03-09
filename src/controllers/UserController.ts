@@ -20,6 +20,7 @@ import { SendEmail } from "../utils/sendmail";
 
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
+import { SessionService } from "../services/session.service";
 type primaryRole = "member" | "student";
 type secondaryRole = "admin";
 
@@ -107,7 +108,7 @@ export class UserController extends Controller {
       req.res.cookie("token", token, {
         httpOnly: true,
         secure: true, // because you're on localhost
-        sameSite: "none", // must be none for cross-port cookie sharing
+        sameSite: "strict", // must be none for cross-port cookie sharing
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
     }
@@ -186,7 +187,7 @@ export class UserController extends Controller {
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
-            sameSite: "none",
+            sameSite: "lax", // must be none for cross-port cookie sharing
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
@@ -1107,9 +1108,18 @@ export class UserController extends Controller {
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
-    const id = req.user?.id;
+    const userId = req.user?.id;
+    const deviceId = req.deviceId; // Now available from middleware
+
+    // Clean up session for this device
+    if (deviceId) {
+      SessionService.cleanupDevice(deviceId);
+    } else {
+      SessionService.cleanupUserSessions(userId);
+    }
+
     await prisma.user.update({
-      where: { id },
+      where: { id: userId },
       data: {
         isOnline: false,
         lastActive: new Date(),
@@ -1122,7 +1132,7 @@ export class UserController extends Controller {
 
     this.setStatus(200);
     return {
-      message: "Logout successfull",
+      message: "Logout successful",
     };
   }
 }

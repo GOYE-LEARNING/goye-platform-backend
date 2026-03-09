@@ -4,6 +4,8 @@ declare global {
     interface Request {
       user?: User | null;
       org?:Organization | null;
+      deviceId?: string;
+      deviceType?: string;
     }
   }
 }
