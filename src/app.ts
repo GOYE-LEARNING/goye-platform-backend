@@ -7,6 +7,7 @@ import bodyParser from "body-parser";
 import { join } from "path";
 import cookieParser from "cookie-parser";
 import { deviceAwareAuth } from "./middleware/tab-aware-auth";
+import { startCleanupJob } from "./services/cleanup.service";
 
 const PORT = process.env.PORT || 10000;
 const app = express();
@@ -96,6 +97,7 @@ app.use((error: any, req: Request, res: Response, next: any) => {
 });
 
 app.listen(PORT, () => {
+    startCleanupJob();
   console.log(`=== SERVER STARTED ===`);
   console.log(`Port: ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);

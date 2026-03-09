@@ -39,10 +39,10 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
     let userType: string;
 
     if (decoded.type === 'ORGANIZATION') {
-      userId = decoded.userId || decoded.id; // Support both fields
+      userId = decoded.userId || decoded.id;
       userType = 'ORGANIZATION';
     } else {
-      userId = decoded.id || decoded.userId; // Support both fields
+      userId = decoded.id || decoded.userId;
       userType = decoded.type || 'USER';
     }
 
@@ -72,13 +72,48 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
       console.log('🆔 Mobile device ID:', deviceId);
     }
 
-    // Validate session
-    const session = SessionService.validateSession(deviceId, token);
+    // Validate session - AWAIT this now
+    const session = await SessionService.validateSession(deviceId, token);
     
     if (!session) {
       console.log('🆕 No existing session, checking for conflicts...');
+      
+      // For mobile/tablet: if there are web sessions, kill them and allow mobile
+      if (deviceType === 'mobile' || deviceType === 'tablet') {
+        const activeSessions = await SessionService.getUserSessions(userId);
+        const webSessions = activeSessions.filter(s => s.deviceType === 'web');
+        
+        if (webSessions.length > 0) {
+          console.log(`📱 Mobile logging in - killing ${webSessions.length} web sessions`);
+          
+          // Kill all web sessions
+          for (const session of webSessions) {
+            await SessionService.deleteSession(session.deviceId);
+          }
+          
+          // Allow mobile to proceed
+          console.log('✅ Creating new mobile session');
+          await SessionService.createSession(
+            userId, 
+            deviceId, 
+            deviceType, 
+            token, 
+            userType,
+            userAgent,
+            req.ip || req.connection.remoteAddress
+          );
+          
+          req.user = decoded;
+          req.deviceId = deviceId;
+          req.deviceType = deviceType;
+          
+          console.log('🎉 Mobile login with web sessions killed - proceeding');
+          return next();
+        }
+      }
+      
       // Check if this user has a session on another device
-      const hasConflict = SessionService.hasActiveSessionOnOtherDevice(
+      const hasConflict = await SessionService.hasActiveSessionOnOtherDevice(
         userId, 
         deviceId, 
         deviceType
@@ -86,7 +121,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
       
       if (hasConflict) {
         // Get active sessions to provide more info
-        const activeSessions = SessionService.getUserSessions(userId);
+        const activeSessions = await SessionService.getUserSessions(userId);
         const activeDeviceTypes = activeSessions.map(s => s.deviceType).join(', ');
         console.log('⚠️ Conflict detected! Active devices:', activeDeviceTypes);
         
@@ -99,9 +134,9 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
         });
       }
 
-      // Create new session
+      // Create new session - AWAIT this
       console.log('✅ Creating new session for device:', deviceId);
-      SessionService.createSession(
+      await SessionService.createSession(
         userId, 
         deviceId, 
         deviceType, 

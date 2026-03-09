@@ -46,6 +46,28 @@ model User {
   badgesAndLevel   BadgesAndLevelEarned[]
   progress         Progress[]
   badges           Badges[]
+  userSessions     UserSession[]
+}
+
+// schema.prisma
+model UserSession {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceId   String   @unique
+  deviceType String // 'web', 'mobile', 'tablet'
+  token      String
+  userType   String
+  createdAt  DateTime @default(now())
+  lastActive DateTime @updatedAt
+  expiresAt  DateTime
+  userAgent  String?
+  ipAddress  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([deviceId])
+  @@index([expiresAt])
 }
 
 enum FormType {

@@ -210,7 +210,7 @@ export class OrganizationController extends Controller {
 
       // Clear any previous sessions for this user (prevents data leakage from other accounts)
       const { SessionService } = await import('../services/session.service');
-      SessionService.cleanupUserSessions(organization.user.id);
+      SessionService.deleteAllUserSessions(organization.user.id);
 
       // Create token with user ID and organization ID
       const token = jwt.sign(
