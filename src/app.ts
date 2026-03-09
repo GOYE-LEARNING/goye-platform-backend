@@ -4,100 +4,49 @@ import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./routes/routes";
 import bodyParser from "body-parser";
-import { existsSync, readdirSync } from "fs";
 import { join } from "path";
 import cookieParser from "cookie-parser";
+import { deviceAwareAuth } from "./middleware/tab-aware-auth";
 
 const PORT = process.env.PORT || 10000;
 const app = express();
 
-// Middleware
+// Basic middleware
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
-// Or for dynamic origins
-// CORS for web + mobile
-app.use(
-  cors({
-    origin: ["http://localhost:3000"],
-    methods: ["POST", "DELETE", "GET", "PUT", "PATCH"],
-    credentials: true, // important for cookies
-  })
-);
 app.use(bodyParser.json());
 
-// Serve Swagger documentation with debugging
-console.log("=== SWAGGER SETUP DEBUG ===");
-console.log("Current directory:", __dirname);
-console.log("Process directory:", process.cwd());
+// CORS configuration
+app.use(
+  cors({
+    origin: ["http://localhost:3000"], // Add your production domain here
+    methods: ["POST", "DELETE", "GET", "PUT", "PATCH"],
+    credentials: true,
+  })
+);
 
-const possibleSwaggerPaths = [
-  join(__dirname, "routes", "swagger.json"),
-  join(process.cwd(), "src", "routes", "swagger.json"),
-  join(process.cwd(), "dist", "routes", "swagger.json"),
-  join(process.cwd(), "routes", "swagger.json"),
+// Public routes that don't need authentication
+const publicPaths = [
+  '/api/user/login',
+  '/api/user/signup',
+  '/api/user/sendOtp',
+  '/api/user/verify-otp',
+  '/api/user/forgot-password',
+  '/health',
+  '/api/docs',
 ];
 
-let swaggerLoaded = false;
-
-for (const swaggerPath of possibleSwaggerPaths) {
-  console.log(`Checking: ${swaggerPath}`);
-  if (existsSync(swaggerPath)) {
-    console.log(`✅ FOUND swagger.json at: ${swaggerPath}`);
-    try {
-      const swaggerDocument = require(swaggerPath);
-      app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-      console.log("✅ Swagger UI mounted at /api/docs");
-      swaggerLoaded = true;
-      break;
-    } catch (error) {
-      console.log(`❌ Error loading swagger from ${swaggerPath}:`, error);
-    }
+// Apply device-aware auth middleware to all API routes EXCEPT public ones
+app.use('/api', (req, res, next) => {
+  const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
+  
+  if (isPublicPath) {
+    return next();
   }
-}
-
-if (!swaggerLoaded) {
-  console.log("❌ No swagger.json found in any location");
-
-  // List what files actually exist
-  const possibleDirs = [
-    join(__dirname, "routes"),
-    join(process.cwd(), "src", "routes"),
-    join(process.cwd(), "dist", "routes"),
-    join(process.cwd(), "routes"),
-  ];
-
-  for (const dir of possibleDirs) {
-    if (existsSync(dir)) {
-      console.log(`Files in ${dir}:`, readdirSync(dir));
-    }
-  }
-
-  // Create basic fallback Swagger
-  const basicSwagger = {
-    openapi: "3.0.0",
-    info: {
-      title: "GOYE Education Platform API",
-      version: "1.0.0",
-      description: "API documentation - Swagger JSON not generated yet",
-    },
-    paths: {
-      "/health": {
-        get: {
-          summary: "Health check",
-          responses: {
-            "200": {
-              description: "Server is healthy",
-            },
-          },
-        },
-      },
-    },
-  };
-
-  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(basicSwagger));
-  console.log("✅ Basic fallback Swagger UI mounted at /api/docs");
-}
+  
+  return deviceAwareAuth(req, res, next);
+});
 
 // Health check endpoint
 app.get("/health", (req: Request, res: Response) => {
@@ -110,7 +59,17 @@ app.get("/health", (req: Request, res: Response) => {
   });
 });
 
-// API routes
+// Swagger documentation
+try {
+  const swaggerPath = join(__dirname, "routes", "swagger.json");
+  const swaggerDocument = require(swaggerPath);
+  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  console.log("✅ Swagger UI mounted at /api/docs");
+} catch (error) {
+  console.log("❌ Failed to load swagger.json:", error);
+}
+
+// Register API routes
 try {
   RegisterRoutes(app);
   console.log("✅ Routes registered successfully");
@@ -120,7 +79,6 @@ try {
 
 // Handle 404
 app.use((req: Request, res: Response) => {
-  console.log(`404 - Route not found: ${req.method} ${req.url}`);
   res.status(404).json({
     message: "Route not found",
     path: req.url,
@@ -139,9 +97,8 @@ app.use((error: any, req: Request, res: Response, next: any) => {
 
 app.listen(PORT, () => {
   console.log(`=== SERVER STARTED ===`);
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Port: ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`Health check: http://localhost:${PORT}/health`);
-  console.log(`API Docs: http://localhost:${PORT}/api/docs`);
-  console.log(`Live URL: https://goye-platform-backend.onrender.com`);
+  console.log(`Health: http://localhost:${PORT}/health`);
+  console.log(`Docs: http://localhost:${PORT}/api/docs`);
 });

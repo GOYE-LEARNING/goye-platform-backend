@@ -1,4 +1,4 @@
-// backend/middleware/device-aware-auth.ts
+// middleware/device-aware-auth.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { SessionService } from '../services/session.service';
@@ -12,10 +12,18 @@ interface AuthenticatedRequest extends Request {
 }
 
 export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  console.log('🔐 ===== DEVICE-AWARE AUTH MIDDLEWARE RUNNING =====');
+  console.log('Path:', req.path);
+  console.log('Method:', req.method);
+  console.log('Cookies present:', !!req.cookies?.token);
+  console.log('X-Tab-ID header:', req.headers['x-tab-id']);
+  console.log('User-Agent:', req.headers['user-agent']?.substring(0, 50));
+  
   try {
     const token = req.cookies?.token;
     
     if (!token) {
+      console.log('❌ No token found - unauthorized');
       return res.status(401).json({ 
         message: 'Unauthorized - Missing token',
         code: 'MISSING_TOKEN'
@@ -24,6 +32,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
 
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET as string) as any;
+    console.log('✅ Token verified for user:', decoded.id || decoded.userId);
     
     // Get user ID based on type
     let userId: string;
@@ -40,6 +49,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
     // Detect device type and generate device ID
     const userAgent = req.headers['user-agent'] || '';
     const deviceType = detectDeviceType(userAgent);
+    console.log('📱 Device type:', deviceType);
     
     // For web: use tab ID from header, for mobile: generate stable ID
     let deviceId: string;
@@ -47,22 +57,26 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
     if (deviceType === 'web') {
       const tabId = req.headers['x-tab-id'] as string;
       if (!tabId) {
+        console.log('❌ Web access missing tab ID');
         return res.status(401).json({
           message: 'Web access requires tab ID',
           code: 'MISSING_TAB_ID'
         });
       }
       deviceId = `web_tab_${tabId}`;
+      console.log('🆔 Web device ID:', deviceId);
     } else {
       // For mobile/tablet, generate a stable device ID from user agent and IP
       const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
       deviceId = `${deviceType}_${Buffer.from(userAgent + ipAddress).toString('base64').substring(0, 30)}`;
+      console.log('🆔 Mobile device ID:', deviceId);
     }
 
     // Validate session
     const session = SessionService.validateSession(deviceId, token);
     
     if (!session) {
+      console.log('🆕 No existing session, checking for conflicts...');
       // Check if this user has a session on another device
       const hasConflict = SessionService.hasActiveSessionOnOtherDevice(
         userId, 
@@ -74,6 +88,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
         // Get active sessions to provide more info
         const activeSessions = SessionService.getUserSessions(userId);
         const activeDeviceTypes = activeSessions.map(s => s.deviceType).join(', ');
+        console.log('⚠️ Conflict detected! Active devices:', activeDeviceTypes);
         
         return res.status(409).json({
           message: deviceType === 'mobile' || deviceType === 'tablet'
@@ -85,6 +100,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
       }
 
       // Create new session
+      console.log('✅ Creating new session for device:', deviceId);
       SessionService.createSession(
         userId, 
         deviceId, 
@@ -94,6 +110,8 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
         userAgent,
         req.ip || req.connection.remoteAddress
       );
+    } else {
+      console.log('✅ Existing session validated for device:', deviceId);
     }
 
     // Attach user info and device info to request
@@ -101,22 +119,25 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
     req.deviceId = deviceId;
     req.deviceType = deviceType;
 
+    console.log('🎉 Middleware complete - proceeding to route handler');
     next();
   } catch (error) {
     if (error instanceof jwt.JsonWebTokenError) {
+      console.log('❌ Invalid token:', error.message);
       return res.status(401).json({ 
         message: 'Invalid token',
         code: 'INVALID_TOKEN'
       });
     }
     if (error instanceof jwt.TokenExpiredError) {
+      console.log('❌ Token expired');
       return res.status(401).json({ 
         message: 'Token expired',
         code: 'TOKEN_EXPIRED'
       });
     }
     
-    console.error('Auth middleware error:', error);
+    console.error('❌ Middleware error:', error);
     return res.status(500).json({ 
       message: 'Internal server error',
       code: 'SERVER_ERROR'

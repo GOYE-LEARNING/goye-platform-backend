@@ -98,6 +98,7 @@ export class UserController extends Controller {
         email: updateUser.email_address,
         role: updateUser.role,
         password: body.password,
+        type: updateUser.form_type,
         updateStatus: updateUser.isOnline,
       },
       (process.env.BEARERAUTH_SECRET as string) || "secret-key",
@@ -176,6 +177,7 @@ export class UserController extends Controller {
             full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
             email: updateInvitedUser.email_address,
             role: updateInvitedUser.role,
+
             updateStatus: updateInvitedUser.isOnline,
             organizationId: invitationOrg?.organizationId || null,
           },
