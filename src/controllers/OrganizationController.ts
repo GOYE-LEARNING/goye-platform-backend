@@ -18,7 +18,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { MediaService } from "../services/mediaServices";
 import { SendEmail } from "../utils/sendmail";
-import { SessionService } from "../services/session.service";
 enum OrgType {
   CHURCH,
   SCHOOL,
@@ -1215,15 +1214,7 @@ export class OrganizationController extends Controller {
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
-    const userId = req.user?.id;
     const orgId = req.org?.id;
-    const deviceId = req.deviceId;
-
-    // Clean up session for this specific device
-    if (deviceId) {
-      await SessionService.deleteSession(deviceId);
-      console.log('✅ Organization logged out from device:', deviceId);
-    }
 
     await prisma.organization.update({
       where: { id: orgId },

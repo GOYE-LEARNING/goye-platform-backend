@@ -1,12 +1,8 @@
-// src/index.ts
 import express, { Request, Response } from "express";
 import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./routes/routes";
-import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
-import { deviceAwareAuth } from "./middleware/tab-aware-auth";
-import { startCleanupJob } from "./services/cleanup.service";
 import { join } from "path";
 import fs from "fs";
 
@@ -17,100 +13,48 @@ const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
-app.use(bodyParser.json());
 
-// CORS configuration
+// Simple CORS
 app.use(
   cors({
-    origin: ["http://localhost:3000"],
-    methods: ["POST", "DELETE", "GET", "PUT", "PATCH"],
+    origin: process.env.NODE_ENV === 'production' 
+      ? ['https://your-frontend-domain.com'] 
+      : ['http://localhost:3000'],
     credentials: true,
   })
 );
 
-// Public routes that don't need authentication
-const publicPaths = [
-  '/api/user/login',
-  '/api/user/signup',
-  '/api/user/sendOtp',
-  '/api/user/verify-otp',
-  '/api/user/forgot-password',
-  '/health',
-  '/api/docs',
-];
-
-// Apply device-aware auth middleware
-app.use('/api', (req, res, next) => {
-  const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
-  if (isPublicPath) return next();
-  return deviceAwareAuth(req, res, next);
-});
-
-// Health check endpoint
+// Health check
 app.get("/health", (req: Request, res: Response) => {
-  res.json({
-    status: "OK",
-    message: "GOYE Education Platform API is running",
-    timestamp: new Date().toISOString(),
-    docs: "/api/docs",
-  });
+  res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// ===== SIMPLE SWAGGER SETUP =====
-// Try multiple locations so this works both in source and compiled (dist) environments
+// Swagger
 try {
-  const candidates = [
-    join(__dirname, "routes", "swagger.json"), // when running from dist or src with same structure
-    join(process.cwd(), "dist", "routes", "swagger.json"), // deployed compiled dist on hosts like Render
-    join(process.cwd(), "src", "routes", "swagger.json"), // running from source
-    join(process.cwd(), "routes", "swagger.json"), // alternative
-  ];
-
-  let foundPath: string | undefined;
-  for (const p of candidates) {
-    if (fs.existsSync(p)) {
-      foundPath = p;
-      break;
-    }
-  }
-
-  if (!foundPath) {
-    console.error('❌ swagger.json not found. Searched:', candidates.join(', '));
-  } else {
-    const raw = fs.readFileSync(foundPath, 'utf8');
-    const swaggerDocument = JSON.parse(raw);
+  const swaggerPath = join(__dirname, "routes", "swagger.json");
+  if (fs.existsSync(swaggerPath)) {
+    const swaggerDocument = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
     app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-    console.log(`✅ Swagger UI mounted at /api/docs (loaded from ${foundPath})`);
+    console.log('✅ Swagger UI mounted at /api/docs');
   }
-} catch (error: any) {
-  console.error('❌ Failed to load swagger.json:', error && error.message ? error.message : error);
+} catch (error) {
+  console.log('❌ Swagger not available');
 }
-// ===== END SWAGGER SETUP =====
 
-// Register API routes
+// Register routes
 RegisterRoutes(app);
 
-// Handle 404
+// 404 handler
 app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    message: "Route not found",
-    path: req.url,
-    method: req.method,
-  });
+  res.status(404).json({ message: "Route not found" });
 });
 
-// Error handling middleware
+// Error handler
 app.use((error: any, req: Request, res: Response, next: any) => {
   console.error("Error:", error);
-  res.status(error.status || 500).json({
-    message: error.message || "Internal Server Error",
-  });
+  res.status(500).json({ message: "Internal Server Error" });
 });
 
 app.listen(PORT, () => {
-  startCleanupJob();
-  console.log(`=== SERVER STARTED ===`);
-  console.log(`Port: ${PORT}`);
-  console.log(`Health: http://localhost:${PORT}/health`);
-  console.log(`Docs: http://localhost:${PORT}/api/docs`);
+  console.log(`✅ Server running on port ${PORT}`);
 });

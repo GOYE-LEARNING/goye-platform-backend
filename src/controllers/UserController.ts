@@ -20,7 +20,6 @@ import { SendEmail } from "../utils/sendmail";
 
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
-import { SessionService } from "../services/session.service";
 
 //User route start here
 @Route("user")
@@ -1138,14 +1137,7 @@ export class UserController extends Controller {
     }
 
     // Clean up session for this specific device
-    if (deviceId) {
-      await SessionService.deleteSession(deviceId);
-      console.log('✅ Logged out from device:', deviceId);
-    } else {
-      // Fallback: clear all sessions if no deviceId
-      await SessionService.deleteAllUserSessions(userId);
-      console.log('✅ Logged out - cleared all sessions');
-    }
+    
 
     // Update user status
     await prisma.user.update({
@@ -1178,19 +1170,4 @@ export class UserController extends Controller {
     };
   }
 
-  @Security("bearerAuth")
-  @Post("/clear-all-sessions")
-  public async ClearAllSessions(@Request() req: any): Promise<any> {
-    const userId = req.user?.id;
-    
-    await SessionService.deleteAllUserSessions(userId);
-    
-    if (req.res) {
-      req.res.clearCookie("token");
-    }
-    
-    return {
-      message: "All sessions cleared"
-    };
-  }
 }
