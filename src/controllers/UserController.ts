@@ -27,361 +27,383 @@ import { SessionService } from "../services/session.service";
 @Tags("User control APIs")
 export class UserController extends Controller {
   //signup
-@Post("/signup")
-public async CreateUser(
-  @Body() body: Omit<User, "id">,
-  @Request() req: any,
-): Promise<any> {
-  
-  // First check if user already exists
-  const existingUser = await prisma.user.findUnique({
-    where: {
-      email_address: body.email_address,
-    },
-  });
-
-  if (existingUser) {
-    this.setStatus(409); // Conflict
-    return {
-      message: "User with this email already exists",
-    };
-  }
-
-  if (body.password == "") {
-    this.setStatus(400);
-    return {
-      message: "Password must be filled",
-    };
-  }
-
-  const hashedPassword = await bcrypt.hash(body.password, 10);
-  
-  // Create user
-  const user = await prisma.user.create({
-    data: { ...body, password: hashedPassword },
-  });
-
-  //After creating Users.
-  //It is necessary to automatically create settings database for the users.
-  const createSettings = await prisma.settings.create({
-    data: {
-      enable_push_notification: true,
-      course_updates: true,
-      event: true,
-      achievement: true,
-      daily_reminders: true,
-      darkMode: false,
-      email_notification: true,
-      updatedAt: new Date(),
-      userId: user.id,
-      organizationId: null,
-    },
-  });
-
-  //Greeting user with notifications
-  await NotificationService.createNotification({
-    message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
-    title: "Welcome New User",
-    type: "greeting",
-    role: Role.STUDENT,
-    to: Role.STUDENT,
-    userId: user.id,
-  });
-
-  const updateUser = await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      isOnline: true,
-      lastActive: new Date(),
-    },
-  });
-
-  const token = jwt.sign(
-    {
-      id: updateUser.id,
-      settingsId: createSettings.id,
-      full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-      email: updateUser.email_address,
-      role: updateUser.role,
-      password: body.password,
-      type: updateUser.form_type,
-      updateStatus: updateUser.isOnline,
-    },
-    (process.env.BEARERAUTH_SECRET as string) || "secret-key",
-    { expiresIn: "7d" },
-  );
-
-  if (req.res) {
-    req.res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+  @Post("/signup")
+  public async CreateUser(
+    @Body() body: Omit<User, "id">,
+    @Request() req: any,
+  ): Promise<any> {
+    // First check if user already exists
+    const existingUser = await prisma.user.findUnique({
+      where: {
+        email_address: body.email_address,
+      },
     });
-  }
 
-  this.setStatus(201);
-  return {
-    message: "Signup successful",
-    token,
-    user: {
-      id: updateUser.id,
-      first_name: updateUser.first_name,
-      last_name: updateUser.last_name,
-      email_address: updateUser.email_address,
-    },
-  };
-}
+    if (existingUser) {
+      this.setStatus(409); // Conflict
+      return {
+        message: "User with this email already exists",
+      };
+    }
+
+    if (body.password == "") {
+      this.setStatus(400);
+      return {
+        message: "Password must be filled",
+      };
+    }
+
+    const hashedPassword = await bcrypt.hash(body.password, 10);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: { ...body, password: hashedPassword },
+    });
+
+    //After creating Users.
+    //It is necessary to automatically create settings database for the users.
+    const createSettings = await prisma.settings.create({
+      data: {
+        enable_push_notification: true,
+        course_updates: true,
+        event: true,
+        achievement: true,
+        daily_reminders: true,
+        darkMode: false,
+        email_notification: true,
+        updatedAt: new Date(),
+        userId: user.id,
+        organizationId: null,
+      },
+    });
+
+    //Greeting user with notifications
+    await NotificationService.createNotification({
+      message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
+      title: "Welcome New User",
+      type: "greeting",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: user.id,
+    });
+
+    const updateUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isOnline: true,
+        lastActive: new Date(),
+      },
+    });
+
+    const token = jwt.sign(
+      {
+        id: updateUser.id,
+        settingsId: createSettings.id,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        password: body.password,
+        type: updateUser.form_type,
+        updateStatus: updateUser.isOnline,
+      },
+      (process.env.BEARERAUTH_SECRET as string) || "secret-key",
+      { expiresIn: "7d" },
+    );
+
+    // Before setting new cookie, clear any existing ones
+    if (req.res) {
+      // Clear any existing token cookies
+      req.res.clearCookie("token", { path: "/" });
+      req.res.clearCookie("token", { path: "/", domain: req.hostname });
+
+      // Then set the new one
+      req.res.cookie("token", token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+    }
+
+    this.setStatus(201);
+    return {
+      message: "Signup successful",
+      token,
+      user: {
+        id: updateUser.id,
+        first_name: updateUser.first_name,
+        last_name: updateUser.last_name,
+        email_address: updateUser.email_address,
+      },
+    };
+  }
 
   //login
-@Post("/login")
-public async Login(
-  @Body() credentials: { email: string; password: string },
-  @Request() req: any,
-): Promise<any> {
-  const settingsId = req.org?.settingsId;
-  try {
-    //Check For invited Users
-    const invitedUser = await prisma.user.findUnique({
-      where: {
-        email_address: credentials.email,
-      },
-    });
-
-    if (invitedUser && invitedUser.form_type === "INVITED") {
-      const invitationOrg = await prisma.inviteUser.findFirst({
+  @Post("/login")
+  public async Login(
+    @Body() credentials: { email: string; password: string },
+    @Request() req: any,
+  ): Promise<any> {
+    const settingsId = req.org?.settingsId;
+    try {
+      //Check For invited Users
+      const invitedUser = await prisma.user.findUnique({
         where: {
-          email: credentials.email,
+          email_address: credentials.email,
         },
       });
 
-      const isPasswordValid = await bcrypt.compare(
-        credentials.password,
-        invitedUser.password,
-      );
-
-      if (!isPasswordValid) {
-        this.setStatus(401);
-        return {
-          message: "Password is invalid",
-        };
-      }
-
-      const updateInvitedUser = await prisma.user.update({
-        where: { id: invitedUser.id },
-        data: {
-          isOnline: true,
-          lastActive: new Date(),
-        },
-      });
-
-      // Clear any previous sessions for this user - FIXED
-      await SessionService.deleteAllUserSessions(updateInvitedUser.id);
-
-      const token = jwt.sign(
-        {
-          type: "INVITED_USER",
-          id: updateInvitedUser.id,
-          full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
-          email: updateInvitedUser.email_address,
-          role: updateInvitedUser.role,
-          updateStatus: updateInvitedUser.isOnline,
-          organizationId: invitationOrg?.organizationId || null,
-        },
-        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "7d" },
-      );
-
-      if (req.res) {
-        req.res.cookie("token", token, {
-          httpOnly: true,
-          secure: true,
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
+      if (invitedUser && invitedUser.form_type === "INVITED") {
+        const invitationOrg = await prisma.inviteUser.findFirst({
+          where: {
+            email: credentials.email,
+          },
         });
-      }
 
-      this.setStatus(200);
-      return {
-        data: {
-          message: "Login successful for invited user",
-          token,
-          user: {
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          invitedUser.password,
+        );
+
+        if (!isPasswordValid) {
+          this.setStatus(401);
+          return {
+            message: "Password is invalid",
+          };
+        }
+
+        const updateInvitedUser = await prisma.user.update({
+          where: { id: invitedUser.id },
+          data: {
+            isOnline: true,
+            lastActive: new Date(),
+          },
+        });
+
+        // Clear any previous sessions for this user - FIXED
+        await SessionService.deleteAllUserSessions(updateInvitedUser.id);
+
+        const token = jwt.sign(
+          {
             type: "INVITED_USER",
             id: updateInvitedUser.id,
-            first_name: updateInvitedUser.first_name,
-            last_name: updateInvitedUser.last_name,
+            full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
+            email: updateInvitedUser.email_address,
             role: updateInvitedUser.role,
-            form_type: updateInvitedUser.form_type,
+            updateStatus: updateInvitedUser.isOnline,
             organizationId: invitationOrg?.organizationId || null,
           },
-        },
-      };
-    }
+          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+          { expiresIn: "7d" },
+        );
 
-    // Check for regular users
-    if (invitedUser) {
-      const isPasswordValid = await bcrypt.compare(
-        credentials.password,
-        invitedUser.password,
-      );
+        // Before setting new cookie, clear any existing ones
+        if (req.res) {
+          // Clear any existing token cookies
+          req.res.clearCookie("token", { path: "/" });
+          req.res.clearCookie("token", { path: "/", domain: req.hostname });
 
-      if (!isPasswordValid) {
-        this.setStatus(401);
+          // Then set the new one
+          req.res.cookie("token", token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        this.setStatus(200);
         return {
-          message: "Password is invalid",
-        };
-      }
-
-      const updateUser = await prisma.user.update({
-        where: { id: invitedUser?.id },
-        data: {
-          isOnline: true,
-          lastActive: new Date(),
-        },
-      });
-
-      // Clear any previous sessions for this user - FIXED
-      await SessionService.deleteAllUserSessions(updateUser.id);
-
-      const organizationData = await prisma.organization.findFirst({
-        where: { userId: invitedUser.id },
-      });
-
-      const token = jwt.sign(
-        {
-          type: "USER",
-          id: updateUser.id,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          updateStatus: updateUser.isOnline,
-          organizationId: organizationData?.id || null,
-        },
-        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "7d" },
-      );
-
-      if (req.res) {
-        req.res.cookie("token", token, {
-          httpOnly: true,
-          secure: true,
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
-      }
-
-      this.setStatus(200);
-      return {
-        data: {
-          message: "Login successful",
-          token,
-          user: {
-            type: "user",
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            role: updateUser.role,
-            form_type: updateUser.form_type,
+          data: {
+            message: "Login successful for invited user",
+            token,
+            user: {
+              type: "INVITED_USER",
+              id: updateInvitedUser.id,
+              first_name: updateInvitedUser.first_name,
+              last_name: updateInvitedUser.last_name,
+              role: updateInvitedUser.role,
+              form_type: updateInvitedUser.form_type,
+              organizationId: invitationOrg?.organizationId || null,
+            },
           },
-        },
-      };
-    }
-
-    // Check for organization
-    const organization = await prisma.organization.findUnique({
-      where: {
-        organization_email: credentials.email,
-      },
-      include: {
-        user: true,
-      },
-    });
-
-    if (organization) {
-      const isPasswordValid = await bcrypt.compare(
-        credentials.password,
-        organization.organization_password,
-      );
-
-      if (!isPasswordValid) {
-        this.setStatus(401);
-        return {
-          message: "Password is invalid",
         };
       }
 
-      const updatedOrganization = await prisma.organization.update({
+      // Check for regular users
+      if (invitedUser) {
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          invitedUser.password,
+        );
+
+        if (!isPasswordValid) {
+          this.setStatus(401);
+          return {
+            message: "Password is invalid",
+          };
+        }
+
+        const updateUser = await prisma.user.update({
+          where: { id: invitedUser?.id },
+          data: {
+            isOnline: true,
+            lastActive: new Date(),
+          },
+        });
+
+        // Clear any previous sessions for this user - FIXED
+        await SessionService.deleteAllUserSessions(updateUser.id);
+
+        const organizationData = await prisma.organization.findFirst({
+          where: { userId: invitedUser.id },
+        });
+
+        const token = jwt.sign(
+          {
+            type: "USER",
+            id: updateUser.id,
+            full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+            email: updateUser.email_address,
+            role: updateUser.role,
+            updateStatus: updateUser.isOnline,
+            organizationId: organizationData?.id || null,
+          },
+          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+          { expiresIn: "7d" },
+        );
+
+        // Before setting new cookie, clear any existing ones
+        if (req.res) {
+          // Clear any existing token cookies
+          req.res.clearCookie("token", { path: "/" });
+          req.res.clearCookie("token", { path: "/", domain: req.hostname });
+
+          // Then set the new one
+          req.res.cookie("token", token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          data: {
+            message: "Login successful",
+            token,
+            user: {
+              type: "user",
+              id: updateUser.id,
+              first_name: updateUser.first_name,
+              last_name: updateUser.last_name,
+              role: updateUser.role,
+              form_type: updateUser.form_type,
+            },
+          },
+        };
+      }
+
+      // Check for organization
+      const organization = await prisma.organization.findUnique({
         where: {
           organization_email: credentials.email,
-        },
-        data: {
-          isOnline: true,
-          lastActive: new Date(),
         },
         include: {
           user: true,
         },
       });
 
-      // Clear any previous sessions for this user - FIXED
-      await SessionService.deleteAllUserSessions(updatedOrganization.user.id);
+      if (organization) {
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          organization.organization_password,
+        );
 
-      const token = jwt.sign(
-        {
-          type: "ORGANIZATION",
-          id: updatedOrganization.user.id,
-          settingsId: settingsId,
-          organizationId: updatedOrganization.id ?? null,
-          organization_name: updatedOrganization.organization_name ?? null,
-          organization_email: updatedOrganization.organization_email ?? null,
-          organization_role: updatedOrganization.user.role ?? null,
-          organization_online: updatedOrganization.isOnline ?? null,
-          userId: updatedOrganization.user.id,
-          full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
-          email: updatedOrganization.user.email_address,
-        },
-        (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-        { expiresIn: "7d" },
-      );
+        if (!isPasswordValid) {
+          this.setStatus(401);
+          return {
+            message: "Password is invalid",
+          };
+        }
 
-      if (req.res) {
-        req.res.cookie("token", token, {
-          httpOnly: true,
-          secure: true,
-          sameSite: "lax",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
+        const updatedOrganization = await prisma.organization.update({
+          where: {
+            organization_email: credentials.email,
+          },
+          data: {
+            isOnline: true,
+            lastActive: new Date(),
+          },
+          include: {
+            user: true,
+          },
         });
+
+        // Clear any previous sessions for this user - FIXED
+        await SessionService.deleteAllUserSessions(updatedOrganization.user.id);
+
+        const token = jwt.sign(
+          {
+            type: "ORGANIZATION",
+            id: updatedOrganization.user.id,
+            settingsId: settingsId,
+            organizationId: updatedOrganization.id ?? null,
+            organization_name: updatedOrganization.organization_name ?? null,
+            organization_email: updatedOrganization.organization_email ?? null,
+            organization_role: updatedOrganization.user.role ?? null,
+            organization_online: updatedOrganization.isOnline ?? null,
+            userId: updatedOrganization.user.id,
+            full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
+            email: updatedOrganization.user.email_address,
+          },
+          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+          { expiresIn: "7d" },
+        );
+        // Before setting new cookie, clear any existing ones
+        if (req.res) {
+          // Clear any existing token cookies
+          req.res.clearCookie("token", { path: "/" });
+          req.res.clearCookie("token", { path: "/", domain: req.hostname });
+
+          // Then set the new one
+          req.res.cookie("token", token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "lax",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          data: {
+            message: "Login successful",
+            token,
+            organization: {
+              type: "organization",
+              id: updatedOrganization.id,
+              organization_name: updatedOrganization.organization_name,
+              organization_email: updatedOrganization.organization_email,
+              organization_role: updatedOrganization.user.role,
+              organization_isOnline: updatedOrganization.isOnline,
+            },
+          },
+        };
       }
 
-      this.setStatus(200);
+      this.setStatus(404);
       return {
-        data: {
-          message: "Login successful",
-          token,
-          organization: {
-            type: "organization",
-            id: updatedOrganization.id,
-            organization_name: updatedOrganization.organization_name,
-            organization_email: updatedOrganization.organization_email,
-            organization_role: updatedOrganization.user.role,
-            organization_isOnline: updatedOrganization.isOnline,
-          },
-        },
+        message: "User or Login not found",
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: `An error occurred: ${error.message}`,
       };
     }
-
-    this.setStatus(404);
-    return {
-      message: "User or Login not found",
-    };
-  } catch (error: any) {
-    this.setStatus(500);
-    return {
-      message: `An error occurred: ${error.message}`,
-    };
   }
-}
 
   //create and send Otp
   @Post("/sendOtp")
@@ -1132,10 +1154,10 @@ public async Login(
 
     // Clean up session for this device
     if (deviceId) {
-    await SessionService.deleteSession(deviceId); // Changed from cleanupDevice to deleteSession
-  } else {
-    await SessionService.deleteAllUserSessions(userId); // Changed from cleanupUserSessions to deleteAllUserSessions
-  }
+      await SessionService.deleteSession(deviceId);
+    } else {
+      await SessionService.deleteAllUserSessions(userId);
+    }
 
     await prisma.user.update({
       where: { id: userId },
@@ -1145,13 +1167,50 @@ public async Login(
       },
     });
 
+    // Clear ALL cookies aggressively
     if (req.res) {
-      req.res.clearCookie("token");
+      // Clear the main token cookie
+      req.res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+      });
+
+      // Also clear any other variants
+      req.res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
+      });
+
+      // Set cache control headers to prevent caching
+      req.res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      req.res.setHeader("Pragma", "no-cache");
+      req.res.setHeader("Expires", "0");
     }
 
     this.setStatus(200);
     return {
       message: "Logout successful",
+      clearTokens: true, // Signal to frontend to clear storage
     };
   }
+
+  @Security("bearerAuth")
+@Post("/clear-all-sessions")
+public async ClearAllSessions(@Request() req: any): Promise<any> {
+  const userId = req.user?.id;
+  
+  await SessionService.deleteAllUserSessions(userId);
+  
+  if (req.res) {
+    req.res.clearCookie("token");
+  }
+  
+  return {
+    message: "All sessions cleared"
+  };
+}
 }
