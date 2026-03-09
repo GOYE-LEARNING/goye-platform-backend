@@ -4,7 +4,6 @@ import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./routes/routes";
 import bodyParser from "body-parser";
-import { join } from "path";
 import cookieParser from "cookie-parser";
 import { deviceAwareAuth } from "./middleware/tab-aware-auth";
 import { startCleanupJob } from "./services/cleanup.service";
@@ -21,7 +20,7 @@ app.use(bodyParser.json());
 // CORS configuration
 app.use(
   cors({
-    origin: ["http://localhost:3000"], // Add your production domain here
+    origin: ["http://localhost:3000"],
     methods: ["POST", "DELETE", "GET", "PUT", "PATCH"],
     credentials: true,
   })
@@ -38,14 +37,10 @@ const publicPaths = [
   '/api/docs',
 ];
 
-// Apply device-aware auth middleware to all API routes EXCEPT public ones
+// Apply device-aware auth middleware
 app.use('/api', (req, res, next) => {
   const isPublicPath = publicPaths.some(path => req.path.startsWith(path));
-  
-  if (isPublicPath) {
-    return next();
-  }
-  
+  if (isPublicPath) return next();
   return deviceAwareAuth(req, res, next);
 });
 
@@ -55,28 +50,23 @@ app.get("/health", (req: Request, res: Response) => {
     status: "OK",
     message: "GOYE Education Platform API is running",
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || "development",
     docs: "/api/docs",
   });
 });
 
-// Swagger documentation
+// ===== SIMPLE SWAGGER SETUP =====
+// Try to load swagger.json from the routes directory
 try {
-  const swaggerPath = join(__dirname, "routes", "swagger.json");
-  const swaggerDocument = require(swaggerPath);
-  app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-  console.log("✅ Swagger UI mounted at /api/docs");
+  const swaggerDocument = require('./routes/swagger.json');
+  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  console.log('✅ Swagger UI mounted at /api/docs');
 } catch (error) {
-  console.log("❌ Failed to load swagger.json:", error);
+  console.error('❌ Failed to load swagger.json:', error.message);
 }
+// ===== END SWAGGER SETUP =====
 
 // Register API routes
-try {
-  RegisterRoutes(app);
-  console.log("✅ Routes registered successfully");
-} catch (error) {
-  console.log("❌ Error registering routes:", error);
-}
+RegisterRoutes(app);
 
 // Handle 404
 app.use((req: Request, res: Response) => {
@@ -92,15 +82,13 @@ app.use((error: any, req: Request, res: Response, next: any) => {
   console.error("Error:", error);
   res.status(error.status || 500).json({
     message: error.message || "Internal Server Error",
-    ...(process.env.NODE_ENV === "development" && { stack: error.stack }),
   });
 });
 
 app.listen(PORT, () => {
-    startCleanupJob();
+  startCleanupJob();
   console.log(`=== SERVER STARTED ===`);
   console.log(`Port: ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
   console.log(`Health: http://localhost:${PORT}/health`);
   console.log(`Docs: http://localhost:${PORT}/api/docs`);
 });
