@@ -115,7 +115,7 @@ export class UserController extends Controller {
       req.res.cookie("token", token, {
         httpOnly: true,
         secure: true,
-        sameSite: "lax",
+        sameSite: "none",
         path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
@@ -198,7 +198,7 @@ export class UserController extends Controller {
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
-            sameSite: "lax",
+            sameSite: "none",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
@@ -270,7 +270,7 @@ export class UserController extends Controller {
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
-            sameSite: "lax",
+            sameSite: "none",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
@@ -354,7 +354,7 @@ export class UserController extends Controller {
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
-            sameSite: "lax",
+            sameSite: "none",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
@@ -1161,7 +1161,7 @@ export class UserController extends Controller {
       req.res.clearCookie("token", {
         httpOnly: true,
         secure: true,
-        sameSite: "lax",
+        sameSite: "none",
         path: "/",
       });
       
