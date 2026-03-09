@@ -72,7 +72,7 @@ export class UserController extends Controller {
     });
 
     //Greeting user with notifications
-      await NotificationService.createNotification({
+    await NotificationService.createNotification({
       message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
       title: "Welcome New User",
       type: "greeting",
@@ -946,20 +946,33 @@ export class UserController extends Controller {
   public async GetProfile(@Request() req: any) {
     //For normal individual
     const userId = req.user?.id;
+    const userRole = req.user?.role;
 
     if (!userId) {
       this.setStatus(401);
       return { message: "Unauthorized", status: 401 };
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-
-    //For InvitedUser
-    this.setStatus(200);
-    return {
-      message: "Profile fetched succfully",
-      user,
-    };
+    if (userRole == "instructor") {
+      const user = await prisma.user.findUnique({
+        where: { id: userId, role: userRole },
+      });
+      this.setStatus(200);
+      return {
+        message: "Profile fetched student succfully",
+        user,
+      };
+    }
+    if (userRole == "student") {
+      const user = await prisma.user.findUnique({
+        where: { id: userId, role: userRole },
+      });
+      this.setStatus(200);
+      return {
+        message: "Profile fetched student succfully",
+        user,
+      };
+    }
   }
 
   @Post("/forgot-password")

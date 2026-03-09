@@ -20,6 +20,7 @@ import {
   UpdateCourseWithRelationsDTO,
 } from "../dto/course.dto";
 import { MediaService } from "../services/mediaServices";
+import { use } from "react";
 
 @Route("course")
 @Tags("Course Control APIs")
@@ -1306,6 +1307,119 @@ export class CourseController extends Controller {
       this.setStatus(500);
       return {
         message: "Error fetching course",
+      };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/fetch-activities/{courseId}")
+  public async FetchActivites(
+    @Request() req: any,
+    @Path() courseId: string,
+  ): Promise<any> {
+    const tutorId = req.user?.id; //Id for user
+    const role = req.user?.role; //Role for user
+    const orgId = req.org?.id; //Role for Organization Id
+
+    try {
+      //For User
+      const user = await prisma.user.findUnique({
+        where: {
+          id: tutorId,
+          role,
+        },
+      });
+
+      if (user) {
+        if (
+          role !== "instructor" ||
+          role !== "Teacher" ||
+          role !== "Instructor"
+        ) {
+          this.setStatus(200);
+          return {
+            message: "This Role is invalid",
+          };
+        }
+        const course = await prisma.course.findUnique({
+          where: {
+            id: courseId,
+          },
+        });
+
+        if (!course) {
+          this.setStatus(404);
+          return {
+            message: "This course does not exist",
+          };
+        }
+
+        const getActivitiesFromNotification =
+          await prisma.notification.findMany({
+            where: {
+              courseId,
+              user: {
+                id: tutorId,
+                role,
+              },
+            },
+            take: 30,
+          });
+
+        this.setStatus(200);
+        return {
+          message: "Activities Fetched Successfully",
+          data: getActivitiesFromNotification,
+        };
+      }
+
+      //For organization
+      const org = await prisma.organization.findUnique({
+        where: {
+          id: orgId,
+        },
+      });
+      if (org) {
+        const course = await prisma.course.findUnique({
+          where: {
+            id: courseId,
+          },
+        });
+
+        if (!course) {
+          this.setStatus(404);
+          return {
+            message: "This course does not exist",
+          };
+        }
+
+        const getActivitiesFromNotification =
+          await prisma.notification.findMany({
+            where: {
+              courseId,
+              organization: {
+                form_type: "ORGANIZATION",
+              },
+            },
+            take: 30,
+          });
+
+        this.setStatus(200);
+        return {
+          message: "Activities Fetched Successfully",
+          data: getActivitiesFromNotification,
+        };
+      }
+
+      this.setStatus(400);
+      return {
+        message: "An error occured while fetching the activities.",
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "An error occured while fetching the activities",
+        error: error.message,
       };
     }
   }
