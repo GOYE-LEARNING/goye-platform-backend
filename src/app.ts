@@ -15,14 +15,27 @@ app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
 // Simple CORS
-app.use(
-  cors({
-    origin: process.env.NODE_ENV === 'production' 
-      ? ['https://your-frontend-domain.com'] 
-      : ['http://localhost:3000'],
-    credentials: true,
-  })
-);
+// CORS: allow configuring origins via ALLOWED_ORIGINS env (comma-separated)
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
+  : process.env.NODE_ENV === 'production'
+  ? ['https://your-frontend-domain.com']
+  : ['http://localhost:3000'];
+
+const corsOptions = {
+  origin: (origin: any, callback: any) => {
+    if (!origin) return callback(null, true); // allow non-browser requests like curl
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+};
+
+app.use(cors(corsOptions));
+// enable preflight for all routes
+app.options('*', cors(corsOptions));
 
 // Health check
 app.get("/health", (req: Request, res: Response) => {

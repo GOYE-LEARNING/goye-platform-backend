@@ -557,7 +557,6 @@ export class CourseController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
   @Get("/get-all-courses")
   public async GetAllCourses(): Promise<CourseResponse> {
     try {
