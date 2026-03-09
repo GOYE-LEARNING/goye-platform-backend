@@ -8,6 +8,7 @@ import cookieParser from "cookie-parser";
 import { deviceAwareAuth } from "./middleware/tab-aware-auth";
 import { startCleanupJob } from "./services/cleanup.service";
 import { join } from "path";
+import fs from "fs";
 
 const PORT = process.env.PORT || 10000;
 const app = express();
@@ -56,14 +57,33 @@ app.get("/health", (req: Request, res: Response) => {
 });
 
 // ===== SIMPLE SWAGGER SETUP =====
-// Load swagger.json with proper path resolution for compiled code
+// Try multiple locations so this works both in source and compiled (dist) environments
 try {
-  const swaggerPath = join(__dirname, './routes/swagger.json');
-  const swaggerDocument = require(swaggerPath);
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-  console.log('✅ Swagger UI mounted at /api/docs');
+  const candidates = [
+    join(__dirname, "routes", "swagger.json"), // when running from dist or src with same structure
+    join(process.cwd(), "dist", "routes", "swagger.json"), // deployed compiled dist on hosts like Render
+    join(process.cwd(), "src", "routes", "swagger.json"), // running from source
+    join(process.cwd(), "routes", "swagger.json"), // alternative
+  ];
+
+  let foundPath: string | undefined;
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      foundPath = p;
+      break;
+    }
+  }
+
+  if (!foundPath) {
+    console.error('❌ swagger.json not found. Searched:', candidates.join(', '));
+  } else {
+    const raw = fs.readFileSync(foundPath, 'utf8');
+    const swaggerDocument = JSON.parse(raw);
+    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+    console.log(`✅ Swagger UI mounted at /api/docs (loaded from ${foundPath})`);
+  }
 } catch (error: any) {
-  console.error('❌ Failed to load swagger.json:', error.message);
+  console.error('❌ Failed to load swagger.json:', error && error.message ? error.message : error);
 }
 // ===== END SWAGGER SETUP =====
 
