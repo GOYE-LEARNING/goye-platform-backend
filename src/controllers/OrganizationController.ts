@@ -18,6 +18,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { MediaService } from "../services/mediaServices";
 import { SendEmail } from "../utils/sendmail";
+import { SessionService } from "../services/session.service";
 enum OrgType {
   CHURCH,
   SCHOOL,
@@ -208,9 +209,8 @@ export class OrganizationController extends Controller {
         },
       });
 
-      // Clear any previous sessions for this user (prevents data leakage from other accounts)
-      const { SessionService } = await import('../services/session.service');
-      SessionService.deleteAllUserSessions(organization.user.id);
+      // Session management is handled by middleware based on device/tab ID
+      // No cleanup needed here - middleware will handle device conflicts
 
       // Create token with user ID and organization ID
       const token = jwt.sign(
@@ -1215,7 +1215,16 @@ export class OrganizationController extends Controller {
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
     const orgId = req.org?.id;
+    const deviceId = req.deviceId;
+
+    // Clean up session for this specific device
+    if (deviceId) {
+      await SessionService.deleteSession(deviceId);
+      console.log('✅ Organization logged out from device:', deviceId);
+    }
+
     await prisma.organization.update({
       where: { id: orgId },
       data: {
@@ -1225,12 +1234,17 @@ export class OrganizationController extends Controller {
     });
 
     if (req.res) {
-      req.res.clearCookie("token");
+      req.res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+      });
     }
 
     this.setStatus(200);
     return {
-      message: "Logout successfull",
+      message: "Logout successful",
     };
   }
 }

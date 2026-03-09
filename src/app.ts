@@ -7,6 +7,7 @@ import bodyParser from "body-parser";
 import cookieParser from "cookie-parser";
 import { deviceAwareAuth } from "./middleware/tab-aware-auth";
 import { startCleanupJob } from "./services/cleanup.service";
+import { join } from "path";
 
 const PORT = process.env.PORT || 10000;
 const app = express();
@@ -55,12 +56,13 @@ app.get("/health", (req: Request, res: Response) => {
 });
 
 // ===== SIMPLE SWAGGER SETUP =====
-// Try to load swagger.json from the routes directory
+// Load swagger.json with proper path resolution for compiled code
 try {
-  const swaggerDocument = require('./routes/swagger.json');
+  const swaggerPath = join(__dirname, './routes/swagger.json');
+  const swaggerDocument = require(swaggerPath);
   app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
   console.log('✅ Swagger UI mounted at /api/docs');
-} catch (error) {
+} catch (error: any) {
   console.error('❌ Failed to load swagger.json:', error.message);
 }
 // ===== END SWAGGER SETUP =====

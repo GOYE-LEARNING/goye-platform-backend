@@ -110,17 +110,13 @@ export class UserController extends Controller {
       { expiresIn: "7d" },
     );
 
-    // Before setting new cookie, clear any existing ones
+    // Set the token cookie
     if (req.res) {
-      // Clear any existing token cookies
-      req.res.clearCookie("token", { path: "/" });
-      req.res.clearCookie("token", { path: "/", domain: req.hostname });
-
-      // Then set the new one
       req.res.cookie("token", token, {
         httpOnly: true,
         secure: true,
         sameSite: "lax",
+        path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
     }
@@ -180,8 +176,8 @@ export class UserController extends Controller {
           },
         });
 
-        // Clear any previous sessions for this user - FIXED
-        await SessionService.deleteAllUserSessions(updateInvitedUser.id);
+        // Session management is handled by middleware based on device/tab ID
+        // No cleanup needed here - middleware will handle device conflicts
 
         const token = jwt.sign(
           {
@@ -197,17 +193,13 @@ export class UserController extends Controller {
           { expiresIn: "7d" },
         );
 
-        // Before setting new cookie, clear any existing ones
+        // Set the token cookie
         if (req.res) {
-          // Clear any existing token cookies
-          req.res.clearCookie("token", { path: "/" });
-          req.res.clearCookie("token", { path: "/", domain: req.hostname });
-
-          // Then set the new one
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
             sameSite: "lax",
+            path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
@@ -252,8 +244,8 @@ export class UserController extends Controller {
           },
         });
 
-        // Clear any previous sessions for this user - FIXED
-        await SessionService.deleteAllUserSessions(updateUser.id);
+        // Session management is handled by middleware based on device/tab ID
+        // No cleanup needed here - middleware will handle device conflicts
 
         const organizationData = await prisma.organization.findFirst({
           where: { userId: invitedUser.id },
@@ -273,17 +265,13 @@ export class UserController extends Controller {
           { expiresIn: "7d" },
         );
 
-        // Before setting new cookie, clear any existing ones
+        // Set the token cookie
         if (req.res) {
-          // Clear any existing token cookies
-          req.res.clearCookie("token", { path: "/" });
-          req.res.clearCookie("token", { path: "/", domain: req.hostname });
-
-          // Then set the new one
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
             sameSite: "lax",
+            path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
@@ -341,8 +329,8 @@ export class UserController extends Controller {
           },
         });
 
-        // Clear any previous sessions for this user - FIXED
-        await SessionService.deleteAllUserSessions(updatedOrganization.user.id);
+        // Session management is handled by middleware based on device/tab ID
+        // No cleanup needed here - middleware will handle device conflicts
 
         const token = jwt.sign(
           {
@@ -361,17 +349,13 @@ export class UserController extends Controller {
           (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
           { expiresIn: "7d" },
         );
-        // Before setting new cookie, clear any existing ones
+        // Set the token cookie
         if (req.res) {
-          // Clear any existing token cookies
-          req.res.clearCookie("token", { path: "/" });
-          req.res.clearCookie("token", { path: "/", domain: req.hostname });
-
-          // Then set the new one
           req.res.cookie("token", token, {
             httpOnly: true,
             secure: true,
             sameSite: "lax",
+            path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
@@ -1141,6 +1125,7 @@ export class UserController extends Controller {
       },
     };
   }
+
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
@@ -1152,13 +1137,17 @@ export class UserController extends Controller {
       return { message: "User not authenticated" };
     }
 
-    // Clean up session for this device
+    // Clean up session for this specific device
     if (deviceId) {
       await SessionService.deleteSession(deviceId);
+      console.log('✅ Logged out from device:', deviceId);
     } else {
+      // Fallback: clear all sessions if no deviceId
       await SessionService.deleteAllUserSessions(userId);
+      console.log('✅ Logged out - cleared all sessions');
     }
 
+    // Update user status
     await prisma.user.update({
       where: { id: userId },
       data: {
@@ -1167,24 +1156,15 @@ export class UserController extends Controller {
       },
     });
 
-    // Clear ALL cookies aggressively
+    // Clear the cookie
     if (req.res) {
-      // Clear the main token cookie
       req.res.clearCookie("token", {
         httpOnly: true,
         secure: true,
         sameSite: "lax",
         path: "/",
       });
-
-      // Also clear any other variants
-      req.res.clearCookie("token", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-      });
-
+      
       // Set cache control headers to prevent caching
       req.res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       req.res.setHeader("Pragma", "no-cache");
@@ -1194,23 +1174,23 @@ export class UserController extends Controller {
     this.setStatus(200);
     return {
       message: "Logout successful",
-      clearTokens: true, // Signal to frontend to clear storage
+      clearTokens: true,
     };
   }
 
   @Security("bearerAuth")
-@Post("/clear-all-sessions")
-public async ClearAllSessions(@Request() req: any): Promise<any> {
-  const userId = req.user?.id;
-  
-  await SessionService.deleteAllUserSessions(userId);
-  
-  if (req.res) {
-    req.res.clearCookie("token");
+  @Post("/clear-all-sessions")
+  public async ClearAllSessions(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
+    
+    await SessionService.deleteAllUserSessions(userId);
+    
+    if (req.res) {
+      req.res.clearCookie("token");
+    }
+    
+    return {
+      message: "All sessions cleared"
+    };
   }
-  
-  return {
-    message: "All sessions cleared"
-  };
-}
 }
