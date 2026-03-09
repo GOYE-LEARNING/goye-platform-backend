@@ -26,7 +26,8 @@ const corsOptions = {
   origin: (origin: any, callback: any) => {
     if (!origin) return callback(null, true); // allow non-browser requests like curl
     if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
+    console.warn(`CORS blocked origin: ${origin}`);
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
