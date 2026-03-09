@@ -32,6 +32,29 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
   try {
     const token = req.cookies?.token;
     
+    // ===== CHECK FOR EMPTY/INVALID TOKEN AND REMOVE IT =====
+    // If token exists but is empty or too short, remove it
+    if (token && token.length < 10) {
+      console.log('🗑️ Empty or invalid token detected - removing it');
+      
+      // Clear the invalid cookie
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+      });
+      
+      // Also clear with no options as fallback
+      res.clearCookie("token");
+      
+      return res.status(401).json({ 
+        message: 'Unauthorized - Invalid token removed',
+        code: 'INVALID_TOKEN_REMOVED'
+      });
+    }
+    
+    // If no token at all
     if (!token) {
       console.log('❌ No token found - unauthorized');
       return res.status(401).json({ 
@@ -39,6 +62,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
         code: 'MISSING_TOKEN'
       });
     }
+    // ===== END OF TOKEN CLEANUP =====
 
     // Verify JWT token
     const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET as string) as any;
@@ -167,18 +191,38 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
     console.log('🎉 Middleware complete - proceeding to route handler');
     next();
   } catch (error) {
+    // If there's a JWT error, also clear the invalid token
     if (error instanceof jwt.JsonWebTokenError) {
-      console.log('❌ Invalid token:', error.message);
+      console.log('❌ Invalid token error:', error.message);
+      
+      // Clear the invalid cookie
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+      });
+      
       return res.status(401).json({ 
-        message: 'Invalid token',
-        code: 'INVALID_TOKEN'
+        message: 'Invalid token - removed',
+        code: 'INVALID_TOKEN_REMOVED'
       });
     }
+    
     if (error instanceof jwt.TokenExpiredError) {
       console.log('❌ Token expired');
+      
+      // Clear expired cookie
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        path: "/",
+      });
+      
       return res.status(401).json({ 
-        message: 'Token expired',
-        code: 'TOKEN_EXPIRED'
+        message: 'Token expired - removed',
+        code: 'TOKEN_EXPIRED_REMOVED'
       });
     }
     
