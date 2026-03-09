@@ -14,46 +14,78 @@ app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
-// Simple CORS
-// CORS: allow configuring origins via ALLOWED_ORIGINS env (comma-separated)
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim())
-  : process.env.NODE_ENV === 'production'
-  ? ['https://your-frontend-domain.com']
-  : ['http://localhost:3000'];
+// CORS configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://goye-web-app.vercel.app',
+  'https://goye-web-app.onrender.com',
+  'https://goye-platform-backend.onrender.com',
+];
 
-const corsOptions = {
-  origin: (origin: any, callback: any) => {
-    if (!origin) return callback(null, true); // allow non-browser requests like curl
-    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    console.warn(`CORS blocked origin: ${origin}`);
-    return callback(null, false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
-};
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        console.log('❌ CORS blocked for origin:', origin);
+        return callback(new Error('CORS not allowed'), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
 
-app.use(cors(corsOptions));
-// enable preflight for all routes
-app.options('*', cors(corsOptions));
+app.options('*', cors());
+
+// Request logging
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.url}`);
+  next();
+});
 
 // Health check
 app.get("/health", (req: Request, res: Response) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// Swagger
+// Test endpoint
+app.get("/api/test", (req: Request, res: Response) => {
+  res.json({ message: "API is working!" });
+});
+
+// ===== SWAGGER SETUP - FIXED PATHS =====
 try {
-  const swaggerPath = join(__dirname, "routes", "swagger.json");
-  if (fs.existsSync(swaggerPath)) {
-    const swaggerDocument = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
-    app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
-    console.log('✅ Swagger UI mounted at /api/docs');
+  // Your swagger.json is at src/routes/swagger.json
+  // In production (dist folder), it will be at dist/routes/swagger.json
+  const possiblePaths = [
+    join(__dirname, "routes", "swagger.json"),           // For dist folder (production)
+    join(process.cwd(), "src", "routes", "swagger.json"), // For src folder (development)
+    join(__dirname, "../src/routes", "swagger.json"),    // Alternative path
+  ];
+  
+  let swaggerLoaded = false;
+  
+  for (const swaggerPath of possiblePaths) {
+    console.log(`🔍 Looking for swagger at: ${swaggerPath}`);
+    if (fs.existsSync(swaggerPath)) {
+      console.log(`✅ Found swagger.json at: ${swaggerPath}`);
+      const swaggerDocument = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
+      app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+      swaggerLoaded = true;
+      break;
+    }
+  }
+  
+  if (!swaggerLoaded) {
+    console.log('❌ Could not find swagger.json in any location');
   }
 } catch (error) {
-  console.log('❌ Swagger not available');
+  console.error('❌ Swagger error:', error);
 }
+// ===== END SWAGGER SETUP =====
 
 // Register routes
 RegisterRoutes(app);
@@ -71,4 +103,5 @@ app.use((error: any, req: Request, res: Response, next: any) => {
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
+  console.log(`📚 Swagger should be at: http://localhost:${PORT}/api/docs`);
 });
