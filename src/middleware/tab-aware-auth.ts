@@ -1,4 +1,3 @@
-// middleware/device-aware-auth.ts
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { SessionService } from '../services/session.service';
@@ -12,8 +11,19 @@ interface AuthenticatedRequest extends Request {
 }
 
 export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  
+  // IMMEDIATE SAFETY CHECK: Skip middleware for public routes
+  const publicPatterns = ['/login', '/signup', '/sendOtp', '/verify-otp', '/forgot-password', '/health', '/docs'];
+  const fullPath = req.originalUrl || req.url;
+  const path = req.path;
+  
+  if (publicPatterns.some(pattern => fullPath.includes(pattern) || path.includes(pattern))) {
+    console.log(`🔓 Public route detected: ${path} - passing through`);
+    return next();
+  }
+
   console.log('🔐 ===== DEVICE-AWARE AUTH MIDDLEWARE RUNNING =====');
-  console.log('Path:', req.path);
+  console.log('Path:', path);
   console.log('Method:', req.method);
   console.log('Cookies present:', !!req.cookies?.token);
   console.log('X-Tab-ID header:', req.headers['x-tab-id']);
@@ -72,7 +82,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
       console.log('🆔 Mobile device ID:', deviceId);
     }
 
-    // Validate session - AWAIT this now
+    // Validate session
     const session = await SessionService.validateSession(deviceId, token);
     
     if (!session) {
@@ -134,7 +144,7 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
         });
       }
 
-      // Create new session - AWAIT this
+      // Create new session
       console.log('✅ Creating new session for device:', deviceId);
       await SessionService.createSession(
         userId, 
