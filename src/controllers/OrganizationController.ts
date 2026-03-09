@@ -208,11 +208,16 @@ export class OrganizationController extends Controller {
         },
       });
 
+      // Clear any previous sessions for this user (prevents data leakage from other accounts)
+      const { SessionService } = await import('../services/session.service');
+      SessionService.cleanupUserSessions(organization.user.id);
+
       // Create token with user ID and organization ID
       const token = jwt.sign(
         {
           type: "ORGANIZATION",
           id: organization.user.id, // The user's ID associated with this organization
+          userId: organization.user.id, // Also include as userId for middleware compatibility
           organizationId: updateOrg.id, // The organization ID
           org_name: organization.organization_name,
           org_email: organization.organization_email,

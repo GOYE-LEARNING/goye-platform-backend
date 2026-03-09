@@ -39,10 +39,10 @@ export const deviceAwareAuth = async (req: AuthenticatedRequest, res: Response, 
     let userType: string;
 
     if (decoded.type === 'ORGANIZATION') {
-      userId = decoded.userId;
+      userId = decoded.userId || decoded.id; // Support both fields
       userType = 'ORGANIZATION';
     } else {
-      userId = decoded.id;
+      userId = decoded.id || decoded.userId; // Support both fields
       userType = decoded.type || 'USER';
     }
 

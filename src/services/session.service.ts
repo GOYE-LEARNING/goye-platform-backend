@@ -146,6 +146,16 @@ export class SessionService {
       .filter((session): session is DeviceSession => session !== undefined);
   }
 
+  static cleanupUserSessions(userId: string): void {
+    const userDeviceSet = this.userSessions.get(userId);
+    if (userDeviceSet) {
+      for (const deviceId of userDeviceSet) {
+        this.sessions.delete(deviceId);
+      }
+      this.userSessions.delete(userId);
+    }
+  }
+
   static cleanupDevice(deviceId: string): void {
     const session = this.sessions.get(deviceId);
     if (session) {
@@ -160,13 +170,5 @@ export class SessionService {
     }
   }
 
-  static cleanupUserSessions(userId: string): void {
-    const userDeviceSet = this.userSessions.get(userId);
-    if (userDeviceSet) {
-      for (const deviceId of userDeviceSet) {
-        this.sessions.delete(deviceId);
-      }
-      this.userSessions.delete(userId);
-    }
-  }
+
 }

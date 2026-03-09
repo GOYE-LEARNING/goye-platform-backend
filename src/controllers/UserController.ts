@@ -170,6 +170,10 @@ export class UserController extends Controller {
           },
         });
 
+        // Clear any previous sessions for this user (prevents data leakage)
+        const { SessionService } = await import('../services/session.service');
+        SessionService.cleanupUserSessions(updateInvitedUser.id);
+
         const token = jwt.sign(
           {
             type: "INVITED_USER",
@@ -233,6 +237,10 @@ export class UserController extends Controller {
             lastActive: new Date(),
           },
         });
+
+        // Clear any previous sessions for this user (prevents data leakage)
+        const { SessionService } = await import('../services/session.service');
+        SessionService.cleanupUserSessions(updateUser.id);
 
         const organizationData = await prisma.organization.findFirst({
           where: { userId: invitedUser.id },
@@ -313,6 +321,10 @@ export class UserController extends Controller {
             user: true,
           },
         });
+
+        // Clear any previous sessions for this user (prevents data leakage)
+        const { SessionService } = await import('../services/session.service');
+        SessionService.cleanupUserSessions(updatedOrganization.user.id);
 
         const token = jwt.sign(
           {
