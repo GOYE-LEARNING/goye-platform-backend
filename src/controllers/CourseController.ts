@@ -20,7 +20,13 @@ import {
   UpdateCourseWithRelationsDTO,
 } from "../dto/course.dto";
 import { MediaService } from "../services/mediaServices";
-import { use } from "react";
+//To determine levels
+const levels: Record<string, string> = {
+  beginner: "BEGINNER",
+  Beginner: 'BEGINNER',
+  intermediate: 'INTERMEDIATE',
+  Intermediate: 'INTERMEDIATE'
+};
 
 @Route("course")
 @Tags("Course Control APIs")
@@ -48,7 +54,7 @@ export class CourseController extends Controller {
           course_title: body.course_title,
           course_short_description: body.course_short_description,
           course_description: body.course_description,
-          course_level: body.course_level,
+          course_level: levels[body.course_level],
           course_image: body.course_image,
 
           // Handle modules with lessons
@@ -204,7 +210,7 @@ export class CourseController extends Controller {
           ...(body.course_description && {
             course_description: body.course_description,
           }),
-          ...(body.course_level && { course_level: body.course_level }),
+          ...(body.course_level && { course_level: levels[body.course_level] }),
           ...(body.course_image && { course_image: body.course_image }),
         },
       });
@@ -598,6 +604,88 @@ export class CourseController extends Controller {
     }
   }
 
+  @Security("bearerAuth")
+  @Get("/get-all-courses-level")
+  public async GetAllCoursesByLevel(
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const userLevel = req.user?.level;
+    try {
+      if (userLevel == "beginner" || userLevel == "Beginner") {
+        const getAllCourses = await prisma.course.findMany({
+          where: {
+            course_level: levels[userLevel]
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+
+          include: {
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
+                },
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        this.setStatus(200);
+        return {
+          message: "Courses fetched successfully",
+          data: {
+            getAllCourses,
+          },
+        };
+      } else if (userLevel == "intermediate" || userLevel == 'Intermediate') {
+        const getAllCourses = await prisma.course.findMany({
+          where: {
+            course_level: levels[userLevel]
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+
+          include: {
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
+                },
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+        this.setStatus(200);
+        return {
+          message: "Courses fetched successfully",
+          data: {
+            getAllCourses,
+          },
+        };
+      }
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        message: "Error fetching courses: " + error.message,
+        data: null,
+      };
+    }
+  }
   @Security("bearerAuth")
   @Get("/get-courses-by-tutor")
   public async GetUserCourse(@Request() req: any) {

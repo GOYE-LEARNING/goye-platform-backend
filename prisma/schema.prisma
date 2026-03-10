@@ -254,6 +254,8 @@ model Course {
   progressId               String?
 }
 
+
+
 model Achievement {
   id                String                 @id @default(uuid())
   title             String
