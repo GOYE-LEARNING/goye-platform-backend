@@ -22,10 +22,10 @@ import {
 import { MediaService } from "../services/mediaServices";
 //To determine levels
 const levels: Record<string, string> = {
-  beginner: "BEGINNER",
-  Beginner: 'BEGINNER',
-  intermediate: 'INTERMEDIATE',
-  Intermediate: 'INTERMEDIATE'
+  beginner: "Beginner",
+  Beginner: "Beginner",
+  intermediate: "Intermediate",
+  Intermediate: "Intermediate",
 };
 
 @Route("course")
@@ -614,7 +614,7 @@ export class CourseController extends Controller {
       if (userLevel == "beginner" || userLevel == "Beginner") {
         const getAllCourses = await prisma.course.findMany({
           where: {
-            course_level: levels[userLevel]
+            course_level: levels[userLevel],
           },
           orderBy: {
             createdAt: "desc",
@@ -644,10 +644,10 @@ export class CourseController extends Controller {
             getAllCourses,
           },
         };
-      } else if (userLevel == "intermediate" || userLevel == 'Intermediate') {
+      } else if (userLevel == "intermediate" || userLevel == "Intermediate") {
         const getAllCourses = await prisma.course.findMany({
           where: {
-            course_level: levels[userLevel]
+            course_level: levels[userLevel],
           },
           orderBy: {
             createdAt: "desc",
