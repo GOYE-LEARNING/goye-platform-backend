@@ -24,23 +24,24 @@ const allowedOrigins = [
 
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        console.log('❌ CORS blocked for origin:', origin);
-        return callback(new Error('CORS not allowed'), false);
+    origin: (origin, callback) => {
+      // Your logic remains the same
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
       }
-      return callback(null, true);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: [
+    // Setting allowedHeaders to true allows all headers sent by the client
+  allowedHeaders: [
       'Content-Type',
       'Authorization',
       'Accept',
       'Origin',
       'X-Requested-With',
       'Cache-Control',
+      'Pragma' // Now safely included as a string
     ],
   })
 );
