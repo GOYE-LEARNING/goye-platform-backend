@@ -539,7 +539,7 @@ export class StudentEnrollmentController extends Controller {
 
   @Security("bearerAuth")
   @Get("/check-if-enrolled/{courseId}")
-  public async FetchCheckIfStudentEnrolled(req: any, @Path() courseId: string): Promise<any> {
+  public async FetchCheckIfStudentEnrolled(@Request() req: any, @Path() courseId: string): Promise<any> {
     const userId = req.user?.id
     try {
       if (!userId) {
