@@ -537,57 +537,51 @@ export class StudentEnrollmentController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/check-if-enrolled/{courseId}")
-  public async FetchCheckIfStudentEnrolled(@Request() req: any, @Path() courseId: string): Promise<any> {
-    const userId = req.user?.id
-    try {
-      if (!userId) {
-        this.setStatus(401)
-        return {
-          message: "This user is unauthorized"
-        }
-      }
-
-      const course = await prisma.course.findUnique({
-        where: {
-          id: courseId
-        }
-      })
-
-      if (!course) {
-        this.setStatus(404)
-        return {
-          message: "This course cannot be found"
-        }
-      }
-
-      const findCourseEnrolledCourse = await prisma.course.findUnique({
-        where: {
-          id: course.id,
-          enrollment: {
-            some: {
-              userId
-            }
-          }
-        },
-         include: {
-          enrollment: {
-            select: {
-              status: true
-            }
-          }
-         }
-      })
-
-      this.setStatus(200)
+@Security("bearerAuth")
+@Get("/check-if-enrolled/{courseId}")
+public async FetchCheckIfStudentEnrolled(@Request() req: any, @Path() courseId: string): Promise<any> {
+  const userId = req.user?.id;
+  
+  try {
+    if (!userId) {
+      this.setStatus(401);
       return {
-        message: 'Fetched Successfully',
-        data: findCourseEnrolledCourse
-      }
-    } catch (error) {
-      this.setStatus(500)
-      console.error(error)
+        message: "This user is unauthorized"
+      };
     }
+
+    const courseExists = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true }
+    });
+
+    if (!courseExists) {
+      this.setStatus(404);
+      return {
+        message: "This course cannot be found"
+      };
+    }
+
+    // Return just a boolean
+    const enrollmentCount = await prisma.enrollment.count({
+      where: {
+        courseId: courseId,
+        userId: userId
+      }
+    });
+
+    this.setStatus(200);
+    return {
+      message: 'Fetched Successfully',
+      data: enrollmentCount > 0 // This returns true/false
+    };
+    
+  } catch (error) {
+    console.error(error);
+    this.setStatus(500);
+    return {
+      message: "An error occurred while checking enrollment status"
+    };
   }
+}
 }
