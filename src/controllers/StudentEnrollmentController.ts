@@ -536,4 +536,58 @@ export class StudentEnrollmentController extends Controller {
       };
     }
   }
+
+  @Security("bearerAuth")
+  @Get("/check-if-enrolled/{courseId}")
+  public async FetchCheckIfStudentEnrolled(req: any, @Path() courseId: string): Promise<any> {
+    const userId = req.user?.id
+    try {
+      if (!userId) {
+        this.setStatus(401)
+        return {
+          message: "This user is unauthorized"
+        }
+      }
+
+      const course = await prisma.course.findUnique({
+        where: {
+          id: courseId
+        }
+      })
+
+      if (!course) {
+        this.setStatus(404)
+        return {
+          message: "This course cannot be found"
+        }
+      }
+
+      const findCourseEnrolledCourse = await prisma.course.findUnique({
+        where: {
+          id: course.id,
+          enrollment: {
+            some: {
+              userId
+            }
+          }
+        },
+         include: {
+          enrollment: {
+            select: {
+              status: true
+            }
+          }
+         }
+      })
+
+      this.setStatus(200)
+      return {
+        message: 'Fetched Successfully',
+        data: findCourseEnrolledCourse
+      }
+    } catch (error) {
+      this.setStatus(500)
+      console.error(error)
+    }
+  }
 }
