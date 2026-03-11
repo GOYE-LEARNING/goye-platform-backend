@@ -902,149 +902,56 @@ export class CourseController extends Controller {
     }
   }
 
-  @Post("/upload-lesson-video/{courseId}/{moduleId}")
-  @Security("bearerAuth")
-  public async UploadLessonVideo(
-    @Path() courseId: string,
-    @Path() moduleId: string,
-    @UploadedFile() file: Express.Multer.File,
-    @FormField() lessonId?: string, // Add this
-    @FormField() lessonTitle?: string, // Add this
-  ): Promise<any> {
-    try {
-      const module = await prisma.module.findFirst({
-        where: {
-          id: moduleId,
-          courseId: courseId,
-        },
-      });
+@Post("/upload-lesson-video/{courseId}/{moduleId}")
+@Security("bearerAuth")
+public async UploadLessonVideo(
+  @Path() courseId: string,
+  @Path() moduleId: string,
+  @UploadedFile() file: Express.Multer.File,
+): Promise<any> {
+  try {
+    const module = await prisma.module.findFirst({
+      where: {
+        id: moduleId,
+        courseId: courseId,
+      },
+    });
 
-      if (!module) {
-        this.setStatus(404);
-        return { message: "Module not found in this course" };
-      }
-
-      const { url, error } = await MediaService.uploadLessonVideo(
-        courseId,
-        moduleId,
-        file.buffer,
-        file.originalname,
-      );
-
-      if (error) {
-        this.setStatus(500);
-        return { message: "Upload failed", error };
-      }
-
-      let lesson;
-
-      if (lessonId) {
-        // UPDATE existing lesson
-        lesson = await prisma.lesson.update({
-          where: { id: lessonId },
-          data: {
-            lesson_video: url,
-            // Only update title if provided
-            ...(lessonTitle && { lesson_title: lessonTitle }),
-          },
-          include: {
-            module: {
-              select: {
-                id: true,
-                module_title: true,
-                course: {
-                  select: {
-                    id: true,
-                    course_title: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-      } else {
-        // For backward compatibility - get the next available lesson without video
-        // or create a new one
-        const lessonWithoutVideo = await prisma.lesson.findFirst({
-          where: {
-            moduleId: moduleId,
-            lesson_video: "",
-          },
-          orderBy: {
-            order: "asc",
-          },
-        });
-
-        if (lessonWithoutVideo) {
-          // Update the empty lesson
-          lesson = await prisma.lesson.update({
-            where: { id: lessonWithoutVideo.id },
-            data: {
-              lesson_video: url,
-              ...(lessonTitle && { lesson_title: lessonTitle }),
-            },
-            include: {
-              module: {
-                select: {
-                  id: true,
-                  module_title: true,
-                  course: {
-                    select: {
-                      id: true,
-                      course_title: true,
-                    },
-                  },
-                },
-              },
-            },
-          });
-        } else {
-          // Create new lesson
-          const lastLesson = await prisma.lesson.findFirst({
-            where: { moduleId: moduleId },
-            orderBy: { order: "desc" },
-            select: { order: true },
-          });
-
-          lesson = await prisma.lesson.create({
-            data: {
-              lesson_video: url,
-              lesson_title: lessonTitle || "Untitled Lesson",
-              moduleId: moduleId,
-              order: (lastLesson?.order || 0) + 1,
-              duration: 0,
-            },
-            include: {
-              module: {
-                select: {
-                  id: true,
-                  module_title: true,
-                  course: {
-                    select: {
-                      id: true,
-                      course_title: true,
-                    },
-                  },
-                },
-              },
-            },
-          });
-        }
-      }
-
-      this.setStatus(200);
-      return {
-        message: "Lesson video uploaded successfully",
-        data: lesson,
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: "Failed to upload lesson video",
-        error: error.message,
-      };
+    if (!module) {
+      this.setStatus(404);
+      return { message: "Module not found in this course" };
     }
+
+    const { url, error } = await MediaService.uploadLessonVideo(
+      courseId,
+      moduleId,
+      file.buffer,
+      file.originalname,
+    );
+
+    if (error) {
+      this.setStatus(500);
+      return { message: "Upload failed", error };
+    }
+
+    // Just return the URL, don't create a lesson
+    this.setStatus(200);
+    return {
+      message: "Lesson video uploaded successfully",
+      data: {
+        url: url,
+        moduleId: moduleId,
+        courseId: courseId,
+      },
+    };
+  } catch (error: any) {
+    this.setStatus(500);
+    return {
+      message: "Failed to upload lesson video",
+      error: error.message,
+    };
   }
+}
 
   @Post("/upload-course-material/{courseId}/{materialId}")
   @Security("bearerAuth")
