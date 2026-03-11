@@ -908,8 +908,8 @@ export class CourseController extends Controller {
     @Path() courseId: string,
     @Path() moduleId: string,
     @UploadedFile() file: Express.Multer.File,
-    @FormField() fileName?: string,
-    @FormField() mimeType?: string,
+    @FormField() lessonId?: string, // Add this
+    @FormField() lessonTitle?: string, // Add this
   ): Promise<any> {
     try {
       const module = await prisma.module.findFirst({
@@ -936,31 +936,106 @@ export class CourseController extends Controller {
         return { message: "Upload failed", error };
       }
 
-      const newLesson = await prisma.lesson.create({
-        data: {
-          lesson_video: url,
-          moduleId: moduleId,
-        },
-        include: {
-          module: {
-            select: {
-              id: true,
-              module_title: true,
-              course: {
-                select: {
-                  id: true,
-                  course_title: true,
+      let lesson;
+
+      if (lessonId) {
+        // UPDATE existing lesson
+        lesson = await prisma.lesson.update({
+          where: { id: lessonId },
+          data: {
+            lesson_video: url,
+            // Only update title if provided
+            ...(lessonTitle && { lesson_title: lessonTitle }),
+          },
+          include: {
+            module: {
+              select: {
+                id: true,
+                module_title: true,
+                course: {
+                  select: {
+                    id: true,
+                    course_title: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
+        });
+      } else {
+        // For backward compatibility - get the next available lesson without video
+        // or create a new one
+        const lessonWithoutVideo = await prisma.lesson.findFirst({
+          where: {
+            moduleId: moduleId,
+            lesson_video: "",
+          },
+          orderBy: {
+            order: "asc",
+          },
+        });
 
-      this.setStatus(201);
+        if (lessonWithoutVideo) {
+          // Update the empty lesson
+          lesson = await prisma.lesson.update({
+            where: { id: lessonWithoutVideo.id },
+            data: {
+              lesson_video: url,
+              ...(lessonTitle && { lesson_title: lessonTitle }),
+            },
+            include: {
+              module: {
+                select: {
+                  id: true,
+                  module_title: true,
+                  course: {
+                    select: {
+                      id: true,
+                      course_title: true,
+                    },
+                  },
+                },
+              },
+            },
+          });
+        } else {
+          // Create new lesson
+          const lastLesson = await prisma.lesson.findFirst({
+            where: { moduleId: moduleId },
+            orderBy: { order: "desc" },
+            select: { order: true },
+          });
+
+          lesson = await prisma.lesson.create({
+            data: {
+              lesson_video: url,
+              lesson_title: lessonTitle || "Untitled Lesson",
+              moduleId: moduleId,
+              order: (lastLesson?.order || 0) + 1,
+              duration: 0,
+            },
+            include: {
+              module: {
+                select: {
+                  id: true,
+                  module_title: true,
+                  course: {
+                    select: {
+                      id: true,
+                      course_title: true,
+                    },
+                  },
+                },
+              },
+            },
+          });
+        }
+      }
+
+      this.setStatus(200);
       return {
         message: "Lesson video uploaded successfully",
-        data: newLesson,
+        data: lesson,
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -1412,14 +1487,12 @@ export class CourseController extends Controller {
       //For User
       const user = await prisma.user.findUnique({
         where: {
-          id: tutorId,  
+          id: tutorId,
           role,
         },
       });
 
-      if (
-        role !== "instructor"
-      ) {
+      if (role !== "instructor") {
         this.setStatus(401);
         return {
           message: "This Role is invalid",
