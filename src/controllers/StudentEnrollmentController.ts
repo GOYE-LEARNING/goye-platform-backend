@@ -537,51 +537,53 @@ export class StudentEnrollmentController extends Controller {
     }
   }
 
-@Security("bearerAuth")
-@Get("/check-if-enrolled/{courseId}")
-public async FetchCheckIfStudentEnrolled(@Request() req: any, @Path() courseId: string): Promise<any> {
-  const userId = req.user?.id;
-  
-  try {
-    if (!userId) {
-      this.setStatus(401);
-      return {
-        message: "This user is unauthorized"
-      };
-    }
+  @Security("bearerAuth")
+  @Get("/check-if-enrolled/{courseId}")
+  public async FetchCheckIfStudentEnrolled(
+    @Request() req: any,
+    @Path() courseId: string,
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-    const courseExists = await prisma.course.findUnique({
-      where: { id: courseId },
-      select: { id: true }
-    });
-
-    if (!courseExists) {
-      this.setStatus(404);
-      return {
-        message: "This course cannot be found"
-      };
-    }
-
-    // Return just a boolean
-    const enrollmentCount = await prisma.enrollment.count({
-      where: {
-        courseId: courseId,
-        userId: userId
+    try {
+      if (!userId) {
+        this.setStatus(401);
+        return {
+          message: "This user is unauthorized",
+        };
       }
-    });
 
-    this.setStatus(200);
-    return {
-      message: 'Fetched Successfully',
-      data: enrollmentCount > 0 // This returns true/false
-    };
-    
-  } catch (error) {
-    console.error(error);
-    this.setStatus(500);
-    return {
-      message: "An error occurred while checking enrollment status"
-    };
+      const courseExists = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true },
+      });
+
+      if (!courseExists) {
+        this.setStatus(404);
+        return {
+          message: "This course cannot be found",
+        };
+      }
+
+      // Return just a boolean
+      const enrollmentCount = await prisma.enrollment.count({
+        where: {
+          courseId: courseId,
+          userId: userId,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Fetched Successfully",
+        data: enrollmentCount > 0, // This returns true/false
+      };
+    } catch (error) {
+      console.error(error);
+      this.setStatus(500);
+      return {
+        message: "An error occurred while checking enrollment status",
+      };
+    }
   }
-}
 }

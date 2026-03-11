@@ -1423,7 +1423,7 @@ export class CourseController extends Controller {
           role !== "Teacher" ||
           role !== "Instructor"
         ) {
-          this.setStatus(200);
+          this.setStatus(400);
           return {
             message: "This Role is invalid",
           };
