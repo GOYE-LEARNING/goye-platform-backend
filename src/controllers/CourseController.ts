@@ -1417,17 +1417,18 @@ export class CourseController extends Controller {
         },
       });
 
+      if (
+        role !== "instructor" ||
+        role !== "Teacher" ||
+        role !== "Instructor"
+      ) {
+        this.setStatus(400);
+        return {
+          message: "This Role is invalid",
+        };
+      }
+
       if (user) {
-        if (
-          role !== "instructor" ||
-          role !== "Teacher" ||
-          role !== "Instructor"
-        ) {
-          this.setStatus(400);
-          return {
-            message: "This Role is invalid",
-          };
-        }
         const course = await prisma.course.findUnique({
           where: {
             id: courseId,
