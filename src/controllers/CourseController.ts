@@ -1444,10 +1444,6 @@ export class CourseController extends Controller {
           await prisma.notification.findMany({
             where: {
               courseId,
-              user: {
-                id: tutorId,
-                role,
-              },
             },
             take: 30,
           });
@@ -1455,7 +1451,7 @@ export class CourseController extends Controller {
         this.setStatus(200);
         return {
           message: "Activities Fetched Successfully",
-          data: getActivitiesFromNotification,
+          data: getActivitiesFromNotification || null,
         };
       }
 
