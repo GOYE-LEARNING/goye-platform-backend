@@ -1412,17 +1412,15 @@ export class CourseController extends Controller {
       //For User
       const user = await prisma.user.findUnique({
         where: {
-          id: tutorId,
+          id: tutorId,  
           role,
         },
       });
 
       if (
-        role !== "instructor" ||
-        role !== "Teacher" ||
-        role !== "Instructor"
+        role !== "instructor"
       ) {
-        this.setStatus(400);
+        this.setStatus(401);
         return {
           message: "This Role is invalid",
         };
