@@ -953,6 +953,45 @@ public async UploadLessonVideo(
   }
 }
 
+@Put("/update-lesson/{lessonId}")
+@Security("bearerAuth")
+public async UpdateLesson(
+  @Path() lessonId: string,
+  @Body() body: { lesson_video: string; lesson_title?: string }
+): Promise<any> {
+  try {
+    // Check if lesson exists
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+    });
+
+    if (!lesson) {
+      this.setStatus(404);
+      return { message: "Lesson not found" };
+    }
+
+    // Update the lesson with video URL
+    const updatedLesson = await prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        lesson_video: body.lesson_video,
+        ...(body.lesson_title && { lesson_title: body.lesson_title }),
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Lesson updated successfully",
+      data: updatedLesson,
+    };
+  } catch (error: any) {
+    this.setStatus(500);
+    return {
+      message: "Failed to update lesson",
+      error: error.message,
+    };
+  }
+}
   @Post("/upload-course-material/{courseId}/{materialId}")
   @Security("bearerAuth")
   public async UploadCourseMaterial(
