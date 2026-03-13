@@ -1,4 +1,14 @@
-import { Body, Controller, Path, Post, Put, Route, Security, Tags } from "tsoa";
+import {
+  Body,
+  Controller,
+  Get,
+  Path,
+  Post,
+  Put,
+  Route,
+  Security,
+  Tags,
+} from "tsoa";
 import prisma from "../db";
 
 @Tags("Video Tracking Controller")
@@ -121,6 +131,29 @@ export class VideoTrackerController extends Controller {
       this.setStatus(500);
       return {
         message: "An error occured with tracking of the video",
+      };
+    }
+  }
+
+  @Get("/fetch-track-video/{videoTrackerId}")
+  public async FetchVideoTracking(@Path() videoTrackerId: string) {
+    try {
+      const videoTracker = await prisma.videoTracker.findUnique({
+        where: {
+          id: videoTrackerId,
+        },
+      });
+
+      this.setStatus(200);
+
+      return {
+        message: "Your videos are here.",
+        data: videoTracker,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      return {
+        message: "An error just occured here.",
       };
     }
   }
