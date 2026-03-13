@@ -744,6 +744,11 @@ export class CourseController extends Controller {
       const course = await prisma.course.findUnique({
         where: { id: courseId },
         include: {
+          createdByDetails: {
+            select: {
+              user_pic: true
+            }
+          },
           module: {
             include: {
               lesson: true,
@@ -782,6 +787,7 @@ export class CourseController extends Controller {
               enrollment: true,
             },
           },
+          
         },
       });
 
