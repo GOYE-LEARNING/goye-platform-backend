@@ -131,40 +131,68 @@ export class MediaService {
     }
   }
 
- static async uploadLessonVideo(
-  courseId: string,
-  moduleId: string,
-  file: Buffer,
-  fileName: string,
-): Promise<{ url: string; error: string | null }> {
-  return new Promise((resolve) => {
-    console.log("📤 Streaming video to Cloudinary...");
+  // In your MediaService.uploadLessonVideo method
+  static async uploadLessonVideo(
+    courseId: string,
+    moduleId: string,
+    file: Buffer,
+    fileName: string,
+  ): Promise<{ url: string; error: string | null }> {
+    return new Promise((resolve) => {
+      console.log("📤 Streaming video to Cloudinary...");
+      console.log(`File size: ${(file.length / 1024 / 1024).toFixed(2)}MB`);
+      console.log(`File name: ${fileName}`);
 
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
-        folder: `lesson_videos/${courseId}/${moduleId}`,
-        public_id: `video_${Date.now()}`,
-        resource_type: "video", // CRITICAL
-        chunk_size: 6000000, 
-        // Use eager for processing so the main upload returns faster
-        eager: [
-          { streaming_profile: "hd", format: "m3u8" }, // Better for web playback
-          { width: 640, height: 360, crop: "pad", format: "jpg" } // Thumbnail
-        ],
-        eager_async: true, // Don't make the user wait for transcoding
-      },
-      (error, result) => {
-        if (error) {
-          console.error("❌ Cloudinary Error:", error);
-          return resolve({ url: "", error: error.message });
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: `lesson_videos/${courseId}/${moduleId}`,
+          public_id: `video_${Date.now()}`,
+          resource_type: "video",
+          chunk_size: 20000000, // 20MB chunks
+          timeout: 300000, // 5 minutes timeout
+          eager: [
+            { streaming_profile: "hd", format: "m3u8" },
+            { width: 640, height: 360, crop: "pad", format: "jpg" },
+          ],
+          eager_async: true,
+          allowed_formats: ["mp4", "mov", "avi", "mkv", "webm"],
+        },
+        (error, result) => {
+          if (error) {
+            console.error("❌ Cloudinary Error:", error);
+            return resolve({ url: "", error: error.message });
+          }
+          console.log("✅ Video uploaded successfully:", result?.secure_url);
+          resolve({ url: result?.secure_url || "", error: null });
+        },
+      );
+
+      // Handle large files by streaming in chunks
+      const chunkSize = 1024 * 1024; // 1MB chunks
+      let offset = 0;
+
+      const writeNextChunk = () => {
+        if (offset >= file.length) {
+          uploadStream.end();
+          return;
         }
-        resolve({ url: result?.secure_url || "", error: null });
-      }
-    );
 
-    uploadStream.end(file);
-  });
-}
+        const end = Math.min(offset + chunkSize, file.length);
+        const chunk = file.slice(offset, end);
+        const canWrite = uploadStream.write(chunk);
+
+        offset = end;
+
+        if (canWrite) {
+          process.nextTick(writeNextChunk);
+        } else {
+          uploadStream.once("drain", writeNextChunk);
+        }
+      };
+
+      writeNextChunk();
+    });
+  }
 
   static async uploadCourseMaterial(
     courseId: string,

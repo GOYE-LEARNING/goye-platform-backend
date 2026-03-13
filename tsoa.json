@@ -18,6 +18,13 @@
   "routes": {
     "routesDir": "src/routes",
     "basePath": "/api",
-    "authenticationModule": "./src/auth/authentication.ts"
+    "authenticationModule": "./src/auth/authentication.ts",
+      "multerOpts": {
+      "limits": {
+        "fileSize": 500000000, 
+        "files": 1
+      },
+      "fileFilter": null
+    }
   }
 }

@@ -5,14 +5,15 @@ import { RegisterRoutes } from "./routes/routes";
 import cookieParser from "cookie-parser";
 import { join } from "path";
 import fs from "fs";
+import multer from "multer";
 
 const PORT = process.env.PORT || 10000;
 const app = express();
 
 // Basic middleware
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "500mb" }));
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
 
 // CORS configuration
 const allowedOrigins = [
@@ -25,7 +26,6 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Your logic remains the same
       if (!origin || allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
@@ -33,15 +33,14 @@ app.use(
       }
     },
     credentials: true,
-    // Setting allowedHeaders to true allows all headers sent by the client
-  allowedHeaders: [
+    allowedHeaders: [
       'Content-Type',
       'Authorization',
       'Accept',
       'Origin',
       'X-Requested-With',
       'Cache-Control',
-      'Pragma' // Now safely included as a string
+      'Pragma'
     ],
   })
 );
@@ -64,22 +63,20 @@ app.get("/api/test", (req: Request, res: Response) => {
   res.json({ message: "API is working!" });
 });
 
-// ===== SWAGGER SETUP - FIXED PATHS =====
+// ===== SWAGGER SETUP =====
 try {
-  // Your swagger.json is at src/routes/swagger.json
-  // In production (dist folder), it will be at dist/routes/swagger.json
   const possiblePaths = [
-    join(__dirname, "routes", "swagger.json"),           // For dist folder (production)
-    join(process.cwd(), "src", "routes", "swagger.json"), // For src folder (development)
-    join(__dirname, "../src/routes", "swagger.json"),    // Alternative path
+    join(__dirname, "routes", "swagger.json"),
+    join(process.cwd(), "src", "routes", "swagger.json"),
+    join(__dirname, "../src/routes", "swagger.json"),
   ];
   
   let swaggerLoaded = false;
   
   for (const swaggerPath of possiblePaths) {
-    console.log(`🔍 Looking for swagger at: ${swaggerPath}`);
+    console.log(` Looking for swagger at: ${swaggerPath}`);
     if (fs.existsSync(swaggerPath)) {
-      console.log(`✅ Found swagger.json at: ${swaggerPath}`);
+      console.log(` Found swagger.json at: ${swaggerPath}`);
       const swaggerDocument = JSON.parse(fs.readFileSync(swaggerPath, 'utf8'));
       app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
       swaggerLoaded = true;
@@ -88,28 +85,37 @@ try {
   }
   
   if (!swaggerLoaded) {
-    console.log('❌ Could not find swagger.json in any location');
+    console.log(' Could not find swagger.json in any location');
   }
 } catch (error) {
-  console.error('❌ Swagger error:', error);
+  console.error(' Swagger error:', error);
 }
-// ===== END SWAGGER SETUP =====
 
-// Register routes
+// ===== IMPORTANT: Register tsoa routes =====
+// This will automatically use the multer config from tsoa.json
 RegisterRoutes(app);
+
+// ===== Error handler for multer errors =====
+app.use((error: any, req: Request, res: Response, next: any) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ 
+        message: 'File too large. Maximum size is 500MB.' 
+      });
+    }
+    return res.status(400).json({ message: error.message });
+  }
+  
+  console.error("Error:", error);
+  res.status(500).json({ message: "Internal Server Error" });
+});
 
 // 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-// Error handler
-app.use((error: any, req: Request, res: Response, next: any) => {
-  console.error("Error:", error);
-  res.status(500).json({ message: "Internal Server Error" });
-});
-
 app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-  console.log(`📚 Swagger should be at: http://localhost:${PORT}/api/docs`);
+  console.log(` Server running on port ${PORT}`);
+  console.log(` Swagger should be at: http://localhost:${PORT}/api/docs`);
 });
