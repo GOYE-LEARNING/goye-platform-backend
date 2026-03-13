@@ -254,8 +254,6 @@ model Course {
   progressId               String?
 }
 
-
-
 model Achievement {
   id                String                 @id @default(uuid())
   title             String
@@ -294,17 +292,23 @@ model Progress {
 }
 
 model VideoTracker {
-  id             String    @id @default(uuid())
-  videoFinished  Boolean   @default(false)
-  videoTrackTime String
-  course         Course?   @relation(references: [id], fields: [courseId])
-  lesson         Lesson?   @relation(fields: [lessonId], references: [id])
-  progress       Progress? @relation(fields: [progressId], references: [id])
-  progressId     String
-  lessonId       String?
-  courseId       String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime?
+  id                String    @id @default(uuid())
+  videoFinished     Boolean   @default(false)
+  videoTrackTime    Int
+  basedTimeTracking Tracking
+  course            Course?   @relation(references: [id], fields: [courseId])
+  lesson            Lesson?   @relation(fields: [lessonId], references: [id])
+  progress          Progress? @relation(fields: [progressId], references: [id])
+  progressId        String?
+  lessonId          String?
+  courseId          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime?
+}
+
+enum Tracking {
+  FIRST_TIME_TRACKING
+  SECOND_TIME_TRACKING
 }
 
 model BadgesAndLevelEarned {
