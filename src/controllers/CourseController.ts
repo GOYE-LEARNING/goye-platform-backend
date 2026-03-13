@@ -916,6 +916,29 @@ public async UploadLessonVideo(
   @UploadedFile() file: Express.Multer.File,
 ): Promise<any> {
   try {
+    // Log file details for debugging
+    console.log('🎥 UploadLessonVideo called with file:', {
+      name: file?.originalname,
+      size: file?.size ? `${(file.size / 1024 / 1024).toFixed(2)}MB` : 'unknown',
+      mimetype: file?.mimetype,
+      courseId,
+      moduleId
+    });
+
+    if (!file) {
+      this.setStatus(400);
+      return { message: "No file uploaded" };
+    }
+
+    // Check file size manually as a backup
+    const maxSize = 500 * 1024 * 1024; // 500MB
+    if (file.size > maxSize) {
+      this.setStatus(413);
+      return { 
+        message: `File too large. Maximum size is 500MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB` 
+      };
+    }
+
     const module = await prisma.module.findFirst({
       where: {
         id: moduleId,
@@ -940,7 +963,6 @@ public async UploadLessonVideo(
       return { message: "Upload failed", error };
     }
 
-    // Just return the URL, don't create a lesson
     this.setStatus(200);
     return {
       message: "Lesson video uploaded successfully",
@@ -951,6 +973,14 @@ public async UploadLessonVideo(
       },
     };
   } catch (error: any) {
+    console.error("❌ Error in UploadLessonVideo:", error);
+    
+    // Check if it's a multer error
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      this.setStatus(413);
+      return { message: "File too large. Maximum size is 500MB." };
+    }
+    
     this.setStatus(500);
     return {
       message: "Failed to upload lesson video",
