@@ -221,9 +221,10 @@ export class UserController extends Controller {
         });
 
         //To create a new progress for invited user
-        if (updateInvitedUser.progress) {
+        if (updateInvitedUser.progress && updateInvitedUser.progress.length > 0) {
           return {
-            message: "Progres exist",
+            message: "Progress exist",
+             progress: updateInvitedUser.progress
           };
         }
         const startJourney = await prisma.progress.create({
@@ -341,9 +342,10 @@ export class UserController extends Controller {
         });
 
         //To create a new progress for invited user
-        if (updateUser.progress) {
+        if (updateUser.progress && updateUser.progress.length > 0) {
           return {
-            message: "Progres exist",
+            message: "Progress exist",
+             progress: updateUser.progress
           };
         }
         const startJourney = await prisma.progress.create({
@@ -401,6 +403,7 @@ export class UserController extends Controller {
             email: updateUser.email_address,
             role: updateUser.role,
             level: updateUser.level,
+            progressId: startJourney.id,
             updateStatus: updateUser.isOnline,
             organizationId: organizationData?.id || null,
           },
