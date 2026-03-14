@@ -76,6 +76,7 @@ export class VideoTrackerController extends Controller {
         message: "An error occured",
       };
     } catch (error) {
+      console.error("Error in TrackVideo:", error);
       this.setStatus(500);
       return {
         message: "An error occured with tracking of the video",
@@ -94,14 +95,14 @@ export class VideoTrackerController extends Controller {
     },
   ) {
     try {
-      //check if course exist
-      const video = await prisma.videoTracker.findUnique({
+      // Check if the video tracker exists
+      const existingVideo = await prisma.videoTracker.findUnique({
         where: {
           id: videoTrackerId,
         },
       });
 
-      if (!video) {
+      if (!existingVideo) {
         this.setStatus(404);
         return {
           message: "This video cannot be found.",
@@ -109,10 +110,14 @@ export class VideoTrackerController extends Controller {
       }
 
       if (body.videoTrackTime) {
-        const setVideoTracker = await prisma.videoTracker.create({
+        // OPTION 1: Update the existing record (recommended)
+        const updatedVideoTracker = await prisma.videoTracker.update({
+          where: {
+            id: videoTrackerId,
+          },
           data: {
-            videoFinished: body.videoFinished,
             videoTrackTime: body.videoTrackTime,
+            videoFinished: body.videoFinished,
             basedTimeTracking: "SECOND_TIME_TRACKING",
           },
         });
@@ -120,14 +125,48 @@ export class VideoTrackerController extends Controller {
         this.setStatus(200);
         return {
           message: "Video tracked updated successfully",
-          data: setVideoTracker,
+          data: updatedVideoTracker,
         };
+
+        // OPTION 2: If you want to keep creating new records (history tracking)
+        // Uncomment this if you want to keep a history of all tracking events
+        /*
+        const newVideoTracker = await prisma.videoTracker.create({
+          data: {
+            videoFinished: body.videoFinished,
+            videoTrackTime: body.videoTrackTime,
+            basedTimeTracking: "SECOND_TIME_TRACKING",
+            progress: {
+              connect: {
+                id: existingVideo.progressId,
+              },
+            },
+            course: {
+              connect: {
+                id: existingVideo.courseId,
+              },
+            },
+            lesson: {
+              connect: {
+                id: existingVideo.lessonId,
+              },
+            },
+          },
+        });
+
+        this.setStatus(200);
+        return {
+          message: "Video tracked updated successfully",
+          data: newVideoTracker,
+        };
+        */
       }
 
       return {
         message: "An error occured",
       };
     } catch (error) {
+      console.error("Error in UpdateTrackVideo:", error);
       this.setStatus(500);
       return {
         message: "An error occured with tracking of the video",
@@ -151,6 +190,7 @@ export class VideoTrackerController extends Controller {
         data: videoTracker,
       };
     } catch (error) {
+      console.error("Error in FetchVideoTracking:", error);
       this.setStatus(500);
       return {
         message: "An error just occured here.",
@@ -158,33 +198,33 @@ export class VideoTrackerController extends Controller {
     }
   }
 
-  // Add this single endpoint to your backend
-@Get("/get-tracker-id/{lessonId}/{progressId}")
-@Security("bearerAuth")
-public async GetTrackerId(
-  @Path() lessonId: string,
-  @Path() progressId: string
-) {
-  try {
-    const tracker = await prisma.videoTracker.findFirst({
-      where: {
-        lessonId: lessonId,
-        progressId: progressId,
-      },
-      orderBy: {
-        updatedAt: 'desc'
-      }
-    });
+  @Get("/get-tracker-id/{lessonId}/{progressId}")
+  @Security("bearerAuth")
+  public async GetTrackerId(
+    @Path() lessonId: string,
+    @Path() progressId: string
+  ) {
+    try {
+      const tracker = await prisma.videoTracker.findFirst({
+        where: {
+          lessonId: lessonId,
+          progressId: progressId,
+        },
+        orderBy: {
+          updatedAt: 'desc'
+        }
+      });
 
-    return {
-      message: tracker ? "Tracker found" : "No tracker found",
-      data: tracker
-    };
-  } catch (error) {
-    this.setStatus(500);
-    return {
-      message: "Error finding tracker"
-    };
+      return {
+        message: tracker ? "Tracker found" : "No tracker found",
+        data: tracker
+      };
+    } catch (error) {
+      console.error("Error in GetTrackerId:", error);
+      this.setStatus(500);
+      return {
+        message: "Error finding tracker"
+      };
+    }
   }
-}
 }
