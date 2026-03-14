@@ -8,6 +8,7 @@ export async function VerifyToken(
 ) {
   try {
     const tokenFromCookie = req.cookies?.token;
+
     const tokenFromHeader = req.headers.authorization?.split(" ")[1];
     const token = tokenFromCookie || tokenFromHeader;
 
@@ -33,6 +34,11 @@ export async function VerifyToken(
 
     req.user = user;
 
+        if (decoded.progressId) {
+      req.progressId = decoded.progressId;
+      console.log("📋 Progress ID attached to request:", req.progressId);
+    }
+    
     await prisma.user.update({
       where: { id: user.id },
       data: { isOnline: true, lastActive: new Date() },

@@ -234,9 +234,59 @@ export class UserController extends Controller {
           updateInvitedUser.progress &&
           updateInvitedUser.progress.length > 0
         ) {
+          const progressId = updateInvitedUser.progress[0].id;
+
+          const token = jwt.sign(
+            {
+              type: "INVITED_USER",
+              id: updateInvitedUser.id,
+              full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
+              email: updateInvitedUser.email_address,
+              role: updateInvitedUser.role,
+              progressId: progressId,
+              level: updateInvitedUser.level,
+              updateStatus: updateInvitedUser.isOnline,
+              organizationId: invitationOrg?.organizationId || null,
+            },
+            (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+            { expiresIn: "7d" },
+          );
+
+          // Set the token cookie
+          if (req.res) {
+            req.res.cookie("token", token, {
+              httpOnly: true,
+              secure: true,
+              sameSite: "none",
+              path: "/",
+              maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+
+            req.res.cookie("progress_id", progressId, {
+              httpOnly: true,
+              secure: true,
+              sameSite: "none",
+              path: "/",
+              maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+          }
+
+          this.setStatus(200);
           return {
-            message: "Progress exist",
-            progress: updateInvitedUser.progress,
+            data: {
+              message: "Login successful for invited user",
+              token,
+              user: {
+                type: "INVITED_USER",
+                id: updateInvitedUser.id,
+                first_name: updateInvitedUser.first_name,
+                last_name: updateInvitedUser.last_name,
+                role: updateInvitedUser.role,
+                progressId: progressId ?? null,
+                form_type: updateInvitedUser.form_type,
+                organizationId: invitationOrg?.organizationId || null,
+              },
+            },
           };
         }
         const startJourney = await prisma.progress.create({
@@ -363,9 +413,60 @@ export class UserController extends Controller {
 
         //To create a new progress for invited user
         if (updateUser.progress && updateUser.progress.length > 0) {
+          const organizationData = await prisma.organization.findFirst({
+            where: { userId: invitedUser.id },
+          });
+          const progressId = updateUser.progress[0].id;
+          const token = jwt.sign(
+            {
+              type: "USER",
+              id: updateUser.id,
+              full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+              email: updateUser.email_address,
+              role: updateUser.role,
+              level: updateUser.level,
+              progressId: progressId,
+              updateStatus: updateUser.isOnline,
+              organizationId: organizationData?.id || null,
+            },
+            (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
+            { expiresIn: "7d" },
+          );
+
+          // Set the token cookie
+          if (req.res) {
+            req.res.cookie("token", token, {
+              httpOnly: true,
+              secure: true,
+              sameSite: "none",
+              path: "/",
+              maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+
+            req.res.cookie("progress_id", progressId, {
+              httpOnly: true,
+              secure: true,
+              sameSite: "none",
+              path: "/",
+              maxAge: 7 * 24 * 60 * 60 * 1000,
+            });
+          }
+
+          this.setStatus(200);
           return {
-            message: "Progress exist",
-            progress: updateUser.progress,
+            data: {
+              message: "Login successful",
+              token,
+              user: {
+                type: "user",
+                id: updateUser.id,
+                first_name: updateUser.first_name,
+                last_name: updateUser.last_name,
+                role: updateUser.role,
+                progressId: progressId ?? null,
+                form_type: updateUser.form_type,
+              },
+            },
           };
         }
         const startJourney = await prisma.progress.create({

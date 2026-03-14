@@ -6,6 +6,7 @@ declare global {
       org?:Organization | null;
       deviceId?: string;
       deviceType?: string;
+      progressId?: string
     }
   }
 }

@@ -5,11 +5,13 @@ import {
   Path,
   Post,
   Put,
+  Request,
   Route,
   Security,
   Tags,
 } from "tsoa";
 import prisma from "../db";
+import { Request as ExpressRequest } from "express";
 
 @Tags("Video Tracking Controller")
 @Route("video")
@@ -23,9 +25,10 @@ export class VideoTrackerController extends Controller {
       videoFinished: boolean;
       lessonId: string;
       courseId: string;
-      progressId: string;
     },
+    @Request() req: ExpressRequest
   ) {
+    const progressId = (req as any).progress_id
     try {
       //check if course exist
       const course = await prisma.course.findUnique({
@@ -49,7 +52,7 @@ export class VideoTrackerController extends Controller {
             basedTimeTracking: "FIRST_TIME_TRACKING",
             progress: {
               connect: {
-                id: body.progressId,
+                id: progressId,
               },
             },
             course: {
@@ -128,38 +131,6 @@ export class VideoTrackerController extends Controller {
           data: updatedVideoTracker,
         };
 
-        // OPTION 2: If you want to keep creating new records (history tracking)
-        // Uncomment this if you want to keep a history of all tracking events
-        /*
-        const newVideoTracker = await prisma.videoTracker.create({
-          data: {
-            videoFinished: body.videoFinished,
-            videoTrackTime: body.videoTrackTime,
-            basedTimeTracking: "SECOND_TIME_TRACKING",
-            progress: {
-              connect: {
-                id: existingVideo.progressId,
-              },
-            },
-            course: {
-              connect: {
-                id: existingVideo.courseId,
-              },
-            },
-            lesson: {
-              connect: {
-                id: existingVideo.lessonId,
-              },
-            },
-          },
-        });
-
-        this.setStatus(200);
-        return {
-          message: "Video tracked updated successfully",
-          data: newVideoTracker,
-        };
-        */
       }
 
       return {
@@ -198,12 +169,14 @@ export class VideoTrackerController extends Controller {
     }
   }
 
-  @Get("/get-tracker-id/{lessonId}/{progressId}")
+  @Get("/get-tracker-id/{lessonId}")
   @Security("bearerAuth")
   public async GetTrackerId(
     @Path() lessonId: string,
-    @Path() progressId: string
+    @Request() req: ExpressRequest
   ) {
+
+    const progressId = (req as any).progress_id
     try {
       const tracker = await prisma.videoTracker.findFirst({
         where: {

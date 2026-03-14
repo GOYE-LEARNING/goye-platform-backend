@@ -1,27 +1,27 @@
-import { Request } from 'express';
-import jwt from 'jsonwebtoken';
-import prisma from '../db';
+import { Request } from "express";
+import jwt from "jsonwebtoken";
+import prisma from "../db";
 
 export async function expressAuthentication(
   request: Request,
   securityName: string,
-  scopes?: string[]
+  scopes?: string[],
 ): Promise<any> {
-  if (securityName === 'bearerAuth') {
+  if (securityName === "bearerAuth") {
     // Look for token in both cookie and header
     const tokenFromCookie = request.cookies?.token;
-    const tokenFromHeader = request.headers['authorization']?.split(' ')[1];
+    const tokenFromHeader = request.headers["authorization"]?.split(" ")[1];
     const token = tokenFromCookie || tokenFromHeader;
 
     if (!token) {
-      throw new Error('No token provided');
+      throw new Error("No token provided");
     }
 
     let decoded: any;
     try {
       decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET!);
     } catch (error) {
-      throw new Error('Invalid or expired token');
+      throw new Error("Invalid or expired token");
     }
 
     // ✅ Attach USER to request
@@ -30,11 +30,15 @@ export async function expressAuthentication(
     });
 
     if (!user) {
-      throw new Error('User not found');
+      throw new Error("User not found");
     }
 
     (request as any).user = user;
 
+     if (decoded.progressId) {
+      (request as any).progressId = decoded.progressId;
+      console.log("📋 Progress ID attached to request in expressAuthentication:", decoded.progressId);
+    }
     // Update user online status
     await prisma.user.update({
       where: { id: user.id },
