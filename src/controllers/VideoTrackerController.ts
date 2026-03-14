@@ -157,4 +157,34 @@ export class VideoTrackerController extends Controller {
       };
     }
   }
+
+  // Add this single endpoint to your backend
+@Get("/get-tracker-id/{lessonId}/{progressId}")
+@Security("bearerAuth")
+public async GetTrackerId(
+  @Path() lessonId: string,
+  @Path() progressId: string
+) {
+  try {
+    const tracker = await prisma.videoTracker.findFirst({
+      where: {
+        lessonId: lessonId,
+        progressId: progressId,
+      },
+      orderBy: {
+        updatedAt: 'desc'
+      }
+    });
+
+    return {
+      message: tracker ? "Tracker found" : "No tracker found",
+      data: tracker
+    };
+  } catch (error) {
+    this.setStatus(500);
+    return {
+      message: "Error finding tracker"
+    };
+  }
+}
 }
