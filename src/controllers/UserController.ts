@@ -20,6 +20,7 @@ import { SendEmail } from "../utils/sendmail";
 
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
+import { GrowthService } from "../services/growthService";
 
 //User route start here
 @Route("user")
@@ -94,6 +95,46 @@ export class UserController extends Controller {
       },
     });
 
+    const startJourney = await prisma.progress.create({
+      data: {
+        userId: updateUser.id,
+        startedJourney: true,
+        progressBar: 0,
+      },
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    // Create achievement message
+    const achievementResult = await GrowthService.AchievementMessage({
+      message_title: "Christian Cadet",
+      message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
+      point: 10,
+      progress_message: "",
+      userId: updateUser.id,
+      badge: "CADET_BADGE",
+      progressId: startJourney.id,
+    });
+
+    // Check if achievement was created successfully
+    if (achievementResult.error) {
+      console.error("Achievement creation failed:", achievementResult.error);
+      // Still return success for journey but with achievement error
+      this.setStatus(200);
+      return {
+        message:
+          "Journey created successfully, but achievement creation failed",
+        data: startJourney,
+        achievementError: achievementResult.error,
+      };
+    }
+
     const token = jwt.sign(
       {
         id: updateUser.id,
@@ -101,6 +142,7 @@ export class UserController extends Controller {
         full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         email: updateUser.email_address,
         role: updateUser.role,
+        progressId: startJourney.id,
         password: body.password,
         type: updateUser.form_type,
         updateStatus: updateUser.isOnline,
@@ -173,10 +215,59 @@ export class UserController extends Controller {
             isOnline: true,
             lastActive: new Date(),
           },
+          include: {
+            progress: true,
+          },
         });
 
-        // Session management is handled by middleware based on device/tab ID
-        // No cleanup needed here - middleware will handle device conflicts
+        //To create a new progress for invited user
+        if (updateInvitedUser.progress) {
+          return {
+            message: "Progres exist",
+          };
+        }
+        const startJourney = await prisma.progress.create({
+          data: {
+            userId: updateInvitedUser.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+          include: {
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        });
+
+        // Create achievement message
+        const achievementResult = await GrowthService.AchievementMessage({
+          message_title: "Christian Cadet",
+          message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
+          point: 10,
+          progress_message: "",
+          userId: updateInvitedUser.id,
+          badge: "CADET_BADGE",
+          progressId: startJourney.id,
+        });
+
+        // Check if achievement was created successfully
+        if (achievementResult.error) {
+          console.error(
+            "Achievement creation failed:",
+            achievementResult.error,
+          );
+          // Still return success for journey but with achievement error
+          this.setStatus(200);
+          return {
+            message:
+              "Journey created successfully, but achievement creation failed",
+            data: startJourney,
+            achievementError: achievementResult.error,
+          };
+        }
 
         const token = jwt.sign(
           {
@@ -185,6 +276,7 @@ export class UserController extends Controller {
             full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
             email: updateInvitedUser.email_address,
             role: updateInvitedUser.role,
+            progressId: startJourney.id,
             level: updateInvitedUser.level,
             updateStatus: updateInvitedUser.isOnline,
             organizationId: invitationOrg?.organizationId || null,
@@ -242,11 +334,60 @@ export class UserController extends Controller {
             isOnline: true,
             lastActive: new Date(),
           },
+          include: {
+            progress: true,
+          },
         });
 
-        // Session management is handled by middleware based on device/tab ID
-        // No cleanup needed here - middleware will handle device conflicts
+        //To create a new progress for invited user
+        if (updateUser.progress) {
+          return {
+            message: "Progres exist",
+          };
+        }
+        const startJourney = await prisma.progress.create({
+          data: {
+            userId: updateUser.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+          include: {
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        });
 
+        // Create achievement message
+        const achievementResult = await GrowthService.AchievementMessage({
+          message_title: "Christian Cadet",
+          message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
+          point: 10,
+          progress_message: "",
+          userId: updateUser.id,
+          badge: "CADET_BADGE",
+          progressId: startJourney.id,
+        });
+
+        // Check if achievement was created successfully
+        if (achievementResult.error) {
+          console.error(
+            "Achievement creation failed:",
+            achievementResult.error,
+          );
+          // Still return success for journey but with achievement error
+          this.setStatus(200);
+          return {
+            message:
+              "Journey created successfully, but achievement creation failed",
+            data: startJourney,
+            achievementError: achievementResult.error,
+          };
+        }
+        //To login in user organization
         const organizationData = await prisma.organization.findFirst({
           where: { userId: invitedUser.id },
         });
@@ -1139,7 +1280,6 @@ export class UserController extends Controller {
     }
 
     // Clean up session for this specific device
-    
 
     // Update user status
     await prisma.user.update({
@@ -1158,7 +1298,7 @@ export class UserController extends Controller {
         sameSite: "none",
         path: "/",
       });
-      
+
       // Set cache control headers to prevent caching
       req.res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       req.res.setHeader("Pragma", "no-cache");
@@ -1171,5 +1311,4 @@ export class UserController extends Controller {
       clearTokens: true,
     };
   }
-
 }
