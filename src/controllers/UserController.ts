@@ -151,9 +151,18 @@ export class UserController extends Controller {
       { expiresIn: "7d" },
     );
 
-    // Set the token cookie
     if (req.res) {
+      // Set the token cookie
       req.res.cookie("token", token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      //Set the progressId token
+      req.res.cookie("progress_id", startJourney.id, {
         httpOnly: true,
         secure: true,
         sameSite: "none",
@@ -221,10 +230,13 @@ export class UserController extends Controller {
         });
 
         //To create a new progress for invited user
-        if (updateInvitedUser.progress && updateInvitedUser.progress.length > 0) {
+        if (
+          updateInvitedUser.progress &&
+          updateInvitedUser.progress.length > 0
+        ) {
           return {
             message: "Progress exist",
-             progress: updateInvitedUser.progress
+            progress: updateInvitedUser.progress,
           };
         }
         const startJourney = await prisma.progress.create({
@@ -295,6 +307,14 @@ export class UserController extends Controller {
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
+
+          req.res.cookie("progress_id", startJourney.id, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
         }
 
         this.setStatus(200);
@@ -345,7 +365,7 @@ export class UserController extends Controller {
         if (updateUser.progress && updateUser.progress.length > 0) {
           return {
             message: "Progress exist",
-             progress: updateUser.progress
+            progress: updateUser.progress,
           };
         }
         const startJourney = await prisma.progress.create({
@@ -414,6 +434,14 @@ export class UserController extends Controller {
         // Set the token cookie
         if (req.res) {
           req.res.cookie("token", token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "none",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+
+          req.res.cookie("progress_id", startJourney.id, {
             httpOnly: true,
             secure: true,
             sameSite: "none",
