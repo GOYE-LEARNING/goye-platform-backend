@@ -1445,4 +1445,16 @@ export class UserController extends Controller {
       clearTokens: true,
     };
   }
+
+  @Get("/debug-progress")
+  @Security("bearerAuth")
+  public async DebugProgress(@Request() req: any) {
+    return {
+      message: "Progress debug info",
+      fromRequest: req.progressId,
+      fromUser: req.user?.id,
+      fromToken: req.user ? "User attached" : "No user",
+      cookies: req.cookies,
+    };
+  }
 }
