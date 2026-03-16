@@ -1487,6 +1487,7 @@ export class CourseController extends Controller {
     quiz: {
       totalPoint: number;
       completed: boolean;
+      timeFinished: number;
       answers: {
         questionId: string;
         answer: string;
@@ -1545,6 +1546,7 @@ export class CourseController extends Controller {
           score: quizScorePercentage,
           answers: quiz.answers,
           completed: quiz.completed,
+          timeFinished: quiz.timeFinished
         },
       });
 
@@ -1560,7 +1562,7 @@ export class CourseController extends Controller {
   }
 
   @Get("/fetch-quiz-answers/{quizId}")
-  public async FetchQuizAnswers(@Path() quizId: string, @Request() req: any) {
+  public async FetchQuizAnswers(@Path() quizId: string) {
     try {
       const checkQuiz = await prisma.quiz.findUnique({
         where: {
@@ -1578,19 +1580,18 @@ export class CourseController extends Controller {
       const getQuizQuestions = await prisma.quiz.findUnique({
         where: {
           id: checkQuiz.id,
-          
         },
         include: {
           QuizAttempt: true,
-          questions: true
-        }
+          questions: true,
+        },
       });
 
-      this.setStatus(200)
+      this.setStatus(200);
       return {
         message: "Quiz fetched successfully",
-        data: getQuizQuestions
-      }
+        data: getQuizQuestions,
+      };
     } catch (error) {
       this.setStatus(500);
       console.error(error);

@@ -575,6 +575,7 @@ model QuizAttempt {
   quiz        Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId      String
   questions   Question[]
+  timeFinished Int
   score       Int // Percentage score
   answers     Json // Store user's answers: { questionId: "selectedAnswer" }
   completed   Boolean    @default(false)
