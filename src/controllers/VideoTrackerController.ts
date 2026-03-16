@@ -26,9 +26,9 @@ export class VideoTrackerController extends Controller {
       lessonId: string;
       courseId: string;
     },
-    @Request() req: ExpressRequest
+    @Request() req: any
   ) {
-    const progressId = (req as any).progress_id
+    const progressId = req.progressId
     try {
       //check if course exist
       const course = await prisma.course.findUnique({
@@ -173,10 +173,10 @@ export class VideoTrackerController extends Controller {
   @Security("bearerAuth")
   public async GetTrackerId(
     @Path() lessonId: string,
-    @Request() req: ExpressRequest
+    @Request() req: any
   ) {
 
-    const progressId = (req as any).progress_id
+    const progressId = req.progressId
     try {
       const tracker = await prisma.videoTracker.findFirst({
         where: {

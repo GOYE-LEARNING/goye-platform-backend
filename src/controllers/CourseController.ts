@@ -28,6 +28,10 @@ const levels: Record<string, string> = {
   Intermediate: "Intermediate",
 };
 
+const QuizAnswers: Record<string, string> = {
+  id: "",
+};
+
 @Route("course")
 @Tags("Course Control APIs")
 export class CourseController extends Controller {
@@ -1470,6 +1474,126 @@ export class CourseController extends Controller {
       return {
         message: "Error fetching course",
       };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Post("/submit-quiz/{courseId}/{quizId}")
+  public async SubmitQuiz(
+    @Path() courseId: string,
+    @Path() quizId: string,
+    @Request() req: any,
+    @Body()
+    quiz: {
+      totalPoint: number;
+      completed: boolean;
+      answers: {
+        questionId: string;
+        answer: string;
+        correct: boolean;
+        point: number;
+      }[];
+    },
+  ) {
+    const userId = req.user?.id;
+    const progressId = req.progressId;
+
+    try {
+      const course = await prisma.course.findUnique({
+        where: {
+          id: courseId,
+        },
+      });
+
+      if (!course) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+        };
+      }
+
+      let sumOfPoint = 0;
+      const quizPoint = quiz.answers.map((q) => q.point);
+      for (const point of quizPoint) {
+        sumOfPoint += point;
+      }
+
+      const quizScorePercentage = (sumOfPoint / quiz.totalPoint) * 100;
+
+      const startQuiz = await prisma.quizAttempt.create({
+        data: {
+          progress: {
+            connect: {
+              id: progressId,
+            },
+          },
+          user: {
+            connect: {
+              id: userId,
+            },
+          },
+          course: {
+            connect: {
+              id: courseId,
+            },
+          },
+          quiz: {
+            connect: {
+              id: quizId,
+            },
+          },
+          score: quizScorePercentage,
+          answers: quiz.answers,
+          completed: quiz.completed,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "You have submited your score.",
+        data: startQuiz,
+      };
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+    }
+  }
+
+  @Get("/fetch-quiz-answers/{quizId}")
+  public async FetchQuizAnswers(@Path() quizId: string, @Request() req: any) {
+    try {
+      const checkQuiz = await prisma.quiz.findUnique({
+        where: {
+          id: quizId,
+        },
+      });
+
+      if (!checkQuiz) {
+        this.setStatus(404);
+        return {
+          message: "This quiz does not exist.",
+        };
+      }
+
+      const getQuizQuestions = await prisma.quiz.findUnique({
+        where: {
+          id: checkQuiz.id,
+          
+        },
+        include: {
+          QuizAttempt: true,
+          questions: true
+        }
+      });
+
+      this.setStatus(200)
+      return {
+        message: "Quiz fetched successfully",
+        data: getQuizQuestions
+      }
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
     }
   }
 

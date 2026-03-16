@@ -238,6 +238,7 @@ model Course {
   module                   Module[]
   objectives               Objectives[]
   quiz                     Quiz[]
+  quizAttempt              QuizAttempt[]
   post                     Post[]
   createdBy                String
   createdUserId            String
@@ -250,6 +251,7 @@ model Course {
   notification             Notification[]
   videosTracked            VideoTracker[]
   badgesAndLevel           BadgesAndLevelEarned[]
+  question                 Question[]
   progress                 Progress?              @relation(fields: [progressId], references: [id])
   progressId               String?
 }
@@ -285,6 +287,7 @@ model Progress {
   videoTracker      VideoTracker[]
   courses           Course[]
   badges            Badges[]
+  quizAttempt       QuizAttempt[]
   user              User?                  @relation(fields: [userId], references: [id])
   userId            String?
   createdAt         DateTime               @default(now())
@@ -546,31 +549,41 @@ model Quiz {
 }
 
 model Question {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   question      String // The question text
   options       String[] // Array of choices for multiple choice
   correctAnswer String // The correct answer
   explanation   String? // Explanation of the answer
-  points        Int      @default(1) // Points for this question
+  points        Int          @default(1) // Points for this question
   order         Int? // Order in the quiz
-  quiz          Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId        String
-  createdAt     DateTime @default(now())
+  quizAttempt   QuizAttempt? @relation(fields: [quizAttemptId], references: [id])
+  quizAttemptId String?
+
+  createdAt DateTime @default(now())
+  course    Course?  @relation(fields: [courseId], references: [id])
+  courseId  String?
 
   @@map("questions")
 }
 
 model QuizAttempt {
-  id          String    @id @default(cuid())
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String     @id @default(cuid())
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
-  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz        Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId      String
+  questions   Question[]
   score       Int // Percentage score
   answers     Json // Store user's answers: { questionId: "selectedAnswer" }
-  completed   Boolean   @default(false)
-  startedAt   DateTime  @default(now())
+  completed   Boolean    @default(false)
+  startedAt   DateTime   @default(now())
   completedAt DateTime?
+  course      Course?    @relation(fields: [courseId], references: [id])
+  courseId    String?
+  progress    Progress?  @relation(fields: [progressId], references: [id])
+  progressId  String?
 
   @@unique([userId, quizId, startedAt]) // Prevent duplicate attempts at same time
   @@map("quiz_attempts")
