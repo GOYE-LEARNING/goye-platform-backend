@@ -817,6 +817,26 @@ export class CourseController extends Controller {
     }
   }
 
+  @Get("/fetch-quizzes/{courseId}")
+  public async FetchQuizzes(@Request() req: any, @Path() courseId: string) {
+    try {
+      //Fetch Quiz
+      const quiz = await prisma.quiz.findMany({
+        where: {
+          courseId,
+        },
+        include: {
+          questions: {
+            orderBy: { order: "asc" },
+          },
+        },
+      });
+    } catch (error) {
+      this.setStatus(500);
+      console.error(error);
+    }
+  }
+
   @Security("bearerAuth")
   @Delete("/delete-course/{courseId}")
   public async DeleteCourse(@Path() courseId: string): Promise<CourseResponse> {
@@ -1546,7 +1566,7 @@ export class CourseController extends Controller {
           score: quizScorePercentage,
           answers: quiz.answers,
           completed: quiz.completed,
-          timeFinished: quiz.timeFinished
+          timeFinished: quiz.timeFinished,
         },
       });
 

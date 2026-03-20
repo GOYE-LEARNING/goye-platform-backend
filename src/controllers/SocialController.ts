@@ -31,72 +31,86 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
     const orgId = req.org?.id;
 
-    // Use organizationId if it exists, otherwise use userId
-    const createPost = await prisma.post.create({
-      data: {
-        title: body.title,
-        content: body.content,
-        userId: orgId ? null : (userId ?? null), // Only use userId if no orgId
-        organizationId: orgId ?? null, // Only use orgId if it exists
-        courseId,
-      },
-      include: {
-        user: {
-          select: {
-            id: userId ? true : false,
-            first_name: userId ? true : false,
-            last_name: userId ? true : false,
-            user_pic: userId ? true : false,
-          },
+    try {
+      const createPost = await prisma.post.create({
+        data: {
+          title: body.title,
+          content: body.content,
+          userId: orgId ? null : (userId ?? null),
+          organizationId: orgId ?? null,
+          courseId,
         },
-        organization: {
-          select: {
-            id: orgId ? true : false,
-            organization_name: orgId ? true : false,
-            organization_image: orgId ? true : false,
+        include: {
+          user: userId
+            ? {
+                // Only include user if userId exists
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              }
+            : false,
+          organization: orgId
+            ? {
+                // Only include organization if orgId exists
+                select: {
+                  id: true,
+                  organization_name: true,
+                  organization_image: true,
+                },
+              }
+            : false,
+          courses: true,
+          replies: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
           },
-        },
-        courses: true,
-        replies: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
+          likes: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                },
               },
             },
           },
-          orderBy: {
-            createdAt: "asc",
-          },
-        },
-        likes: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-              },
+          _count: {
+            select: {
+              replies: true,
+              likes: true,
             },
           },
         },
-        _count: {
-          select: {
-            replies: true,
-            likes: true,
-          },
-        },
-      },
-    });
+      });
 
-    this.setStatus(201);
-    return {
-      message: "Post created successfully",
-      data: createPost,
-    };
+      this.setStatus(201);
+      return {
+        message: "Post created successfully",
+        data: createPost,
+      };
+    } catch (error: any) {
+      console.error("Error creating post:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to create post",
+        error: error.message,
+      };
+    }
   }
 
   @Post("/create-reply/{postId}")
@@ -1259,21 +1273,21 @@ export class SocialController extends Controller {
           select: {
             achievement: {
               select: {
-                id: true
-              }
-            }
-          }
-        }
-      }
+                id: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    const getId = existgroup.group.achievement.map(a => a.id as string)
-    const specificAchievement = getId[0]
+    const getId = existgroup.group.achievement.map((a) => a.id as string);
+    const specificAchievement = getId[0];
     await prisma.achievement.delete({
       where: {
-        id: specificAchievement
-      }
-    })
+        id: specificAchievement,
+      },
+    });
 
     this.setStatus(200);
     return {
