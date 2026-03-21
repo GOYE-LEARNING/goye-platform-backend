@@ -164,6 +164,40 @@ export class NotificationService {
   }
 
   /**
+   * Get unread count for a user based on their role (for all users with that role)
+   */
+  static async getUnreadCount(role: Role) {
+    try {
+      return await prisma.notification.count({
+        where: {
+          to: role,
+          isRead: false,
+        },
+      });
+    } catch (error) {
+      console.error("Error in getUnreadCount:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get unread count for a specific user
+   */
+  static async getUnreadCountForUser(userId: string) {
+    try {
+      return await prisma.notification.count({
+        where: {
+          userId: userId,
+          isRead: false,
+        },
+      });
+    } catch (error) {
+      console.error("Error in getUnreadCountForUser:", error);
+      throw error;
+    }
+  }
+
+  /**
    * When a student joins a course - notify all instructors
    */
   static async notifyStudentJoinedCourse(studentId: string, courseId: string) {
@@ -381,23 +415,6 @@ export class NotificationService {
   }
 
   /**
-   * Get unread count for a specific user
-   */
-  static async getUnreadCountForUser(userId: string) {
-    try {
-      return await prisma.notification.count({
-        where: {
-          userId: userId,
-          isRead: false,
-        },
-      });
-    } catch (error) {
-      console.error("Error in getUnreadCountForUser:", error);
-      throw error;
-    }
-  }
-
-  /**
    * Get notifications by user
    */
   static async getUserNotifications(userId: string, limit: number = 50) {
@@ -437,6 +454,35 @@ export class NotificationService {
   }
 
   /**
+   * Get notifications by role
+   */
+  static async getNotificationsByRole(role: Role, limit: number = 50) {
+    try {
+      return await prisma.notification.findMany({
+        where: {
+          to: role,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: limit,
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error in getNotificationsByRole:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Delete a notification
    */
   static async deleteNotification(notificationId: string, userId: string) {
@@ -449,6 +495,44 @@ export class NotificationService {
       });
     } catch (error) {
       console.error("Error in deleteNotification:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete multiple notifications
+   */
+  static async deleteMultipleNotifications(notificationIds: string[], userId: string) {
+    try {
+      return await prisma.notification.deleteMany({
+        where: {
+          id: { in: notificationIds },
+          userId: userId,
+        },
+      });
+    } catch (error) {
+      console.error("Error in deleteMultipleNotifications:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Archive a notification (soft delete - mark as read)
+   */
+  static async archiveNotification(notificationId: string, userId: string) {
+    try {
+      return await prisma.notification.update({
+        where: {
+          id: notificationId,
+          userId: userId,
+        },
+        data: {
+          isRead: true,
+          updatedAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error("Error in archiveNotification:", error);
       throw error;
     }
   }
