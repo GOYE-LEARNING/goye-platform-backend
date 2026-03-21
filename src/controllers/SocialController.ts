@@ -565,72 +565,73 @@ export class SocialController extends Controller {
     }
   }
 
-  @Get("/get-child-replies/{replyId}")
-  public async GetChildReplies(
-    @Path() replyId: string,
-    @Query() page?: number,
-    @Query() limit?: number,
-  ): Promise<any> {
-    try {
-      const skip = page && limit ? (page - 1) * limit : 0;
-      const take = limit || 10;
+// Make sure this endpoint exists in your SocialController
+@Get("/get-child-replies/{replyId}")
+public async GetChildReplies(
+  @Path() replyId: string,
+  @Query() page?: number,
+  @Query() limit?: number,
+): Promise<any> {
+  try {
+    const skip = page && limit ? (page - 1) * limit : 0;
+    const take = limit || 10;
 
-      const reply = await prisma.reply.findUnique({
-        where: { id: replyId },
-        select: { id: true },
-      });
+    const reply = await prisma.reply.findUnique({
+      where: { id: replyId },
+      select: { id: true },
+    });
 
-      if (!reply) {
-        this.setStatus(404);
-        return { message: "Reply not found" };
-      }
-
-      const children = await prisma.reply.findMany({
-        where: { parentId: replyId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
-            },
-          },
-          likes: {
-            include: {
-              user: { select: { id: true, first_name: true, last_name: true } },
-            },
-            take: 5,
-          },
-          _count: { select: { likes: true, children: true } },
-        },
-        orderBy: { createdAt: "asc" },
-        skip,
-        take,
-      });
-
-      const totalCount = await prisma.reply.count({
-        where: { parentId: replyId },
-      });
-
-      this.setStatus(200);
-      return {
-        message: "Child replies fetched successfully",
-        data: children,
-        pagination: {
-          total: totalCount,
-          page: page || 1,
-          limit: limit || 10,
-          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error fetching child replies:", error);
-      this.setStatus(500);
-      return { message: "Failed to fetch child replies", error: error.message };
+    if (!reply) {
+      this.setStatus(404);
+      return { message: "Reply not found" };
     }
+
+    const children = await prisma.reply.findMany({
+      where: { parentId: replyId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        likes: {
+          include: {
+            user: { select: { id: true, first_name: true, last_name: true } },
+          },
+          take: 5,
+        },
+        _count: { select: { likes: true, children: true } },
+      },
+      orderBy: { createdAt: "asc" },
+      skip,
+      take,
+    });
+
+    const totalCount = await prisma.reply.count({
+      where: { parentId: replyId },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Child replies fetched successfully",
+      data: children,
+      pagination: {
+        total: totalCount,
+        page: page || 1,
+        limit: limit || 10,
+        totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching child replies:", error);
+    this.setStatus(500);
+    return { message: "Failed to fetch child replies", error: error.message };
   }
+}
 
   @Post("/like-post/{postId}")
   @Security("bearerAuth")
@@ -775,6 +776,8 @@ export class SocialController extends Controller {
       return { message: "Failed to unlike reply", error: error.message };
     }
   }
+
+  // Make sure this endpoint exists in your SocialController
 
   @Get("/check-like")
   @Security("bearerAuth")
