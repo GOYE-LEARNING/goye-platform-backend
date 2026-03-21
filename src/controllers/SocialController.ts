@@ -43,7 +43,6 @@ export class SocialController extends Controller {
         include: {
           user: userId
             ? {
-                // Only include user if userId exists
                 select: {
                   id: true,
                   first_name: true,
@@ -54,7 +53,6 @@ export class SocialController extends Controller {
             : false,
           organization: orgId
             ? {
-                // Only include organization if orgId exists
                 select: {
                   id: true,
                   organization_name: true,
@@ -123,6 +121,7 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
+      // Validate post exists
       const post = await prisma.post.findUnique({
         where: { id: postId },
       });
@@ -132,12 +131,30 @@ export class SocialController extends Controller {
         return { message: "Post not found" };
       }
 
+      // If this is a nested reply (replying to another reply), validate parent exists
+      if (body.parentId) {
+        const parentReply = await prisma.reply.findUnique({
+          where: { id: body.parentId },
+        });
+
+        if (!parentReply) {
+          this.setStatus(404);
+          return { message: "Parent reply not found" };
+        }
+
+        // Ensure parent reply belongs to the same post
+        if (parentReply.postId !== postId) {
+          this.setStatus(400);
+          return { message: "Parent reply does not belong to this post" };
+        }
+      }
+
       const createReply = await prisma.reply.create({
         data: {
           content: body.content,
           userId,
-          postId: postId, // optional if replying to another reply
-          parentId: body.parentId || null, // optional: set if it's a reply to a reply
+          postId: postId,
+          parentId: body.parentId || null,
         },
         include: {
           user: {
@@ -155,8 +172,21 @@ export class SocialController extends Controller {
             },
           },
           _count: { select: { likes: true } },
+          parent: {
+            select: {
+              id: true,
+              content: true,
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+          },
           children: {
-            // fetch nested replies if needed immediately
+            take: 3,
             include: {
               user: {
                 select: {
@@ -167,97 +197,272 @@ export class SocialController extends Controller {
                   role: true,
                 },
               },
-              likes: {
-                include: {
-                  user: {
-                    select: { id: true, first_name: true, last_name: true },
-                  },
-                },
-              },
               _count: { select: { likes: true } },
             },
+            orderBy: { createdAt: "asc" },
           },
         },
       });
 
+      // Send notification to the user being replied to
+      if (body.parentId) {
+        const parentReply = await prisma.reply.findUnique({
+          where: { id: body.parentId },
+          include: { user: true },
+        });
+
+        if (parentReply && parentReply.userId !== userId) {
+          await NotificationService.createNotification({
+            message: `${req.user?.first_name || "Someone"} replied to your comment`,
+            title: "New Reply",
+            type: "reply",
+            role: Role.STUDENT,
+            to: Role.STUDENT,
+            userId: parentReply.userId,
+            postId: postId,
+            replyId: createReply.id,
+          });
+        }
+      }
+
       this.setStatus(201);
-      return { message: "Reply created successfully", data: createReply };
+      return {
+        message: body.parentId ? "Nested reply created successfully" : "Reply created successfully",
+        data: createReply,
+      };
     } catch (error: any) {
+      console.error("Error creating reply:", error);
       this.setStatus(500);
       return { message: "Failed to create reply", error: error.message };
     }
   }
 
   @Get("/get-post-replies/{postId}")
-  public async GetPostReplies(@Path() postId: string): Promise<any> {
-    const replies = await prisma.reply.findMany({
-      where: { postId: postId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
-        },
-        likes: {
-          include: {
-            user: { select: { id: true, first_name: true, last_name: true } },
-          },
-        },
-        _count: { select: { likes: true } },
-      },
-      orderBy: { createdAt: "asc" },
-    });
+  public async GetPostReplies(
+    @Path() postId: string,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
+    try {
+      const skip = page && limit ? (page - 1) * limit : undefined;
+      const take = limit || undefined;
 
-    this.setStatus(200);
-    return {
-      message: "Replies fetched successfully",
-      data: replies,
-      count: replies.length,
-    };
+      const replies = await prisma.reply.findMany({
+        where: { 
+          postId: postId,
+          parentId: null, // Only get top-level replies
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          likes: {
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true } },
+            },
+            take: 5,
+          },
+          _count: { select: { likes: true, children: true } },
+          children: {
+            take: 2,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                  role: true,
+                },
+              },
+              _count: { select: { likes: true } },
+            },
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+        skip,
+        take,
+      });
+
+      const totalCount = await prisma.reply.count({
+        where: { postId: postId, parentId: null },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Replies fetched successfully",
+        data: replies,
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || totalCount,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching replies:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch replies", error: error.message };
+    }
   }
 
   @Get("/get-post-with-replies/{postId}")
-  public async GetPostWithReplies(@Path() postId: string): Promise<any> {
-    // First, fetch the post itself
-    const post = await prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
-        },
-        likes: {
-          include: {
-            user: {
-              select: { id: true, first_name: true, last_name: true },
+  public async GetPostWithReplies(
+    @Path() postId: string,
+    @Query() maxDepth?: number,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
+    try {
+      // First, fetch the post itself
+      const post = await prisma.post.findUnique({
+        where: { id: postId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
             },
           },
+          likes: {
+            include: {
+              user: {
+                select: { id: true, first_name: true, last_name: true },
+              },
+            },
+          },
+          _count: { select: { likes: true, replies: true } },
         },
-        _count: { select: { likes: true, replies: true } },
-      },
-    });
+      });
 
-    if (!post) {
-      this.setStatus(404);
-      return { message: "Post not found" };
+      if (!post) {
+        this.setStatus(404);
+        return { message: "Post not found" };
+      }
+
+      // Improved recursive function with depth limiting and pagination
+      const maxDepthReached = maxDepth || 3;
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 20;
+
+      async function fetchRepliesWithChildren(
+        postId: string,
+        parentId: string | null = null,
+        currentDepth: number = 0,
+        skipCount: number = 0,
+        takeCount: number = 20
+      ): Promise<any[]> {
+        // Stop recursion if max depth reached
+        if (currentDepth >= maxDepthReached) {
+          return [];
+        }
+
+        const replies = await prisma.reply.findMany({
+          where: { postId, parentId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+                role: true,
+              },
+            },
+            likes: {
+              include: {
+                user: { select: { id: true, first_name: true, last_name: true } },
+              },
+              take: 5,
+            },
+            _count: { select: { likes: true } },
+          },
+          orderBy: { createdAt: "asc" },
+          skip: parentId === null ? skipCount : 0,
+          take: parentId === null ? takeCount : undefined,
+        });
+
+        // Recursively fetch children for each reply
+        const repliesWithChildren = await Promise.all(
+          replies.map(async (reply) => {
+            const children = await fetchRepliesWithChildren(
+              postId,
+              reply.id,
+              currentDepth + 1,
+              0,
+              5 // Limit nested replies to 5 per parent
+            );
+            
+            // Check if there are more children
+            const totalChildren = await prisma.reply.count({
+              where: { parentId: reply.id },
+            });
+            
+            return {
+              ...reply,
+              children,
+              hasMoreChildren: children.length < totalChildren,
+              totalChildrenCount: totalChildren,
+            };
+          }),
+        );
+
+        return repliesWithChildren;
+      }
+
+      // Fetch all top-level replies and their nested children
+      const repliesWithChildren = await fetchRepliesWithChildren(
+        postId,
+        null,
+        0,
+        skip,
+        take
+      );
+
+      const totalTopLevelReplies = await prisma.reply.count({
+        where: { postId, parentId: null },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Post with all replies fetched successfully",
+        data: {
+          ...post,
+          replies: repliesWithChildren,
+        },
+        pagination: {
+          total: totalTopLevelReplies,
+          page: page || 1,
+          limit: limit || 20,
+          totalPages: limit ? Math.ceil(totalTopLevelReplies / limit) : 1,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching post with replies:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch post with replies", error: error.message };
     }
+  }
 
-    // Recursive function to fetch replies and their children
-    async function fetchRepliesWithChildren(
-      postId: string,
-      parentId: string | null = null,
-    ) {
-      const replies = await prisma.reply.findMany({
-        where: { postId, parentId },
+  @Get("/get-reply-thread/{replyId}")
+  public async GetReplyThread(
+    @Path() replyId: string,
+    @Query() maxDepth?: number
+  ): Promise<any> {
+    try {
+      // Fetch the reply and its parent chain
+      const reply = await prisma.reply.findUnique({
+        where: { id: replyId },
         include: {
           user: {
             select: {
@@ -274,29 +479,157 @@ export class SocialController extends Controller {
             },
           },
           _count: { select: { likes: true } },
+          parent: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+          },
         },
-        orderBy: { createdAt: "asc" },
       });
 
-      // Recursively fetch children for each reply
-      const repliesWithChildren = await Promise.all(
-        replies.map(async (reply) => {
-          const children = await fetchRepliesWithChildren(postId, reply.id);
-          return { ...reply, children };
-        }),
-      );
+      if (!reply) {
+        this.setStatus(404);
+        return { message: "Reply not found" };
+      }
 
-      return repliesWithChildren;
+      const maxDepthReached = maxDepth || 5;
+
+      // Fetch all children recursively with depth limit
+      async function fetchChildren(
+        parentId: string,
+        currentDepth: number = 0
+      ): Promise<any[]> {
+        if (currentDepth >= maxDepthReached) {
+          return [];
+        }
+
+        const children = await prisma.reply.findMany({
+          where: { parentId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+                role: true,
+              },
+            },
+            likes: {
+              include: {
+                user: { select: { id: true, first_name: true, last_name: true } },
+              },
+              take: 5,
+            },
+            _count: { select: { likes: true } },
+          },
+          orderBy: { createdAt: "asc" },
+        });
+
+        const childrenWithNested = await Promise.all(
+          children.map(async (child) => ({
+            ...child,
+            children: await fetchChildren(child.id, currentDepth + 1),
+            totalChildrenCount: await prisma.reply.count({
+              where: { parentId: child.id },
+            }),
+          }))
+        );
+
+        return childrenWithNested;
+      }
+
+      const children = await fetchChildren(replyId);
+
+      this.setStatus(200);
+      return {
+        message: "Reply thread fetched successfully",
+        data: {
+          ...reply,
+          children,
+          totalRepliesInThread: await prisma.reply.count({
+            where: { postId: reply.postId, parentId: replyId },
+          }),
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching reply thread:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch reply thread", error: error.message };
     }
+  }
 
-    // Fetch all top-level replies and their nested children
-    const repliesWithChildren = await fetchRepliesWithChildren(postId);
+  @Get("/get-child-replies/{replyId}")
+  public async GetChildReplies(
+    @Path() replyId: string,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
+    try {
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 10;
 
-    this.setStatus(200);
-    return {
-      message: "Post with all replies fetched successfully",
-      data: { ...post, replies: repliesWithChildren },
-    };
+      const reply = await prisma.reply.findUnique({
+        where: { id: replyId },
+        select: { id: true },
+      });
+
+      if (!reply) {
+        this.setStatus(404);
+        return { message: "Reply not found" };
+      }
+
+      const children = await prisma.reply.findMany({
+        where: { parentId: replyId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          likes: {
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true } },
+            },
+            take: 5,
+          },
+          _count: { select: { likes: true, children: true } },
+        },
+        orderBy: { createdAt: "asc" },
+        skip,
+        take,
+      });
+
+      const totalCount = await prisma.reply.count({
+        where: { parentId: replyId },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Child replies fetched successfully",
+        data: children,
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || 10,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching child replies:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch child replies", error: error.message };
+    }
   }
 
   @Post("/like-post/{postId}")
@@ -449,7 +782,6 @@ export class SocialController extends Controller {
     @Request() req: any,
     @Query() postId?: string,
     @Query() replyId?: string,
-    @Query() repliedMessageId?: string,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -470,7 +802,7 @@ export class SocialController extends Controller {
 
       this.setStatus(400);
       return {
-        message: "Must provide either postId or replyId or repliedMessageId",
+        message: "Must provide either postId or replyId",
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -479,54 +811,88 @@ export class SocialController extends Controller {
   }
 
   @Get("/get-all-posts")
-  public async GetAllPosts(): Promise<any> {
-    const posts = await prisma.post.findMany({
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
-        },
-        replies: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-              },
+  public async GetAllPosts(
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
+    try {
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 20;
+
+      const posts = await prisma.post.findMany({
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
             },
           },
-          orderBy: { createdAt: "asc" },
-        },
-        likes: {
-          include: {
-            user: { select: { id: true, first_name: true, last_name: true } },
+          replies: {
+            where: { parentId: null },
+            take: 3,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              _count: { select: { children: true } },
+            },
+            orderBy: { createdAt: "asc" },
           },
+          likes: {
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true } },
+            },
+          },
+          _count: { select: { replies: true, likes: true } },
         },
-        _count: { select: { replies: true, likes: true } },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
+      });
 
-    this.setStatus(200);
-    return {
-      message: "All posts fetched successfully",
-      data: posts,
-      count: posts.length,
-    };
+      const totalCount = await prisma.post.count();
+
+      this.setStatus(200);
+      return {
+        message: "All posts fetched successfully",
+        data: posts,
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || 20,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching all posts:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch posts", error: error.message };
+    }
   }
 
   @Security("bearerAuth")
   @Get("/get-post-by-course/{courseId}")
-  public async GetPostByCourseId(@Path() courseId: string) {
+  public async GetPostByCourseId(
+    @Path() courseId: string,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ) {
     try {
-      const course = await prisma.course.findMany({ where: { id: courseId } });
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 20;
+
+      const course = await prisma.course.findUnique({ 
+        where: { id: courseId } 
+      });
+      
       if (!course) {
         this.setStatus(404);
         return { message: "Course not found" };
@@ -536,26 +902,56 @@ export class SocialController extends Controller {
         where: { courseId },
         include: {
           user: {
-            select: { first_name: true, last_name: true, user_pic: true },
+            select: { 
+              id: true,
+              first_name: true, 
+              last_name: true, 
+              user_pic: true 
+            },
           },
           replies: {
+            where: { parentId: null },
+            take: 2,
             select: {
+              id: true,
               content: true,
               user: {
-                select: { first_name: true, last_name: true, user_pic: true },
+                select: { 
+                  id: true,
+                  first_name: true, 
+                  last_name: true, 
+                  user_pic: true 
+                },
               },
               createdAt: true,
+              _count: { select: { children: true } },
             },
             orderBy: { createdAt: "desc" },
           },
           _count: { select: { likes: true, replies: true } },
         },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take,
       });
 
+      const totalCount = await prisma.post.count({ where: { courseId } });
+
       this.setStatus(200);
-      return { message: "Post fetched successfully", data: getPost };
+      return { 
+        message: "Post fetched successfully", 
+        data: getPost,
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || 20,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
+      };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to fetch posts", error: error.message };
     }
   }
 
@@ -572,6 +968,7 @@ export class SocialController extends Controller {
       const existingReply = await prisma.reply.findFirst({
         where: { id: replyId, userId },
       });
+      
       if (!existingReply) {
         this.setStatus(404);
         return { message: "Reply not found or no permission to edit" };
@@ -595,6 +992,12 @@ export class SocialController extends Controller {
             },
           },
           _count: { select: { likes: true } },
+          parent: {
+            select: {
+              id: true,
+              user: { select: { first_name: true, last_name: true } },
+            },
+          },
         },
       });
 
@@ -617,24 +1020,58 @@ export class SocialController extends Controller {
     try {
       const existingReply = await prisma.reply.findFirst({
         where: { id: replyId, userId },
+        include: {
+          children: {
+            select: { id: true },
+          },
+        },
       });
+      
       if (!existingReply) {
         this.setStatus(404);
         return { message: "Reply not found or no permission to delete" };
       }
 
+      // Recursively delete all children
+      async function deleteChildren(parentId: string) {
+        const children = await prisma.reply.findMany({
+          where: { parentId },
+          select: { id: true },
+        });
+
+        for (const child of children) {
+          await deleteChildren(child.id);
+          await prisma.reply.delete({ where: { id: child.id } });
+        }
+      }
+
+      await deleteChildren(replyId);
+      
+      // Delete the reply itself
       await prisma.reply.delete({ where: { id: replyId } });
+      
       this.setStatus(200);
-      return { message: "Reply deleted successfully" };
+      return { 
+        message: "Reply and all its nested replies deleted successfully",
+        deletedCount: existingReply.children.length + 1,
+      };
     } catch (error: any) {
+      console.error("Error deleting reply:", error);
       this.setStatus(500);
       return { message: "Failed to delete reply", error: error.message };
     }
   }
 
   @Get("/post-likes/{postId}")
-  public async GetPostLikes(@Path() postId: string): Promise<any> {
+  public async GetPostLikes(
+    @Path() postId: string,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
     try {
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 20;
+
       const likes = await prisma.likes.findMany({
         where: { postId },
         include: {
@@ -648,11 +1085,22 @@ export class SocialController extends Controller {
           },
         },
         orderBy: { createdAt: "desc" },
+        skip,
+        take,
       });
+
+      const totalCount = await prisma.likes.count({ where: { postId } });
+
       this.setStatus(200);
       return {
         message: "Post likes fetched successfully",
-        data: { likes, likeCount: likes.length },
+        data: { likes, likeCount: totalCount },
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || 20,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -661,8 +1109,15 @@ export class SocialController extends Controller {
   }
 
   @Get("/reply-likes/{replyId}")
-  public async GetReplyLikes(@Path() replyId: string): Promise<any> {
+  public async GetReplyLikes(
+    @Path() replyId: string,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
     try {
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 20;
+
       const likes = await prisma.likes.findMany({
         where: { replyId },
         include: {
@@ -676,11 +1131,22 @@ export class SocialController extends Controller {
           },
         },
         orderBy: { createdAt: "desc" },
+        skip,
+        take,
       });
+
+      const totalCount = await prisma.likes.count({ where: { replyId } });
+
       this.setStatus(200);
       return {
         message: "Reply likes fetched successfully",
-        data: { likes, likeCount: likes.length },
+        data: { likes, likeCount: totalCount },
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || 20,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -728,13 +1194,13 @@ export class SocialController extends Controller {
           studentId: userId,
         },
       });
+      
       this.setStatus(201);
       return {
         message: "Group created successfully",
-        member: `You are now the admin and memeber of ${group.group_title}`,
+        member: `You are now the admin and member of ${group.group_title}`,
         joinGroup,
         group: group,
-        // return the full group object
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -786,7 +1252,6 @@ export class SocialController extends Controller {
             member: true,
           },
         },
-
         member: {
           select: {
             student: {
@@ -861,6 +1326,7 @@ export class SocialController extends Controller {
     } catch (error) {
       this.setStatus(500);
       console.error(error);
+      return { message: "Failed to fetch group", error: error.message };
     }
   }
 
@@ -868,9 +1334,6 @@ export class SocialController extends Controller {
   @Get("/get-groups")
   public async GetGroup(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-
-    console.log("🔍 API User ID:", userId);
-    console.log("🔍 User ID type:", typeof userId);
 
     try {
       const groups = await prisma.group.findMany({
@@ -905,7 +1368,6 @@ export class SocialController extends Controller {
                   user_pic: true,
                 },
               },
-              // Also select studentId directly if it exists
               studentId: true,
             },
           },
@@ -918,40 +1380,14 @@ export class SocialController extends Controller {
         },
       });
 
-      console.log(`📊 Found ${groups.length} groups`);
-
       const groupsWithStatus = groups.map((group) => {
-        // Debug: Log each group's member IDs
-        const memberIds = group.member.map((m) => ({
-          studentId: m.studentId,
-          studentObjectId: m.student?.id,
-          name: `${m.student?.first_name} ${m.student?.last_name}`,
-        }));
-
-        console.log(`Group: ${group.group_title}`);
-        console.log("Member IDs:", memberIds);
-
-        // Try multiple ways to check
-        const hasJoinedViaStudentId = group.member.some(
-          (m) => m.studentId === userId,
+        const hasJoined = group.member.some(
+          (m) => m.studentId === userId || m.student?.id === userId,
         );
-        const hasJoinedViaStudentObj = group.member.some(
-          (m) => m.student?.id === userId,
-        );
-
-        console.log(`Has joined via studentId: ${hasJoinedViaStudentId}`);
-        console.log(`Has joined via student object: ${hasJoinedViaStudentObj}`);
 
         return {
           ...group,
-          hasJoined: hasJoinedViaStudentId || hasJoinedViaStudentObj,
-          // Include debug info temporarily
-          _debug: {
-            userId,
-            memberIds,
-            hasJoinedViaStudentId,
-            hasJoinedViaStudentObj,
-          },
+          hasJoined,
         };
       });
 
@@ -994,7 +1430,6 @@ export class SocialController extends Controller {
               user_pic: true,
             },
           },
-
           event: {
             select: {
               id: true,
@@ -1032,6 +1467,8 @@ export class SocialController extends Controller {
       };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to update group", error: error.message };
     }
   }
 
@@ -1043,6 +1480,8 @@ export class SocialController extends Controller {
       return { message: "Group deleted successfully" };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to delete group", error: error.message };
     }
   }
 
@@ -1073,6 +1512,8 @@ export class SocialController extends Controller {
       return { message: "Image uploaded successfully", data: uploaded };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to upload image", error: error.message };
     }
   }
 
@@ -1154,7 +1595,6 @@ export class SocialController extends Controller {
         return { message: "Already Joined" };
       }
 
-      // Rejoining case
       studentName = isJoined.student.first_name;
       groupTitle = isJoined.group.group_title;
 
@@ -1173,7 +1613,6 @@ export class SocialController extends Controller {
         },
       });
     } else {
-      // First time joining
       result = await prisma.joinedGroup.create({
         data: {
           studentId: userId,
@@ -1194,7 +1633,6 @@ export class SocialController extends Controller {
       groupTitle = result.group.group_title;
     }
 
-    // Now create notification with proper Prisma syntax
     await NotificationService.createNotification({
       message: `Hello ${studentName}, you just joined ${groupTitle}`,
       title: "Group Message",
@@ -1202,10 +1640,9 @@ export class SocialController extends Controller {
       role: Role.STUDENT,
       to: Role.STUDENT,
       userId: userId,
-      groupId: groupId, // Use the original groupId, not result.id
+      groupId: groupId,
     });
 
-    // Fix achievement message to use the correct data
     await GrowthService.AchievementMessage({
       message_title: "Group Achievement",
       message_content: `You just joined ${groupTitle}`,
@@ -1256,7 +1693,7 @@ export class SocialController extends Controller {
 
     if (!isJoined) {
       return {
-        message: "User is not a memeber of this group",
+        message: "User is not a member of this group",
       };
     }
 
@@ -1267,7 +1704,6 @@ export class SocialController extends Controller {
           studentId: userId,
         },
       },
-
       include: {
         group: {
           select: {
@@ -1291,7 +1727,7 @@ export class SocialController extends Controller {
 
     this.setStatus(200);
     return {
-      message: "This user juist left the group.",
+      message: "This user just left the group.",
       data: existgroup,
     };
   }
@@ -1317,6 +1753,8 @@ export class SocialController extends Controller {
       return { message: "Event created successfully", data: createEvent };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to create event", error: error.message };
     }
   }
 
@@ -1326,20 +1764,17 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      // First, get the groups the student has joined
       const joinedGroups = await prisma.joinedGroup.findMany({
         where: {
           studentId: userId,
         },
         select: {
-          groupId: true, // Get the groupId, not the joinedGroup id
+          groupId: true,
         },
       });
 
-      // Extract just the group IDs
       const groupIds = joinedGroups.map((jg) => jg.groupId);
 
-      // If student hasn't joined any groups, return empty array
       if (groupIds.length === 0) {
         this.setStatus(200);
         return {
@@ -1349,31 +1784,19 @@ export class SocialController extends Controller {
         };
       }
 
-      // Find events for these groups
       const events = await prisma.event.findMany({
         where: {
           groupid: {
-            in: groupIds, // This should match the Prisma schema field name
+            in: groupIds,
           },
         },
         orderBy: { createdAt: "desc" },
         include: {
-          // Include related data if needed
           group: {
             select: {
               id: true,
               group_title: true,
               createdAt: true,
-              event: {
-                select: {
-                  event_name: true,
-                  createdAt: true,
-                  event_type: true,
-                },
-                orderBy: {
-                  createdAt: "desc",
-                },
-              },
             },
           },
         },
@@ -1403,7 +1826,7 @@ export class SocialController extends Controller {
       if (!groupId) {
         this.setStatus(404);
         return {
-          messgae: "Group not found",
+          message: "Group not found",
         };
       }
 
@@ -1421,6 +1844,8 @@ export class SocialController extends Controller {
       };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to fetch events", error: error.message };
     }
   }
 
@@ -1432,6 +1857,8 @@ export class SocialController extends Controller {
       return { message: "Event fetched successfully", data: event };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to fetch event", error: error.message };
     }
   }
 
@@ -1449,6 +1876,8 @@ export class SocialController extends Controller {
       return { message: "Event updated successfully", data: updateEvent };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to update event", error: error.message };
     }
   }
 
@@ -1460,6 +1889,8 @@ export class SocialController extends Controller {
       return { message: "Event deleted successfully" };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to delete event", error: error.message };
     }
   }
 }

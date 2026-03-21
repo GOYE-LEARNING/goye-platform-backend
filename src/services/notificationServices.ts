@@ -21,6 +21,8 @@ export class NotificationService {
     to: Role;
     userId: string;
     courseId?: string;
+    postId?: string;
+    replyId?: string;
     groupId?: string;
   }) {
     try {
@@ -43,6 +45,18 @@ export class NotificationService {
           ...(data.groupId && {
             group: {
               connect: { id: data.groupId },
+            },
+          }),
+          ...(data.postId && {
+            post: {
+              connect: { id: data.postId },
+            },
+          }),
+          ...(data.replyId && {
+            reply: {
+              connect: {
+                id: data.replyId,
+              },
             },
           }),
         },
