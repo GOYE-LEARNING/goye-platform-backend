@@ -9042,7 +9042,271 @@
 							"application/json": {
 								"schema": {
 									"properties": {
-										"data": {
+										"quiz": {
+											"items": {
+												"allOf": [
+													{
+														"properties": {
+															"QuizAttempt": {
+																"items": {
+																	"allOf": [
+																		{
+																			"properties": {
+																				"quiz": {
+																					"properties": {
+																						"quizProgress": {
+																							"type": "number",
+																							"format": "double"
+																						},
+																						"maxAttempts": {
+																							"type": "number",
+																							"format": "double"
+																						},
+																						"passingScore": {
+																							"type": "number",
+																							"format": "double"
+																						},
+																						"description": {
+																							"type": "string"
+																						},
+																						"title": {
+																							"type": "string"
+																						},
+																						"duration": {
+																							"type": "number",
+																							"format": "double"
+																						},
+																						"organizationId": {
+																							"type": "string"
+																						},
+																						"courseId": {
+																							"type": "string"
+																						},
+																						"updatedAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"createdAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"id": {
+																							"type": "string"
+																						}
+																					},
+																					"required": [
+																						"quizProgress",
+																						"maxAttempts",
+																						"passingScore",
+																						"description",
+																						"title",
+																						"duration",
+																						"organizationId",
+																						"courseId",
+																						"updatedAt",
+																						"createdAt",
+																						"id"
+																					],
+																					"type": "object"
+																				}
+																			},
+																			"required": [
+																				"quiz"
+																			],
+																			"type": "object"
+																		},
+																		{
+																			"properties": {
+																				"answers": {
+																					"$ref": "#/components/schemas/JsonValue"
+																				},
+																				"score": {
+																					"type": "number",
+																					"format": "double"
+																				},
+																				"timeFinished": {
+																					"type": "number",
+																					"format": "double"
+																				},
+																				"quizId": {
+																					"type": "string"
+																				},
+																				"startedAt": {
+																					"type": "string",
+																					"format": "date-time"
+																				},
+																				"completedAt": {
+																					"type": "string",
+																					"format": "date-time"
+																				},
+																				"completed": {
+																					"type": "boolean"
+																				},
+																				"organizationId": {
+																					"type": "string"
+																				},
+																				"userId": {
+																					"type": "string"
+																				},
+																				"courseId": {
+																					"type": "string"
+																				},
+																				"progressId": {
+																					"type": "string"
+																				},
+																				"id": {
+																					"type": "string"
+																				}
+																			},
+																			"required": [
+																				"answers",
+																				"score",
+																				"timeFinished",
+																				"quizId",
+																				"startedAt",
+																				"completedAt",
+																				"completed",
+																				"organizationId",
+																				"userId",
+																				"courseId",
+																				"progressId",
+																				"id"
+																			],
+																			"type": "object"
+																		}
+																	]
+																},
+																"type": "array"
+															},
+															"questions": {
+																"items": {
+																	"properties": {
+																		"quizAttemptId": {
+																			"type": "string"
+																		},
+																		"quizId": {
+																			"type": "string"
+																		},
+																		"points": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"explanation": {
+																			"type": "string"
+																		},
+																		"correctAnswer": {
+																			"type": "string"
+																		},
+																		"options": {
+																			"items": {
+																				"type": "string"
+																			},
+																			"type": "array"
+																		},
+																		"order": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"question": {
+																			"type": "string"
+																		},
+																		"courseId": {
+																			"type": "string"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"quizAttemptId",
+																		"quizId",
+																		"points",
+																		"explanation",
+																		"correctAnswer",
+																		"options",
+																		"order",
+																		"question",
+																		"courseId",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"type": "array"
+															}
+														},
+														"required": [
+															"QuizAttempt",
+															"questions"
+														],
+														"type": "object"
+													},
+													{
+														"properties": {
+															"quizProgress": {
+																"type": "number",
+																"format": "double"
+															},
+															"maxAttempts": {
+																"type": "number",
+																"format": "double"
+															},
+															"passingScore": {
+																"type": "number",
+																"format": "double"
+															},
+															"description": {
+																"type": "string"
+															},
+															"title": {
+																"type": "string"
+															},
+															"duration": {
+																"type": "number",
+																"format": "double"
+															},
+															"organizationId": {
+																"type": "string"
+															},
+															"courseId": {
+																"type": "string"
+															},
+															"updatedAt": {
+																"type": "string",
+																"format": "date-time"
+															},
+															"createdAt": {
+																"type": "string",
+																"format": "date-time"
+															},
+															"id": {
+																"type": "string"
+															}
+														},
+														"required": [
+															"quizProgress",
+															"maxAttempts",
+															"passingScore",
+															"description",
+															"title",
+															"duration",
+															"organizationId",
+															"courseId",
+															"updatedAt",
+															"createdAt",
+															"id"
+														],
+														"type": "object"
+													}
+												]
+											},
+											"type": "array"
+										},
+										"quizAttempt": {
 											"items": {
 												"properties": {
 													"maxAttempts": {
@@ -9082,63 +9346,132 @@
 													},
 													"QuizAttempt": {
 														"items": {
-															"properties": {
-																"answers": {
-																	"$ref": "#/components/schemas/JsonValue"
+															"allOf": [
+																{
+																	"properties": {
+																		"quiz": {
+																			"properties": {
+																				"quizProgress": {
+																					"type": "number",
+																					"format": "double"
+																				},
+																				"maxAttempts": {
+																					"type": "number",
+																					"format": "double"
+																				},
+																				"passingScore": {
+																					"type": "number",
+																					"format": "double"
+																				},
+																				"description": {
+																					"type": "string"
+																				},
+																				"title": {
+																					"type": "string"
+																				},
+																				"duration": {
+																					"type": "number",
+																					"format": "double"
+																				},
+																				"organizationId": {
+																					"type": "string"
+																				},
+																				"courseId": {
+																					"type": "string"
+																				},
+																				"updatedAt": {
+																					"type": "string",
+																					"format": "date-time"
+																				},
+																				"createdAt": {
+																					"type": "string",
+																					"format": "date-time"
+																				},
+																				"id": {
+																					"type": "string"
+																				}
+																			},
+																			"required": [
+																				"quizProgress",
+																				"maxAttempts",
+																				"passingScore",
+																				"description",
+																				"title",
+																				"duration",
+																				"organizationId",
+																				"courseId",
+																				"updatedAt",
+																				"createdAt",
+																				"id"
+																			],
+																			"type": "object"
+																		}
+																	},
+																	"required": [
+																		"quiz"
+																	],
+																	"type": "object"
 																},
-																"score": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"timeFinished": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"quizId": {
-																	"type": "string"
-																},
-																"startedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"completedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"completed": {
-																	"type": "boolean"
-																},
-																"organizationId": {
-																	"type": "string"
-																},
-																"userId": {
-																	"type": "string"
-																},
-																"courseId": {
-																	"type": "string"
-																},
-																"progressId": {
-																	"type": "string"
-																},
-																"id": {
-																	"type": "string"
+																{
+																	"properties": {
+																		"answers": {
+																			"$ref": "#/components/schemas/JsonValue"
+																		},
+																		"score": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"timeFinished": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"quizId": {
+																			"type": "string"
+																		},
+																		"startedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"completedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"completed": {
+																			"type": "boolean"
+																		},
+																		"organizationId": {
+																			"type": "string"
+																		},
+																		"userId": {
+																			"type": "string"
+																		},
+																		"courseId": {
+																			"type": "string"
+																		},
+																		"progressId": {
+																			"type": "string"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"answers",
+																		"score",
+																		"timeFinished",
+																		"quizId",
+																		"startedAt",
+																		"completedAt",
+																		"completed",
+																		"organizationId",
+																		"userId",
+																		"courseId",
+																		"progressId",
+																		"id"
+																	],
+																	"type": "object"
 																}
-															},
-															"required": [
-																"answers",
-																"score",
-																"timeFinished",
-																"quizId",
-																"startedAt",
-																"completedAt",
-																"completed",
-																"organizationId",
-																"userId",
-																"courseId",
-																"progressId",
-																"id"
-															],
-															"type": "object"
+															]
 														},
 														"type": "array"
 													},
@@ -9241,7 +9574,8 @@
 										}
 									},
 									"required": [
-										"data",
+										"quiz",
+										"quizAttempt",
 										"message"
 									],
 									"type": "object"

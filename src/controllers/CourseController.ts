@@ -828,7 +828,11 @@ export class CourseController extends Controller {
           questions: {
             orderBy: { order: "asc" },
           },
-          QuizAttempt: true,
+          QuizAttempt: {
+            include: {
+              quiz: true
+            }
+          }
         },
       });
 
