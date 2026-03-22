@@ -11,7 +11,6 @@ import {
   Request,
   Delete,
   UploadedFile,
-  FormField,
 } from "tsoa";
 import prisma from "../db";
 import { CourseResponse, Module } from "../interface/interfaces";
@@ -26,10 +25,6 @@ const levels: Record<string, string> = {
   Beginner: "Beginner",
   intermediate: "Intermediate",
   Intermediate: "Intermediate",
-};
-
-const QuizAnswers: Record<string, string> = {
-  id: "",
 };
 
 @Route("course")
@@ -843,7 +838,7 @@ export class CourseController extends Controller {
         const quizProgress = quizAttempted /totalQuizAttempted * 100
 
         return {
-          ...quiz,
+          ...q,
           quizAttempted,
           totalQuizAttempted,
           quizProgress

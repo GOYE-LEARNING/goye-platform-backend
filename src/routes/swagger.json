@@ -7,8 +7,16 @@
 		"requestBodies": {},
 		"responses": {},
 		"schemas": {
+			"_36_Enums.Tracking": {
+				"type": "string",
+				"enum": [
+					"FIRST_TIME_TRACKING",
+					"SECOND_TIME_TRACKING"
+				]
+			},
 			"Pick_User.Exclude_keyofUser.id__": {
 				"properties": {
+					"updatedAt": {},
 					"first_name": {
 						"type": "string"
 					},
@@ -36,8 +44,7 @@
 					"level": {
 						"type": "string"
 					},
-					"createAt": {},
-					"updatedAt": {}
+					"createAt": {}
 				},
 				"required": [
 					"first_name",
@@ -61,7 +68,8 @@
 				"type": "string",
 				"enum": [
 					"ORGANIZATION",
-					"INDIVIDUAL"
+					"INDIVIDUAL",
+					"INVITED"
 				]
 			},
 			"_36_Enums.EnrollmentStatus": {
@@ -179,6 +187,9 @@
 					"church_leadership_role": {
 						"type": "string"
 					},
+					"church_email": {
+						"type": "string"
+					},
 					"church_address": {
 						"type": "string"
 					},
@@ -221,7 +232,7 @@
 					"school_document": {
 						"type": "string"
 					},
-					"school_email_domain": {
+					"school_email": {
 						"type": "string"
 					}
 				},
@@ -284,6 +295,9 @@
 					"organization_description": {
 						"type": "string"
 					},
+					"organization_role": {
+						"type": "string"
+					},
 					"organization_year": {
 						"type": "string"
 					},
@@ -324,11 +338,11 @@
 				"required": [
 					"organization_name",
 					"organization_type",
-					"organization_email",
 					"organization_phone_number",
 					"organization_country",
 					"organization_state",
 					"organization_description",
+					"organization_role",
 					"organization_year",
 					"user_first_name",
 					"user_last_name",
@@ -353,14 +367,6 @@
 					"SCHOOL",
 					"CLUB",
 					"OTHER"
-				]
-			},
-			"_36_Enums.Role": {
-				"type": "string",
-				"enum": [
-					"ADMIN",
-					"STUDENT",
-					"INSTRUCTOR"
 				]
 			},
 			"CourseResponse": {
@@ -772,6 +778,42 @@
 				"type": "object",
 				"additionalProperties": false
 			},
+			"JsonValue": {
+				"anyOf": [
+					{
+						"type": "string"
+					},
+					{
+						"type": "number",
+						"format": "double"
+					},
+					{
+						"type": "boolean"
+					},
+					{
+						"$ref": "#/components/schemas/JsonObject"
+					},
+					{
+						"$ref": "#/components/schemas/JsonArray"
+					}
+				],
+				"nullable": true,
+				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches any valid JSON value."
+			},
+			"JsonObject": {
+				"properties": {},
+				"additionalProperties": {
+					"$ref": "#/components/schemas/JsonValue"
+				},
+				"type": "object",
+				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches a JSON object.\r\nThis type can be useful to enforce some input to be JSON-compatible or as a super-type to be extended from."
+			},
+			"JsonArray": {
+				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches a JSON array.",
+				"properties": {},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"Lesson": {
 				"properties": {
 					"lesson_title": {
@@ -786,6 +828,12 @@
 			},
 			"Pick_Module.Exclude_keyofModule.id__": {
 				"properties": {
+					"lesson": {
+						"items": {
+							"$ref": "#/components/schemas/Lesson"
+						},
+						"type": "array"
+					},
 					"module_title": {
 						"type": "string"
 					},
@@ -794,12 +842,6 @@
 					},
 					"module_duration": {
 						"type": "string"
-					},
-					"lesson": {
-						"items": {
-							"$ref": "#/components/schemas/Lesson"
-						},
-						"type": "array"
 					}
 				},
 				"type": "object",
@@ -824,6 +866,471 @@
 		"contact": {}
 	},
 	"paths": {
+		"/video/track-video": {
+			"post": {
+				"operationId": "TrackVideo",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"courseId": {
+															"type": "string"
+														},
+														"lessonId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"basedTimeTracking": {
+															"$ref": "#/components/schemas/_36_Enums.Tracking"
+														},
+														"videoTrackTime": {
+															"type": "number",
+															"format": "double"
+														},
+														"videoFinished": {
+															"type": "boolean"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"courseId",
+														"lessonId",
+														"progressId",
+														"updatedAt",
+														"createdAt",
+														"basedTimeTracking",
+														"videoTrackTime",
+														"videoFinished",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Video Tracking Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"courseId": {
+										"type": "string"
+									},
+									"lessonId": {
+										"type": "string"
+									},
+									"videoFinished": {
+										"type": "boolean"
+									},
+									"videoTrackTime": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"courseId",
+									"lessonId",
+									"videoFinished",
+									"videoTrackTime"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/video/update-track-video/{videoTrackerId}": {
+			"put": {
+				"operationId": "UpdateTrackVideo",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"courseId": {
+															"type": "string"
+														},
+														"lessonId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"basedTimeTracking": {
+															"$ref": "#/components/schemas/_36_Enums.Tracking"
+														},
+														"videoTrackTime": {
+															"type": "number",
+															"format": "double"
+														},
+														"videoFinished": {
+															"type": "boolean"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"courseId",
+														"lessonId",
+														"progressId",
+														"updatedAt",
+														"createdAt",
+														"basedTimeTracking",
+														"videoTrackTime",
+														"videoFinished",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Video Tracking Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "videoTrackerId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"videoFinished": {
+										"type": "boolean"
+									},
+									"videoTrackTime": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"videoFinished",
+									"videoTrackTime"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/video/fetch-track-video/{videoTrackerId}": {
+			"get": {
+				"operationId": "FetchVideoTracking",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"courseId": {
+															"type": "string"
+														},
+														"lessonId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"basedTimeTracking": {
+															"$ref": "#/components/schemas/_36_Enums.Tracking"
+														},
+														"videoTrackTime": {
+															"type": "number",
+															"format": "double"
+														},
+														"videoFinished": {
+															"type": "boolean"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"courseId",
+														"lessonId",
+														"progressId",
+														"updatedAt",
+														"createdAt",
+														"basedTimeTracking",
+														"videoTrackTime",
+														"videoFinished",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Video Tracking Controller"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "videoTrackerId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/video/get-tracker-id/{lessonId}": {
+			"get": {
+				"operationId": "GetTrackerId",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"courseId": {
+															"type": "string"
+														},
+														"lessonId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"basedTimeTracking": {
+															"$ref": "#/components/schemas/_36_Enums.Tracking"
+														},
+														"videoTrackTime": {
+															"type": "number",
+															"format": "double"
+														},
+														"videoFinished": {
+															"type": "boolean"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"courseId",
+														"lessonId",
+														"progressId",
+														"updatedAt",
+														"createdAt",
+														"basedTimeTracking",
+														"videoTrackTime",
+														"videoFinished",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Video Tracking Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "lessonId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/user/signup": {
 			"post": {
 				"operationId": "CreateUser",
@@ -1221,6 +1728,21 @@
 									"properties": {
 										"user": {
 											"properties": {
+												"completedVideo": {
+													"type": "number",
+													"format": "double"
+												},
+												"completedLessons": {
+													"type": "number",
+													"format": "double"
+												},
+												"completedCourses": {
+													"type": "number",
+													"format": "double"
+												},
+												"invited": {
+													"type": "boolean"
+												},
 												"user_pic": {
 													"type": "string"
 												},
@@ -1231,19 +1753,11 @@
 												"isOnline": {
 													"type": "boolean"
 												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
 												"form_type": {
 													"$ref": "#/components/schemas/_36_Enums.FormType"
 												},
 												"completed": {
 													"type": "string"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
 												},
 												"level": {
 													"type": "string"
@@ -1272,18 +1786,28 @@
 												"first_name": {
 													"type": "string"
 												},
+												"updatedAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"createdAt": {
+													"type": "string",
+													"format": "date-time"
+												},
 												"id": {
 													"type": "string"
 												}
 											},
 											"required": [
+												"completedVideo",
+												"completedLessons",
+												"completedCourses",
+												"invited",
 												"user_pic",
 												"lastActive",
 												"isOnline",
-												"createdAt",
 												"form_type",
 												"completed",
-												"updatedAt",
 												"level",
 												"role",
 												"phone_number",
@@ -1293,6 +1817,8 @@
 												"email_address",
 												"last_name",
 												"first_name",
+												"updatedAt",
+												"createdAt",
 												"id"
 											],
 											"type": "object"
@@ -1343,7 +1869,11 @@
 				"tags": [
 					"User control APIs"
 				],
-				"security": [],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
 				"parameters": []
 			}
 		},
@@ -1363,7 +1893,11 @@
 				"tags": [
 					"User control APIs"
 				],
-				"security": [],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
 				"parameters": []
 			}
 		},
@@ -1399,6 +1933,21 @@
 												"status": {},
 												"user": {
 													"properties": {
+														"completedVideo": {
+															"type": "number",
+															"format": "double"
+														},
+														"completedLessons": {
+															"type": "number",
+															"format": "double"
+														},
+														"completedCourses": {
+															"type": "number",
+															"format": "double"
+														},
+														"invited": {
+															"type": "boolean"
+														},
 														"user_pic": {
 															"type": "string"
 														},
@@ -1409,19 +1958,11 @@
 														"isOnline": {
 															"type": "boolean"
 														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
 														"form_type": {
 															"$ref": "#/components/schemas/_36_Enums.FormType"
 														},
 														"completed": {
 															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
 														},
 														"level": {
 															"type": "string"
@@ -1450,18 +1991,28 @@
 														"first_name": {
 															"type": "string"
 														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"completedVideo",
+														"completedLessons",
+														"completedCourses",
+														"invited",
 														"user_pic",
 														"lastActive",
 														"isOnline",
-														"createdAt",
 														"form_type",
 														"completed",
-														"updatedAt",
 														"level",
 														"role",
 														"phone_number",
@@ -1471,6 +2022,8 @@
 														"email_address",
 														"last_name",
 														"first_name",
+														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -1544,6 +2097,79 @@
 				}
 			}
 		},
+		"/user/check-password": {
+			"post": {
+				"operationId": "CheckPassword",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"message": {
+													"type": "string"
+												},
+												"status": {
+													"type": "number",
+													"format": "double"
+												}
+											},
+											"required": [
+												"message",
+												"status"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"status": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"password": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"password"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/user/user-student-status": {
 			"get": {
 				"operationId": "GetUserStatus",
@@ -1582,7 +2208,51 @@
 				],
 				"security": [
 					{
-						"jwt": []
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/user/debug-progress": {
+			"get": {
+				"operationId": "DebugProgress",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"cookies": {},
+										"fromToken": {
+											"type": "string"
+										},
+										"fromUser": {},
+										"fromRequest": {},
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"cookies",
+										"fromToken",
+										"fromUser",
+										"fromRequest",
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
 					}
 				],
 				"parameters": []
@@ -1724,6 +2394,27 @@
 																			"module": {
 																				"items": {
 																					"properties": {
+																						"module_duration": {
+																							"type": "string"
+																						},
+																						"module_description": {
+																							"type": "string"
+																						},
+																						"module_title": {
+																							"type": "string"
+																						},
+																						"_count": {
+																							"properties": {
+																								"lesson": {
+																									"type": "number",
+																									"format": "double"
+																								}
+																							},
+																							"required": [
+																								"lesson"
+																							],
+																							"type": "object"
+																						},
 																						"lesson": {
 																							"items": {
 																								"properties": {
@@ -1746,37 +2437,16 @@
 																							},
 																							"type": "array"
 																						},
-																						"module_duration": {
-																							"type": "string"
-																						},
-																						"module_description": {
-																							"type": "string"
-																						},
-																						"module_title": {
-																							"type": "string"
-																						},
-																						"_count": {
-																							"properties": {
-																								"lesson": {
-																									"type": "number",
-																									"format": "double"
-																								}
-																							},
-																							"required": [
-																								"lesson"
-																							],
-																							"type": "object"
-																						},
 																						"id": {
 																							"type": "string"
 																						}
 																					},
 																					"required": [
-																						"lesson",
 																						"module_duration",
 																						"module_description",
 																						"module_title",
 																						"_count",
+																						"lesson",
 																						"id"
 																					],
 																					"type": "object"
@@ -1879,10 +2549,6 @@
 																		"type": "string",
 																		"format": "date-time"
 																	},
-																	"progress": {
-																		"type": "number",
-																		"format": "double"
-																	},
 																	"enrollment_status": {
 																		"$ref": "#/components/schemas/_36_Enums.EnrollmentStatus"
 																	},
@@ -1895,7 +2561,6 @@
 																	"completed_at",
 																	"started_at",
 																	"enrollment_date",
-																	"progress",
 																	"enrollment_status",
 																	"enrollment_id"
 																],
@@ -2000,6 +2665,39 @@
 					{
 						"in": "path",
 						"name": "studentId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/enroll/check-if-enrolled/{courseId}": {
+			"get": {
+				"operationId": "FetchCheckIfStudentEnrolled",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Student Enrollment Course APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -2119,6 +2817,24 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
 					}
 				]
 			}
@@ -2147,6 +2863,118 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "maxDepth",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/socials/get-reply-thread/{replyId}": {
+			"get": {
+				"operationId": "GetReplyThread",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Social controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "replyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "maxDepth",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/socials/get-child-replies/{replyId}": {
+			"get": {
+				"operationId": "GetChildReplies",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Social controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "replyId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -2321,14 +3149,6 @@
 						"schema": {
 							"type": "string"
 						}
-					},
-					{
-						"in": "query",
-						"name": "repliedMessageId",
-						"required": false,
-						"schema": {
-							"type": "string"
-						}
 					}
 				]
 			}
@@ -2350,7 +3170,26 @@
 					"Social controllers"
 				],
 				"security": [],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
 			}
 		},
 		"/socials/get-post-by-course/{courseId}": {
@@ -2365,6 +3204,8 @@
 									"anyOf": [
 										{
 											"properties": {
+												"error": {},
+												"pagination": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -2377,6 +3218,34 @@
 										},
 										{
 											"properties": {
+												"error": {},
+												"pagination": {
+													"properties": {
+														"totalPages": {
+															"type": "number",
+															"format": "double"
+														},
+														"limit": {
+															"type": "number",
+															"format": "double"
+														},
+														"page": {
+															"type": "number",
+															"format": "double"
+														},
+														"total": {
+															"type": "number",
+															"format": "double"
+														}
+													},
+													"required": [
+														"totalPages",
+														"limit",
+														"page",
+														"total"
+													],
+													"type": "object"
+												},
 												"data": {
 													"items": {
 														"allOf": [
@@ -2388,6 +3257,18 @@
 																				"content": {
 																					"type": "string"
 																				},
+																				"_count": {
+																					"properties": {
+																						"children": {
+																							"type": "number",
+																							"format": "double"
+																						}
+																					},
+																					"required": [
+																						"children"
+																					],
+																					"type": "object"
+																				},
 																				"user": {
 																					"properties": {
 																						"user_pic": {
@@ -2398,24 +3279,33 @@
 																						},
 																						"first_name": {
 																							"type": "string"
+																						},
+																						"id": {
+																							"type": "string"
 																						}
 																					},
 																					"required": [
 																						"user_pic",
 																						"last_name",
-																						"first_name"
+																						"first_name",
+																						"id"
 																					],
 																					"type": "object"
 																				},
 																				"createdAt": {
 																					"type": "string",
 																					"format": "date-time"
+																				},
+																				"id": {
+																					"type": "string"
 																				}
 																			},
 																			"required": [
 																				"content",
+																				"_count",
 																				"user",
-																				"createdAt"
+																				"createdAt",
+																				"id"
 																			],
 																			"type": "object"
 																		},
@@ -2448,12 +3338,16 @@
 																			},
 																			"first_name": {
 																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
 																			}
 																		},
 																		"required": [
 																			"user_pic",
 																			"last_name",
-																			"first_name"
+																			"first_name",
+																			"id"
 																		],
 																		"type": "object"
 																	}
@@ -2473,10 +3367,13 @@
 																	"title": {
 																		"type": "string"
 																	},
-																	"courseId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"userId": {
+																		"type": "string"
+																	},
+																	"courseId": {
 																		"type": "string"
 																	},
 																	"createdAt": {
@@ -2490,8 +3387,9 @@
 																"required": [
 																	"content",
 																	"title",
-																	"courseId",
+																	"organizationId",
 																	"userId",
+																	"courseId",
 																	"createdAt",
 																	"id"
 																],
@@ -2506,7 +3404,23 @@
 												}
 											},
 											"required": [
+												"pagination",
 												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"pagination": {},
+												"data": {},
+												"error": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error",
 												"message"
 											],
 											"type": "object"
@@ -2532,6 +3446,24 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -2646,6 +3578,24 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
 					}
 				]
 			}
@@ -2674,6 +3624,24 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
 						}
 					}
 				]
@@ -2867,11 +3835,11 @@
 																	"userId": {
 																		"type": "string"
 																	},
-																	"createdAt": {
+																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
 																	},
-																	"updatedAt": {
+																	"createdAt": {
 																		"type": "string",
 																		"format": "date-time"
 																	},
@@ -2885,8 +3853,8 @@
 																	"group_short_description",
 																	"group_title",
 																	"userId",
-																	"createdAt",
 																	"updatedAt",
+																	"createdAt",
 																	"id"
 																],
 																"type": "object"
@@ -3189,34 +4157,7 @@
 										},
 										{
 											"properties": {
-												"data": {
-													"properties": {
-														"studentId": {
-															"type": "string"
-														},
-														"groupId": {
-															"type": "string"
-														},
-														"joinedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isJoined": {
-															"type": "boolean"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"studentId",
-														"groupId",
-														"joinedAt",
-														"isJoined",
-														"id"
-													],
-													"type": "object"
-												},
+												"data": {},
 												"message": {
 													"type": "string"
 												}
@@ -3278,32 +4219,66 @@
 										{
 											"properties": {
 												"data": {
-													"properties": {
-														"studentId": {
-															"type": "string"
+													"allOf": [
+														{
+															"properties": {
+																"group": {
+																	"properties": {
+																		"achievement": {
+																			"items": {
+																				"properties": {
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"id"
+																				],
+																				"type": "object"
+																			},
+																			"type": "array"
+																		}
+																	},
+																	"required": [
+																		"achievement"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"group"
+															],
+															"type": "object"
 														},
-														"groupId": {
-															"type": "string"
-														},
-														"joinedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isJoined": {
-															"type": "boolean"
-														},
-														"id": {
-															"type": "string"
+														{
+															"properties": {
+																"studentId": {
+																	"type": "string"
+																},
+																"groupId": {
+																	"type": "string"
+																},
+																"joinedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isJoined": {
+																	"type": "boolean"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"studentId",
+																"groupId",
+																"joinedAt",
+																"isJoined",
+																"id"
+															],
+															"type": "object"
 														}
-													},
-													"required": [
-														"studentId",
-														"groupId",
-														"joinedAt",
-														"isJoined",
-														"id"
-													],
-													"type": "object"
+													]
 												},
 												"message": {
 													"type": "string"
@@ -3572,17 +4547,7 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {
-									"properties": {
-										"message": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"message"
-									],
-									"type": "object"
-								}
+								"schema": {}
 							}
 						}
 					}
@@ -3645,86 +4610,120 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"data": {
+									"anyOf": [
+										{
 											"properties": {
-												"organization_password": {
-													"type": "string"
+												"data": {},
+												"status": {
+													"type": "number",
+													"format": "double"
 												},
-												"organization_year": {
-													"type": "string"
-												},
-												"organization_description": {
-													"type": "string"
-												},
-												"organization_state": {
-													"type": "string"
-												},
-												"organization_country": {
-													"type": "string"
-												},
-												"organization_phone_number": {
-													"type": "string"
-												},
-												"organization_email": {
-													"type": "string"
-												},
-												"organization_type": {
-													"$ref": "#/components/schemas/_36_Enums.OrgType"
-												},
-												"organization_name": {
-													"type": "string"
-												},
-												"userId": {
-													"type": "string"
-												},
-												"lastActive": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isOnline": {
-													"type": "boolean"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
+												"message": {
 													"type": "string"
 												}
 											},
 											"required": [
-												"organization_password",
-												"organization_year",
-												"organization_description",
-												"organization_state",
-												"organization_country",
-												"organization_phone_number",
-												"organization_email",
-												"organization_type",
-												"organization_name",
-												"userId",
-												"lastActive",
-												"isOnline",
-												"createdAt",
-												"updatedAt",
-												"id"
+												"status",
+												"message"
 											],
 											"type": "object"
 										},
-										"message": {
-											"type": "string"
+										{
+											"properties": {
+												"status": {},
+												"data": {
+													"properties": {
+														"organization_image": {
+															"type": "string"
+														},
+														"organization_password": {
+															"type": "string"
+														},
+														"organization_year": {
+															"type": "string"
+														},
+														"organization_role": {
+															"type": "string"
+														},
+														"organization_description": {
+															"type": "string"
+														},
+														"organization_state": {
+															"type": "string"
+														},
+														"organization_country": {
+															"type": "string"
+														},
+														"organization_phone_number": {
+															"type": "string"
+														},
+														"organization_email": {
+															"type": "string"
+														},
+														"organization_type": {
+															"$ref": "#/components/schemas/_36_Enums.OrgType"
+														},
+														"organization_name": {
+															"type": "string"
+														},
+														"lastActive": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"isOnline": {
+															"type": "boolean"
+														},
+														"form_type": {
+															"$ref": "#/components/schemas/_36_Enums.FormType"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"organization_image",
+														"organization_password",
+														"organization_year",
+														"organization_role",
+														"organization_description",
+														"organization_state",
+														"organization_country",
+														"organization_phone_number",
+														"organization_email",
+														"organization_type",
+														"organization_name",
+														"lastActive",
+														"isOnline",
+														"form_type",
+														"userId",
+														"updatedAt",
+														"createdAt",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
 										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
+									]
 								}
 							}
 						}
@@ -3744,6 +4743,61 @@
 						}
 					}
 				]
+			}
+		},
+		"/organizations/upload-organization-profile_picture/{organizationId}": {
+			"post": {
+				"operationId": "UploadOrganizationImage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"mimeType": {
+										"type": "string"
+									},
+									"fileName": {
+										"type": "string"
+									},
+									"file": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"mimeType",
+									"fileName",
+									"file"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/organizations/upload-church-logo/{organizationId}": {
@@ -3975,86 +5029,429 @@
 						"content": {
 							"application/json": {
 								"schema": {
-									"properties": {
-										"data": {
+									"anyOf": [
+										{
 											"properties": {
-												"organization_password": {
-													"type": "string"
-												},
-												"organization_year": {
-													"type": "string"
-												},
-												"organization_description": {
-													"type": "string"
-												},
-												"organization_state": {
-													"type": "string"
-												},
-												"organization_country": {
-													"type": "string"
-												},
-												"organization_phone_number": {
-													"type": "string"
-												},
-												"organization_email": {
-													"type": "string"
-												},
-												"organization_type": {
-													"$ref": "#/components/schemas/_36_Enums.OrgType"
-												},
-												"organization_name": {
-													"type": "string"
-												},
-												"userId": {
-													"type": "string"
-												},
-												"lastActive": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isOnline": {
-													"type": "boolean"
-												},
-												"createdAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"updatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"id": {
+												"error": {},
+												"data": {},
+												"message": {
 													"type": "string"
 												}
 											},
 											"required": [
-												"organization_password",
-												"organization_year",
-												"organization_description",
-												"organization_state",
-												"organization_country",
-												"organization_phone_number",
-												"organization_email",
-												"organization_type",
-												"organization_name",
-												"userId",
-												"lastActive",
-												"isOnline",
-												"createdAt",
-												"updatedAt",
-												"id"
+												"message"
 											],
 											"type": "object"
 										},
-										"message": {
-											"type": "string"
+										{
+											"properties": {
+												"error": {},
+												"data": {
+													"allOf": [
+														{
+															"properties": {
+																"Club": {
+																	"properties": {
+																		"club_email": {
+																			"type": "string"
+																		},
+																		"club_document": {
+																			"type": "string"
+																		},
+																		"club_description": {
+																			"type": "string"
+																		},
+																		"club_parent_org": {
+																			"type": "string"
+																		},
+																		"club_social_link": {
+																			"type": "string"
+																		},
+																		"club_meeting_frequency": {
+																			"type": "string"
+																		},
+																		"club_role": {
+																			"type": "string"
+																		},
+																		"club_leader_name": {
+																			"type": "string"
+																		},
+																		"club_type": {
+																			"type": "string"
+																		},
+																		"club_name": {
+																			"type": "string"
+																		},
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"club_email",
+																		"club_document",
+																		"club_description",
+																		"club_parent_org",
+																		"club_social_link",
+																		"club_meeting_frequency",
+																		"club_role",
+																		"club_leader_name",
+																		"club_type",
+																		"club_name",
+																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"Church": {
+																	"properties": {
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"church_email": {
+																			"type": "string"
+																		},
+																		"church_logo": {
+																			"type": "string"
+																		},
+																		"church_website": {
+																			"type": "string"
+																		},
+																		"church_weekly_service": {
+																			"type": "string"
+																		},
+																		"church_address": {
+																			"type": "string"
+																		},
+																		"church_role": {
+																			"type": "string"
+																		},
+																		"church_ld_pastor": {
+																			"type": "string"
+																		},
+																		"church_min_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"organzationId",
+																		"church_email",
+																		"church_logo",
+																		"church_website",
+																		"church_weekly_service",
+																		"church_address",
+																		"church_role",
+																		"church_ld_pastor",
+																		"church_min_name",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"school": {
+																	"properties": {
+																		"school_logo": {
+																			"type": "string"
+																		},
+																		"school_document": {
+																			"type": "string"
+																		},
+																		"school_accreditation_number": {
+																			"type": "string"
+																		},
+																		"school_website": {
+																			"type": "string"
+																		},
+																		"school_email": {
+																			"type": "string"
+																		},
+																		"school_role": {
+																			"type": "string"
+																		},
+																		"school_admin_name": {
+																			"type": "string"
+																		},
+																		"school_address": {
+																			"type": "string"
+																		},
+																		"school_type": {
+																			"type": "string"
+																		},
+																		"school_name": {
+																			"type": "string"
+																		},
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"school_logo",
+																		"school_document",
+																		"school_accreditation_number",
+																		"school_website",
+																		"school_email",
+																		"school_role",
+																		"school_admin_name",
+																		"school_address",
+																		"school_type",
+																		"school_name",
+																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"user": {
+																	"properties": {
+																		"completedVideo": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"completedLessons": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"completedCourses": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"invited": {
+																			"type": "boolean"
+																		},
+																		"user_pic": {
+																			"type": "string"
+																		},
+																		"lastActive": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"isOnline": {
+																			"type": "boolean"
+																		},
+																		"form_type": {
+																			"$ref": "#/components/schemas/_36_Enums.FormType"
+																		},
+																		"completed": {
+																			"type": "string"
+																		},
+																		"level": {
+																			"type": "string"
+																		},
+																		"role": {
+																			"type": "string"
+																		},
+																		"phone_number": {
+																			"type": "string"
+																		},
+																		"state": {
+																			"type": "string"
+																		},
+																		"country": {
+																			"type": "string"
+																		},
+																		"password": {
+																			"type": "string"
+																		},
+																		"email_address": {
+																			"type": "string"
+																		},
+																		"last_name": {
+																			"type": "string"
+																		},
+																		"first_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"completedVideo",
+																		"completedLessons",
+																		"completedCourses",
+																		"invited",
+																		"user_pic",
+																		"lastActive",
+																		"isOnline",
+																		"form_type",
+																		"completed",
+																		"level",
+																		"role",
+																		"phone_number",
+																		"state",
+																		"country",
+																		"password",
+																		"email_address",
+																		"last_name",
+																		"first_name",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"Club",
+																"Church",
+																"school",
+																"user"
+															],
+															"type": "object"
+														},
+														{
+															"properties": {
+																"organization_image": {
+																	"type": "string"
+																},
+																"organization_password": {
+																	"type": "string"
+																},
+																"organization_year": {
+																	"type": "string"
+																},
+																"organization_role": {
+																	"type": "string"
+																},
+																"organization_description": {
+																	"type": "string"
+																},
+																"organization_state": {
+																	"type": "string"
+																},
+																"organization_country": {
+																	"type": "string"
+																},
+																"organization_phone_number": {
+																	"type": "string"
+																},
+																"organization_email": {
+																	"type": "string"
+																},
+																"organization_type": {
+																	"$ref": "#/components/schemas/_36_Enums.OrgType"
+																},
+																"organization_name": {
+																	"type": "string"
+																},
+																"lastActive": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isOnline": {
+																	"type": "boolean"
+																},
+																"form_type": {
+																	"$ref": "#/components/schemas/_36_Enums.FormType"
+																},
+																"userId": {
+																	"type": "string"
+																},
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"organization_image",
+																"organization_password",
+																"organization_year",
+																"organization_role",
+																"organization_description",
+																"organization_state",
+																"organization_country",
+																"organization_phone_number",
+																"organization_email",
+																"organization_type",
+																"organization_name",
+																"lastActive",
+																"isOnline",
+																"form_type",
+																"userId",
+																"updatedAt",
+																"createdAt",
+																"id"
+															],
+															"type": "object"
+														}
+													]
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {},
+												"error": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error",
+												"message"
+											],
+											"type": "object"
 										}
-									},
-									"required": [
-										"data",
-										"message"
-									],
-									"type": "object"
+									]
 								}
 							}
 						}
@@ -4143,6 +5540,908 @@
 				]
 			}
 		},
+		"/organizations/profile": {
+			"get": {
+				"operationId": "GetProfile",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"organization": {},
+												"status": {
+													"type": "number",
+													"format": "double"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"status",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"status": {},
+												"organization": {
+													"allOf": [
+														{
+															"properties": {
+																"Club": {
+																	"properties": {
+																		"club_email": {
+																			"type": "string"
+																		},
+																		"club_document": {
+																			"type": "string"
+																		},
+																		"club_description": {
+																			"type": "string"
+																		},
+																		"club_parent_org": {
+																			"type": "string"
+																		},
+																		"club_social_link": {
+																			"type": "string"
+																		},
+																		"club_meeting_frequency": {
+																			"type": "string"
+																		},
+																		"club_role": {
+																			"type": "string"
+																		},
+																		"club_leader_name": {
+																			"type": "string"
+																		},
+																		"club_type": {
+																			"type": "string"
+																		},
+																		"club_name": {
+																			"type": "string"
+																		},
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"club_email",
+																		"club_document",
+																		"club_description",
+																		"club_parent_org",
+																		"club_social_link",
+																		"club_meeting_frequency",
+																		"club_role",
+																		"club_leader_name",
+																		"club_type",
+																		"club_name",
+																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"Church": {
+																	"properties": {
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"church_email": {
+																			"type": "string"
+																		},
+																		"church_logo": {
+																			"type": "string"
+																		},
+																		"church_website": {
+																			"type": "string"
+																		},
+																		"church_weekly_service": {
+																			"type": "string"
+																		},
+																		"church_address": {
+																			"type": "string"
+																		},
+																		"church_role": {
+																			"type": "string"
+																		},
+																		"church_ld_pastor": {
+																			"type": "string"
+																		},
+																		"church_min_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"organzationId",
+																		"church_email",
+																		"church_logo",
+																		"church_website",
+																		"church_weekly_service",
+																		"church_address",
+																		"church_role",
+																		"church_ld_pastor",
+																		"church_min_name",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"school": {
+																	"properties": {
+																		"school_logo": {
+																			"type": "string"
+																		},
+																		"school_document": {
+																			"type": "string"
+																		},
+																		"school_accreditation_number": {
+																			"type": "string"
+																		},
+																		"school_website": {
+																			"type": "string"
+																		},
+																		"school_email": {
+																			"type": "string"
+																		},
+																		"school_role": {
+																			"type": "string"
+																		},
+																		"school_admin_name": {
+																			"type": "string"
+																		},
+																		"school_address": {
+																			"type": "string"
+																		},
+																		"school_type": {
+																			"type": "string"
+																		},
+																		"school_name": {
+																			"type": "string"
+																		},
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"school_logo",
+																		"school_document",
+																		"school_accreditation_number",
+																		"school_website",
+																		"school_email",
+																		"school_role",
+																		"school_admin_name",
+																		"school_address",
+																		"school_type",
+																		"school_name",
+																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"user": {
+																	"properties": {
+																		"completedVideo": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"completedLessons": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"completedCourses": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"invited": {
+																			"type": "boolean"
+																		},
+																		"user_pic": {
+																			"type": "string"
+																		},
+																		"lastActive": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"isOnline": {
+																			"type": "boolean"
+																		},
+																		"form_type": {
+																			"$ref": "#/components/schemas/_36_Enums.FormType"
+																		},
+																		"completed": {
+																			"type": "string"
+																		},
+																		"level": {
+																			"type": "string"
+																		},
+																		"role": {
+																			"type": "string"
+																		},
+																		"phone_number": {
+																			"type": "string"
+																		},
+																		"state": {
+																			"type": "string"
+																		},
+																		"country": {
+																			"type": "string"
+																		},
+																		"password": {
+																			"type": "string"
+																		},
+																		"email_address": {
+																			"type": "string"
+																		},
+																		"last_name": {
+																			"type": "string"
+																		},
+																		"first_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"completedVideo",
+																		"completedLessons",
+																		"completedCourses",
+																		"invited",
+																		"user_pic",
+																		"lastActive",
+																		"isOnline",
+																		"form_type",
+																		"completed",
+																		"level",
+																		"role",
+																		"phone_number",
+																		"state",
+																		"country",
+																		"password",
+																		"email_address",
+																		"last_name",
+																		"first_name",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"Club",
+																"Church",
+																"school",
+																"user"
+															],
+															"type": "object"
+														},
+														{
+															"properties": {
+																"organization_image": {
+																	"type": "string"
+																},
+																"organization_password": {
+																	"type": "string"
+																},
+																"organization_year": {
+																	"type": "string"
+																},
+																"organization_role": {
+																	"type": "string"
+																},
+																"organization_description": {
+																	"type": "string"
+																},
+																"organization_state": {
+																	"type": "string"
+																},
+																"organization_country": {
+																	"type": "string"
+																},
+																"organization_phone_number": {
+																	"type": "string"
+																},
+																"organization_email": {
+																	"type": "string"
+																},
+																"organization_type": {
+																	"$ref": "#/components/schemas/_36_Enums.OrgType"
+																},
+																"organization_name": {
+																	"type": "string"
+																},
+																"lastActive": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isOnline": {
+																	"type": "boolean"
+																},
+																"form_type": {
+																	"$ref": "#/components/schemas/_36_Enums.FormType"
+																},
+																"userId": {
+																	"type": "string"
+																},
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"organization_image",
+																"organization_password",
+																"organization_year",
+																"organization_role",
+																"organization_description",
+																"organization_state",
+																"organization_country",
+																"organization_phone_number",
+																"organization_email",
+																"organization_type",
+																"organization_name",
+																"lastActive",
+																"isOnline",
+																"form_type",
+																"userId",
+																"updatedAt",
+																"createdAt",
+																"id"
+															],
+															"type": "object"
+														}
+													]
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"organization",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/organizations/invite-user/signup": {
+			"post": {
+				"operationId": "CreateUser",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/Omit_User.id_"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organizations/invite-users-to-organization/{organizationId}": {
+			"post": {
+				"operationId": "InviteUsersToOrganization",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"users": {
+										"items": {
+											"properties": {
+												"role": {
+													"type": "string"
+												},
+												"email": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"role",
+												"email"
+											],
+											"type": "object"
+										},
+										"type": "array"
+									}
+								},
+								"required": [
+									"users"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organizations/fetch-invited-users/{organizationId}": {
+			"get": {
+				"operationId": "FetchInviteUsers",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"items": {
+														"allOf": [
+															{
+																"properties": {
+																	"user": {
+																		"properties": {
+																			"user_pic": {
+																				"type": "string"
+																			},
+																			"role": {
+																				"type": "string"
+																			},
+																			"email_address": {
+																				"type": "string"
+																			},
+																			"last_name": {
+																				"type": "string"
+																			},
+																			"first_name": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"user_pic",
+																			"role",
+																			"email_address",
+																			"last_name",
+																			"first_name"
+																		],
+																		"type": "object"
+																	}
+																},
+																"required": [
+																	"user"
+																],
+																"type": "object"
+															},
+															{
+																"properties": {
+																	"organization_image": {
+																		"type": "string"
+																	},
+																	"organization_password": {
+																		"type": "string"
+																	},
+																	"organization_year": {
+																		"type": "string"
+																	},
+																	"organization_role": {
+																		"type": "string"
+																	},
+																	"organization_description": {
+																		"type": "string"
+																	},
+																	"organization_state": {
+																		"type": "string"
+																	},
+																	"organization_country": {
+																		"type": "string"
+																	},
+																	"organization_phone_number": {
+																		"type": "string"
+																	},
+																	"organization_email": {
+																		"type": "string"
+																	},
+																	"organization_type": {
+																		"$ref": "#/components/schemas/_36_Enums.OrgType"
+																	},
+																	"organization_name": {
+																		"type": "string"
+																	},
+																	"lastActive": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"isOnline": {
+																		"type": "boolean"
+																	},
+																	"form_type": {
+																		"$ref": "#/components/schemas/_36_Enums.FormType"
+																	},
+																	"userId": {
+																		"type": "string"
+																	},
+																	"updatedAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"createdAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"id": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"organization_image",
+																	"organization_password",
+																	"organization_year",
+																	"organization_role",
+																	"organization_description",
+																	"organization_state",
+																	"organization_country",
+																	"organization_phone_number",
+																	"organization_email",
+																	"organization_type",
+																	"organization_name",
+																	"lastActive",
+																	"isOnline",
+																	"form_type",
+																	"userId",
+																	"updatedAt",
+																	"createdAt",
+																	"id"
+																],
+																"type": "object"
+															}
+														]
+													},
+													"type": "array"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/fetch-invited-users-with-access/{organizationId}": {
+			"get": {
+				"operationId": "FetchInviteUsersWithAccess",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"items": {
+														"allOf": [
+															{
+																"properties": {
+																	"user": {
+																		"properties": {
+																			"user_pic": {
+																				"type": "string"
+																			},
+																			"role": {
+																				"type": "string"
+																			},
+																			"email_address": {
+																				"type": "string"
+																			},
+																			"last_name": {
+																				"type": "string"
+																			},
+																			"first_name": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"user_pic",
+																			"role",
+																			"email_address",
+																			"last_name",
+																			"first_name"
+																		],
+																		"type": "object"
+																	}
+																},
+																"required": [
+																	"user"
+																],
+																"type": "object"
+															},
+															{
+																"properties": {
+																	"organization_image": {
+																		"type": "string"
+																	},
+																	"organization_password": {
+																		"type": "string"
+																	},
+																	"organization_year": {
+																		"type": "string"
+																	},
+																	"organization_role": {
+																		"type": "string"
+																	},
+																	"organization_description": {
+																		"type": "string"
+																	},
+																	"organization_state": {
+																		"type": "string"
+																	},
+																	"organization_country": {
+																		"type": "string"
+																	},
+																	"organization_phone_number": {
+																		"type": "string"
+																	},
+																	"organization_email": {
+																		"type": "string"
+																	},
+																	"organization_type": {
+																		"$ref": "#/components/schemas/_36_Enums.OrgType"
+																	},
+																	"organization_name": {
+																		"type": "string"
+																	},
+																	"lastActive": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"isOnline": {
+																		"type": "boolean"
+																	},
+																	"form_type": {
+																		"$ref": "#/components/schemas/_36_Enums.FormType"
+																	},
+																	"userId": {
+																		"type": "string"
+																	},
+																	"updatedAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"createdAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"id": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"organization_image",
+																	"organization_password",
+																	"organization_year",
+																	"organization_role",
+																	"organization_description",
+																	"organization_state",
+																	"organization_country",
+																	"organization_phone_number",
+																	"organization_email",
+																	"organization_type",
+																	"organization_name",
+																	"lastActive",
+																	"isOnline",
+																	"form_type",
+																	"userId",
+																	"updatedAt",
+																	"createdAt",
+																	"id"
+																],
+																"type": "object"
+															}
+														]
+													},
+													"type": "array"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/delete-organization/{id}": {
 			"delete": {
 				"operationId": "DeleteOrganization",
@@ -4155,10 +6454,16 @@
 									"properties": {
 										"data": {
 											"properties": {
+												"organization_image": {
+													"type": "string"
+												},
 												"organization_password": {
 													"type": "string"
 												},
 												"organization_year": {
+													"type": "string"
+												},
+												"organization_role": {
 													"type": "string"
 												},
 												"organization_description": {
@@ -4182,9 +6487,6 @@
 												"organization_name": {
 													"type": "string"
 												},
-												"userId": {
-													"type": "string"
-												},
 												"lastActive": {
 													"type": "string",
 													"format": "date-time"
@@ -4192,11 +6494,17 @@
 												"isOnline": {
 													"type": "boolean"
 												},
-												"createdAt": {
+												"form_type": {
+													"$ref": "#/components/schemas/_36_Enums.FormType"
+												},
+												"userId": {
+													"type": "string"
+												},
+												"updatedAt": {
 													"type": "string",
 													"format": "date-time"
 												},
-												"updatedAt": {
+												"createdAt": {
 													"type": "string",
 													"format": "date-time"
 												},
@@ -4205,8 +6513,10 @@
 												}
 											},
 											"required": [
+												"organization_image",
 												"organization_password",
 												"organization_year",
+												"organization_role",
 												"organization_description",
 												"organization_state",
 												"organization_country",
@@ -4214,11 +6524,12 @@
 												"organization_email",
 												"organization_type",
 												"organization_name",
-												"userId",
 												"lastActive",
 												"isOnline",
-												"createdAt",
+												"form_type",
+												"userId",
 												"updatedAt",
+												"createdAt",
 												"id"
 											],
 											"type": "object"
@@ -4251,6 +6562,30 @@
 						}
 					}
 				]
+			}
+		},
+		"/organizations/logout": {
+			"post": {
+				"operationId": "Logout",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/notifications/fetch-all-notification": {
@@ -4308,25 +6643,6 @@
 																		],
 																		"type": "object"
 																	},
-																	"course": {
-																		"properties": {
-																			"course_image": {
-																				"type": "string"
-																			},
-																			"course_title": {
-																				"type": "string"
-																			},
-																			"id": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"course_image",
-																			"course_title",
-																			"id"
-																		],
-																		"type": "object"
-																	},
 																	"user": {
 																		"properties": {
 																			"user_pic": {
@@ -4349,22 +6665,47 @@
 																			"id"
 																		],
 																		"type": "object"
+																	},
+																	"course": {
+																		"properties": {
+																			"course_image": {
+																				"type": "string"
+																			},
+																			"course_title": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"course_image",
+																			"course_title",
+																			"id"
+																		],
+																		"type": "object"
 																	}
 																},
 																"required": [
 																	"group",
-																	"course",
-																	"user"
+																	"user",
+																	"course"
 																],
 																"type": "object"
 															},
 															{
 																"properties": {
+																	"replyId": {
+																		"type": "string"
+																	},
+																	"achievementId": {
+																		"type": "string"
+																	},
 																	"isRead": {
 																		"type": "boolean"
 																	},
 																	"to": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
+																		"type": "string"
 																	},
 																	"type": {
 																		"type": "string"
@@ -4372,45 +6713,55 @@
 																	"groupId": {
 																		"type": "string"
 																	},
+																	"postId": {
+																		"type": "string"
+																	},
 																	"title": {
-																		"type": "string"
-																	},
-																	"courseId": {
-																		"type": "string"
-																	},
-																	"userId": {
 																		"type": "string"
 																	},
 																	"message": {
 																		"type": "string"
 																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
+																	"role": {
+																		"type": "string"
+																	},
+																	"organizationId": {
+																		"type": "string"
+																	},
+																	"userId": {
+																		"type": "string"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
 																	},
-																	"role": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
+																	"createdAt": {
+																		"type": "string",
+																		"format": "date-time"
 																	},
 																	"id": {
 																		"type": "string"
 																	}
 																},
 																"required": [
+																	"replyId",
+																	"achievementId",
 																	"isRead",
 																	"to",
 																	"type",
 																	"groupId",
+																	"postId",
 																	"title",
-																	"courseId",
-																	"userId",
 																	"message",
-																	"createdAt",
-																	"updatedAt",
 																	"role",
+																	"organizationId",
+																	"userId",
+																	"courseId",
+																	"updatedAt",
+																	"createdAt",
 																	"id"
 																],
 																"type": "object"
@@ -4541,11 +6892,17 @@
 															},
 															{
 																"properties": {
+																	"replyId": {
+																		"type": "string"
+																	},
+																	"achievementId": {
+																		"type": "string"
+																	},
 																	"isRead": {
 																		"type": "boolean"
 																	},
 																	"to": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
+																		"type": "string"
 																	},
 																	"type": {
 																		"type": "string"
@@ -4553,45 +6910,55 @@
 																	"groupId": {
 																		"type": "string"
 																	},
+																	"postId": {
+																		"type": "string"
+																	},
 																	"title": {
-																		"type": "string"
-																	},
-																	"courseId": {
-																		"type": "string"
-																	},
-																	"userId": {
 																		"type": "string"
 																	},
 																	"message": {
 																		"type": "string"
 																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
+																	"role": {
+																		"type": "string"
+																	},
+																	"organizationId": {
+																		"type": "string"
+																	},
+																	"userId": {
+																		"type": "string"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
 																	},
-																	"role": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
+																	"createdAt": {
+																		"type": "string",
+																		"format": "date-time"
 																	},
 																	"id": {
 																		"type": "string"
 																	}
 																},
 																"required": [
+																	"replyId",
+																	"achievementId",
 																	"isRead",
 																	"to",
 																	"type",
 																	"groupId",
+																	"postId",
 																	"title",
-																	"courseId",
-																	"userId",
 																	"message",
-																	"createdAt",
-																	"updatedAt",
 																	"role",
+																	"organizationId",
+																	"userId",
+																	"courseId",
+																	"updatedAt",
+																	"createdAt",
 																	"id"
 																],
 																"type": "object"
@@ -4779,11 +7146,17 @@
 												"error": {},
 												"data": {
 													"properties": {
+														"replyId": {
+															"type": "string"
+														},
+														"achievementId": {
+															"type": "string"
+														},
 														"isRead": {
 															"type": "boolean"
 														},
 														"to": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
+															"type": "string"
 														},
 														"type": {
 															"type": "string"
@@ -4791,45 +7164,55 @@
 														"groupId": {
 															"type": "string"
 														},
+														"postId": {
+															"type": "string"
+														},
 														"title": {
-															"type": "string"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"userId": {
 															"type": "string"
 														},
 														"message": {
 															"type": "string"
 														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
+														"role": {
+															"type": "string"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"courseId": {
+															"type": "string"
 														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
 														},
-														"role": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
 														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"replyId",
+														"achievementId",
 														"isRead",
 														"to",
 														"type",
 														"groupId",
+														"postId",
 														"title",
-														"courseId",
-														"userId",
 														"message",
-														"createdAt",
-														"updatedAt",
 														"role",
+														"organizationId",
+														"userId",
+														"courseId",
+														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -5015,11 +7398,17 @@
 												"error": {},
 												"data": {
 													"properties": {
+														"replyId": {
+															"type": "string"
+														},
+														"achievementId": {
+															"type": "string"
+														},
 														"isRead": {
 															"type": "boolean"
 														},
 														"to": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
+															"type": "string"
 														},
 														"type": {
 															"type": "string"
@@ -5027,45 +7416,55 @@
 														"groupId": {
 															"type": "string"
 														},
+														"postId": {
+															"type": "string"
+														},
 														"title": {
-															"type": "string"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"userId": {
 															"type": "string"
 														},
 														"message": {
 															"type": "string"
 														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
+														"role": {
+															"type": "string"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"courseId": {
+															"type": "string"
 														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
 														},
-														"role": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
 														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"replyId",
+														"achievementId",
 														"isRead",
 														"to",
 														"type",
 														"groupId",
+														"postId",
 														"title",
-														"courseId",
-														"userId",
 														"message",
-														"createdAt",
-														"updatedAt",
 														"role",
+														"organizationId",
+														"userId",
+														"courseId",
+														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -5179,17 +7578,6 @@
 																		],
 																		"type": "object"
 																	},
-																	"course": {
-																		"properties": {
-																			"course_title": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"course_title"
-																		],
-																		"type": "object"
-																	},
 																	"user": {
 																		"properties": {
 																			"user_pic": {
@@ -5208,22 +7596,39 @@
 																			"first_name"
 																		],
 																		"type": "object"
+																	},
+																	"course": {
+																		"properties": {
+																			"course_title": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"course_title"
+																		],
+																		"type": "object"
 																	}
 																},
 																"required": [
 																	"group",
-																	"course",
-																	"user"
+																	"user",
+																	"course"
 																],
 																"type": "object"
 															},
 															{
 																"properties": {
+																	"replyId": {
+																		"type": "string"
+																	},
+																	"achievementId": {
+																		"type": "string"
+																	},
 																	"isRead": {
 																		"type": "boolean"
 																	},
 																	"to": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
+																		"type": "string"
 																	},
 																	"type": {
 																		"type": "string"
@@ -5231,45 +7636,55 @@
 																	"groupId": {
 																		"type": "string"
 																	},
+																	"postId": {
+																		"type": "string"
+																	},
 																	"title": {
-																		"type": "string"
-																	},
-																	"courseId": {
-																		"type": "string"
-																	},
-																	"userId": {
 																		"type": "string"
 																	},
 																	"message": {
 																		"type": "string"
 																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
+																	"role": {
+																		"type": "string"
+																	},
+																	"organizationId": {
+																		"type": "string"
+																	},
+																	"userId": {
+																		"type": "string"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
 																	},
-																	"role": {
-																		"$ref": "#/components/schemas/_36_Enums.Role"
+																	"createdAt": {
+																		"type": "string",
+																		"format": "date-time"
 																	},
 																	"id": {
 																		"type": "string"
 																	}
 																},
 																"required": [
+																	"replyId",
+																	"achievementId",
 																	"isRead",
 																	"to",
 																	"type",
 																	"groupId",
+																	"postId",
 																	"title",
-																	"courseId",
-																	"userId",
 																	"message",
-																	"createdAt",
-																	"updatedAt",
 																	"role",
+																	"organizationId",
+																	"userId",
+																	"courseId",
+																	"updatedAt",
+																	"createdAt",
 																	"id"
 																],
 																"type": "object"
@@ -5462,11 +7877,17 @@
 												"error": {},
 												"data": {
 													"properties": {
+														"replyId": {
+															"type": "string"
+														},
+														"achievementId": {
+															"type": "string"
+														},
 														"isRead": {
 															"type": "boolean"
 														},
 														"to": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
+															"type": "string"
 														},
 														"type": {
 															"type": "string"
@@ -5474,45 +7895,55 @@
 														"groupId": {
 															"type": "string"
 														},
+														"postId": {
+															"type": "string"
+														},
 														"title": {
-															"type": "string"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"userId": {
 															"type": "string"
 														},
 														"message": {
 															"type": "string"
 														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
+														"role": {
+															"type": "string"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"courseId": {
+															"type": "string"
 														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
 														},
-														"role": {
-															"$ref": "#/components/schemas/_36_Enums.Role"
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
 														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"replyId",
+														"achievementId",
 														"isRead",
 														"to",
 														"type",
 														"groupId",
+														"postId",
 														"title",
-														"courseId",
-														"userId",
 														"message",
-														"createdAt",
-														"updatedAt",
 														"role",
+														"organizationId",
+														"userId",
+														"courseId",
+														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -5666,6 +8097,302 @@
 				"parameters": []
 			}
 		},
+		"/notifications/change-notification-settings/{settingsId}": {
+			"put": {
+				"operationId": "ChangeNotificationsSettings",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"status": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"darkMode": {
+															"type": "boolean"
+														},
+														"email_notification": {
+															"type": "boolean"
+														},
+														"group_activity": {
+															"type": "boolean"
+														},
+														"daily_reminders": {
+															"type": "boolean"
+														},
+														"course_updates": {
+															"type": "boolean"
+														},
+														"enable_push_notification": {
+															"type": "boolean"
+														},
+														"event": {
+															"type": "boolean"
+														},
+														"achievement": {
+															"type": "boolean"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"darkMode",
+														"email_notification",
+														"group_activity",
+														"daily_reminders",
+														"course_updates",
+														"enable_push_notification",
+														"event",
+														"achievement",
+														"organizationId",
+														"userId",
+														"updatedAt",
+														"createdAt",
+														"id"
+													],
+													"type": "object"
+												},
+												"status": {
+													"type": "number",
+													"format": "double"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"status",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Notification Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "settingsId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"darkMode": {
+										"type": "boolean"
+									},
+									"email_notification": {
+										"type": "boolean"
+									},
+									"group_activity": {
+										"type": "boolean"
+									},
+									"daily_reminders": {
+										"type": "boolean"
+									},
+									"achievement": {
+										"type": "boolean"
+									},
+									"event": {
+										"type": "boolean"
+									},
+									"course_updates": {
+										"type": "boolean"
+									},
+									"enable_push_notification": {
+										"type": "boolean"
+									},
+									"organizationId": {
+										"type": "string",
+										"nullable": true
+									},
+									"userId": {
+										"type": "string",
+										"nullable": true
+									}
+								},
+								"required": [
+									"darkMode",
+									"email_notification",
+									"group_activity",
+									"daily_reminders",
+									"achievement",
+									"event",
+									"course_updates",
+									"enable_push_notification",
+									"organizationId"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/growth/start-journey": {
+			"post": {
+				"operationId": "StartJourney",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Levels and Badges Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/growth/check-journey-status/{progressId}": {
+			"get": {
+				"operationId": "CheckJourneyStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Levels and Badges Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "progressId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/growth/fetch-achivement": {
+			"get": {
+				"operationId": "FetchAchivement",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Levels and Badges Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/growth/fetch-growth-user/{progressId}": {
+			"get": {
+				"operationId": "FetchGrowth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Levels and Badges Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "progressId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/course/create-course": {
 			"post": {
 				"operationId": "CreateCourse",
@@ -5765,6 +8492,28 @@
 				"tags": [
 					"Course Control APIs"
 				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/course/get-all-courses-level": {
+			"get": {
+				"operationId": "GetAllCoursesByLevel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/CourseResponse"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
 				"security": [
 					{
 						"bearerAuth": []
@@ -5830,6 +8579,9 @@
 																									"questions": {
 																										"items": {
 																											"properties": {
+																												"quizAttemptId": {
+																													"type": "string"
+																												},
 																												"quizId": {
 																													"type": "string"
 																												},
@@ -5849,12 +8601,15 @@
 																													},
 																													"type": "array"
 																												},
-																												"question": {
-																													"type": "string"
-																												},
 																												"order": {
 																													"type": "number",
 																													"format": "double"
+																												},
+																												"question": {
+																													"type": "string"
+																												},
+																												"courseId": {
+																													"type": "string"
 																												},
 																												"createdAt": {
 																													"type": "string",
@@ -5865,13 +8620,15 @@
 																												}
 																											},
 																											"required": [
+																												"quizAttemptId",
 																												"quizId",
 																												"points",
 																												"explanation",
 																												"correctAnswer",
 																												"options",
-																												"question",
 																												"order",
+																												"question",
+																												"courseId",
 																												"createdAt",
 																												"id"
 																											],
@@ -5887,6 +8644,10 @@
 																							},
 																							{
 																								"properties": {
+																									"quizProgress": {
+																										"type": "number",
+																										"format": "double"
+																									},
 																									"maxAttempts": {
 																										"type": "number",
 																										"format": "double"
@@ -5905,14 +8666,17 @@
 																										"type": "number",
 																										"format": "double"
 																									},
+																									"organizationId": {
+																										"type": "string"
+																									},
 																									"courseId": {
 																										"type": "string"
 																									},
-																									"createdAt": {
+																									"updatedAt": {
 																										"type": "string",
 																										"format": "date-time"
 																									},
-																									"updatedAt": {
+																									"createdAt": {
 																										"type": "string",
 																										"format": "date-time"
 																									},
@@ -5921,14 +8685,16 @@
 																									}
 																								},
 																								"required": [
+																									"quizProgress",
 																									"maxAttempts",
 																									"passingScore",
 																									"description",
 																									"title",
 																									"duration",
+																									"organizationId",
 																									"courseId",
-																									"createdAt",
 																									"updatedAt",
+																									"createdAt",
 																									"id"
 																								],
 																								"type": "object"
@@ -5958,11 +8724,11 @@
 																							"courseId": {
 																								"type": "string"
 																							},
-																							"createdAt": {
+																							"updatedAt": {
 																								"type": "string",
 																								"format": "date-time"
 																							},
-																							"updatedAt": {
+																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
 																							},
@@ -5977,8 +8743,8 @@
 																							"objective_title2",
 																							"objective_title1",
 																							"courseId",
-																							"createdAt",
 																							"updatedAt",
+																							"createdAt",
 																							"id"
 																						],
 																						"type": "object"
@@ -5988,10 +8754,6 @@
 																				"module": {
 																					"items": {
 																						"properties": {
-																							"order": {
-																								"type": "number",
-																								"format": "double"
-																							},
 																							"module_duration": {
 																								"type": "string"
 																							},
@@ -6001,14 +8763,18 @@
 																							"module_title": {
 																								"type": "string"
 																							},
+																							"order": {
+																								"type": "number",
+																								"format": "double"
+																							},
 																							"courseId": {
 																								"type": "string"
 																							},
-																							"createdAt": {
+																							"updatedAt": {
 																								"type": "string",
 																								"format": "date-time"
 																							},
-																							"updatedAt": {
+																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
 																							},
@@ -6017,13 +8783,13 @@
 																							}
 																						},
 																						"required": [
-																							"order",
 																							"module_duration",
 																							"module_description",
 																							"module_title",
+																							"order",
 																							"courseId",
-																							"createdAt",
 																							"updatedAt",
+																							"createdAt",
 																							"id"
 																						],
 																						"type": "object"
@@ -6049,11 +8815,11 @@
 																							"courseId": {
 																								"type": "string"
 																							},
-																							"createdAt": {
+																							"updatedAt": {
 																								"type": "string",
 																								"format": "date-time"
 																							},
-																							"updatedAt": {
+																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
 																							},
@@ -6067,8 +8833,8 @@
 																							"material_description",
 																							"material_title",
 																							"courseId",
-																							"createdAt",
 																							"updatedAt",
+																							"createdAt",
 																							"id"
 																						],
 																						"type": "object"
@@ -6090,18 +8856,14 @@
 																								"type": "string",
 																								"format": "date-time"
 																							},
-																							"progress": {
-																								"type": "number",
-																								"format": "double"
-																							},
-																							"courseId": {
-																								"type": "string"
+																							"status": {
+																								"$ref": "#/components/schemas/_36_Enums.EnrollmentStatus"
 																							},
 																							"userId": {
 																								"type": "string"
 																							},
-																							"status": {
-																								"$ref": "#/components/schemas/_36_Enums.EnrollmentStatus"
+																							"courseId": {
+																								"type": "string"
 																							},
 																							"createdAt": {
 																								"type": "string",
@@ -6115,10 +8877,9 @@
 																							"startedAt",
 																							"completedAt",
 																							"enrolledAt",
-																							"progress",
-																							"courseId",
-																							"userId",
 																							"status",
+																							"userId",
+																							"courseId",
 																							"createdAt",
 																							"id"
 																						],
@@ -6145,6 +8906,9 @@
 																				"organizationId": {
 																					"type": "string"
 																				},
+																				"organizationName": {
+																					"type": "string"
+																				},
 																				"createdUserId": {
 																					"type": "string"
 																				},
@@ -6166,11 +8930,14 @@
 																				"course_title": {
 																					"type": "string"
 																				},
-																				"createdAt": {
+																				"progressId": {
+																					"type": "string"
+																				},
+																				"updatedAt": {
 																					"type": "string",
 																					"format": "date-time"
 																				},
-																				"updatedAt": {
+																				"createdAt": {
 																					"type": "string",
 																					"format": "date-time"
 																				},
@@ -6181,6 +8948,7 @@
 																			"required": [
 																				"saved",
 																				"organizationId",
+																				"organizationName",
 																				"createdUserId",
 																				"createdBy",
 																				"course_image",
@@ -6188,8 +8956,9 @@
 																				"course_description",
 																				"course_short_description",
 																				"course_title",
-																				"createdAt",
+																				"progressId",
 																				"updatedAt",
+																				"createdAt",
 																				"id"
 																			],
 																			"type": "object"
@@ -6243,6 +9012,240 @@
 						"content": {
 							"application/json": {
 								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/course/fetch-quizzes/{courseId}": {
+			"get": {
+				"operationId": "FetchQuizzes",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"maxAttempts": {
+														"type": "number",
+														"format": "double"
+													},
+													"passingScore": {
+														"type": "number",
+														"format": "double"
+													},
+													"description": {
+														"type": "string"
+													},
+													"title": {
+														"type": "string"
+													},
+													"duration": {
+														"type": "number",
+														"format": "double"
+													},
+													"organizationId": {
+														"type": "string"
+													},
+													"courseId": {
+														"type": "string"
+													},
+													"updatedAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"createdAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"id": {
+														"type": "string"
+													},
+													"QuizAttempt": {
+														"items": {
+															"properties": {
+																"answers": {
+																	"$ref": "#/components/schemas/JsonValue"
+																},
+																"score": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"timeFinished": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"quizId": {
+																	"type": "string"
+																},
+																"startedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"completedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"completed": {
+																	"type": "boolean"
+																},
+																"organizationId": {
+																	"type": "string"
+																},
+																"userId": {
+																	"type": "string"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"progressId": {
+																	"type": "string"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"answers",
+																"score",
+																"timeFinished",
+																"quizId",
+																"startedAt",
+																"completedAt",
+																"completed",
+																"organizationId",
+																"userId",
+																"courseId",
+																"progressId",
+																"id"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"questions": {
+														"items": {
+															"properties": {
+																"quizAttemptId": {
+																	"type": "string"
+																},
+																"quizId": {
+																	"type": "string"
+																},
+																"points": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"explanation": {
+																	"type": "string"
+																},
+																"correctAnswer": {
+																	"type": "string"
+																},
+																"options": {
+																	"items": {
+																		"type": "string"
+																	},
+																	"type": "array"
+																},
+																"order": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"question": {
+																	"type": "string"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"quizAttemptId",
+																"quizId",
+																"points",
+																"explanation",
+																"correctAnswer",
+																"options",
+																"order",
+																"question",
+																"courseId",
+																"createdAt",
+																"id"
+															],
+															"type": "object"
+														},
+														"type": "array"
+													},
+													"quizProgress": {
+														"type": "number",
+														"format": "double"
+													},
+													"totalQuizAttempted": {
+														"type": "number",
+														"format": "double"
+													},
+													"quizAttempted": {
+														"type": "number",
+														"format": "double"
+													}
+												},
+												"required": [
+													"maxAttempts",
+													"passingScore",
+													"description",
+													"title",
+													"duration",
+													"organizationId",
+													"courseId",
+													"updatedAt",
+													"createdAt",
+													"id",
+													"QuizAttempt",
+													"questions",
+													"quizProgress",
+													"totalQuizAttempted",
+													"quizAttempted"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"data",
+										"message"
+									],
+									"type": "object"
+								}
 							}
 						}
 					}
@@ -6399,23 +9402,74 @@
 				"requestBody": {
 					"required": true,
 					"content": {
+						"multipart/form-data": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"file": {
+										"type": "string",
+										"format": "binary"
+									}
+								},
+								"required": [
+									"file"
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		"/course/update-lesson/{lessonId}": {
+			"put": {
+				"operationId": "UpdateLesson",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "lessonId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
 						"application/json": {
 							"schema": {
 								"properties": {
-									"mimeType": {
+									"duration": {
+										"type": "number",
+										"format": "double"
+									},
+									"lesson_title": {
 										"type": "string"
 									},
-									"fileName": {
-										"type": "string"
-									},
-									"file": {
+									"lesson_video": {
 										"type": "string"
 									}
 								},
 								"required": [
-									"mimeType",
-									"fileName",
-									"file"
+									"lesson_video"
 								],
 								"type": "object"
 							}
@@ -6424,7 +9478,7 @@
 				}
 			}
 		},
-		"/course/upload-course-material/{courseId}": {
+		"/course/upload-course-material/{courseId}/{materialId}": {
 			"post": {
 				"operationId": "UploadCourseMaterial",
 				"responses": {
@@ -6453,30 +9507,31 @@
 						"schema": {
 							"type": "string"
 						}
+					},
+					{
+						"in": "path",
+						"name": "materialId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
 					}
 				],
 				"requestBody": {
 					"required": true,
 					"content": {
-						"application/json": {
+						"multipart/form-data": {
 							"schema": {
+								"type": "object",
 								"properties": {
-									"mimeType": {
-										"type": "string"
-									},
-									"fileName": {
-										"type": "string"
-									},
 									"file": {
-										"type": "string"
+										"type": "string",
+										"format": "binary"
 									}
 								},
 								"required": [
-									"mimeType",
-									"fileName",
 									"file"
-								],
-								"type": "object"
+								]
 							}
 						}
 					}
@@ -6678,10 +9733,6 @@
 									"properties": {
 										"data": {
 											"properties": {
-												"order": {
-													"type": "number",
-													"format": "double"
-												},
 												"module_duration": {
 													"type": "string"
 												},
@@ -6691,14 +9742,18 @@
 												"module_title": {
 													"type": "string"
 												},
+												"order": {
+													"type": "number",
+													"format": "double"
+												},
 												"courseId": {
 													"type": "string"
 												},
-												"createdAt": {
+												"updatedAt": {
 													"type": "string",
 													"format": "date-time"
 												},
-												"updatedAt": {
+												"createdAt": {
 													"type": "string",
 													"format": "date-time"
 												},
@@ -6707,13 +9762,13 @@
 												}
 											},
 											"required": [
-												"order",
 												"module_duration",
 												"module_description",
 												"module_title",
+												"order",
 												"courseId",
-												"createdAt",
 												"updatedAt",
+												"createdAt",
 												"id"
 											],
 											"type": "object"
@@ -6888,6 +9943,9 @@
 														"organizationId": {
 															"type": "string"
 														},
+														"organizationName": {
+															"type": "string"
+														},
 														"createdUserId": {
 															"type": "string"
 														},
@@ -6909,11 +9967,14 @@
 														"course_title": {
 															"type": "string"
 														},
-														"createdAt": {
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
 														},
-														"updatedAt": {
+														"createdAt": {
 															"type": "string",
 															"format": "date-time"
 														},
@@ -6924,6 +9985,7 @@
 													"required": [
 														"saved",
 														"organizationId",
+														"organizationName",
 														"createdUserId",
 														"createdBy",
 														"course_image",
@@ -6931,8 +9993,9 @@
 														"course_description",
 														"course_short_description",
 														"course_title",
-														"createdAt",
+														"progressId",
 														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -7005,6 +10068,9 @@
 														"organizationId": {
 															"type": "string"
 														},
+														"organizationName": {
+															"type": "string"
+														},
 														"createdUserId": {
 															"type": "string"
 														},
@@ -7026,11 +10092,14 @@
 														"course_title": {
 															"type": "string"
 														},
-														"createdAt": {
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
 														},
-														"updatedAt": {
+														"createdAt": {
 															"type": "string",
 															"format": "date-time"
 														},
@@ -7041,6 +10110,7 @@
 													"required": [
 														"saved",
 														"organizationId",
+														"organizationName",
 														"createdUserId",
 														"createdBy",
 														"course_image",
@@ -7048,8 +10118,9 @@
 														"course_description",
 														"course_short_description",
 														"course_title",
-														"createdAt",
+														"progressId",
 														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -7126,6 +10197,9 @@
 														"organizationId": {
 															"type": "string"
 														},
+														"organizationName": {
+															"type": "string"
+														},
 														"createdUserId": {
 															"type": "string"
 														},
@@ -7147,11 +10221,14 @@
 														"course_title": {
 															"type": "string"
 														},
-														"createdAt": {
+														"progressId": {
+															"type": "string"
+														},
+														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
 														},
-														"updatedAt": {
+														"createdAt": {
 															"type": "string",
 															"format": "date-time"
 														},
@@ -7162,6 +10239,7 @@
 													"required": [
 														"saved",
 														"organizationId",
+														"organizationName",
 														"createdUserId",
 														"createdBy",
 														"course_image",
@@ -7169,8 +10247,9 @@
 														"course_description",
 														"course_short_description",
 														"course_title",
-														"createdAt",
+														"progressId",
 														"updatedAt",
+														"createdAt",
 														"id"
 													],
 													"type": "object"
@@ -7188,6 +10267,470 @@
 										}
 									]
 								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/course/submit-quiz/{courseId}/{quizId}": {
+			"post": {
+				"operationId": "SubmitQuiz",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"answers": {
+															"$ref": "#/components/schemas/JsonValue"
+														},
+														"score": {
+															"type": "number",
+															"format": "double"
+														},
+														"timeFinished": {
+															"type": "number",
+															"format": "double"
+														},
+														"quizId": {
+															"type": "string"
+														},
+														"startedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"completedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"completed": {
+															"type": "boolean"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"courseId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"answers",
+														"score",
+														"timeFinished",
+														"quizId",
+														"startedAt",
+														"completedAt",
+														"completed",
+														"organizationId",
+														"userId",
+														"courseId",
+														"progressId",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "quizId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"answers": {
+										"items": {
+											"properties": {
+												"point": {
+													"type": "number",
+													"format": "double"
+												},
+												"correct": {
+													"type": "boolean"
+												},
+												"answer": {
+													"type": "string"
+												},
+												"questionId": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"point",
+												"correct",
+												"answer",
+												"questionId"
+											],
+											"type": "object"
+										},
+										"type": "array"
+									},
+									"timeFinished": {
+										"type": "number",
+										"format": "double"
+									},
+									"completed": {
+										"type": "boolean"
+									},
+									"totalPoint": {
+										"type": "number",
+										"format": "double"
+									}
+								},
+								"required": [
+									"answers",
+									"timeFinished",
+									"completed",
+									"totalPoint"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/course/fetch-quiz-answers/{quizId}": {
+			"get": {
+				"operationId": "FetchQuizAnswers",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"allOf": [
+														{
+															"properties": {
+																"QuizAttempt": {
+																	"items": {
+																		"properties": {
+																			"answers": {
+																				"$ref": "#/components/schemas/JsonValue"
+																			},
+																			"score": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"timeFinished": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"quizId": {
+																				"type": "string"
+																			},
+																			"startedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"completedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"completed": {
+																				"type": "boolean"
+																			},
+																			"organizationId": {
+																				"type": "string"
+																			},
+																			"userId": {
+																				"type": "string"
+																			},
+																			"courseId": {
+																				"type": "string"
+																			},
+																			"progressId": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"answers",
+																			"score",
+																			"timeFinished",
+																			"quizId",
+																			"startedAt",
+																			"completedAt",
+																			"completed",
+																			"organizationId",
+																			"userId",
+																			"courseId",
+																			"progressId",
+																			"id"
+																		],
+																		"type": "object"
+																	},
+																	"type": "array"
+																},
+																"questions": {
+																	"items": {
+																		"properties": {
+																			"quizAttemptId": {
+																				"type": "string"
+																			},
+																			"quizId": {
+																				"type": "string"
+																			},
+																			"points": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"explanation": {
+																				"type": "string"
+																			},
+																			"correctAnswer": {
+																				"type": "string"
+																			},
+																			"options": {
+																				"items": {
+																					"type": "string"
+																				},
+																				"type": "array"
+																			},
+																			"order": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"question": {
+																				"type": "string"
+																			},
+																			"courseId": {
+																				"type": "string"
+																			},
+																			"createdAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"quizAttemptId",
+																			"quizId",
+																			"points",
+																			"explanation",
+																			"correctAnswer",
+																			"options",
+																			"order",
+																			"question",
+																			"courseId",
+																			"createdAt",
+																			"id"
+																		],
+																		"type": "object"
+																	},
+																	"type": "array"
+																}
+															},
+															"required": [
+																"QuizAttempt",
+																"questions"
+															],
+															"type": "object"
+														},
+														{
+															"properties": {
+																"quizProgress": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"maxAttempts": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"passingScore": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"description": {
+																	"type": "string"
+																},
+																"title": {
+																	"type": "string"
+																},
+																"duration": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"organizationId": {
+																	"type": "string"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"quizProgress",
+																"maxAttempts",
+																"passingScore",
+																"description",
+																"title",
+																"duration",
+																"organizationId",
+																"courseId",
+																"updatedAt",
+																"createdAt",
+																"id"
+															],
+															"type": "object"
+														}
+													]
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "quizId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/course/fetch-activities/{courseId}": {
+			"get": {
+				"operationId": "FetchActivites",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
 							}
 						}
 					}
@@ -7245,6 +10788,9 @@
 															"organizationId": {
 																"type": "string"
 															},
+															"organizationName": {
+																"type": "string"
+															},
 															"createdUserId": {
 																"type": "string"
 															},
@@ -7266,11 +10812,14 @@
 															"course_title": {
 																"type": "string"
 															},
-															"createdAt": {
+															"progressId": {
+																"type": "string"
+															},
+															"updatedAt": {
 																"type": "string",
 																"format": "date-time"
 															},
-															"updatedAt": {
+															"createdAt": {
 																"type": "string",
 																"format": "date-time"
 															},
@@ -7281,6 +10830,7 @@
 														"required": [
 															"saved",
 															"organizationId",
+															"organizationName",
 															"createdUserId",
 															"createdBy",
 															"course_image",
@@ -7288,8 +10838,9 @@
 															"course_description",
 															"course_short_description",
 															"course_title",
-															"createdAt",
+															"progressId",
 															"updatedAt",
+															"createdAt",
 															"id"
 														],
 														"type": "object"
