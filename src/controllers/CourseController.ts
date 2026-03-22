@@ -837,23 +837,22 @@ export class CourseController extends Controller {
       });
 
       const quizzes = quiz.map(q => {
-        const quizAttempted = Number( q.QuizAttempt.filter(f => f.completed).length) || 0
-        const totalQuizAttempted = Number(q.QuizAttempt.length) || 0
+        const quizAttempted = Number( q.QuizAttempt.filter(f => f.completed).length)
+        const totalQuizAttempted = Number(q.QuizAttempt.length) 
         const quizProgress = quizAttempted /totalQuizAttempted * 100
 
         return {
           ...q,
           quizAttempted,
           totalQuizAttempted,
-          quizProgress
+          quizProgress: quizProgress || null
         }
       })
 
       this.setStatus(200);
       return {
         message: "Quiz fetched successfully",
-        quizAttempt: quizzes,
-        quiz
+        quiz: quizzes,
       };
     } catch (error) {
       this.setStatus(500);
