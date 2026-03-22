@@ -848,7 +848,8 @@ export class CourseController extends Controller {
       this.setStatus(200);
       return {
         message: "Quiz fetched successfully",
-        data: quizzes
+        quizAttempt: quizzes,
+        quiz
       };
     } catch (error) {
       this.setStatus(500);
