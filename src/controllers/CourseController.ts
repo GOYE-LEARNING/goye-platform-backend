@@ -771,8 +771,10 @@ export class CourseController extends Controller {
               questions: {
                 orderBy: { order: "asc" },
               },
+              QuizAttempt: true
             },
           },
+
           enrollment: {
             include: {
               user: {
@@ -789,10 +791,12 @@ export class CourseController extends Controller {
             select: {
               post: true,
               enrollment: true,
+              quizAttempt: true,
             },
           },
         },
       });
+
 
       if (!course) {
         this.setStatus(404);
@@ -829,8 +833,28 @@ export class CourseController extends Controller {
           questions: {
             orderBy: { order: "asc" },
           },
+          QuizAttempt: true,
         },
       });
+
+      const quizzes = quiz.map(q => {
+        const quizAttempted = Number( q.QuizAttempt.filter(f => f.completed).length) || 0
+        const totalQuizAttempted = Number(q.QuizAttempt.length) || 0
+        const quizProgress = quizAttempted /totalQuizAttempted * 100
+
+        return {
+          ...quiz,
+          quizAttempted,
+          totalQuizAttempted,
+          quizProgress
+        }
+      })
+
+      this.setStatus(200);
+      return {
+        message: "Quiz fetched successfully",
+        data: quizzes
+      };
     } catch (error) {
       this.setStatus(500);
       console.error(error);

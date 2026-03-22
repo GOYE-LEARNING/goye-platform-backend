@@ -110,6 +110,8 @@ model Organization {
   school                    School_Organization?
   Club                      Club_Organization?
   course                    Course[]
+  quiz                      Quiz[]
+  quizAttempt               QuizAttempt[]
   inviteUser                InviteUser[]
   notification              Notification[]
   userId                    String
@@ -537,18 +539,21 @@ model Material {
 }
 
 model Quiz {
-  id           String        @id @default(cuid())
-  title        String
-  description  String?
-  course       Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId     String
-  duration     Int? // in minutes
-  passingScore Int?          @default(70) // percentage
-  maxAttempts  Int?          @default(3)
-  questions    Question[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  QuizAttempt  QuizAttempt[]
+  id             String        @id @default(cuid())
+  title          String
+  description    String?
+  course         Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId       String
+  duration       Int? // in minutes
+  passingScore   Int?          @default(70) // percentage
+  maxAttempts    Int?          @default(3)
+  quizProgress   Int?
+  questions      Question[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  QuizAttempt    QuizAttempt[]
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
 
   @@map("quizzes")
 }
@@ -574,24 +579,26 @@ model Question {
 }
 
 model QuizAttempt {
-  id           String     @id @default(cuid())
-  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  quiz         Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  quizId       String
-  questions    Question[]
-  timeFinished Int
-  score        Int // Percentage score
-  answers      Json // Store user's answers: { questionId: "selectedAnswer" }
-  completed    Boolean    @default(false)
-  startedAt    DateTime   @default(now())
-  completedAt  DateTime?
-  course       Course?    @relation(fields: [courseId], references: [id])
-  courseId     String?
-  progress     Progress?  @relation(fields: [progressId], references: [id])
-  progressId   String?
+  id             String        @id @default(cuid())
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  quiz           Quiz          @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId         String
+  questions      Question[]
+  timeFinished   Int
+  score          Int // Percentage score
+  answers        Json // Store user's answers: { questionId: "selectedAnswer" }
+  completed      Boolean       @default(false)
+  startedAt      DateTime      @default(now())
+  completedAt    DateTime?
+  course         Course?       @relation(fields: [courseId], references: [id])
+  courseId       String?
+  progress       Progress?     @relation(fields: [progressId], references: [id])
+  progressId     String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
 
-  @@unique([userId, quizId, startedAt]) // Prevent duplicate attempts at same time
+  @@unique([userId, quizId, courseId, organizationId]) // Prevent duplicate attempts at same time
   @@map("quiz_attempts")
 }
 
