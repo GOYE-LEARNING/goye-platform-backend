@@ -18,6 +18,7 @@ model User {
   phone_number     String
   role             String                 @default("student")
   level            String
+  point            Int?
   completed        String                 @default("false")
   form_type        FormType?              @default(INDIVIDUAL)
   createdAt        DateTime               @default(now())
@@ -253,6 +254,7 @@ model Course {
   organization             Organization?          @relation(fields: [organizationId], references: [id])
   organizationId           String?
   saved                    Boolean                @default(false)
+  score                    Int?
   achivement               Achievement[]
   notification             Notification[]
   videosTracked            VideoTracker[]
@@ -517,6 +519,7 @@ model Lesson {
   id           String         @id @default(cuid()) // Changed from ulid() to cuid()
   lesson_title String?
   lesson_video String
+  lessonScore  Int?
   videoTracker VideoTracker[]
   moduleId     String
   order        Int?           @default(0) // Added for ordering
@@ -544,6 +547,7 @@ model Quiz {
   description    String?
   course         Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId       String
+  mainQuizScore  String?
   duration       Int? // in minutes
   passingScore   Int?          @default(70) // percentage
   maxAttempts    Int?          @default(3)

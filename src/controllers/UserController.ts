@@ -1261,9 +1261,17 @@ export class UserController extends Controller {
         user,
       };
     }
-    if (userRole == "student") {
+    if (userRole == "student" || userRole == 'Member') {
       const user = await prisma.user.findUnique({
-        where: { id: userId, role: userRole },
+        where: { id: userId, role: userRole }, include: {
+          progress: {
+            include: {
+              achivement: true,
+              badges_and_levels: true,
+              badges: true
+            }
+          }
+        }
       });
       this.setStatus(200);
       return {
