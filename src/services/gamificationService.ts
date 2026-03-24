@@ -117,243 +117,242 @@ export class GamificationService {
   /**
    * Add points to a user for various activities
    */
-  static async AddPoint(data: AddPointData): Promise<PointResult> {
-    try {
-      // Validate required fields
-      if (!data.userId || !data.point) {
-        return {
-          success: false,
-          message: "User ID and point amount are required",
-        };
-      }
+ static async AddPoint(data: AddPointData): Promise<PointResult> {
+  try {
+    // Validate required fields
+    if (!data.userId || !data.point) {
+      return {
+        success: false,
+        message: "User ID and point amount are required",
+      };
+    }
 
-      // Validate point is positive (for addition)
-      if (data.point <= 0 && data.point !== -Math.abs(data.point)) {
-        return {
-          success: false,
-          message: "Point amount must be greater than 0",
-        };
-      }
+    // Validate point is positive (for addition)
+    if (data.point <= 0 && data.point !== -Math.abs(data.point)) {
+      return {
+        success: false,
+        message: "Point amount must be greater than 0",
+      };
+    }
 
-      // Check if user exists
-      const userExists = await prisma.user.findUnique({
+    // Check if user exists
+    const userExists = await prisma.user.findUnique({
+      where: { id: data.userId },
+    });
+
+    if (!userExists) {
+      return {
+        success: false,
+        message: "User not found",
+      };
+    }
+
+    // Use transaction to ensure all updates succeed or fail together
+    const result = await prisma.$transaction(async (tx) => {
+      let updatedUser;
+      let updatedCourse = null;
+      let updatedGroup = null;
+      let updatedQuizAttempt = null;
+      let updatedEnrollment = null;
+      let updatedProgress = null;
+
+      // 1. Update user's total points
+      updatedUser = await tx.user.update({
         where: { id: data.userId },
+        data: {
+          point: { increment: data.point },
+        },
       });
 
-      if (!userExists) {
-        return {
-          success: false,
-          message: "User not found",
-        };
-      }
+      // 2. Handle Course points
+      if (data.courseId) {
+        const course = await tx.course.findUnique({
+          where: { id: data.courseId },
+        });
 
-      // Use transaction to ensure all updates succeed or fail together
-      const result = await prisma.$transaction(async (tx) => {
-        let updatedUser;
-        let updatedCourse = null;
-        let updatedGroup = null;
-        let updatedQuizAttempt = null;
-        let updatedEnrollment = null;
-        let updatedProgress = null;
+        if (!course) {
+          throw new Error(`Course with ID ${data.courseId} not found`);
+        }
 
-        // 1. Update user's total points
-        updatedUser = await tx.user.update({
-          where: { id: data.userId },
+        // Update course points
+        updatedCourse = await tx.course.update({
+          where: { id: data.courseId },
           data: {
             point: { increment: data.point },
           },
         });
 
-        // 2. Handle Course points
-        if (data.courseId) {
-          const course = await tx.course.findUnique({
-            where: { id: data.courseId },
-          });
-
-          if (!course) {
-            throw new Error(`Course with ID ${data.courseId} not found`);
-          }
-
-          // Update course points
-          updatedCourse = await tx.course.update({
-            where: { id: data.courseId },
+        // Update or create enrollment points
+        if (data.enrollmentId) {
+          updatedEnrollment = await tx.enrollment.update({
+            where: { id: data.enrollmentId },
             data: {
-              point: { increment: data.point },
+              score: { increment: data.point },
+            },
+          });
+        } else {
+          // Check if enrollment exists
+          const existingEnrollment = await tx.enrollment.findFirst({
+            where: {
+              userId: data.userId,
+              courseId: data.courseId,
             },
           });
 
-          // Update or create enrollment points
-          if (data.enrollmentId) {
+          if (existingEnrollment) {
             updatedEnrollment = await tx.enrollment.update({
-              where: { id: data.enrollmentId },
+              where: { id: existingEnrollment.id },
               data: {
                 score: { increment: data.point },
               },
             });
           } else {
-            // Check if enrollment exists
-            const existingEnrollment = await tx.enrollment.findFirst({
-              where: {
+            // Create enrollment if it doesn't exist
+            updatedEnrollment = await tx.enrollment.create({
+              data: {
                 userId: data.userId,
                 courseId: data.courseId,
-              },
-            });
-
-            if (existingEnrollment) {
-              updatedEnrollment = await tx.enrollment.update({
-                where: { id: existingEnrollment.id },
-                data: {
-                  score: { increment: data.point },
-                },
-              });
-            } else {
-              // Create enrollment if it doesn't exist
-              updatedEnrollment = await tx.enrollment.create({
-                data: {
-                  userId: data.userId,
-                  courseId: data.courseId,
-                  score: data.point > 0 ? data.point : 0,
-                  status: "ENROLLED",
-                  startedAt: new Date(),
-                },
-              });
-            }
-          }
-        }
-
-        // 3. Handle Group points (using JoinedGroup model)
-        if (data.joinGroupId) {
-          const group = await tx.group.findUnique({
-            where: { id: data.joinGroupId },
-          });
-
-          if (!group) {
-            throw new Error(`Group with ID ${data.joinGroupId} not found`);
-          }
-
-          // Find or create JoinedGroup record
-          const joinedGroup = await tx.joinedGroup.findUnique({
-            where: {
-              groupId_studentId: {
-                groupId: data.joinGroupId,
-                studentId: data.userId,
-              },
-            },
-          });
-
-          if (joinedGroup) {
-            // Update existing joined group points
-            updatedGroup = await tx.joinedGroup.update({
-              where: { id: joinedGroup.id },
-              data: {
-                point: { increment: data.point },
-              },
-            });
-          } else {
-            // Create new joined group record
-            updatedGroup = await tx.joinedGroup.create({
-              data: {
-                studentId: data.userId,
-                groupId: data.joinGroupId,
-                isJoined: true,
-                point: data.point > 0 ? data.point : 0,
+                score: data.point > 0 ? data.point : 0,
+                status: "ENROLLED",
+                startedAt: new Date(),
               },
             });
           }
         }
+      }
 
-        // 4. Handle Quiz points (QuizAttempt model)
-        if (data.quizAttemptId) {
-          const quizAttempt = await tx.quizAttempt.findUnique({
-            where: { id: data.quizAttemptId },
-          });
+      // 3. Handle Group points (using JoinedGroup model)
+      if (data.joinGroupId) {
+        // First, verify the group exists
+        const group = await tx.group.findUnique({
+          where: { id: data.joinGroupId },
+        });
 
-          if (!quizAttempt) {
-            throw new Error(`Quiz attempt with ID ${data.quizAttemptId} not found`);
-          }
-
-          updatedQuizAttempt = await tx.quizAttempt.update({
-            where: { id: data.quizAttemptId },
-            data: {
-              score: { increment: data.point },
-            },
-          });
+        if (!group) {
+          throw new Error(`Group with ID ${data.joinGroupId} not found`);
         }
 
-        // 5. Handle Progress points
-        if (data.progressId) {
-          const progress = await tx.progress.findUnique({
-            where: { id: data.progressId },
-          });
-
-          if (progress) {
-            updatedProgress = await tx.progress.update({
-              where: { id: data.progressId },
-              data: {
-                progressBar: { increment: data.point },
-              },
-            });
-          }
-        }
-
-        // 6. Create point history record for tracking
-        await tx.pointHistory.create({
-          data: {
-            userId: data.userId,
-            point: data.point,
-            reason: data.reason || "Points awarded",
-            courseId: data.courseId,
-            lessonId: data.lessonId,
-            quizAttemptId: data.quizAttemptId,
-            joinedGroupId: data.joinGroupId,
-            enrollmentId: data.enrollmentId,
-            progressId: data.progressId,
+        // Check if JoinedGroup record already exists
+        const existingJoinedGroup = await tx.joinedGroup.findFirst({
+          where: {
+            groupId: data.joinGroupId,
+            studentId: data.userId,
           },
         });
 
-        return {
-          updatedUser,
-          updatedCourse,
-          updatedGroup,
-          updatedQuizAttempt,
-          updatedEnrollment,
-          updatedProgress,
-        };
+        if (existingJoinedGroup) {
+          // Update existing joined group points
+          updatedGroup = await tx.joinedGroup.update({
+            where: { id: existingJoinedGroup.id },
+            data: {
+              point: { increment: data.point },
+            },
+          });
+        } else {
+          // Create new joined group record
+          updatedGroup = await tx.joinedGroup.create({
+            data: {
+              studentId: data.userId,
+              groupId: data.joinGroupId,
+              isJoined: true,
+              point: data.point > 0 ? data.point : 0,
+            },
+          });
+        }
+      }
+
+      // 4. Handle Quiz points (QuizAttempt model)
+      if (data.quizAttemptId) {
+        const quizAttempt = await tx.quizAttempt.findUnique({
+          where: { id: data.quizAttemptId },
+        });
+
+        if (!quizAttempt) {
+          throw new Error(`Quiz attempt with ID ${data.quizAttemptId} not found`);
+        }
+
+        updatedQuizAttempt = await tx.quizAttempt.update({
+          where: { id: data.quizAttemptId },
+          data: {
+            score: { increment: data.point },
+          },
+        });
+      }
+
+      // 5. Handle Progress points
+      if (data.progressId) {
+        const progress = await tx.progress.findUnique({
+          where: { id: data.progressId },
+        });
+
+        if (progress) {
+          updatedProgress = await tx.progress.update({
+            where: { id: data.progressId },
+            data: {
+              progressBar: { increment: data.point },
+            },
+          });
+        }
+      }
+
+      // 6. Create point history record for tracking
+      await tx.pointHistory.create({
+        data: {
+          userId: data.userId,
+          point: data.point,
+          reason: data.reason || "Points awarded",
+          courseId: data.courseId,
+          lessonId: data.lessonId,
+          quizAttemptId: data.quizAttemptId,
+          joinedGroupId: data.joinGroupId, // This references the group ID, not the joinedGroup record
+          enrollmentId: data.enrollmentId,
+          progressId: data.progressId,
+        },
       });
 
-      // Prepare success response
-      const responseData: any = {
-        userPoints: result.updatedUser.point || 0,
-        pointsAdded: data.point,
-      };
-
-      if (result.updatedCourse) {
-        responseData.coursePoints = result.updatedCourse.point;
-      }
-
-      if (result.updatedGroup) {
-        responseData.groupPoints = result.updatedGroup.point;
-      }
-
-      if (result.updatedEnrollment) {
-        responseData.enrollmentPoints = result.updatedEnrollment.score;
-      }
-
       return {
-        success: true,
-        message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ''}`,
-        data: responseData,
+        updatedUser,
+        updatedCourse,
+        updatedGroup,
+        updatedQuizAttempt,
+        updatedEnrollment,
+        updatedProgress,
       };
+    });
 
-    } catch (error) {
-      console.error("Error adding points:", error);
-      return {
-        success: false,
-        message: "Failed to add points",
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+    // Prepare success response
+    const responseData: any = {
+      userPoints: result.updatedUser.point || 0,
+      pointsAdded: data.point,
+    };
+
+    if (result.updatedCourse) {
+      responseData.coursePoints = result.updatedCourse.point;
     }
+
+    if (result.updatedGroup) {
+      responseData.groupPoints = result.updatedGroup.point;
+    }
+
+    if (result.updatedEnrollment) {
+      responseData.enrollmentPoints = result.updatedEnrollment.score;
+    }
+
+    return {
+      success: true,
+      message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ''}`,
+      data: responseData,
+    };
+
+  } catch (error) {
+    console.error("Error adding points:", error);
+    return {
+      success: false,
+      message: "Failed to add points",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
+}
 
   /**
    * Get user's total points
