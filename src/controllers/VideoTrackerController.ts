@@ -12,6 +12,10 @@ import {
 } from "tsoa";
 import prisma from "../db";
 import { Request as ExpressRequest } from "express";
+import {
+  ActionType,
+  GamificationService,
+} from "../services/gamificationService";
 
 @Tags("Video Tracking Controller")
 @Route("video")
@@ -28,9 +32,11 @@ export class VideoTrackerController extends Controller {
     },
     @Request() req: any
   ) {
-    const progressId = req.progressId
+    const progressId = req.progressId;
+    const userId = req.user?.id;
+    
     try {
-      //check if course exist
+      // Check if course exists
       const course = await prisma.course.findUnique({
         where: {
           id: body.courseId,
@@ -44,45 +50,173 @@ export class VideoTrackerController extends Controller {
         };
       }
 
-      if (body.videoTrackTime) {
-        const setVideoTracker = await prisma.videoTracker.create({
-          data: {
-            videoFinished: body.videoFinished,
-            videoTrackTime: body.videoTrackTime,
-            basedTimeTracking: "FIRST_TIME_TRACKING",
-            progress: {
-              connect: {
-                id: progressId,
-              },
-            },
-            course: {
-              connect: {
-                id: body.courseId,
-              },
-            },
-            lesson: {
-              connect: {
-                id: body.lessonId,
-              },
-            },
-          },
-        });
+      // Check if lesson exists
+      const lesson = await prisma.lesson.findUnique({
+        where: {
+          id: body.lessonId,
+        },
+        include: {
+          module: true,
+        },
+      });
 
-        this.setStatus(201);
+      if (!lesson) {
+        this.setStatus(404);
         return {
-          message: "Video tracked",
-          data: setVideoTracker,
+          message: "This lesson cannot be found.",
         };
       }
 
+      // Check if user is enrolled
+      const enrollment = await prisma.enrollment.findFirst({
+        where: {
+          userId,
+          courseId: body.courseId,
+        },
+      });
+
+      if (!enrollment) {
+        this.setStatus(403);
+        return {
+          message: "You must be enrolled in this course to track videos.",
+        };
+      }
+
+      // Check if video is already completed
+      const existingTracker = await prisma.videoTracker.findFirst({
+        where: {
+          lessonId: body.lessonId,
+          progressId: progressId,
+          videoFinished: true,
+        },
+      });
+
+      if (existingTracker) {
+        return {
+          message: "Video already completed",
+          data: existingTracker,
+        };
+      }
+
+      // Create video tracker
+      const setVideoTracker = await prisma.videoTracker.create({
+        data: {
+          videoFinished: body.videoFinished,
+          videoTrackTime: body.videoTrackTime,
+          basedTimeTracking: "FIRST_TIME_TRACKING",
+          progress: {
+            connect: {
+              id: progressId,
+            },
+          },
+          course: {
+            connect: {
+              id: body.courseId,
+            },
+          },
+          lesson: {
+            connect: {
+              id: body.lessonId,
+            },
+          },
+        },
+      });
+
+      let gamificationResult = null;
+
+      // If video is finished, award XP for lesson completion
+      if (body.videoFinished) {
+        // Check if lesson is already completed in progress
+        const existingProgress = await prisma.progress.findFirst({
+          where: {
+            userId,
+            lessonId: body.lessonId,
+            progressBar: { gte: 100 },
+          },
+        });
+
+        if (!existingProgress) {
+          // Create or update progress for this lesson
+          const progress = await prisma.progress.upsert({
+            where: {
+              id: progressId || "",
+            },
+            update: {
+              progressBar: { increment: 100 },
+              updatedAt: new Date(),
+            },
+            create: {
+              userId,
+              lessonId: body.lessonId,
+              courses: {
+                connect: { id: body.courseId },
+              },
+              progressBar: 100,
+              startedJourney: true,
+            },
+          });
+
+          // Award XP for completing the lesson
+          gamificationResult = await GamificationService.AddPointsWithGamification(
+            userId,
+            ActionType.LESSON_COMPLETE,
+            { courseId: body.courseId, lessonId: body.lessonId }
+          );
+
+          // Check if all lessons in the course are completed
+          const courseModules = await prisma.module.findMany({
+            where: { courseId: body.courseId },
+            include: { lesson: true },
+          });
+
+          const allLessons = courseModules.flatMap((m) => m.lesson);
+          const completedLessons = await prisma.progress.findMany({
+            where: {
+              userId,
+              lessonId: { in: allLessons.map((l) => l.id) },
+              progressBar: { gte: 100 },
+            },
+            select: { lessonId: true },
+          });
+
+          // If all lessons are completed and user hasn't completed course yet
+          if (
+            completedLessons.length === allLessons.length &&
+            enrollment.status !== "COMPLETED"
+          ) {
+            await GamificationService.AddPointsWithGamification(
+              userId,
+              ActionType.COURSE_COMPLETE,
+              { courseId: body.courseId }
+            );
+
+            await prisma.enrollment.update({
+              where: { id: enrollment.id },
+              data: {
+                status: "COMPLETED",
+                completedAt: new Date(),
+              },
+            });
+          }
+        }
+      }
+
+      this.setStatus(201);
       return {
-        message: "An error occured",
+        message: body.videoFinished ? "Video completed! Lesson XP awarded!" : "Video tracked",
+        data: setVideoTracker,
+        gamification: gamificationResult ? {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+          badgesEarned: gamificationResult.data?.badgesEarned,
+        } : null,
       };
     } catch (error) {
       console.error("Error in TrackVideo:", error);
       this.setStatus(500);
       return {
-        message: "An error occured with tracking of the video",
+        message: "An error occurred with tracking of the video",
       };
     }
   }
@@ -96,12 +230,20 @@ export class VideoTrackerController extends Controller {
       videoTrackTime: number;
       videoFinished: boolean;
     },
+    @Request() req: any
   ) {
+    const userId = req.user?.id;
+    const progressId = req.progressId;
+
     try {
       // Check if the video tracker exists
       const existingVideo = await prisma.videoTracker.findUnique({
         where: {
           id: videoTrackerId,
+        },
+        include: {
+          lesson: true,
+          course: true,
         },
       });
 
@@ -112,35 +254,135 @@ export class VideoTrackerController extends Controller {
         };
       }
 
-      if (body.videoTrackTime) {
-        // OPTION 1: Update the existing record (recommended)
-        const updatedVideoTracker = await prisma.videoTracker.update({
+      // Check if video is already finished
+      if (existingVideo.videoFinished) {
+        return {
+          message: "Video already completed",
+          data: existingVideo,
+        };
+      }
+
+      // Update the video tracker
+      const updatedVideoTracker = await prisma.videoTracker.update({
+        where: {
+          id: videoTrackerId,
+        },
+        data: {
+          videoTrackTime: body.videoTrackTime,
+          videoFinished: body.videoFinished,
+          basedTimeTracking: "SECOND_TIME_TRACKING",
+        },
+      });
+
+      let gamificationResult = null;
+
+      // If video is now finished, award XP for lesson completion
+      if (body.videoFinished && !existingVideo.videoFinished) {
+        // Check if lesson is already completed in progress
+        const existingProgress = await prisma.progress.findFirst({
           where: {
-            id: videoTrackerId,
-          },
-          data: {
-            videoTrackTime: body.videoTrackTime,
-            videoFinished: body.videoFinished,
-            basedTimeTracking: "SECOND_TIME_TRACKING",
+            userId,
+            lessonId: existingVideo.lessonId,
+            progressBar: { gte: 100 },
           },
         });
 
-        this.setStatus(200);
-        return {
-          message: "Video tracked updated successfully",
-          data: updatedVideoTracker,
-        };
+        if (!existingProgress) {
+          // Create or update progress for this lesson
+          const progress = await prisma.progress.upsert({
+            where: {
+              id: progressId || "",
+            },
+            update: {
+              progressBar: { increment: 100 },
+              updatedAt: new Date(),
+            },
+            create: {
+              userId,
+              lessonId: existingVideo.lessonId,
+              courses: {
+                connect: { id: existingVideo.courseId },
+              },
+              progressBar: 100,
+              startedJourney: true,
+            },
+          });
 
+          // Award XP for completing the lesson
+          gamificationResult = await GamificationService.AddPointsWithGamification(
+            userId,
+            ActionType.LESSON_COMPLETE,
+            { 
+              courseId: existingVideo.courseId, 
+              lessonId: existingVideo.lessonId 
+            }
+          );
+
+          // Check enrollment status
+          const enrollment = await prisma.enrollment.findFirst({
+            where: {
+              userId,
+              courseId: existingVideo.courseId,
+            },
+          });
+
+          // Check if all lessons in the course are completed
+          const courseModules = await prisma.module.findMany({
+            where: { courseId: existingVideo.courseId },
+            include: { lesson: true },
+          });
+
+          const allLessons = courseModules.flatMap((m) => m.lesson);
+          const completedLessons = await prisma.progress.findMany({
+            where: {
+              userId,
+              lessonId: { in: allLessons.map((l) => l.id) },
+              progressBar: { gte: 100 },
+            },
+            select: { lessonId: true },
+          });
+
+          // If all lessons are completed and user hasn't completed course yet
+          if (
+            completedLessons.length === allLessons.length &&
+            enrollment &&
+            enrollment.status !== "COMPLETED"
+          ) {
+            await GamificationService.AddPointsWithGamification(
+              userId,
+              ActionType.COURSE_COMPLETE,
+              { courseId: existingVideo.courseId }
+            );
+
+            await prisma.enrollment.update({
+              where: { id: enrollment.id },
+              data: {
+                status: "COMPLETED",
+                completedAt: new Date(),
+              },
+            });
+          }
+        }
       }
 
+      this.setStatus(200);
       return {
-        message: "An error occured",
+        message: body.videoFinished 
+          ? "Video completed! Lesson XP awarded!" 
+          : "Video tracked updated successfully",
+        data: updatedVideoTracker,
+        gamification: gamificationResult ? {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+          badgesEarned: gamificationResult.data?.badgesEarned,
+        } : null,
       };
     } catch (error) {
       console.error("Error in UpdateTrackVideo:", error);
       this.setStatus(500);
       return {
-        message: "An error occured with tracking of the video",
+        message: "An error occurred with tracking of the video",
       };
     }
   }
@@ -151,6 +393,10 @@ export class VideoTrackerController extends Controller {
       const videoTracker = await prisma.videoTracker.findUnique({
         where: {
           id: videoTrackerId,
+        },
+        include: {
+          lesson: true,
+          course: true,
         },
       });
 
@@ -164,7 +410,7 @@ export class VideoTrackerController extends Controller {
       console.error("Error in FetchVideoTracking:", error);
       this.setStatus(500);
       return {
-        message: "An error just occured here.",
+        message: "An error just occurred here.",
       };
     }
   }
@@ -175,8 +421,8 @@ export class VideoTrackerController extends Controller {
     @Path() lessonId: string,
     @Request() req: any
   ) {
-
-    const progressId = req.progressId
+    const progressId = req.progressId;
+    
     try {
       const tracker = await prisma.videoTracker.findFirst({
         where: {
@@ -185,7 +431,10 @@ export class VideoTrackerController extends Controller {
         },
         orderBy: {
           updatedAt: 'desc'
-        }
+        },
+        include: {
+          lesson: true,
+        },
       });
 
       return {
@@ -200,6 +449,4 @@ export class VideoTrackerController extends Controller {
       };
     }
   }
-
-  
 }

@@ -10,6 +10,10 @@ import {
 } from "tsoa";
 import prisma from "../db";
 import { NotificationService, Role } from "../services/notificationServices";
+import {
+  ActionType,
+  GamificationService,
+} from "../services/gamificationService";
 
 @Route("enroll")
 @Tags("Student Enrollment Course APIs")
@@ -22,7 +26,7 @@ export class StudentEnrollmentController extends Controller {
   ): Promise<any> {
     const userId = req.user?.id;
 
-    // FIX 1: Check userId FIRST before checking enrollment
+    // Check userId FIRST before checking enrollment
     if (!userId) {
       this.setStatus(400);
       return {
@@ -33,6 +37,15 @@ export class StudentEnrollmentController extends Controller {
     // Check if course exists
     const course = await prisma.course.findUnique({
       where: { id: courseId },
+      include: {
+        createdByDetails: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
     });
 
     if (!course) {
@@ -52,30 +65,48 @@ export class StudentEnrollmentController extends Controller {
     });
 
     if (existingEnrollment) {
-      this.setStatus(400); // FIX 2: Changed from 401 to 400 (Bad Request)
+      this.setStatus(400);
       return {
         message: "You have already enrolled in this course",
         status: 400,
       };
     }
 
+    // Create enrollment
     const studentEnroll = await prisma.enrollment.create({
       data: {
         userId,
         courseId,
         startedAt: new Date(),
-        status: "ENROLLED", // FIX 3: Set initial status
+        status: "ENROLLED",
       },
-      select: {
-        id: true, // FIX 4: Include enrollment ID
-        enrolledAt: true,
-        status: true,
-        startedAt: true,
-        user: true,
-        course: true,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+            course_description: true,
+          },
+        },
       },
     });
 
+    // Award XP for course enrollment
+    const gamificationResult = await GamificationService.AddPointsWithGamification(
+      userId,
+      ActionType.COURSE_ENROLLMENT,
+      { courseId }
+    );
+
+    // Send notification to instructor
     await NotificationService.createNotification({
       message: `${studentEnroll.user.first_name} ${studentEnroll.user.last_name} just joined your course, ${studentEnroll.course.course_title}.`,
       title: `New Enrollment`,
@@ -86,10 +117,27 @@ export class StudentEnrollmentController extends Controller {
       courseId,
     });
 
-    this.setStatus(201); // FIX 5: Use 201 for resource creation
+    // Send notification to student
+    await NotificationService.createNotification({
+      message: `You have successfully enrolled in ${studentEnroll.course.course_title}. Start your learning journey now!`,
+      title: `Enrollment Successful`,
+      type: "enrollment",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId,
+      courseId,
+    });
+
+    this.setStatus(201);
     return {
-      message: "Enrollment successful", // FIX 6: Fixed spelling
+      message: "Enrollment successful! 🎉",
       data: studentEnroll,
+      gamification: {
+        pointsEarned: gamificationResult.data?.pointsAdded,
+        leveledUp: gamificationResult.data?.leveledUp,
+        newLevel: gamificationResult.data?.newLevel,
+        badgesEarned: gamificationResult.data?.badgesEarned,
+      },
     };
   }
 
@@ -98,9 +146,8 @@ export class StudentEnrollmentController extends Controller {
   public async GetCoursesEnrolledByStudent(@Request() req: any) {
     const userId = req.user?.id;
 
-    // FIX 7: Check userId FIRST
     if (!userId) {
-      this.setStatus(401); // FIX 8: Changed to 401 (Unauthorized)
+      this.setStatus(401);
       return {
         message: "User not authenticated",
       };
@@ -110,23 +157,25 @@ export class StudentEnrollmentController extends Controller {
       where: {
         userId,
         status: {
-          in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"], // FIX 9: Include all statuses
+          in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
         },
       },
       select: {
-        id: true, // FIX 10: Include enrollment ID
+        id: true,
         status: true,
         enrolledAt: true,
         startedAt: true,
         completedAt: true,
+        score: true,
         course: {
           select: {
-            id: true, // FIX 11: Include course ID
+            id: true,
             course_title: true,
             course_description: true,
             course_short_description: true,
             course_image: true,
             course_level: true,
+            point: true,
             material: {
               select: {
                 id: true,
@@ -147,6 +196,7 @@ export class StudentEnrollmentController extends Controller {
                     id: true,
                     lesson_title: true,
                     lesson_video: true,
+                    duration: true,
                   },
                 },
                 _count: {
@@ -161,6 +211,7 @@ export class StudentEnrollmentController extends Controller {
                 id: true,
                 title: true,
                 description: true,
+                passingScore: true,
                 _count: {
                   select: {
                     questions: true,
@@ -181,31 +232,77 @@ export class StudentEnrollmentController extends Controller {
           },
         },
       },
+      orderBy: {
+        enrolledAt: "desc",
+      },
     });
 
-    // FIX 12: Better response structure
-    const courses = studentEnrollments.map((enrollment) => ({
-      enrollment_id: enrollment.id,
-      enrollment_status: enrollment.status,
-      enrollment_date: enrollment.enrolledAt,
-      started_at: enrollment.startedAt,
-      completed_at: enrollment.completedAt,
-      course: {
-        ...enrollment.course,
-        total_materials: enrollment.course.material.length,
-        total_modules: enrollment.course.module.length,
-        total_lessons: enrollment.course.module.reduce(
-          (acc, module) => acc + module._count.lesson,
-          0,
-        ),
-        total_quizzes: enrollment.course.quiz.length,
+    // Get completed lessons for progress calculation
+    const completedLessons = await prisma.progress.findMany({
+      where: {
+        userId,
+        progressBar: { gte: 100 },
       },
-    }));
+      select: {
+        lessonId: true,
+      },
+    });
+
+    const completedLessonIds = new Set(completedLessons.map(l => l.lessonId));
+
+    // Calculate progress for each course
+    const coursesWithProgress = studentEnrollments.map((enrollment) => {
+      const allLessons = enrollment.course.module.flatMap(m => m.lesson);
+      const totalLessons = allLessons.length;
+      const completedInCourse = allLessons.filter(l => 
+        completedLessonIds.has(l.id)
+      ).length;
+      
+      const progressPercentage = totalLessons > 0 
+        ? (completedInCourse / totalLessons) * 100 
+        : 0;
+
+      return {
+        enrollment_id: enrollment.id,
+        enrollment_status: enrollment.status,
+        enrollment_date: enrollment.enrolledAt,
+        started_at: enrollment.startedAt,
+        completed_at: enrollment.completedAt,
+        course_score: enrollment.score,
+        course_progress: {
+          percentage: Math.round(progressPercentage),
+          completed_lessons: completedInCourse,
+          total_lessons: totalLessons,
+        },
+        course: {
+          ...enrollment.course,
+          total_materials: enrollment.course.material.length,
+          total_modules: enrollment.course.module.length,
+          total_lessons: totalLessons,
+          total_quizzes: enrollment.course.quiz.length,
+        },
+      };
+    });
+
+    // Get user's total XP
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { point: true, level: true },
+    });
+
+    const levelInfo = GamificationService.calculateLevel(user?.point || 0);
 
     this.setStatus(200);
     return {
-      message: "Student courses fetched successfully", // FIX 13: Fixed spelling
+      message: "Student courses fetched successfully",
       data: {
+        user_stats: {
+          total_xp: user?.point || 0,
+          current_level: user?.level || levelInfo.name,
+          level_number: levelInfo.level,
+          next_level_xp: levelInfo.nextLevelXP,
+          progress_to_next_level: levelInfo.progressToNext,
+        },
         total_courses: studentEnrollments.length,
         completed_courses: studentEnrollments.filter(
           (e) => e.status === "COMPLETED",
@@ -213,7 +310,7 @@ export class StudentEnrollmentController extends Controller {
         in_progress_courses: studentEnrollments.filter(
           (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
         ).length,
-        courses: courses,
+        courses: coursesWithProgress,
       },
     };
   }
@@ -283,6 +380,7 @@ export class StudentEnrollmentController extends Controller {
               email_address: true,
               user_pic: true,
               level: true,
+              point: true,
               isOnline: true,
               createdAt: true,
               lastActive: true,
@@ -310,6 +408,8 @@ export class StudentEnrollmentController extends Controller {
         const studentId = enrollment.user.id;
 
         if (!studentsMap.has(studentId)) {
+          const levelInfo = GamificationService.calculateLevel(enrollment.user.point || 0);
+          
           studentsMap.set(studentId, {
             student_id: enrollment.user.id,
             full_name: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
@@ -317,7 +417,9 @@ export class StudentEnrollmentController extends Controller {
             last_name: enrollment.user.last_name,
             email: enrollment.user.email_address,
             profile_picture: enrollment.user.user_pic,
-            level: enrollment.user.level,
+            level: enrollment.user.level || levelInfo.name,
+            level_number: levelInfo.level,
+            total_xp: enrollment.user.point || 0,
             is_online: enrollment.user.isOnline,
             joined_date: enrollment.user.createdAt,
             last_active: enrollment.user.lastActive,
@@ -369,6 +471,13 @@ export class StudentEnrollmentController extends Controller {
 
       const students = Array.from(studentsMap.values());
 
+      // Calculate overall stats
+      const totalXP = students.reduce((sum, s) => sum + (s.total_xp || 0), 0);
+      const totalCoursesCompleted = students.reduce(
+        (sum, s) => sum + s.total_completed_courses,
+        0
+      );
+
       // Add context about who is viewing
       const viewContext =
         orgId && isOrgAdmin
@@ -380,8 +489,13 @@ export class StudentEnrollmentController extends Controller {
         message: "Students fetched successfully",
         data: {
           ...viewContext,
-          total_students: students.length,
-          total_enrollments: enrollments.length,
+          stats: {
+            total_students: students.length,
+            total_enrollments: enrollments.length,
+            total_xp_earned: totalXP,
+            total_courses_completed: totalCoursesCompleted,
+            average_xp_per_student: students.length > 0 ? Math.round(totalXP / students.length) : 0,
+          },
           students: students,
         },
       };
@@ -416,7 +530,7 @@ export class StudentEnrollmentController extends Controller {
         where: {
           userId: studentId,
           course: {
-            createdUserId: userId, // FIX 14: Only show courses by this tutor
+            createdUserId: userId,
           },
           status: {
             in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
@@ -431,6 +545,7 @@ export class StudentEnrollmentController extends Controller {
               email_address: true,
               user_pic: true,
               level: true,
+              point: true,
               createdAt: true,
               lastActive: true,
               isOnline: true,
@@ -444,6 +559,7 @@ export class StudentEnrollmentController extends Controller {
               course_level: true,
               course_description: true,
               course_short_description: true,
+              point: true,
             },
           },
         },
@@ -460,7 +576,62 @@ export class StudentEnrollmentController extends Controller {
         };
       }
 
-      const group = await prisma.group.findMany({
+      // Get completed lessons for this student
+      const allLessonsInCourses = await prisma.lesson.findMany({
+        where: {
+          module: {
+            courseId: {
+              in: enrollments.map(e => e.courseId),
+            },
+          },
+        },
+        select: { id: true, module: { select: { courseId: true } } },
+      });
+
+      const completedLessons = await prisma.progress.findMany({
+        where: {
+          userId: studentId,
+          lessonId: { in: allLessonsInCourses.map(l => l.id) },
+          progressBar: { gte: 100 },
+        },
+        select: { lessonId: true },
+      });
+
+      const completedLessonIds = new Set(completedLessons.map(l => l.lessonId));
+
+      // Calculate progress per course
+      const enrollmentsWithProgress = enrollments.map(enrollment => {
+        const courseLessons = allLessonsInCourses.filter(
+          l => l.module.courseId === enrollment.courseId
+        );
+        const completedInCourse = courseLessons.filter(l => 
+          completedLessonIds.has(l.id)
+        ).length;
+        
+        const progressPercentage = courseLessons.length > 0 
+          ? (completedInCourse / courseLessons.length) * 100 
+          : 0;
+
+        return {
+          ...enrollment,
+          progress_percentage: Math.round(progressPercentage),
+          completed_lessons: completedInCourse,
+          total_lessons: courseLessons.length,
+        };
+      });
+
+      const student = enrollments[0].user;
+      const levelInfo = GamificationService.calculateLevel(student.point || 0);
+      const totalEnrollments = enrollments.length;
+      const completedEnrollments = enrollments.filter(
+        (e) => e.status === "COMPLETED",
+      ).length;
+      const inProgressEnrollments = enrollments.filter(
+        (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
+      ).length;
+
+      // Get groups the student joined
+      const groups = await prisma.group.findMany({
         where: {
           member: {
             some: {
@@ -470,21 +641,17 @@ export class StudentEnrollmentController extends Controller {
         },
         include: {
           member: {
+            where: { studentId },
             select: {
               joinedAt: true,
+              point: true,
             },
+          },
+          _count: {
+            select: { member: true },
           },
         },
       });
-
-      const student = enrollments[0].user;
-      const totalEnrollments = enrollments.length;
-      const completedEnrollments = enrollments.filter(
-        (e) => e.status === "COMPLETED",
-      ).length;
-      const inProgressEnrollments = enrollments.filter(
-        (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
-      ).length;
 
       this.setStatus(200);
       return {
@@ -495,7 +662,11 @@ export class StudentEnrollmentController extends Controller {
             full_name: `${student.first_name} ${student.last_name}`,
             email: student.email_address,
             profile_picture: student.user_pic,
-            level: student.level,
+            level: student.level || levelInfo.name,
+            level_number: levelInfo.level,
+            total_xp: student.point || 0,
+            next_level_xp: levelInfo.nextLevelXP,
+            progress_to_next_level: levelInfo.progressToNext,
             is_online: student.isOnline,
             joined_date: student.createdAt,
             last_active: student.lastActive,
@@ -509,7 +680,7 @@ export class StudentEnrollmentController extends Controller {
                 ? Math.round((completedEnrollments / totalEnrollments) * 100)
                 : 0,
           },
-          enrollments: enrollments.map((enrollment) => ({
+          enrollments: enrollmentsWithProgress.map((enrollment) => ({
             enrollment_id: enrollment.id,
             course_id: enrollment.course.id,
             course_title: enrollment.course.course_title,
@@ -519,12 +690,18 @@ export class StudentEnrollmentController extends Controller {
             enrollment_date: enrollment.enrolledAt,
             started_at: enrollment.startedAt,
             completed_at: enrollment.completedAt,
+            course_score: enrollment.score,
+            progress_percentage: enrollment.progress_percentage,
+            completed_lessons: enrollment.completed_lessons,
+            total_lessons: enrollment.total_lessons,
           })),
-          group: group.map((group) => ({
+          groups: groups.map((group) => ({
+            id: group.id,
             group_title: group.group_title,
-            joined_at: group.member.map((m) => ({
-              time: m.joinedAt,
-            })),
+            group_image: group.group_image,
+            joined_at: group.member[0]?.joinedAt,
+            group_points: group.member[0]?.point || 0,
+            total_members: group._count.member,
           })),
         },
       };
@@ -573,10 +750,41 @@ export class StudentEnrollmentController extends Controller {
         },
       });
 
+      // Also get user's progress in the course
+      let progress = null;
+      if (enrollmentCount > 0) {
+        const completedLessons = await prisma.progress.count({
+          where: {
+            userId,
+            courses: {
+              some: { id: courseId },
+            },
+            progressBar: { gte: 100 },
+          },
+        });
+
+        const totalLessons = await prisma.lesson.count({
+          where: {
+            module: {
+              courseId,
+            },
+          },
+        });
+
+        progress = {
+          completed_lessons: completedLessons,
+          total_lessons: totalLessons,
+          percentage: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+        };
+      }
+
       this.setStatus(200);
       return {
         message: "Fetched Successfully",
-        data: enrollmentCount > 0, // This returns true/false
+        data: {
+          is_enrolled: enrollmentCount > 0,
+          progress: progress,
+        },
       };
     } catch (error) {
       console.error(error);

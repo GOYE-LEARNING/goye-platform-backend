@@ -17,10 +17,15 @@ import prisma from "../db";
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
 import { GrowthService } from "../services/growthService";
+import {
+  ActionType,
+  GamificationService,
+} from "../services/gamificationService";
 
 @Route("socials")
 @Tags("Social controllers")
 export class SocialController extends Controller {
+  
   @Post("/create-post/{courseId}")
   @Security("bearerAuth")
   public async CreatePost(
@@ -96,6 +101,15 @@ export class SocialController extends Controller {
         },
       });
 
+      // Award XP for creating a post (discussion participation)
+      if (userId) {
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.DISCUSSION_PARTICIPATION,
+          { courseId }
+        );
+      }
+
       this.setStatus(201);
       return {
         message: "Post created successfully",
@@ -124,6 +138,7 @@ export class SocialController extends Controller {
       // Validate post exists
       const post = await prisma.post.findUnique({
         where: { id: postId },
+        select: { courseId: true, id: true }
       });
 
       if (!post) {
@@ -204,6 +219,13 @@ export class SocialController extends Controller {
         },
       });
 
+      // Award XP for creating a reply (discussion participation)
+      await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+        { courseId: post.courseId }
+      );
+
       // Send notification to the user being replied to
       if (body.parentId) {
         const parentReply = await prisma.reply.findUnique({
@@ -227,7 +249,9 @@ export class SocialController extends Controller {
 
       this.setStatus(201);
       return {
-        message: body.parentId ? "Nested reply created successfully" : "Reply created successfully",
+        message: body.parentId
+          ? "Nested reply created successfully"
+          : "Reply created successfully",
         data: createReply,
       };
     } catch (error: any) {
@@ -248,7 +272,7 @@ export class SocialController extends Controller {
       const take = limit || undefined;
 
       const replies = await prisma.reply.findMany({
-        where: { 
+        where: {
           postId: postId,
           parentId: null, // Only get top-level replies
         },
@@ -360,7 +384,7 @@ export class SocialController extends Controller {
         parentId: string | null = null,
         currentDepth: number = 0,
         skipCount: number = 0,
-        takeCount: number = 20
+        takeCount: number = 20,
       ): Promise<any[]> {
         // Stop recursion if max depth reached
         if (currentDepth >= maxDepthReached) {
@@ -381,7 +405,9 @@ export class SocialController extends Controller {
             },
             likes: {
               include: {
-                user: { select: { id: true, first_name: true, last_name: true } },
+                user: {
+                  select: { id: true, first_name: true, last_name: true },
+                },
               },
               take: 5,
             },
@@ -400,14 +426,14 @@ export class SocialController extends Controller {
               reply.id,
               currentDepth + 1,
               0,
-              5 // Limit nested replies to 5 per parent
+              5, // Limit nested replies to 5 per parent
             );
-            
+
             // Check if there are more children
             const totalChildren = await prisma.reply.count({
               where: { parentId: reply.id },
             });
-            
+
             return {
               ...reply,
               children,
@@ -426,7 +452,7 @@ export class SocialController extends Controller {
         null,
         0,
         skip,
-        take
+        take,
       );
 
       const totalTopLevelReplies = await prisma.reply.count({
@@ -450,14 +476,17 @@ export class SocialController extends Controller {
     } catch (error: any) {
       console.error("Error fetching post with replies:", error);
       this.setStatus(500);
-      return { message: "Failed to fetch post with replies", error: error.message };
+      return {
+        message: "Failed to fetch post with replies",
+        error: error.message,
+      };
     }
   }
 
   @Get("/get-reply-thread/{replyId}")
   public async GetReplyThread(
     @Path() replyId: string,
-    @Query() maxDepth?: number
+    @Query() maxDepth?: number,
   ): Promise<any> {
     try {
       // Fetch the reply and its parent chain
@@ -503,7 +532,7 @@ export class SocialController extends Controller {
       // Fetch all children recursively with depth limit
       async function fetchChildren(
         parentId: string,
-        currentDepth: number = 0
+        currentDepth: number = 0,
       ): Promise<any[]> {
         if (currentDepth >= maxDepthReached) {
           return [];
@@ -523,7 +552,9 @@ export class SocialController extends Controller {
             },
             likes: {
               include: {
-                user: { select: { id: true, first_name: true, last_name: true } },
+                user: {
+                  select: { id: true, first_name: true, last_name: true },
+                },
               },
               take: 5,
             },
@@ -539,7 +570,7 @@ export class SocialController extends Controller {
             totalChildrenCount: await prisma.reply.count({
               where: { parentId: child.id },
             }),
-          }))
+          })),
         );
 
         return childrenWithNested;
@@ -565,73 +596,72 @@ export class SocialController extends Controller {
     }
   }
 
-// Make sure this endpoint exists in your SocialController
-@Get("/get-child-replies/{replyId}")
-public async GetChildReplies(
-  @Path() replyId: string,
-  @Query() page?: number,
-  @Query() limit?: number,
-): Promise<any> {
-  try {
-    const skip = page && limit ? (page - 1) * limit : 0;
-    const take = limit || 10;
+  @Get("/get-child-replies/{replyId}")
+  public async GetChildReplies(
+    @Path() replyId: string,
+    @Query() page?: number,
+    @Query() limit?: number,
+  ): Promise<any> {
+    try {
+      const skip = page && limit ? (page - 1) * limit : 0;
+      const take = limit || 10;
 
-    const reply = await prisma.reply.findUnique({
-      where: { id: replyId },
-      select: { id: true },
-    });
+      const reply = await prisma.reply.findUnique({
+        where: { id: replyId },
+        select: { id: true },
+      });
 
-    if (!reply) {
-      this.setStatus(404);
-      return { message: "Reply not found" };
+      if (!reply) {
+        this.setStatus(404);
+        return { message: "Reply not found" };
+      }
+
+      const children = await prisma.reply.findMany({
+        where: { parentId: replyId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          likes: {
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true } },
+            },
+            take: 5,
+          },
+          _count: { select: { likes: true, children: true } },
+        },
+        orderBy: { createdAt: "asc" },
+        skip,
+        take,
+      });
+
+      const totalCount = await prisma.reply.count({
+        where: { parentId: replyId },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Child replies fetched successfully",
+        data: children,
+        pagination: {
+          total: totalCount,
+          page: page || 1,
+          limit: limit || 10,
+          totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching child replies:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch child replies", error: error.message };
     }
-
-    const children = await prisma.reply.findMany({
-      where: { parentId: replyId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
-        },
-        likes: {
-          include: {
-            user: { select: { id: true, first_name: true, last_name: true } },
-          },
-          take: 5,
-        },
-        _count: { select: { likes: true, children: true } },
-      },
-      orderBy: { createdAt: "asc" },
-      skip,
-      take,
-    });
-
-    const totalCount = await prisma.reply.count({
-      where: { parentId: replyId },
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Child replies fetched successfully",
-      data: children,
-      pagination: {
-        total: totalCount,
-        page: page || 1,
-        limit: limit || 10,
-        totalPages: limit ? Math.ceil(totalCount / limit) : 1,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error fetching child replies:", error);
-    this.setStatus(500);
-    return { message: "Failed to fetch child replies", error: error.message };
   }
-}
 
   @Post("/like-post/{postId}")
   @Security("bearerAuth")
@@ -642,7 +672,11 @@ public async GetChildReplies(
     const userId = req.user?.id;
 
     try {
-      const findPost = await prisma.post.findUnique({ where: { id: postId } });
+      const findPost = await prisma.post.findUnique({ 
+        where: { id: postId },
+        select: { courseId: true }
+      });
+      
       if (!findPost) {
         this.setStatus(404);
         return { message: "Post not found" };
@@ -671,6 +705,13 @@ public async GetChildReplies(
         },
       });
 
+      // Award XP for liking a post (community engagement)
+      await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+        { courseId: findPost.courseId }
+      );
+
       const likeCount = await prisma.likes.count({ where: { postId } });
       this.setStatus(201);
       return { message: "Post liked successfully", data: { like, likeCount } };
@@ -689,7 +730,11 @@ public async GetChildReplies(
     const userId = req.user?.id;
 
     try {
-      const reply = await prisma.reply.findUnique({ where: { id: replyId } });
+      const reply = await prisma.reply.findUnique({ 
+        where: { id: replyId },
+        include: { post: { select: { courseId: true } } }
+      });
+      
       if (!reply) {
         this.setStatus(404);
         return { message: "Reply not found" };
@@ -717,6 +762,13 @@ public async GetChildReplies(
           },
         },
       });
+
+      // Award XP for liking a reply (community engagement)
+      await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+        { courseId: reply.post?.courseId }
+      );
 
       const likeCount = await prisma.likes.count({ where: { replyId } });
       this.setStatus(201);
@@ -776,8 +828,6 @@ public async GetChildReplies(
       return { message: "Failed to unlike reply", error: error.message };
     }
   }
-
-  // Make sure this endpoint exists in your SocialController
 
   @Get("/check-like")
   @Security("bearerAuth")
@@ -892,10 +942,10 @@ public async GetChildReplies(
       const skip = page && limit ? (page - 1) * limit : 0;
       const take = limit || 20;
 
-      const course = await prisma.course.findUnique({ 
-        where: { id: courseId } 
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
       });
-      
+
       if (!course) {
         this.setStatus(404);
         return { message: "Course not found" };
@@ -905,11 +955,11 @@ public async GetChildReplies(
         where: { courseId },
         include: {
           user: {
-            select: { 
+            select: {
               id: true,
-              first_name: true, 
-              last_name: true, 
-              user_pic: true 
+              first_name: true,
+              last_name: true,
+              user_pic: true,
             },
           },
           replies: {
@@ -919,11 +969,11 @@ public async GetChildReplies(
               id: true,
               content: true,
               user: {
-                select: { 
+                select: {
                   id: true,
-                  first_name: true, 
-                  last_name: true, 
-                  user_pic: true 
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
                 },
               },
               createdAt: true,
@@ -941,8 +991,8 @@ public async GetChildReplies(
       const totalCount = await prisma.post.count({ where: { courseId } });
 
       this.setStatus(200);
-      return { 
-        message: "Post fetched successfully", 
+      return {
+        message: "Post fetched successfully",
         data: getPost,
         pagination: {
           total: totalCount,
@@ -971,7 +1021,7 @@ public async GetChildReplies(
       const existingReply = await prisma.reply.findFirst({
         where: { id: replyId, userId },
       });
-      
+
       if (!existingReply) {
         this.setStatus(404);
         return { message: "Reply not found or no permission to edit" };
@@ -1029,7 +1079,7 @@ public async GetChildReplies(
           },
         },
       });
-      
+
       if (!existingReply) {
         this.setStatus(404);
         return { message: "Reply not found or no permission to delete" };
@@ -1049,12 +1099,12 @@ public async GetChildReplies(
       }
 
       await deleteChildren(replyId);
-      
+
       // Delete the reply itself
       await prisma.reply.delete({ where: { id: replyId } });
-      
+
       this.setStatus(200);
-      return { 
+      return {
         message: "Reply and all its nested replies deleted successfully",
         deletedCount: existingReply.children.length + 1,
       };
@@ -1196,14 +1246,35 @@ public async GetChildReplies(
           groupId: group.id,
           studentId: userId,
         },
+        include: {
+          student: {
+            select: {
+              first_name: true,
+              last_name: true,
+            },
+          },
+        },
       });
-      
+
+      // Award XP for creating and joining a group
+      const gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.JOIN_GROUP,
+        { groupId: joinGroup.groupId }
+      );
+
       this.setStatus(201);
       return {
         message: "Group created successfully",
         member: `You are now the admin and member of ${group.group_title}`,
         joinGroup,
         group: group,
+        gamification: {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+          badgesEarned: gamificationResult.data?.badgesEarned,
+        },
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -1636,6 +1707,13 @@ public async GetChildReplies(
       groupTitle = result.group.group_title;
     }
 
+    // Award XP for joining a group
+    const gamificationResult = await GamificationService.AddPointsWithGamification(
+      userId,
+      ActionType.JOIN_GROUP,
+      { groupId }
+    );
+
     await NotificationService.createNotification({
       message: `Hello ${studentName}, you just joined ${groupTitle}`,
       title: "Group Message",
@@ -1660,6 +1738,12 @@ public async GetChildReplies(
         ? "Rejoined successfully"
         : "User has joined successfully",
       data: result,
+      gamification: {
+        pointsEarned: gamificationResult.data?.pointsAdded,
+        leveledUp: gamificationResult.data?.leveledUp,
+        newLevel: gamificationResult.data?.newLevel,
+        badgesEarned: gamificationResult.data?.badgesEarned,
+      },
     };
   }
 
@@ -1752,12 +1836,118 @@ public async GetChildReplies(
           groupid: groupId,
         },
       });
+
+      // Get all group members to award XP for event creation
+      const groupMembers = await prisma.joinedGroup.findMany({
+        where: { groupId, isJoined: true },
+        select: { studentId: true }
+      });
+
+      // Award XP to group members for event attendance (when they join/attend)
+      // Note: You might want to create a separate endpoint for event attendance
+      for (const member of groupMembers) {
+        await GamificationService.AddPointsWithGamification(
+          member.studentId,
+          ActionType.ATTEND_EVENT,
+          { eventId: createEvent.id, groupId }
+        );
+      }
+
       this.setStatus(201);
       return { message: "Event created successfully", data: createEvent };
     } catch (error) {
       console.error(error);
       this.setStatus(500);
       return { message: "Failed to create event", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Post("/attend-event/{eventId}")
+  public async AttendEvent(
+    @Request() req: any,
+    @Path() eventId: string
+  ): Promise<any> {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
+
+    try {
+      const event = await prisma.event.findUnique({
+        where: { id: eventId },
+        include: { group: true }
+      });
+
+      if (!event) {
+        this.setStatus(404);
+        return { message: "Event not found" };
+      }
+
+      // Check if user is a member of the group
+      const isMember = await prisma.joinedGroup.findUnique({
+        where: {
+          groupId_studentId: {
+            groupId: event.groupid,
+            studentId: userId,
+          },
+        },
+      });
+
+      if (!isMember || !isMember.isJoined) {
+        this.setStatus(403);
+        return { message: "You must join the group first to attend events" };
+      }
+
+      // Check if user already attended
+      const existingAttendance = await prisma.joinedEvent.findFirst({
+        where: {
+          eventId,
+          groupId: event.groupid,
+        },
+      });
+
+      let joinedEvent;
+      
+      if (existingAttendance) {
+        joinedEvent = await prisma.joinedEvent.update({
+          where: { id: existingAttendance.id },
+          data: { isjoinedEvent: true },
+        });
+      } else {
+        joinedEvent = await prisma.joinedEvent.create({
+          data: {
+            eventId,
+            groupId: event.groupid,
+            isjoinedEvent: true,
+          },
+        });
+      }
+
+      // Award XP for attending event
+      const gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.ATTEND_EVENT,
+        { eventId, groupId: event.groupid }
+      );
+
+      this.setStatus(200);
+      return {
+        message: "Successfully attended event",
+        data: { event, joinedEvent },
+        gamification: {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+          badgesEarned: gamificationResult.data?.badgesEarned,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error attending event:", error);
+      this.setStatus(500);
+      return { message: "Failed to attend event", error: error.message };
     }
   }
 

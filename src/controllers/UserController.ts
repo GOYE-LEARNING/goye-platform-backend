@@ -1239,31 +1239,45 @@ export class UserController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/profile")
-  public async GetProfile(@Request() req: any) {
-    //For normal individual
+@Security("bearerAuth")
+@Get("/profile")
+public async GetProfile(@Request() req: any) {
+  try {
     const userId = req.user?.id;
     const userRole = req.user?.role;
 
+    // Check if user exists
     if (!userId) {
       this.setStatus(401);
       return { message: "Unauthorized", status: 401 };
     }
 
-    if (userRole == "instructor") {
+    // Handle instructor role
+    if (userRole === "instructor") {
       const user = await prisma.user.findUnique({
         where: { id: userId, role: userRole },
       });
+      
+      if (!user) {
+        this.setStatus(404);
+        return { message: "Instructor not found", status: 404 };
+      }
+      
       this.setStatus(200);
       return {
-        message: "Profile fetched student succfully",
+        message: "Profile fetched successfully",
         user,
       };
     }
-    if (userRole == "student" || userRole == 'Member') {
+    
+    // Handle student or member role
+    if (userRole === "student" || userRole === "Member") {
       const user = await prisma.user.findUnique({
-        where: { id: userId, role: userRole }, include: {
+        where: { 
+          id: userId, 
+          role: userRole 
+        },
+        include: {
           progress: {
             include: {
               achivement: true,
@@ -1273,13 +1287,37 @@ export class UserController extends Controller {
           }
         }
       });
+      
+      if (!user) {
+        this.setStatus(404);
+        return { message: "Student not found", status: 404 };
+      }
+      
       this.setStatus(200);
       return {
-        message: "Profile fetched student succfully",
+        message: "Profile fetched successfully",
         user,
       };
     }
+    
+    // Handle invalid role
+    this.setStatus(400);
+    return { 
+      message: "Invalid user role", 
+      status: 400,
+      role: userRole 
+    };
+    
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    this.setStatus(500);
+    return { 
+      message: "Internal server error", 
+      status: 500,
+      error: error.message 
+    };
   }
+}
 
   @Post("/forgot-password")
   public async ForgotPassword(
