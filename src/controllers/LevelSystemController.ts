@@ -3,6 +3,7 @@ import {
   Get,
   Path,
   Post,
+  Query,
   Request,
   Route,
   Security,
@@ -66,10 +67,11 @@ export class LevelSystem extends Controller {
       });
 
       // Award XP for starting the journey (bonus points)
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.COURSE_ENROLLMENT, // Using enrollment as starting journey bonus
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.COURSE_ENROLLMENT, // Using enrollment as starting journey bonus
+        );
 
       // Create achievement message
       const achievementResult = await GrowthService.AchievementMessage({
@@ -88,7 +90,8 @@ export class LevelSystem extends Controller {
         // Still return success for journey but with achievement error
         this.setStatus(200);
         return {
-          message: "Journey created successfully, but achievement creation failed",
+          message:
+            "Journey created successfully, but achievement creation failed",
           data: startJourney,
           achievementError: achievementResult.error,
           gamification: {
@@ -101,7 +104,8 @@ export class LevelSystem extends Controller {
 
       this.setStatus(200);
       return {
-        message: "Journey created successfully! Welcome to your spiritual growth path! 🎉",
+        message:
+          "Journey created successfully! Welcome to your spiritual growth path! 🎉",
         data: startJourney,
         achievementMessage: achievementResult.data || achievementResult,
         gamification: {
@@ -160,7 +164,7 @@ export class LevelSystem extends Controller {
           achivement: true,
           pointHistory: {
             take: 10,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
           },
         },
       });
@@ -191,10 +195,10 @@ export class LevelSystem extends Controller {
           },
           badgesCount: checkJourney.badges_and_levels.reduce(
             (sum, bl) => sum + bl.badges.length,
-            0
+            0,
           ),
           achievementsCount: checkJourney.achivement.length,
-          recentActivity: checkJourney.pointHistory.map(h => ({
+          recentActivity: checkJourney.pointHistory.map((h) => ({
             reason: h.reason,
             points: h.point,
             date: h.createdAt,
@@ -251,7 +255,7 @@ export class LevelSystem extends Controller {
           },
         },
         orderBy: {
-          createdAt: 'desc',
+          createdAt: "desc",
         },
       });
 
@@ -272,7 +276,7 @@ export class LevelSystem extends Controller {
             totalAchievements: achievements.length,
             totalBadges: achievements.reduce(
               (sum, a) => sum + (a.badge?.length || 0),
-              0
+              0,
             ),
             currentLevel: levelInfo.level,
             currentLevelName: levelInfo.name,
@@ -344,7 +348,7 @@ export class LevelSystem extends Controller {
           },
           pointHistory: {
             take: 20,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
           },
         },
       });
@@ -359,28 +363,28 @@ export class LevelSystem extends Controller {
       // Calculate total badges
       const totalBadges = fetchGrowth.badges_and_levels.reduce(
         (sum, bl) => sum + bl.badges.length,
-        0
+        0,
       );
 
       // Calculate completed courses
       const completedCourses = fetchGrowth.courses.filter(
-        c => c.point && c.point > 0
+        (c) => c.point && c.point > 0,
       ).length;
 
       // Get level info
       const levelInfo = GamificationService.calculateLevel(
-        fetchGrowth.user?.point || 0
+        fetchGrowth.user?.point || 0,
       );
 
       // Group achievements by type
       const achievements = {
         courseCompletions: fetchGrowth.achivement.filter(
-          a => a.courseId !== null
+          (a) => a.courseId !== null,
         ),
         groupAchievements: fetchGrowth.achivement.filter(
-          a => a.groupId !== null
+          (a) => a.groupId !== null,
         ),
-        badges: fetchGrowth.badges_and_levels.flatMap(bl => bl.badges),
+        badges: fetchGrowth.badges_and_levels.flatMap((bl) => bl.badges),
         levelProgress: levelInfo,
       };
 
@@ -409,7 +413,7 @@ export class LevelSystem extends Controller {
             badgesAndLevels: fetchGrowth.badges_and_levels.length,
           },
           achievements,
-          recentActivity: fetchGrowth.pointHistory.map(h => ({
+          recentActivity: fetchGrowth.pointHistory.map((h) => ({
             action: h.reason,
             points: h.point,
             date: h.createdAt,
@@ -430,8 +434,9 @@ export class LevelSystem extends Controller {
   @Get("/leaderboard")
   public async GetLeaderboard(
     @Request() req: any,
-    @Path() type?: string,
-    @Path() id?: string,
+    @Query() type?: string,
+    @Query() id?: string,
+    @Query() limit: number = 10,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -458,7 +463,7 @@ export class LevelSystem extends Controller {
             point: true,
             level: true,
           },
-          orderBy: { point: 'desc' },
+          orderBy: { point: "desc" },
           take: 50,
         });
 
@@ -480,12 +485,12 @@ export class LevelSystem extends Controller {
       if (userId) {
         const allUsers = await prisma.user.findMany({
           where: { point: { gt: 0 } },
-          orderBy: { point: 'desc' },
+          orderBy: { point: "desc" },
           select: { id: true, point: true },
         });
 
-        const rank = allUsers.findIndex(u => u.id === userId) + 1;
-        const userPoints = allUsers.find(u => u.id === userId)?.point || 0;
+        const rank = allUsers.findIndex((u) => u.id === userId) + 1;
+        const userPoints = allUsers.find((u) => u.id === userId)?.point || 0;
 
         userRank = {
           rank: rank > 0 ? rank : null,

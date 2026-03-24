@@ -18,6 +18,10 @@ import { NotificationController } from './../controllers/NotificationController'
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { LevelSystem } from './../controllers/LevelSystemController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { LeaderBoardAndGamificationController } from './../controllers/LeaderBoardAndGamificationController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { DiscussionController } from './../controllers/DiscussionController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { CourseController } from './../controllers/CourseController';
 import { expressAuthentication } from './../auth/authentication';
 // @ts-ignore - no great way to install types from subpackage
@@ -84,6 +88,22 @@ const models: TsoaRoute.Models = {
     "Omit_Group.id_": {
         "dataType": "refAlias",
         "type": {"ref":"Pick_Group.Exclude_keyofGroup.id__","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "BadgeType": {
+        "dataType": "refEnum",
+        "enums": ["COURSE_COMPLETION","CONSISTENCY","MASTERY","MILESTONE","COMMUNITY"],
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "BadgeEarned": {
+        "dataType": "refObject",
+        "properties": {
+            "badgeId": {"dataType":"string","required":true},
+            "badgeName": {"dataType":"string","required":true},
+            "badgeType": {"ref":"BadgeType","required":true},
+            "awardedAt": {"dataType":"datetime","required":true},
+        },
+        "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_EventDTO.Exclude_keyofEventDTO.id__": {
@@ -156,6 +176,33 @@ const models: TsoaRoute.Models = {
     "_36_Enums.OrgType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "CreateDiscussionDTO": {
+        "dataType": "refObject",
+        "properties": {
+            "title": {"dataType":"string","required":true},
+            "content": {"dataType":"string","required":true},
+            "isPublic": {"dataType":"boolean","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "ReplyToDiscussionDTO": {
+        "dataType": "refObject",
+        "properties": {
+            "content": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "SendPrivateMessageDTO": {
+        "dataType": "refObject",
+        "properties": {
+            "receiverId": {"dataType":"string","required":true},
+            "content": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "CourseResponse": {
@@ -360,6 +407,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         const argsVideoTrackerController_UpdateTrackVideo: Record<string, TsoaRoute.ParameterSchema> = {
                 videoTrackerId: {"in":"path","name":"videoTrackerId","required":true,"dataType":"string"},
                 body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"videoFinished":{"dataType":"boolean","required":true},"videoTrackTime":{"dataType":"double","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
         app.put('/api/video/update-track-video/:videoTrackerId',
             authenticateMiddleware([{"bearerAuth":[]}]),
@@ -2055,6 +2103,38 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSocialController_AttendEvent: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                eventId: {"in":"path","name":"eventId","required":true,"dataType":"string"},
+        };
+        app.post('/api/socials/attend-event/:eventId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SocialController)),
+            ...(fetchMiddlewares<RequestHandler>(SocialController.prototype.AttendEvent)),
+
+            async function SocialController_AttendEvent(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSocialController_AttendEvent, request, response });
+
+                const controller = new SocialController();
+
+              await templateService.apiHandler({
+                methodName: 'AttendEvent',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsSocialController_GetEvent: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
@@ -3171,26 +3251,26 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsLevelSystem_FetchAchivement: Record<string, TsoaRoute.ParameterSchema> = {
+        const argsLevelSystem_FetchAchievement: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
-        app.get('/api/growth/fetch-achivement',
+        app.get('/api/growth/fetch-achievement',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(LevelSystem)),
-            ...(fetchMiddlewares<RequestHandler>(LevelSystem.prototype.FetchAchivement)),
+            ...(fetchMiddlewares<RequestHandler>(LevelSystem.prototype.FetchAchievement)),
 
-            async function LevelSystem_FetchAchivement(request: ExRequest, response: ExResponse, next: any) {
+            async function LevelSystem_FetchAchievement(request: ExRequest, response: ExResponse, next: any) {
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
             let validatedArgs: any[] = [];
             try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsLevelSystem_FetchAchivement, request, response });
+                validatedArgs = templateService.getValidatedArgs({ args: argsLevelSystem_FetchAchievement, request, response });
 
                 const controller = new LevelSystem();
 
               await templateService.apiHandler({
-                methodName: 'FetchAchivement',
+                methodName: 'FetchAchievement',
                 controller,
                 response,
                 next,
@@ -3223,6 +3303,705 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'FetchGrowth',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLevelSystem_GetLeaderboard: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                type: {"in":"query","name":"type","dataType":"string"},
+                id: {"in":"query","name":"id","dataType":"string"},
+                limit: {"default":10,"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/growth/leaderboard',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LevelSystem)),
+            ...(fetchMiddlewares<RequestHandler>(LevelSystem.prototype.GetLeaderboard)),
+
+            async function LevelSystem_GetLeaderboard(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLevelSystem_GetLeaderboard, request, response });
+
+                const controller = new LevelSystem();
+
+              await templateService.apiHandler({
+                methodName: 'GetLeaderboard',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLevelSystem_GetUserSummary: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/growth/user-summary',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LevelSystem)),
+            ...(fetchMiddlewares<RequestHandler>(LevelSystem.prototype.GetUserSummary)),
+
+            async function LevelSystem_GetUserSummary(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLevelSystem_GetUserSummary, request, response });
+
+                const controller = new LevelSystem();
+
+              await templateService.apiHandler({
+                methodName: 'GetUserSummary',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetDashboard: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/gamification/dashboard',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetDashboard)),
+
+            async function LeaderBoardAndGamificationController_GetDashboard(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetDashboard, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetDashboard',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetCurrentLevel: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/gamification/level',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetCurrentLevel)),
+
+            async function LeaderBoardAndGamificationController_GetCurrentLevel(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetCurrentLevel, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetCurrentLevel',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetLeaderboard: Record<string, TsoaRoute.ParameterSchema> = {
+                type: {"in":"query","name":"type","dataType":"union","subSchemas":[{"dataType":"enum","enums":["global"]},{"dataType":"enum","enums":["course"]},{"dataType":"enum","enums":["group"]}]},
+                id: {"in":"query","name":"id","dataType":"string"},
+                limit: {"default":20,"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/gamification/leaderboard',
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetLeaderboard)),
+
+            async function LeaderBoardAndGamificationController_GetLeaderboard(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetLeaderboard, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetLeaderboard',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetMyRank: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                type: {"in":"query","name":"type","dataType":"union","subSchemas":[{"dataType":"enum","enums":["global"]},{"dataType":"enum","enums":["course"]}]},
+                id: {"in":"query","name":"id","dataType":"string"},
+        };
+        app.get('/api/gamification/my-rank',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetMyRank)),
+
+            async function LeaderBoardAndGamificationController_GetMyRank(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetMyRank, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetMyRank',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetAllBadges: Record<string, TsoaRoute.ParameterSchema> = {
+                earned: {"in":"query","name":"earned","dataType":"boolean"},
+        };
+        app.get('/api/gamification/badges',
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetAllBadges)),
+
+            async function LeaderBoardAndGamificationController_GetAllBadges(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetAllBadges, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllBadges',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetMyBadges: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/gamification/my-badges',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetMyBadges)),
+
+            async function LeaderBoardAndGamificationController_GetMyBadges(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetMyBadges, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetMyBadges',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetPointHistory: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                limit: {"default":20,"in":"query","name":"limit","dataType":"double"},
+                offset: {"default":0,"in":"query","name":"offset","dataType":"double"},
+        };
+        app.get('/api/gamification/point-history',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetPointHistory)),
+
+            async function LeaderBoardAndGamificationController_GetPointHistory(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetPointHistory, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetPointHistory',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetOrganizationLeaderboard: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                limit: {"default":10,"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/gamification/organization-leaderboard',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetOrganizationLeaderboard)),
+
+            async function LeaderBoardAndGamificationController_GetOrganizationLeaderboard(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetOrganizationLeaderboard, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetOrganizationLeaderboard',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetXPBreakdown: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/gamification/xp-breakdown',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetXPBreakdown)),
+
+            async function LeaderBoardAndGamificationController_GetXPBreakdown(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetXPBreakdown, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetXPBreakdown',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsLeaderBoardAndGamificationController_GetAllLevels: Record<string, TsoaRoute.ParameterSchema> = {
+        };
+        app.get('/api/gamification/levels',
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController)),
+            ...(fetchMiddlewares<RequestHandler>(LeaderBoardAndGamificationController.prototype.GetAllLevels)),
+
+            async function LeaderBoardAndGamificationController_GetAllLevels(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsLeaderBoardAndGamificationController_GetAllLevels, request, response });
+
+                const controller = new LeaderBoardAndGamificationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllLevels',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_CreatePublicDiscussion: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                body: {"in":"body","name":"body","required":true,"ref":"CreateDiscussionDTO"},
+        };
+        app.post('/api/discussion/public',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.CreatePublicDiscussion)),
+
+            async function DiscussionController_CreatePublicDiscussion(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_CreatePublicDiscussion, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'CreatePublicDiscussion',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_GetPublicDiscussions: Record<string, TsoaRoute.ParameterSchema> = {
+                page: {"default":1,"in":"query","name":"page","dataType":"double"},
+                limit: {"default":20,"in":"query","name":"limit","dataType":"double"},
+                sort: {"default":"latest","in":"query","name":"sort","dataType":"union","subSchemas":[{"dataType":"enum","enums":["latest"]},{"dataType":"enum","enums":["popular"]}]},
+        };
+        app.get('/api/discussion/public',
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.GetPublicDiscussions)),
+
+            async function DiscussionController_GetPublicDiscussions(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_GetPublicDiscussions, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'GetPublicDiscussions',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_GetDiscussionById: Record<string, TsoaRoute.ParameterSchema> = {
+                discussionId: {"in":"path","name":"discussionId","required":true,"dataType":"string"},
+                page: {"default":1,"in":"query","name":"page","dataType":"double"},
+                limit: {"default":20,"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/discussion/public/:discussionId',
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.GetDiscussionById)),
+
+            async function DiscussionController_GetDiscussionById(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_GetDiscussionById, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'GetDiscussionById',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_ReplyToDiscussion: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                discussionId: {"in":"path","name":"discussionId","required":true,"dataType":"string"},
+                body: {"in":"body","name":"body","required":true,"ref":"ReplyToDiscussionDTO"},
+        };
+        app.post('/api/discussion/public/:discussionId/reply',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.ReplyToDiscussion)),
+
+            async function DiscussionController_ReplyToDiscussion(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_ReplyToDiscussion, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'ReplyToDiscussion',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_ToggleLike: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                discussionId: {"in":"path","name":"discussionId","required":true,"dataType":"string"},
+        };
+        app.post('/api/discussion/:discussionId/like',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.ToggleLike)),
+
+            async function DiscussionController_ToggleLike(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_ToggleLike, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'ToggleLike',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_DeleteDiscussion: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                discussionId: {"in":"path","name":"discussionId","required":true,"dataType":"string"},
+        };
+        app.delete('/api/discussion/:discussionId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.DeleteDiscussion)),
+
+            async function DiscussionController_DeleteDiscussion(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_DeleteDiscussion, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'DeleteDiscussion',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_SendPrivateMessage: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                body: {"in":"body","name":"body","required":true,"ref":"SendPrivateMessageDTO"},
+        };
+        app.post('/api/discussion/private',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.SendPrivateMessage)),
+
+            async function DiscussionController_SendPrivateMessage(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_SendPrivateMessage, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'SendPrivateMessage',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_GetPrivateConversations: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/discussion/private/conversations',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.GetPrivateConversations)),
+
+            async function DiscussionController_GetPrivateConversations(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_GetPrivateConversations, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'GetPrivateConversations',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_GetPrivateMessages: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
+                page: {"default":1,"in":"query","name":"page","dataType":"double"},
+                limit: {"default":50,"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/discussion/private/:userId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.GetPrivateMessages)),
+
+            async function DiscussionController_GetPrivateMessages(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_GetPrivateMessages, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'GetPrivateMessages',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_GetUnreadCount: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/discussion/private/unread/count',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.GetUnreadCount)),
+
+            async function DiscussionController_GetUnreadCount(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_GetUnreadCount, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'GetUnreadCount',
                 controller,
                 response,
                 next,
@@ -3939,7 +4718,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
                 quizId: {"in":"path","name":"quizId","required":true,"dataType":"string"},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
-                quiz: {"in":"body","name":"quiz","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"answers":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"point":{"dataType":"double","required":true},"correct":{"dataType":"boolean","required":true},"answer":{"dataType":"string","required":true},"questionId":{"dataType":"string","required":true}}},"required":true},"timeFinished":{"dataType":"double","required":true},"completed":{"dataType":"boolean","required":true},"totalPoint":{"dataType":"double","required":true}}},
+                quiz: {"in":"body","name":"quiz","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"answers":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"point":{"dataType":"double","required":true},"correct":{"dataType":"boolean","required":true},"answer":{"dataType":"string","required":true},"questionId":{"dataType":"string","required":true}}},"required":true},"timeFinished":{"dataType":"double","required":true},"passingScore":{"dataType":"double","required":true},"completed":{"dataType":"boolean","required":true},"totalPoint":{"dataType":"double","required":true}}},
         };
         app.post('/api/course/submit-quiz/:courseId/:quizId',
             authenticateMiddleware([{"bearerAuth":[]}]),
@@ -3988,6 +4767,103 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'FetchQuizAnswers',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_CompleteLesson: Record<string, TsoaRoute.ParameterSchema> = {
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+                lessonId: {"in":"path","name":"lessonId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/course/complete-lesson/:courseId/:lessonId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.CompleteLesson)),
+
+            async function CourseController_CompleteLesson(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_CompleteLesson, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'CompleteLesson',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_EnrollCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/course/enroll-course/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.EnrollCourse)),
+
+            async function CourseController_EnrollCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_EnrollCourse, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'EnrollCourse',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseController_GetUserCourseProgress: Record<string, TsoaRoute.ParameterSchema> = {
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/course/get-user-course-progress/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(CourseController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.GetUserCourseProgress)),
+
+            async function CourseController_GetUserCourseProgress(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseController_GetUserCourseProgress, request, response });
+
+                const controller = new CourseController();
+
+              await templateService.apiHandler({
+                methodName: 'GetUserCourseProgress',
                 controller,
                 response,
                 next,

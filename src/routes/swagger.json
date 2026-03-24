@@ -148,6 +148,41 @@
 				"$ref": "#/components/schemas/Pick_Group.Exclude_keyofGroup.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
+			"BadgeType": {
+				"enum": [
+					"COURSE_COMPLETION",
+					"CONSISTENCY",
+					"MASTERY",
+					"MILESTONE",
+					"COMMUNITY"
+				],
+				"type": "string"
+			},
+			"BadgeEarned": {
+				"properties": {
+					"badgeId": {
+						"type": "string"
+					},
+					"badgeName": {
+						"type": "string"
+					},
+					"badgeType": {
+						"$ref": "#/components/schemas/BadgeType"
+					},
+					"awardedAt": {
+						"type": "string",
+						"format": "date-time"
+					}
+				},
+				"required": [
+					"badgeId",
+					"badgeName",
+					"badgeType",
+					"awardedAt"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
 			"Pick_EventDTO.Exclude_keyofEventDTO.id__": {
 				"properties": {
 					"event_name": {
@@ -368,6 +403,54 @@
 					"CLUB",
 					"OTHER"
 				]
+			},
+			"CreateDiscussionDTO": {
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"content": {
+						"type": "string"
+					},
+					"isPublic": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"title",
+					"content",
+					"isPublic"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"ReplyToDiscussionDTO": {
+				"properties": {
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"SendPrivateMessageDTO": {
+				"properties": {
+					"receiverId": {
+						"type": "string"
+					},
+					"content": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"receiverId",
+					"content"
+				],
+				"type": "object",
+				"additionalProperties": false
 			},
 			"CourseResponse": {
 				"properties": {
@@ -878,6 +961,7 @@
 									"anyOf": [
 										{
 											"properties": {
+												"gamification": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -890,8 +974,17 @@
 										},
 										{
 											"properties": {
+												"gamification": {},
 												"data": {
 													"properties": {
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
 														"courseId": {
 															"type": "string"
 														},
@@ -900,14 +993,6 @@
 														},
 														"progressId": {
 															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
 														},
 														"basedTimeTracking": {
 															"$ref": "#/components/schemas/_36_Enums.Tracking"
@@ -924,11 +1009,11 @@
 														}
 													},
 													"required": [
+														"updatedAt",
+														"createdAt",
 														"courseId",
 														"lessonId",
 														"progressId",
-														"updatedAt",
-														"createdAt",
 														"basedTimeTracking",
 														"videoTrackTime",
 														"videoFinished",
@@ -941,6 +1026,80 @@
 												}
 											},
 											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"gamification": {
+													"properties": {
+														"badgesEarned": {},
+														"newLevel": {},
+														"leveledUp": {},
+														"pointsEarned": {}
+													},
+													"required": [
+														"badgesEarned",
+														"newLevel",
+														"leveledUp",
+														"pointsEarned"
+													],
+													"type": "object"
+												},
+												"data": {
+													"properties": {
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"courseId": {
+															"type": "string"
+														},
+														"lessonId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"basedTimeTracking": {
+															"$ref": "#/components/schemas/_36_Enums.Tracking"
+														},
+														"videoTrackTime": {
+															"type": "number",
+															"format": "double"
+														},
+														"videoFinished": {
+															"type": "boolean"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"updatedAt",
+														"createdAt",
+														"courseId",
+														"lessonId",
+														"progressId",
+														"basedTimeTracking",
+														"videoTrackTime",
+														"videoFinished",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"gamification",
 												"data",
 												"message"
 											],
@@ -1006,6 +1165,7 @@
 									"anyOf": [
 										{
 											"properties": {
+												"gamification": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -1018,8 +1178,226 @@
 										},
 										{
 											"properties": {
+												"gamification": {},
+												"data": {
+													"allOf": [
+														{
+															"properties": {
+																"lesson": {
+																	"properties": {
+																		"duration": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"order": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"moduleId": {
+																			"type": "string"
+																		},
+																		"lessonScore": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"lesson_video": {
+																			"type": "string"
+																		},
+																		"lesson_title": {
+																			"type": "string"
+																		},
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"duration",
+																		"order",
+																		"moduleId",
+																		"lessonScore",
+																		"lesson_video",
+																		"lesson_title",
+																		"point",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"course": {
+																	"properties": {
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"saved": {
+																			"type": "boolean"
+																		},
+																		"organizationId": {
+																			"type": "string"
+																		},
+																		"organizationName": {
+																			"type": "string"
+																		},
+																		"createdUserId": {
+																			"type": "string"
+																		},
+																		"createdBy": {
+																			"type": "string"
+																		},
+																		"course_image": {
+																			"type": "string"
+																		},
+																		"course_level": {
+																			"type": "string"
+																		},
+																		"course_description": {
+																			"type": "string"
+																		},
+																		"course_short_description": {
+																			"type": "string"
+																		},
+																		"course_title": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"progressId": {
+																			"type": "string"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"point",
+																		"saved",
+																		"organizationId",
+																		"organizationName",
+																		"createdUserId",
+																		"createdBy",
+																		"course_image",
+																		"course_level",
+																		"course_description",
+																		"course_short_description",
+																		"course_title",
+																		"updatedAt",
+																		"createdAt",
+																		"progressId",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"lesson",
+																"course"
+															],
+															"type": "object"
+														},
+														{
+															"properties": {
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"lessonId": {
+																	"type": "string"
+																},
+																"progressId": {
+																	"type": "string"
+																},
+																"basedTimeTracking": {
+																	"$ref": "#/components/schemas/_36_Enums.Tracking"
+																},
+																"videoTrackTime": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"videoFinished": {
+																	"type": "boolean"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"updatedAt",
+																"createdAt",
+																"courseId",
+																"lessonId",
+																"progressId",
+																"basedTimeTracking",
+																"videoTrackTime",
+																"videoFinished",
+																"id"
+															],
+															"type": "object"
+														}
+													]
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"gamification": {
+													"properties": {
+														"badgesEarned": {},
+														"newLevel": {},
+														"leveledUp": {},
+														"pointsEarned": {}
+													},
+													"required": [
+														"badgesEarned",
+														"newLevel",
+														"leveledUp",
+														"pointsEarned"
+													],
+													"type": "object"
+												},
 												"data": {
 													"properties": {
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
 														"courseId": {
 															"type": "string"
 														},
@@ -1028,14 +1406,6 @@
 														},
 														"progressId": {
 															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
 														},
 														"basedTimeTracking": {
 															"$ref": "#/components/schemas/_36_Enums.Tracking"
@@ -1052,11 +1422,11 @@
 														}
 													},
 													"required": [
+														"updatedAt",
+														"createdAt",
 														"courseId",
 														"lessonId",
 														"progressId",
-														"updatedAt",
-														"createdAt",
 														"basedTimeTracking",
 														"videoTrackTime",
 														"videoFinished",
@@ -1069,6 +1439,7 @@
 												}
 											},
 											"required": [
+												"gamification",
 												"data",
 												"message"
 											],
@@ -1136,50 +1507,186 @@
 										{
 											"properties": {
 												"data": {
-													"properties": {
-														"courseId": {
-															"type": "string"
+													"allOf": [
+														{
+															"properties": {
+																"lesson": {
+																	"properties": {
+																		"duration": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"order": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"moduleId": {
+																			"type": "string"
+																		},
+																		"lessonScore": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"lesson_video": {
+																			"type": "string"
+																		},
+																		"lesson_title": {
+																			"type": "string"
+																		},
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"duration",
+																		"order",
+																		"moduleId",
+																		"lessonScore",
+																		"lesson_video",
+																		"lesson_title",
+																		"point",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"course": {
+																	"properties": {
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"saved": {
+																			"type": "boolean"
+																		},
+																		"organizationId": {
+																			"type": "string"
+																		},
+																		"organizationName": {
+																			"type": "string"
+																		},
+																		"createdUserId": {
+																			"type": "string"
+																		},
+																		"createdBy": {
+																			"type": "string"
+																		},
+																		"course_image": {
+																			"type": "string"
+																		},
+																		"course_level": {
+																			"type": "string"
+																		},
+																		"course_description": {
+																			"type": "string"
+																		},
+																		"course_short_description": {
+																			"type": "string"
+																		},
+																		"course_title": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"progressId": {
+																			"type": "string"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"point",
+																		"saved",
+																		"organizationId",
+																		"organizationName",
+																		"createdUserId",
+																		"createdBy",
+																		"course_image",
+																		"course_level",
+																		"course_description",
+																		"course_short_description",
+																		"course_title",
+																		"updatedAt",
+																		"createdAt",
+																		"progressId",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"lesson",
+																"course"
+															],
+															"type": "object"
 														},
-														"lessonId": {
-															"type": "string"
-														},
-														"progressId": {
-															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"basedTimeTracking": {
-															"$ref": "#/components/schemas/_36_Enums.Tracking"
-														},
-														"videoTrackTime": {
-															"type": "number",
-															"format": "double"
-														},
-														"videoFinished": {
-															"type": "boolean"
-														},
-														"id": {
-															"type": "string"
+														{
+															"properties": {
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"lessonId": {
+																	"type": "string"
+																},
+																"progressId": {
+																	"type": "string"
+																},
+																"basedTimeTracking": {
+																	"$ref": "#/components/schemas/_36_Enums.Tracking"
+																},
+																"videoTrackTime": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"videoFinished": {
+																	"type": "boolean"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"updatedAt",
+																"createdAt",
+																"courseId",
+																"lessonId",
+																"progressId",
+																"basedTimeTracking",
+																"videoTrackTime",
+																"videoFinished",
+																"id"
+															],
+															"type": "object"
 														}
-													},
-													"required": [
-														"courseId",
-														"lessonId",
-														"progressId",
-														"updatedAt",
-														"createdAt",
-														"basedTimeTracking",
-														"videoTrackTime",
-														"videoFinished",
-														"id"
-													],
-													"type": "object"
+													]
 												},
 												"message": {
 													"type": "string"
@@ -1238,50 +1745,115 @@
 										{
 											"properties": {
 												"data": {
-													"properties": {
-														"courseId": {
-															"type": "string"
+													"allOf": [
+														{
+															"properties": {
+																"lesson": {
+																	"properties": {
+																		"duration": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"order": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"moduleId": {
+																			"type": "string"
+																		},
+																		"lessonScore": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"lesson_video": {
+																			"type": "string"
+																		},
+																		"lesson_title": {
+																			"type": "string"
+																		},
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"duration",
+																		"order",
+																		"moduleId",
+																		"lessonScore",
+																		"lesson_video",
+																		"lesson_title",
+																		"point",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"lesson"
+															],
+															"type": "object"
 														},
-														"lessonId": {
-															"type": "string"
-														},
-														"progressId": {
-															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"basedTimeTracking": {
-															"$ref": "#/components/schemas/_36_Enums.Tracking"
-														},
-														"videoTrackTime": {
-															"type": "number",
-															"format": "double"
-														},
-														"videoFinished": {
-															"type": "boolean"
-														},
-														"id": {
-															"type": "string"
+														{
+															"properties": {
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"lessonId": {
+																	"type": "string"
+																},
+																"progressId": {
+																	"type": "string"
+																},
+																"basedTimeTracking": {
+																	"$ref": "#/components/schemas/_36_Enums.Tracking"
+																},
+																"videoTrackTime": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"videoFinished": {
+																	"type": "boolean"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"updatedAt",
+																"createdAt",
+																"courseId",
+																"lessonId",
+																"progressId",
+																"basedTimeTracking",
+																"videoTrackTime",
+																"videoFinished",
+																"id"
+															],
+															"type": "object"
 														}
-													},
-													"required": [
-														"courseId",
-														"lessonId",
-														"progressId",
-														"updatedAt",
-														"createdAt",
-														"basedTimeTracking",
-														"videoTrackTime",
-														"videoFinished",
-														"id"
-													],
-													"type": "object"
+													]
 												},
 												"message": {
 													"type": "string"
@@ -1786,6 +2358,10 @@
 												"first_name": {
 													"type": "string"
 												},
+												"point": {
+													"type": "number",
+													"format": "double"
+												},
 												"updatedAt": {
 													"type": "string",
 													"format": "date-time"
@@ -1817,6 +2393,7 @@
 												"email_address",
 												"last_name",
 												"first_name",
+												"point",
 												"updatedAt",
 												"createdAt",
 												"id"
@@ -1913,6 +2490,8 @@
 									"anyOf": [
 										{
 											"properties": {
+												"error": {},
+												"role": {},
 												"user": {},
 												"status": {
 													"type": "number",
@@ -1930,6 +2509,8 @@
 										},
 										{
 											"properties": {
+												"error": {},
+												"role": {},
 												"status": {},
 												"user": {
 													"properties": {
@@ -1991,6 +2572,10 @@
 														"first_name": {
 															"type": "string"
 														},
+														"point": {
+															"type": "number",
+															"format": "double"
+														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -2022,6 +2607,7 @@
 														"email_address",
 														"last_name",
 														"first_name",
+														"point",
 														"updatedAt",
 														"createdAt",
 														"id"
@@ -2034,6 +2620,46 @@
 											},
 											"required": [
 												"user",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"error": {},
+												"user": {},
+												"role": {},
+												"status": {
+													"type": "number",
+													"format": "double"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"role",
+												"status",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"role": {},
+												"user": {},
+												"error": {},
+												"status": {
+													"type": "number",
+													"format": "double"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error",
+												"status",
 												"message"
 											],
 											"type": "object"
@@ -2325,6 +2951,10 @@
 																			"quiz": {
 																				"items": {
 																					"properties": {
+																						"passingScore": {
+																							"type": "number",
+																							"format": "double"
+																						},
 																						"description": {
 																							"type": "string"
 																						},
@@ -2348,6 +2978,7 @@
 																						}
 																					},
 																					"required": [
+																						"passingScore",
 																						"description",
 																						"title",
 																						"_count",
@@ -2418,6 +3049,10 @@
 																						"lesson": {
 																							"items": {
 																								"properties": {
+																									"duration": {
+																										"type": "number",
+																										"format": "double"
+																									},
 																									"lesson_video": {
 																										"type": "string"
 																									},
@@ -2429,6 +3064,7 @@
 																									}
 																								},
 																								"required": [
+																									"duration",
 																									"lesson_video",
 																									"lesson_title",
 																									"id"
@@ -2484,6 +3120,10 @@
 																				},
 																				"type": "array"
 																			},
+																			"point": {
+																				"type": "number",
+																				"format": "double"
+																			},
 																			"course_image": {
 																				"type": "string"
 																			},
@@ -2524,6 +3164,7 @@
 																			"objectives",
 																			"module",
 																			"material",
+																			"point",
 																			"course_image",
 																			"course_level",
 																			"course_description",
@@ -2536,6 +3177,32 @@
 																			"total_materials"
 																		],
 																		"type": "object"
+																	},
+																	"course_progress": {
+																		"properties": {
+																			"total_lessons": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"completed_lessons": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"percentage": {
+																				"type": "number",
+																				"format": "double"
+																			}
+																		},
+																		"required": [
+																			"total_lessons",
+																			"completed_lessons",
+																			"percentage"
+																		],
+																		"type": "object"
+																	},
+																	"course_score": {
+																		"type": "number",
+																		"format": "double"
 																	},
 																	"completed_at": {
 																		"type": "string",
@@ -2558,6 +3225,8 @@
 																},
 																"required": [
 																	"course",
+																	"course_progress",
+																	"course_score",
 																	"completed_at",
 																	"started_at",
 																	"enrollment_date",
@@ -2579,13 +3248,45 @@
 														"total_courses": {
 															"type": "number",
 															"format": "double"
+														},
+														"user_stats": {
+															"properties": {
+																"progress_to_next_level": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"next_level_xp": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"level_number": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"current_level": {
+																	"type": "string"
+																},
+																"total_xp": {
+																	"type": "number",
+																	"format": "double"
+																}
+															},
+															"required": [
+																"progress_to_next_level",
+																"next_level_xp",
+																"level_number",
+																"current_level",
+																"total_xp"
+															],
+															"type": "object"
 														}
 													},
 													"required": [
 														"courses",
 														"in_progress_courses",
 														"completed_courses",
-														"total_courses"
+														"total_courses",
+														"user_stats"
 													],
 													"type": "object"
 												},
@@ -3257,18 +3958,6 @@
 																				"content": {
 																					"type": "string"
 																				},
-																				"_count": {
-																					"properties": {
-																						"children": {
-																							"type": "number",
-																							"format": "double"
-																						}
-																					},
-																					"required": [
-																						"children"
-																					],
-																					"type": "object"
-																				},
 																				"user": {
 																					"properties": {
 																						"user_pic": {
@@ -3292,6 +3981,18 @@
 																					],
 																					"type": "object"
 																				},
+																				"_count": {
+																					"properties": {
+																						"children": {
+																							"type": "number",
+																							"format": "double"
+																						}
+																					},
+																					"required": [
+																						"children"
+																					],
+																					"type": "object"
+																				},
 																				"createdAt": {
 																					"type": "string",
 																					"format": "date-time"
@@ -3302,31 +4003,14 @@
 																			},
 																			"required": [
 																				"content",
-																				"_count",
 																				"user",
+																				"_count",
 																				"createdAt",
 																				"id"
 																			],
 																			"type": "object"
 																		},
 																		"type": "array"
-																	},
-																	"_count": {
-																		"properties": {
-																			"replies": {
-																				"type": "number",
-																				"format": "double"
-																			},
-																			"likes": {
-																				"type": "number",
-																				"format": "double"
-																			}
-																		},
-																		"required": [
-																			"replies",
-																			"likes"
-																		],
-																		"type": "object"
 																	},
 																	"user": {
 																		"properties": {
@@ -3350,12 +4034,29 @@
 																			"id"
 																		],
 																		"type": "object"
+																	},
+																	"_count": {
+																		"properties": {
+																			"replies": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"likes": {
+																				"type": "number",
+																				"format": "double"
+																			}
+																		},
+																		"required": [
+																			"replies",
+																			"likes"
+																		],
+																		"type": "object"
 																	}
 																},
 																"required": [
 																	"replies",
-																	"_count",
-																	"user"
+																	"user",
+																	"_count"
 																],
 																"type": "object"
 															},
@@ -3373,12 +4074,12 @@
 																	"userId": {
 																		"type": "string"
 																	},
-																	"courseId": {
-																		"type": "string"
-																	},
 																	"createdAt": {
 																		"type": "string",
 																		"format": "date-time"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"id": {
 																		"type": "string"
@@ -3389,8 +4090,8 @@
 																	"title",
 																	"organizationId",
 																	"userId",
-																	"courseId",
 																	"createdAt",
+																	"courseId",
 																	"id"
 																],
 																"type": "object"
@@ -3778,18 +4479,6 @@
 																		},
 																		"type": "array"
 																	},
-																	"_count": {
-																		"properties": {
-																			"member": {
-																				"type": "number",
-																				"format": "double"
-																			}
-																		},
-																		"required": [
-																			"member"
-																		],
-																		"type": "object"
-																	},
 																	"createdBy": {
 																		"properties": {
 																			"user_pic": {
@@ -3808,13 +4497,25 @@
 																			"first_name"
 																		],
 																		"type": "object"
+																	},
+																	"_count": {
+																		"properties": {
+																			"member": {
+																				"type": "number",
+																				"format": "double"
+																			}
+																		},
+																		"required": [
+																			"member"
+																		],
+																		"type": "object"
 																	}
 																},
 																"required": [
 																	"member",
 																	"event",
-																	"_count",
-																	"createdBy"
+																	"createdBy",
+																	"_count"
 																],
 																"type": "object"
 															},
@@ -4145,6 +4846,7 @@
 									"anyOf": [
 										{
 											"properties": {
+												"gamification": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -4157,12 +4859,40 @@
 										},
 										{
 											"properties": {
+												"gamification": {
+													"properties": {
+														"badgesEarned": {
+															"items": {
+																"$ref": "#/components/schemas/BadgeEarned"
+															},
+															"type": "array"
+														},
+														"newLevel": {
+															"type": "string"
+														},
+														"leveledUp": {
+															"type": "boolean"
+														},
+														"pointsEarned": {
+															"type": "number",
+															"format": "double"
+														}
+													},
+													"required": [
+														"badgesEarned",
+														"newLevel",
+														"leveledUp",
+														"pointsEarned"
+													],
+													"type": "object"
+												},
 												"data": {},
 												"message": {
 													"type": "string"
 												}
 											},
 											"required": [
+												"gamification",
 												"data",
 												"message"
 											],
@@ -4265,6 +4995,13 @@
 																"isJoined": {
 																	"type": "boolean"
 																},
+																"point": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"progressId": {
+																	"type": "string"
+																},
 																"id": {
 																	"type": "string"
 																}
@@ -4274,6 +5011,8 @@
 																"groupId",
 																"joinedAt",
 																"isJoined",
+																"point",
+																"progressId",
 																"id"
 															],
 															"type": "object"
@@ -4353,6 +5092,39 @@
 						}
 					}
 				}
+			}
+		},
+		"/socials/attend-event/{eventId}": {
+			"post": {
+				"operationId": "AttendEvent",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Social controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "eventId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/socials/fetch-event-by-the-student-group": {
@@ -5297,6 +6069,10 @@
 																		"first_name": {
 																			"type": "string"
 																		},
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
 																		"updatedAt": {
 																			"type": "string",
 																			"format": "date-time"
@@ -5328,6 +6104,7 @@
 																		"email_address",
 																		"last_name",
 																		"first_name",
+																		"point",
 																		"updatedAt",
 																		"createdAt",
 																		"id"
@@ -5821,6 +6598,10 @@
 																		"first_name": {
 																			"type": "string"
 																		},
+																		"point": {
+																			"type": "number",
+																			"format": "double"
+																		},
 																		"updatedAt": {
 																			"type": "string",
 																			"format": "date-time"
@@ -5852,6 +6633,7 @@
 																		"email_address",
 																		"last_name",
 																		"first_name",
+																		"point",
 																		"updatedAt",
 																		"createdAt",
 																		"id"
@@ -6731,9 +7513,6 @@
 																	"userId": {
 																		"type": "string"
 																	},
-																	"courseId": {
-																		"type": "string"
-																	},
 																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
@@ -6741,6 +7520,9 @@
 																	"createdAt": {
 																		"type": "string",
 																		"format": "date-time"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"id": {
 																		"type": "string"
@@ -6759,9 +7541,9 @@
 																	"role",
 																	"organizationId",
 																	"userId",
-																	"courseId",
 																	"updatedAt",
 																	"createdAt",
+																	"courseId",
 																	"id"
 																],
 																"type": "object"
@@ -6928,9 +7710,6 @@
 																	"userId": {
 																		"type": "string"
 																	},
-																	"courseId": {
-																		"type": "string"
-																	},
 																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
@@ -6938,6 +7717,9 @@
 																	"createdAt": {
 																		"type": "string",
 																		"format": "date-time"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"id": {
 																		"type": "string"
@@ -6956,9 +7738,9 @@
 																	"role",
 																	"organizationId",
 																	"userId",
-																	"courseId",
 																	"updatedAt",
 																	"createdAt",
+																	"courseId",
 																	"id"
 																],
 																"type": "object"
@@ -7182,9 +7964,6 @@
 														"userId": {
 															"type": "string"
 														},
-														"courseId": {
-															"type": "string"
-														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -7192,6 +7971,9 @@
 														"createdAt": {
 															"type": "string",
 															"format": "date-time"
+														},
+														"courseId": {
+															"type": "string"
 														},
 														"id": {
 															"type": "string"
@@ -7210,9 +7992,9 @@
 														"role",
 														"organizationId",
 														"userId",
-														"courseId",
 														"updatedAt",
 														"createdAt",
+														"courseId",
 														"id"
 													],
 													"type": "object"
@@ -7434,9 +8216,6 @@
 														"userId": {
 															"type": "string"
 														},
-														"courseId": {
-															"type": "string"
-														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -7444,6 +8223,9 @@
 														"createdAt": {
 															"type": "string",
 															"format": "date-time"
+														},
+														"courseId": {
+															"type": "string"
 														},
 														"id": {
 															"type": "string"
@@ -7462,9 +8244,9 @@
 														"role",
 														"organizationId",
 														"userId",
-														"courseId",
 														"updatedAt",
 														"createdAt",
+														"courseId",
 														"id"
 													],
 													"type": "object"
@@ -7654,9 +8436,6 @@
 																	"userId": {
 																		"type": "string"
 																	},
-																	"courseId": {
-																		"type": "string"
-																	},
 																	"updatedAt": {
 																		"type": "string",
 																		"format": "date-time"
@@ -7664,6 +8443,9 @@
 																	"createdAt": {
 																		"type": "string",
 																		"format": "date-time"
+																	},
+																	"courseId": {
+																		"type": "string"
 																	},
 																	"id": {
 																		"type": "string"
@@ -7682,9 +8464,9 @@
 																	"role",
 																	"organizationId",
 																	"userId",
-																	"courseId",
 																	"updatedAt",
 																	"createdAt",
+																	"courseId",
 																	"id"
 																],
 																"type": "object"
@@ -7913,9 +8695,6 @@
 														"userId": {
 															"type": "string"
 														},
-														"courseId": {
-															"type": "string"
-														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -7923,6 +8702,9 @@
 														"createdAt": {
 															"type": "string",
 															"format": "date-time"
+														},
+														"courseId": {
+															"type": "string"
 														},
 														"id": {
 															"type": "string"
@@ -7941,9 +8723,9 @@
 														"role",
 														"organizationId",
 														"userId",
-														"courseId",
 														"updatedAt",
 														"createdAt",
+														"courseId",
 														"id"
 													],
 													"type": "object"
@@ -8336,9 +9118,9 @@
 				]
 			}
 		},
-		"/growth/fetch-achivement": {
+		"/growth/fetch-achievement": {
 			"get": {
-				"operationId": "FetchAchivement",
+				"operationId": "FetchAchievement",
 				"responses": {
 					"200": {
 						"description": "Ok",
@@ -8391,6 +9173,802 @@
 						}
 					}
 				]
+			}
+		},
+		"/growth/leaderboard": {
+			"get": {
+				"operationId": "GetLeaderboard",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Levels and Badges Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "type",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "id",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 10,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/growth/user-summary": {
+			"get": {
+				"operationId": "GetUserSummary",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Levels and Badges Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/gamification/dashboard": {
+			"get": {
+				"operationId": "GetDashboard",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get user's complete gamification dashboard",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/gamification/level": {
+			"get": {
+				"operationId": "GetCurrentLevel",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get user's current level and XP",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/gamification/leaderboard": {
+			"get": {
+				"operationId": "GetLeaderboard",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get leaderboard (global, course-specific, or group-specific)",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "type",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"global",
+								"course",
+								"group"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "id",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/gamification/my-rank": {
+			"get": {
+				"operationId": "GetMyRank",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get user's rank on leaderboard",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "type",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"global",
+								"course"
+							]
+						}
+					},
+					{
+						"in": "query",
+						"name": "id",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/gamification/badges": {
+			"get": {
+				"operationId": "GetAllBadges",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get all available badges and achievements",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "earned",
+						"required": false,
+						"schema": {
+							"type": "boolean"
+						}
+					}
+				]
+			}
+		},
+		"/gamification/my-badges": {
+			"get": {
+				"operationId": "GetMyBadges",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get user's earned badges",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/gamification/point-history": {
+			"get": {
+				"operationId": "GetPointHistory",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get user's point history",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "offset",
+						"required": false,
+						"schema": {
+							"default": 0,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/gamification/organization-leaderboard": {
+			"get": {
+				"operationId": "GetOrganizationLeaderboard",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get organization leaderboard (for org admins)",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 10,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/gamification/xp-breakdown": {
+			"get": {
+				"operationId": "GetXPBreakdown",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get XP breakdown for a user",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/gamification/levels": {
+			"get": {
+				"operationId": "GetAllLevels",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get all levels and requirements",
+				"tags": [
+					"Gamification & Leaderboard APIs"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/discussion/public": {
+			"post": {
+				"operationId": "CreatePublicDiscussion",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Create a new public discussion",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CreateDiscussionDTO"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetPublicDiscussions",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get all public discussions",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "sort",
+						"required": false,
+						"schema": {
+							"default": "latest",
+							"type": "string",
+							"enum": [
+								"latest",
+								"popular"
+							]
+						}
+					}
+				]
+			}
+		},
+		"/discussion/public/{discussionId}": {
+			"get": {
+				"operationId": "GetDiscussionById",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get a single discussion with all replies",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/public/{discussionId}/reply": {
+			"post": {
+				"operationId": "ReplyToDiscussion",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Reply to a discussion",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ReplyToDiscussionDTO"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/discussion/{discussionId}/like": {
+			"post": {
+				"operationId": "ToggleLike",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Like or unlike a discussion/reply",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/{discussionId}": {
+			"delete": {
+				"operationId": "DeleteDiscussion",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Delete a discussion or reply (only author or admin can delete)",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/private": {
+			"post": {
+				"operationId": "SendPrivateMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Send a private message to another user",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SendPrivateMessageDTO"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/discussion/private/conversations": {
+			"get": {
+				"operationId": "GetPrivateConversations",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get all conversations (list of users you've messaged with)",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/discussion/private/{userId}": {
+			"get": {
+				"operationId": "GetPrivateMessages",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get private messages between current user and another user",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/private/unread/count": {
+			"get": {
+				"operationId": "GetUnreadCount",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get unread message count",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
 			}
 		},
 		"/course/create-course": {
@@ -8559,18 +10137,6 @@
 																	"allOf": [
 																		{
 																			"properties": {
-																				"_count": {
-																					"properties": {
-																						"post": {
-																							"type": "number",
-																							"format": "double"
-																						}
-																					},
-																					"required": [
-																						"post"
-																					],
-																					"type": "object"
-																				},
 																				"quiz": {
 																					"items": {
 																						"allOf": [
@@ -8608,12 +10174,12 @@
 																												"question": {
 																													"type": "string"
 																												},
-																												"courseId": {
-																													"type": "string"
-																												},
 																												"createdAt": {
 																													"type": "string",
 																													"format": "date-time"
+																												},
+																												"courseId": {
+																													"type": "string"
 																												},
 																												"id": {
 																													"type": "string"
@@ -8628,8 +10194,8 @@
 																												"options",
 																												"order",
 																												"question",
-																												"courseId",
 																												"createdAt",
+																												"courseId",
 																												"id"
 																											],
 																											"type": "object"
@@ -8666,10 +10232,11 @@
 																										"type": "number",
 																										"format": "double"
 																									},
-																									"organizationId": {
-																										"type": "string"
+																									"point": {
+																										"type": "number",
+																										"format": "double"
 																									},
-																									"courseId": {
+																									"organizationId": {
 																										"type": "string"
 																									},
 																									"updatedAt": {
@@ -8679,6 +10246,9 @@
 																									"createdAt": {
 																										"type": "string",
 																										"format": "date-time"
+																									},
+																									"courseId": {
+																										"type": "string"
 																									},
 																									"id": {
 																										"type": "string"
@@ -8691,10 +10261,11 @@
 																									"description",
 																									"title",
 																									"duration",
+																									"point",
 																									"organizationId",
-																									"courseId",
 																									"updatedAt",
 																									"createdAt",
+																									"courseId",
 																									"id"
 																								],
 																								"type": "object"
@@ -8721,9 +10292,6 @@
 																							"objective_title1": {
 																								"type": "string"
 																							},
-																							"courseId": {
-																								"type": "string"
-																							},
 																							"updatedAt": {
 																								"type": "string",
 																								"format": "date-time"
@@ -8731,6 +10299,9 @@
 																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
+																							},
+																							"courseId": {
+																								"type": "string"
 																							},
 																							"id": {
 																								"type": "string"
@@ -8742,9 +10313,9 @@
 																							"objective_title3",
 																							"objective_title2",
 																							"objective_title1",
-																							"courseId",
 																							"updatedAt",
 																							"createdAt",
+																							"courseId",
 																							"id"
 																						],
 																						"type": "object"
@@ -8767,9 +10338,6 @@
 																								"type": "number",
 																								"format": "double"
 																							},
-																							"courseId": {
-																								"type": "string"
-																							},
 																							"updatedAt": {
 																								"type": "string",
 																								"format": "date-time"
@@ -8777,6 +10345,9 @@
 																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
+																							},
+																							"courseId": {
+																								"type": "string"
 																							},
 																							"id": {
 																								"type": "string"
@@ -8787,9 +10358,9 @@
 																							"module_description",
 																							"module_title",
 																							"order",
-																							"courseId",
 																							"updatedAt",
 																							"createdAt",
+																							"courseId",
 																							"id"
 																						],
 																						"type": "object"
@@ -8812,9 +10383,6 @@
 																							"material_title": {
 																								"type": "string"
 																							},
-																							"courseId": {
-																								"type": "string"
-																							},
 																							"updatedAt": {
 																								"type": "string",
 																								"format": "date-time"
@@ -8822,6 +10390,9 @@
 																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
+																							},
+																							"courseId": {
+																								"type": "string"
 																							},
 																							"id": {
 																								"type": "string"
@@ -8832,9 +10403,9 @@
 																							"material_pages",
 																							"material_description",
 																							"material_title",
-																							"courseId",
 																							"updatedAt",
 																							"createdAt",
+																							"courseId",
 																							"id"
 																						],
 																						"type": "object"
@@ -8856,18 +10427,22 @@
 																								"type": "string",
 																								"format": "date-time"
 																							},
+																							"score": {
+																								"type": "number",
+																								"format": "double"
+																							},
 																							"status": {
 																								"$ref": "#/components/schemas/_36_Enums.EnrollmentStatus"
 																							},
 																							"userId": {
 																								"type": "string"
 																							},
-																							"courseId": {
-																								"type": "string"
-																							},
 																							"createdAt": {
 																								"type": "string",
 																								"format": "date-time"
+																							},
+																							"courseId": {
+																								"type": "string"
 																							},
 																							"id": {
 																								"type": "string"
@@ -8877,29 +10452,46 @@
 																							"startedAt",
 																							"completedAt",
 																							"enrolledAt",
+																							"score",
 																							"status",
 																							"userId",
-																							"courseId",
 																							"createdAt",
+																							"courseId",
 																							"id"
 																						],
 																						"type": "object"
 																					},
 																					"type": "array"
+																				},
+																				"_count": {
+																					"properties": {
+																						"post": {
+																							"type": "number",
+																							"format": "double"
+																						}
+																					},
+																					"required": [
+																						"post"
+																					],
+																					"type": "object"
 																				}
 																			},
 																			"required": [
-																				"_count",
 																				"quiz",
 																				"objectives",
 																				"module",
 																				"material",
-																				"enrollment"
+																				"enrollment",
+																				"_count"
 																			],
 																			"type": "object"
 																		},
 																		{
 																			"properties": {
+																				"point": {
+																					"type": "number",
+																					"format": "double"
+																				},
 																				"saved": {
 																					"type": "boolean"
 																				},
@@ -8930,9 +10522,6 @@
 																				"course_title": {
 																					"type": "string"
 																				},
-																				"progressId": {
-																					"type": "string"
-																				},
 																				"updatedAt": {
 																					"type": "string",
 																					"format": "date-time"
@@ -8941,11 +10530,15 @@
 																					"type": "string",
 																					"format": "date-time"
 																				},
+																				"progressId": {
+																					"type": "string"
+																				},
 																				"id": {
 																					"type": "string"
 																				}
 																			},
 																			"required": [
+																				"point",
 																				"saved",
 																				"organizationId",
 																				"organizationName",
@@ -8956,9 +10549,9 @@
 																				"course_description",
 																				"course_short_description",
 																				"course_title",
-																				"progressId",
 																				"updatedAt",
 																				"createdAt",
+																				"progressId",
 																				"id"
 																			],
 																			"type": "object"
@@ -9044,270 +10637,6 @@
 									"properties": {
 										"quiz": {
 											"items": {
-												"allOf": [
-													{
-														"properties": {
-															"QuizAttempt": {
-																"items": {
-																	"allOf": [
-																		{
-																			"properties": {
-																				"quiz": {
-																					"properties": {
-																						"quizProgress": {
-																							"type": "number",
-																							"format": "double"
-																						},
-																						"maxAttempts": {
-																							"type": "number",
-																							"format": "double"
-																						},
-																						"passingScore": {
-																							"type": "number",
-																							"format": "double"
-																						},
-																						"description": {
-																							"type": "string"
-																						},
-																						"title": {
-																							"type": "string"
-																						},
-																						"duration": {
-																							"type": "number",
-																							"format": "double"
-																						},
-																						"organizationId": {
-																							"type": "string"
-																						},
-																						"courseId": {
-																							"type": "string"
-																						},
-																						"updatedAt": {
-																							"type": "string",
-																							"format": "date-time"
-																						},
-																						"createdAt": {
-																							"type": "string",
-																							"format": "date-time"
-																						},
-																						"id": {
-																							"type": "string"
-																						}
-																					},
-																					"required": [
-																						"quizProgress",
-																						"maxAttempts",
-																						"passingScore",
-																						"description",
-																						"title",
-																						"duration",
-																						"organizationId",
-																						"courseId",
-																						"updatedAt",
-																						"createdAt",
-																						"id"
-																					],
-																					"type": "object"
-																				}
-																			},
-																			"required": [
-																				"quiz"
-																			],
-																			"type": "object"
-																		},
-																		{
-																			"properties": {
-																				"answers": {
-																					"$ref": "#/components/schemas/JsonValue"
-																				},
-																				"score": {
-																					"type": "number",
-																					"format": "double"
-																				},
-																				"timeFinished": {
-																					"type": "number",
-																					"format": "double"
-																				},
-																				"quizId": {
-																					"type": "string"
-																				},
-																				"startedAt": {
-																					"type": "string",
-																					"format": "date-time"
-																				},
-																				"completedAt": {
-																					"type": "string",
-																					"format": "date-time"
-																				},
-																				"completed": {
-																					"type": "boolean"
-																				},
-																				"organizationId": {
-																					"type": "string"
-																				},
-																				"userId": {
-																					"type": "string"
-																				},
-																				"courseId": {
-																					"type": "string"
-																				},
-																				"progressId": {
-																					"type": "string"
-																				},
-																				"id": {
-																					"type": "string"
-																				}
-																			},
-																			"required": [
-																				"answers",
-																				"score",
-																				"timeFinished",
-																				"quizId",
-																				"startedAt",
-																				"completedAt",
-																				"completed",
-																				"organizationId",
-																				"userId",
-																				"courseId",
-																				"progressId",
-																				"id"
-																			],
-																			"type": "object"
-																		}
-																	]
-																},
-																"type": "array"
-															},
-															"questions": {
-																"items": {
-																	"properties": {
-																		"quizAttemptId": {
-																			"type": "string"
-																		},
-																		"quizId": {
-																			"type": "string"
-																		},
-																		"points": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"explanation": {
-																			"type": "string"
-																		},
-																		"correctAnswer": {
-																			"type": "string"
-																		},
-																		"options": {
-																			"items": {
-																				"type": "string"
-																			},
-																			"type": "array"
-																		},
-																		"order": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"question": {
-																			"type": "string"
-																		},
-																		"courseId": {
-																			"type": "string"
-																		},
-																		"createdAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"id": {
-																			"type": "string"
-																		}
-																	},
-																	"required": [
-																		"quizAttemptId",
-																		"quizId",
-																		"points",
-																		"explanation",
-																		"correctAnswer",
-																		"options",
-																		"order",
-																		"question",
-																		"courseId",
-																		"createdAt",
-																		"id"
-																	],
-																	"type": "object"
-																},
-																"type": "array"
-															}
-														},
-														"required": [
-															"QuizAttempt",
-															"questions"
-														],
-														"type": "object"
-													},
-													{
-														"properties": {
-															"quizProgress": {
-																"type": "number",
-																"format": "double"
-															},
-															"maxAttempts": {
-																"type": "number",
-																"format": "double"
-															},
-															"passingScore": {
-																"type": "number",
-																"format": "double"
-															},
-															"description": {
-																"type": "string"
-															},
-															"title": {
-																"type": "string"
-															},
-															"duration": {
-																"type": "number",
-																"format": "double"
-															},
-															"organizationId": {
-																"type": "string"
-															},
-															"courseId": {
-																"type": "string"
-															},
-															"updatedAt": {
-																"type": "string",
-																"format": "date-time"
-															},
-															"createdAt": {
-																"type": "string",
-																"format": "date-time"
-															},
-															"id": {
-																"type": "string"
-															}
-														},
-														"required": [
-															"quizProgress",
-															"maxAttempts",
-															"passingScore",
-															"description",
-															"title",
-															"duration",
-															"organizationId",
-															"courseId",
-															"updatedAt",
-															"createdAt",
-															"id"
-														],
-														"type": "object"
-													}
-												]
-											},
-											"type": "array"
-										},
-										"quizAttempt": {
-											"items": {
 												"properties": {
 													"maxAttempts": {
 														"type": "number",
@@ -9327,10 +10656,11 @@
 														"type": "number",
 														"format": "double"
 													},
-													"organizationId": {
-														"type": "string"
+													"point": {
+														"type": "number",
+														"format": "double"
 													},
-													"courseId": {
+													"organizationId": {
 														"type": "string"
 													},
 													"updatedAt": {
@@ -9340,6 +10670,9 @@
 													"createdAt": {
 														"type": "string",
 														"format": "date-time"
+													},
+													"courseId": {
+														"type": "string"
 													},
 													"id": {
 														"type": "string"
@@ -9373,10 +10706,11 @@
 																					"type": "number",
 																					"format": "double"
 																				},
-																				"organizationId": {
-																					"type": "string"
+																				"point": {
+																					"type": "number",
+																					"format": "double"
 																				},
-																				"courseId": {
+																				"organizationId": {
 																					"type": "string"
 																				},
 																				"updatedAt": {
@@ -9386,6 +10720,9 @@
 																				"createdAt": {
 																					"type": "string",
 																					"format": "date-time"
+																				},
+																				"courseId": {
+																					"type": "string"
 																				},
 																				"id": {
 																					"type": "string"
@@ -9398,10 +10735,11 @@
 																				"description",
 																				"title",
 																				"duration",
+																				"point",
 																				"organizationId",
-																				"courseId",
 																				"updatedAt",
 																				"createdAt",
+																				"courseId",
 																				"id"
 																			],
 																			"type": "object"
@@ -9417,10 +10755,6 @@
 																		"answers": {
 																			"$ref": "#/components/schemas/JsonValue"
 																		},
-																		"score": {
-																			"type": "number",
-																			"format": "double"
-																		},
 																		"timeFinished": {
 																			"type": "number",
 																			"format": "double"
@@ -9435,6 +10769,10 @@
 																		"completedAt": {
 																			"type": "string",
 																			"format": "date-time"
+																		},
+																		"score": {
+																			"type": "number",
+																			"format": "double"
 																		},
 																		"completed": {
 																			"type": "boolean"
@@ -9457,11 +10795,11 @@
 																	},
 																	"required": [
 																		"answers",
-																		"score",
 																		"timeFinished",
 																		"quizId",
 																		"startedAt",
 																		"completedAt",
+																		"score",
 																		"completed",
 																		"organizationId",
 																		"userId",
@@ -9507,12 +10845,12 @@
 																"question": {
 																	"type": "string"
 																},
-																"courseId": {
-																	"type": "string"
-																},
 																"createdAt": {
 																	"type": "string",
 																	"format": "date-time"
+																},
+																"courseId": {
+																	"type": "string"
 																},
 																"id": {
 																	"type": "string"
@@ -9527,8 +10865,8 @@
 																"options",
 																"order",
 																"question",
-																"courseId",
 																"createdAt",
+																"courseId",
 																"id"
 															],
 															"type": "object"
@@ -9554,10 +10892,11 @@
 													"description",
 													"title",
 													"duration",
+													"point",
 													"organizationId",
-													"courseId",
 													"updatedAt",
 													"createdAt",
+													"courseId",
 													"id",
 													"QuizAttempt",
 													"questions",
@@ -9575,7 +10914,6 @@
 									},
 									"required": [
 										"quiz",
-										"quizAttempt",
 										"message"
 									],
 									"type": "object"
@@ -10080,9 +11418,6 @@
 													"type": "number",
 													"format": "double"
 												},
-												"courseId": {
-													"type": "string"
-												},
 												"updatedAt": {
 													"type": "string",
 													"format": "date-time"
@@ -10090,6 +11425,9 @@
 												"createdAt": {
 													"type": "string",
 													"format": "date-time"
+												},
+												"courseId": {
+													"type": "string"
 												},
 												"id": {
 													"type": "string"
@@ -10100,9 +11438,9 @@
 												"module_description",
 												"module_title",
 												"order",
-												"courseId",
 												"updatedAt",
 												"createdAt",
+												"courseId",
 												"id"
 											],
 											"type": "object"
@@ -10271,6 +11609,10 @@
 											"properties": {
 												"data": {
 													"properties": {
+														"point": {
+															"type": "number",
+															"format": "double"
+														},
 														"saved": {
 															"type": "boolean"
 														},
@@ -10301,9 +11643,6 @@
 														"course_title": {
 															"type": "string"
 														},
-														"progressId": {
-															"type": "string"
-														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -10312,11 +11651,15 @@
 															"type": "string",
 															"format": "date-time"
 														},
+														"progressId": {
+															"type": "string"
+														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"point",
 														"saved",
 														"organizationId",
 														"organizationName",
@@ -10327,9 +11670,9 @@
 														"course_description",
 														"course_short_description",
 														"course_title",
-														"progressId",
 														"updatedAt",
 														"createdAt",
+														"progressId",
 														"id"
 													],
 													"type": "object"
@@ -10396,6 +11739,10 @@
 											"properties": {
 												"data": {
 													"properties": {
+														"point": {
+															"type": "number",
+															"format": "double"
+														},
 														"saved": {
 															"type": "boolean"
 														},
@@ -10426,9 +11773,6 @@
 														"course_title": {
 															"type": "string"
 														},
-														"progressId": {
-															"type": "string"
-														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -10437,11 +11781,15 @@
 															"type": "string",
 															"format": "date-time"
 														},
+														"progressId": {
+															"type": "string"
+														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"point",
 														"saved",
 														"organizationId",
 														"organizationName",
@@ -10452,9 +11800,9 @@
 														"course_description",
 														"course_short_description",
 														"course_title",
-														"progressId",
 														"updatedAt",
 														"createdAt",
+														"progressId",
 														"id"
 													],
 													"type": "object"
@@ -10525,6 +11873,10 @@
 												},
 												"data": {
 													"properties": {
+														"point": {
+															"type": "number",
+															"format": "double"
+														},
 														"saved": {
 															"type": "boolean"
 														},
@@ -10555,9 +11907,6 @@
 														"course_title": {
 															"type": "string"
 														},
-														"progressId": {
-															"type": "string"
-														},
 														"updatedAt": {
 															"type": "string",
 															"format": "date-time"
@@ -10566,11 +11915,15 @@
 															"type": "string",
 															"format": "date-time"
 														},
+														"progressId": {
+															"type": "string"
+														},
 														"id": {
 															"type": "string"
 														}
 													},
 													"required": [
+														"point",
 														"saved",
 														"organizationId",
 														"organizationName",
@@ -10581,9 +11934,9 @@
 														"course_description",
 														"course_short_description",
 														"course_title",
-														"progressId",
 														"updatedAt",
 														"createdAt",
+														"progressId",
 														"id"
 													],
 													"type": "object"
@@ -10654,10 +12007,6 @@
 														"answers": {
 															"$ref": "#/components/schemas/JsonValue"
 														},
-														"score": {
-															"type": "number",
-															"format": "double"
-														},
 														"timeFinished": {
 															"type": "number",
 															"format": "double"
@@ -10672,6 +12021,10 @@
 														"completedAt": {
 															"type": "string",
 															"format": "date-time"
+														},
+														"score": {
+															"type": "number",
+															"format": "double"
 														},
 														"completed": {
 															"type": "boolean"
@@ -10694,11 +12047,11 @@
 													},
 													"required": [
 														"answers",
-														"score",
 														"timeFinished",
 														"quizId",
 														"startedAt",
 														"completedAt",
+														"score",
 														"completed",
 														"organizationId",
 														"userId",
@@ -10787,6 +12140,10 @@
 										"type": "number",
 										"format": "double"
 									},
+									"passingScore": {
+										"type": "number",
+										"format": "double"
+									},
 									"completed": {
 										"type": "boolean"
 									},
@@ -10798,6 +12155,7 @@
 								"required": [
 									"answers",
 									"timeFinished",
+									"passingScore",
 									"completed",
 									"totalPoint"
 								],
@@ -10842,10 +12200,6 @@
 																			"answers": {
 																				"$ref": "#/components/schemas/JsonValue"
 																			},
-																			"score": {
-																				"type": "number",
-																				"format": "double"
-																			},
 																			"timeFinished": {
 																				"type": "number",
 																				"format": "double"
@@ -10860,6 +12214,10 @@
 																			"completedAt": {
 																				"type": "string",
 																				"format": "date-time"
+																			},
+																			"score": {
+																				"type": "number",
+																				"format": "double"
 																			},
 																			"completed": {
 																				"type": "boolean"
@@ -10882,11 +12240,11 @@
 																		},
 																		"required": [
 																			"answers",
-																			"score",
 																			"timeFinished",
 																			"quizId",
 																			"startedAt",
 																			"completedAt",
+																			"score",
 																			"completed",
 																			"organizationId",
 																			"userId",
@@ -10930,12 +12288,12 @@
 																			"question": {
 																				"type": "string"
 																			},
-																			"courseId": {
-																				"type": "string"
-																			},
 																			"createdAt": {
 																				"type": "string",
 																				"format": "date-time"
+																			},
+																			"courseId": {
+																				"type": "string"
 																			},
 																			"id": {
 																				"type": "string"
@@ -10950,8 +12308,8 @@
 																			"options",
 																			"order",
 																			"question",
-																			"courseId",
 																			"createdAt",
+																			"courseId",
 																			"id"
 																		],
 																		"type": "object"
@@ -10989,10 +12347,11 @@
 																	"type": "number",
 																	"format": "double"
 																},
-																"organizationId": {
-																	"type": "string"
+																"point": {
+																	"type": "number",
+																	"format": "double"
 																},
-																"courseId": {
+																"organizationId": {
 																	"type": "string"
 																},
 																"updatedAt": {
@@ -11002,6 +12361,9 @@
 																"createdAt": {
 																	"type": "string",
 																	"format": "date-time"
+																},
+																"courseId": {
+																	"type": "string"
 																},
 																"id": {
 																	"type": "string"
@@ -11014,10 +12376,11 @@
 																"description",
 																"title",
 																"duration",
+																"point",
 																"organizationId",
-																"courseId",
 																"updatedAt",
 																"createdAt",
+																"courseId",
 																"id"
 															],
 															"type": "object"
@@ -11048,6 +12411,113 @@
 					{
 						"in": "path",
 						"name": "quizId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/course/complete-lesson/{courseId}/{lessonId}": {
+			"post": {
+				"operationId": "CompleteLesson",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "lessonId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/course/enroll-course/{courseId}": {
+			"post": {
+				"operationId": "EnrollCourse",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/course/get-user-course-progress/{courseId}": {
+			"get": {
+				"operationId": "GetUserCourseProgress",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -11116,6 +12586,10 @@
 												"data": {
 													"items": {
 														"properties": {
+															"point": {
+																"type": "number",
+																"format": "double"
+															},
 															"saved": {
 																"type": "boolean"
 															},
@@ -11146,9 +12620,6 @@
 															"course_title": {
 																"type": "string"
 															},
-															"progressId": {
-																"type": "string"
-															},
 															"updatedAt": {
 																"type": "string",
 																"format": "date-time"
@@ -11157,11 +12628,15 @@
 																"type": "string",
 																"format": "date-time"
 															},
+															"progressId": {
+																"type": "string"
+															},
 															"id": {
 																"type": "string"
 															}
 														},
 														"required": [
+															"point",
 															"saved",
 															"organizationId",
 															"organizationName",
@@ -11172,9 +12647,9 @@
 															"course_description",
 															"course_short_description",
 															"course_title",
-															"progressId",
 															"updatedAt",
 															"createdAt",
+															"progressId",
 															"id"
 														],
 														"type": "object"
