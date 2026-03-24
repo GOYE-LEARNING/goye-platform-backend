@@ -1672,7 +1672,7 @@ public async DeleteGroup(@Path() id: string): Promise<any> {
 @Post("/join-group/{groupId}")
 public async JoinGroup(@Request() req: any, @Path() groupId: string) {
   const userId = req.user?.id;
-  const progressId = req.progressId; // This might be undefined
+  const progressId = req.progressId;
   
   if (!userId) {
     this.setStatus(401);
@@ -1723,7 +1723,7 @@ public async JoinGroup(@Request() req: any, @Path() groupId: string) {
     // Rejoining - update existing record
     studentName = isJoined.student.first_name;
     groupTitle = isJoined.group.group_title;
-    joinedGroupId = isJoined.id;
+    joinedGroupId = isJoined.id; // Get the JoinedGroup ID
 
     result = await prisma.joinedGroup.update({
       where: {
@@ -1769,7 +1769,7 @@ public async JoinGroup(@Request() req: any, @Path() groupId: string) {
 
     studentName = result.student?.first_name || "User";
     groupTitle = result.group.group_title;
-    joinedGroupId = result.id;
+    joinedGroupId = result.id; // Get the newly created JoinedGroup ID
 
     await NotificationService.createNotification({
       message: `Hello ${studentName}, you just joined ${groupTitle}`,
@@ -1781,10 +1781,9 @@ public async JoinGroup(@Request() req: any, @Path() groupId: string) {
       groupId: groupId,
     });
 
-    // Handle progressId properly - get or create if needed
+    // Handle progressId properly
     let finalProgressId = progressId;
     if (!finalProgressId) {
-      // Try to find existing progress
       const existingProgress = await prisma.progress.findFirst({
         where: { userId: userId },
       });
@@ -1792,7 +1791,6 @@ public async JoinGroup(@Request() req: any, @Path() groupId: string) {
       if (existingProgress) {
         finalProgressId = existingProgress.id;
       } else {
-        // Create new progress if none exists
         const newProgress = await prisma.progress.create({
           data: {
             userId: userId,
@@ -1814,13 +1812,14 @@ public async JoinGroup(@Request() req: any, @Path() groupId: string) {
     });
   }
 
-  // Award XP with the joinedGroupId to ensure point history references exist
+  // Award XP - Pass the JOINEDGROUP ID, not the Group ID
   if (joinedGroupId) {
     gamificationResult = await GamificationService.AddPointsWithGamification(
       userId,
       ActionType.JOIN_GROUP,
       { 
-        groupId: groupId,
+        groupId: groupId, // For metadata
+        joinedGroupId: joinedGroupId // Pass the JoinedGroup ID for point history
       },
     );
   }

@@ -117,7 +117,7 @@ export class GamificationService {
   /**
    * Add points to a user for various activities
    */
- static async AddPoint(data: AddPointData): Promise<PointResult> {
+static async AddPoint(data: AddPointData): Promise<PointResult> {
   try {
     // Validate required fields
     if (!data.userId || !data.point) {
@@ -221,44 +221,24 @@ export class GamificationService {
         }
       }
 
-      // 3. Handle Group points (using JoinedGroup model)
+      // 3. Handle Group points - NOW USING JOINEDGROUP ID
       if (data.joinGroupId) {
-        // First, verify the group exists
-        const group = await tx.group.findUnique({
+        // data.joinGroupId should be the JoinedGroup ID, not the Group ID
+        const joinedGroup = await tx.joinedGroup.findUnique({
           where: { id: data.joinGroupId },
         });
 
-        if (!group) {
-          throw new Error(`Group with ID ${data.joinGroupId} not found`);
+        if (!joinedGroup) {
+          throw new Error(`JoinedGroup with ID ${data.joinGroupId} not found`);
         }
 
-        // Check if JoinedGroup record already exists
-        const existingJoinedGroup = await tx.joinedGroup.findFirst({
-          where: {
-            groupId: data.joinGroupId,
-            studentId: data.userId,
+        // Update joined group points
+        updatedGroup = await tx.joinedGroup.update({
+          where: { id: data.joinGroupId },
+          data: {
+            point: { increment: data.point },
           },
         });
-
-        if (existingJoinedGroup) {
-          // Update existing joined group points
-          updatedGroup = await tx.joinedGroup.update({
-            where: { id: existingJoinedGroup.id },
-            data: {
-              point: { increment: data.point },
-            },
-          });
-        } else {
-          // Create new joined group record
-          updatedGroup = await tx.joinedGroup.create({
-            data: {
-              studentId: data.userId,
-              groupId: data.joinGroupId,
-              isJoined: true,
-              point: data.point > 0 ? data.point : 0,
-            },
-          });
-        }
       }
 
       // 4. Handle Quiz points (QuizAttempt model)
@@ -304,7 +284,7 @@ export class GamificationService {
           courseId: data.courseId,
           lessonId: data.lessonId,
           quizAttemptId: data.quizAttemptId,
-          joinedGroupId: data.joinGroupId, // This references the group ID, not the joinedGroup record
+          joinedGroupId: data.joinGroupId, // This should be the JoinedGroup ID
           enrollmentId: data.enrollmentId,
           progressId: data.progressId,
         },
@@ -737,219 +717,227 @@ export class GamificationService {
   /**
    * Add points with full gamification logic (levels, badges, streaks)
    */
-  static async AddPointsWithGamification(
-    userId: string,
-    actionType: ActionType,
-    metadata?: {
-      courseId?: string;
-      quizScore?: number;
-      lessonId?: string;
-      groupId?: string;
-      eventId?: string;
-      quizAttemptId?: string;
-    }
-  ): Promise<PointResult> {
-    try {
-      const points = this.getXPAction(actionType);
-      
-      if (points === 0) {
-        return {
-          success: false,
-          message: "Invalid action type",
-        };
-      }
-
-      // Check if user exists and get current state
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          badges: true,
-          badgesAndLevel: true,
-        },
-      });
-
-      if (!user) {
-        return {
-          success: false,
-          message: "User not found",
-        };
-      }
-
-      const previousXP = user.point || 0;
-      const previousLevel = this.calculateLevel(previousXP);
-      
-      // Update streak
-      const currentStreak = await this.updateStreak(userId);
-      
-      // Add points
-      const result = await this.AddPoint({
-        userId,
-        point: points,
-        courseId: metadata?.courseId,
-        joinGroupId: metadata?.groupId,
-        eventId: metadata?.eventId,
-        lessonId: metadata?.lessonId,
-        quizAttemptId: metadata?.quizAttemptId,
-        reason: `Earned ${points} XP for ${actionType}`,
-        actionType,
-      });
-
-      if (!result.success) {
-        return result;
-      }
-
-      const newTotalXP = result.data?.userPoints || previousXP + points;
-      const newLevel = this.calculateLevel(newTotalXP);
-      
-      let leveledUp = false;
-      let badgesEarned: BadgeEarned[] = [];
-
-      // Check for level up
-      if (newLevel.level > previousLevel.level) {
-        leveledUp = true;
-        
-        // Update user's level in database
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            level: newLevel.name,
-          },
-        });
-        
-        // Create level up achievement in point history
-        await prisma.pointHistory.create({
-          data: {
-            userId,
-            point: 0,
-            reason: `🏆 LEVEL UP! You've reached ${newLevel.name} level!`,
-          },
-        });
-        
-        // Send notification for level up
-        await this.createNotification(
-          userId,
-          `🎉 Level Up! You're now a ${newLevel.name}!`,
-          `Congratulations on reaching ${newLevel.name} level! Keep growing in your discipleship journey.`,
-          "LEVEL_UP"
-        );
-      }
-      
-      // Check for badges
-      badgesEarned = await this.checkAndAwardBadges(userId, actionType, metadata);
-      
-      // Check for streak bonus (7-day streak)
-      if (currentStreak === 7) {
-        await this.AddPointsWithGamification(userId, ActionType.STREAK_7_DAY);
-      }
-      
-      return {
-        success: true,
-        message: `✨ Earned ${points} XP for ${actionType.replace(/_/g, ' ')}!`,
-        data: {
-          ...result.data,
-          leveledUp,
-          newLevel: leveledUp ? newLevel.name : undefined,
-          badgesEarned,
-          streakUpdated: currentStreak,
-        },
-      };
-      
-    } catch (error) {
-      console.error("Error in gamification:", error);
+ /**
+ * Add points with full gamification logic (levels, badges, streaks)
+ */
+static async AddPointsWithGamification(
+  userId: string,
+  actionType: ActionType,
+  metadata?: {
+    courseId?: string;
+    quizScore?: number;
+    lessonId?: string;
+    groupId?: string;
+    joinedGroupId?: string; // Add this line
+    eventId?: string;
+    quizAttemptId?: string;
+  }
+): Promise<PointResult> {
+  try {
+    const points = this.getXPAction(actionType);
+    
+    if (points === 0) {
       return {
         success: false,
-        message: "Failed to process gamification",
-        error: error instanceof Error ? error.message : "Unknown error",
+        message: "Invalid action type",
       };
     }
+
+    // Check if user exists and get current state
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        badges: true,
+        badgesAndLevel: true,
+      },
+    });
+
+    if (!user) {
+      return {
+        success: false,
+        message: "User not found",
+      };
+    }
+
+    const previousXP = user.point || 0;
+    const previousLevel = this.calculateLevel(previousXP);
+    
+    // Update streak
+    const currentStreak = await this.updateStreak(userId);
+    
+    // Add points - NOW USING joinedGroupId for group points
+    const result = await this.AddPoint({
+      userId,
+      point: points,
+      courseId: metadata?.courseId,
+      joinGroupId: metadata?.joinedGroupId, // Use joinedGroupId, not groupId
+      eventId: metadata?.eventId,
+      lessonId: metadata?.lessonId,
+      quizAttemptId: metadata?.quizAttemptId,
+      reason: `Earned ${points} XP for ${actionType}`,
+      actionType,
+    });
+
+    if (!result.success) {
+      return result;
+    }
+
+    const newTotalXP = result.data?.userPoints || previousXP + points;
+    const newLevel = this.calculateLevel(newTotalXP);
+    
+    let leveledUp = false;
+    let badgesEarned: BadgeEarned[] = [];
+
+    // Check for level up
+    if (newLevel.level > previousLevel.level) {
+      leveledUp = true;
+      
+      // Update user's level in database
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          level: newLevel.name,
+        },
+      });
+      
+      // Create level up achievement in point history
+      await prisma.pointHistory.create({
+        data: {
+          userId,
+          point: 0,
+          reason: `🏆 LEVEL UP! You've reached ${newLevel.name} level!`,
+        },
+      });
+      
+      // Send notification for level up
+      await this.createNotification(
+        userId,
+        `🎉 Level Up! You're now a ${newLevel.name}!`,
+        `Congratulations on reaching ${newLevel.name} level! Keep growing in your discipleship journey.`,
+        "LEVEL_UP"
+      );
+    }
+    
+    // Check for badges
+    badgesEarned = await this.checkAndAwardBadges(userId, actionType, metadata);
+    
+    // Check for streak bonus (7-day streak)
+    if (currentStreak === 7) {
+      await this.AddPointsWithGamification(userId, ActionType.STREAK_7_DAY);
+    }
+    
+    return {
+      success: true,
+      message: `✨ Earned ${points} XP for ${actionType.replace(/_/g, ' ')}!`,
+      data: {
+        ...result.data,
+        leveledUp,
+        newLevel: leveledUp ? newLevel.name : undefined,
+        badgesEarned,
+        streakUpdated: currentStreak,
+      },
+    };
+    
+  } catch (error) {
+    console.error("Error in gamification:", error);
+    return {
+      success: false,
+      message: "Failed to process gamification",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
   }
+}
 
   /**
    * Check and award badges based on user activity
    */
-  private static async checkAndAwardBadges(
-    userId: string,
-    actionType: ActionType,
-    metadata?: {
-      courseId?: string;
-      quizScore?: number;
-      lessonId?: string;
-      groupId?: string;
-      eventId?: string;
-      quizAttemptId?: string;
+ /**
+ * Check and award badges based on user activity
+ */
+private static async checkAndAwardBadges(
+  userId: string,
+  actionType: ActionType,
+  metadata?: {
+    courseId?: string;
+    quizScore?: number;
+    lessonId?: string;
+    groupId?: string;
+    joinedGroupId?: string; // Add this line
+    eventId?: string;
+    quizAttemptId?: string;
+  }
+): Promise<BadgeEarned[]> {
+  const earnedBadges: BadgeEarned[] = [];
+  
+  // Get user's existing badges
+  const existingBadges = await prisma.badges.findMany({
+    where: { userId },
+    include: { achievement: true },
+  });
+  
+  const existingBadgeTypes = existingBadges.map(b => b.badges);
+  
+  // 1. Course Completion Badge
+  if (actionType === ActionType.COURSE_COMPLETE && metadata?.courseId) {
+    if (!existingBadgeTypes.includes(BadgeType.COURSE_COMPLETION as any)) {
+      const badge = await this.awardBadge(userId, BadgeType.COURSE_COMPLETION, {
+        courseId: metadata.courseId,
+      });
+      if (badge) earnedBadges.push(badge);
     }
-  ): Promise<BadgeEarned[]> {
-    const earnedBadges: BadgeEarned[] = [];
-    
-    // Get user's existing badges
-    const existingBadges = await prisma.badges.findMany({
-      where: { userId },
-      include: { achievement: true },
+  }
+  
+  // 2. Mastery Badge (Quiz score >= 80%)
+  if (actionType === ActionType.QUIZ_PASS && metadata?.quizScore && metadata.quizScore >= 80) {
+    if (!existingBadgeTypes.includes(BadgeType.MASTERY as any)) {
+      const badge = await this.awardBadge(userId, BadgeType.MASTERY, {
+        quizScore: metadata.quizScore,
+      });
+      if (badge) earnedBadges.push(badge);
+    }
+  }
+  
+  // 3. Consistency Badge (7-day streak)
+  if (actionType === ActionType.STREAK_7_DAY) {
+    if (!existingBadgeTypes.includes(BadgeType.CONSISTENCY as any)) {
+      const badge = await this.awardBadge(userId, BadgeType.CONSISTENCY);
+      if (badge) earnedBadges.push(badge);
+    }
+  }
+  
+  // 4. Milestone Badge (5+ courses completed)
+  if (actionType === ActionType.COURSE_COMPLETE) {
+    const completedCourses = await prisma.enrollment.count({
+      where: {
+        userId,
+        status: "COMPLETED",
+      },
     });
     
-    const existingBadgeTypes = existingBadges.map(b => b.badges);
-    
-    // 1. Course Completion Badge
-    if (actionType === ActionType.COURSE_COMPLETE && metadata?.courseId) {
-      if (!existingBadgeTypes.includes(BadgeType.COURSE_COMPLETION as any)) {
-        const badge = await this.awardBadge(userId, BadgeType.COURSE_COMPLETION, {
-          courseId: metadata.courseId,
-        });
-        if (badge) earnedBadges.push(badge);
-      }
-    }
-    
-    // 2. Mastery Badge (Quiz score >= 80%)
-    if (actionType === ActionType.QUIZ_PASS && metadata?.quizScore && metadata.quizScore >= 80) {
-      if (!existingBadgeTypes.includes(BadgeType.MASTERY as any)) {
-        const badge = await this.awardBadge(userId, BadgeType.MASTERY, {
-          quizScore: metadata.quizScore,
-        });
-        if (badge) earnedBadges.push(badge);
-      }
-    }
-    
-    // 3. Consistency Badge (7-day streak)
-    if (actionType === ActionType.STREAK_7_DAY) {
-      if (!existingBadgeTypes.includes(BadgeType.CONSISTENCY as any)) {
-        const badge = await this.awardBadge(userId, BadgeType.CONSISTENCY);
-        if (badge) earnedBadges.push(badge);
-      }
-    }
-    
-    // 4. Milestone Badge (5+ courses completed)
-    if (actionType === ActionType.COURSE_COMPLETE) {
-      const completedCourses = await prisma.enrollment.count({
-        where: {
-          userId,
-          status: "COMPLETED",
-        },
+    if (completedCourses >= 5 && !existingBadgeTypes.includes(BadgeType.MILESTONE as any)) {
+      const badge = await this.awardBadge(userId, BadgeType.MILESTONE, {
+        completedCourses,
       });
-      
-      if (completedCourses >= 5 && !existingBadgeTypes.includes(BadgeType.MILESTONE as any)) {
-        const badge = await this.awardBadge(userId, BadgeType.MILESTONE, {
-          completedCourses,
-        });
-        if (badge) earnedBadges.push(badge);
-      }
+      if (badge) earnedBadges.push(badge);
     }
-    
-    // 5. Community Badge (Active participation - 10 discussions)
-    if (actionType === ActionType.DISCUSSION_PARTICIPATION) {
-      const participationCount = await prisma.post.count({
-        where: { userId },
-      });
-      
-      if (participationCount >= 10 && !existingBadgeTypes.includes(BadgeType.COMMUNITY as any)) {
-        const badge = await this.awardBadge(userId, BadgeType.COMMUNITY, {
-          participationCount,
-        });
-        if (badge) earnedBadges.push(badge);
-      }
-    }
-    
-    return earnedBadges;
   }
+  
+  // 5. Community Badge (Active participation - 10 discussions)
+  if (actionType === ActionType.DISCUSSION_PARTICIPATION) {
+    const participationCount = await prisma.post.count({
+      where: { userId },
+    });
+    
+    if (participationCount >= 10 && !existingBadgeTypes.includes(BadgeType.COMMUNITY as any)) {
+      const badge = await this.awardBadge(userId, BadgeType.COMMUNITY, {
+        participationCount,
+      });
+      if (badge) earnedBadges.push(badge);
+    }
+  }
+  
+  return earnedBadges;
+}
 
   /**
    * Award a badge to a user
