@@ -25,7 +25,6 @@ import {
 @Route("socials")
 @Tags("Social controllers")
 export class SocialController extends Controller {
-  
   @Post("/create-post/{courseId}")
   @Security("bearerAuth")
   public async CreatePost(
@@ -106,7 +105,7 @@ export class SocialController extends Controller {
         await GamificationService.AddPointsWithGamification(
           userId,
           ActionType.DISCUSSION_PARTICIPATION,
-          { courseId }
+          { courseId },
         );
       }
 
@@ -138,7 +137,7 @@ export class SocialController extends Controller {
       // Validate post exists
       const post = await prisma.post.findUnique({
         where: { id: postId },
-        select: { courseId: true, id: true }
+        select: { courseId: true, id: true },
       });
 
       if (!post) {
@@ -223,7 +222,7 @@ export class SocialController extends Controller {
       await GamificationService.AddPointsWithGamification(
         userId,
         ActionType.DISCUSSION_PARTICIPATION,
-        { courseId: post.courseId }
+        { courseId: post.courseId },
       );
 
       // Send notification to the user being replied to
@@ -672,11 +671,11 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const findPost = await prisma.post.findUnique({ 
+      const findPost = await prisma.post.findUnique({
         where: { id: postId },
-        select: { courseId: true }
+        select: { courseId: true },
       });
-      
+
       if (!findPost) {
         this.setStatus(404);
         return { message: "Post not found" };
@@ -709,7 +708,7 @@ export class SocialController extends Controller {
       await GamificationService.AddPointsWithGamification(
         userId,
         ActionType.DISCUSSION_PARTICIPATION,
-        { courseId: findPost.courseId }
+        { courseId: findPost.courseId },
       );
 
       const likeCount = await prisma.likes.count({ where: { postId } });
@@ -730,11 +729,11 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const reply = await prisma.reply.findUnique({ 
+      const reply = await prisma.reply.findUnique({
         where: { id: replyId },
-        include: { post: { select: { courseId: true } } }
+        include: { post: { select: { courseId: true } } },
       });
-      
+
       if (!reply) {
         this.setStatus(404);
         return { message: "Reply not found" };
@@ -767,7 +766,7 @@ export class SocialController extends Controller {
       await GamificationService.AddPointsWithGamification(
         userId,
         ActionType.DISCUSSION_PARTICIPATION,
-        { courseId: reply.post?.courseId }
+        { courseId: reply.post?.courseId },
       );
 
       const likeCount = await prisma.likes.count({ where: { replyId } });
@@ -1257,11 +1256,12 @@ export class SocialController extends Controller {
       });
 
       // Award XP for creating and joining a group
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.JOIN_GROUP,
-        { groupId: joinGroup.groupId }
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.JOIN_GROUP,
+          { groupId: joinGroup.groupId },
+        );
 
       this.setStatus(201);
       return {
@@ -1663,12 +1663,15 @@ export class SocialController extends Controller {
     let result;
     let studentName;
     let groupTitle;
+    let gamificationResult;
 
     if (isJoined) {
+      // User already has a record
       if (isJoined.isJoined) {
         return { message: "Already Joined" };
       }
 
+      // Rejoining - update existing record
       studentName = isJoined.student.first_name;
       groupTitle = isJoined.group.group_title;
 
@@ -1686,7 +1689,20 @@ export class SocialController extends Controller {
           },
         },
       });
+
+      // ✅ NO GAMIFICATION FOR REJOINING
+      // Only send notification for rejoining
+      await NotificationService.createNotification({
+        message: `Hello ${studentName}, you rejoined ${groupTitle}`,
+        title: "Group Message",
+        type: "group",
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId: userId,
+        groupId: groupId,
+      });
     } else {
+      // First time joining - create new record
       result = await prisma.joinedGroup.create({
         data: {
           studentId: userId,
@@ -1705,32 +1721,32 @@ export class SocialController extends Controller {
 
       studentName = result.student?.first_name || "User";
       groupTitle = result.group.group_title;
+
+      // ✅ AWARD XP ONLY FOR FIRST TIME JOINING
+      gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.JOIN_GROUP,
+        { groupId: groupId },
+      );
+
+      await NotificationService.createNotification({
+        message: `Hello ${studentName}, you just joined ${groupTitle}`,
+        title: "Group Message",
+        type: "group",
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId: userId,
+        groupId: groupId,
+      });
+
+      await GrowthService.AchievementMessage({
+        message_title: "Group Achievement",
+        message_content: `You just joined ${groupTitle}`,
+        point: 10,
+        userId: userId,
+        groupId: groupId,
+      });
     }
-
-    // Award XP for joining a group
-    const gamificationResult = await GamificationService.AddPointsWithGamification(
-      userId,
-      ActionType.JOIN_GROUP,
-      { groupId }
-    );
-
-    await NotificationService.createNotification({
-      message: `Hello ${studentName}, you just joined ${groupTitle}`,
-      title: "Group Message",
-      type: "group",
-      role: Role.STUDENT,
-      to: Role.STUDENT,
-      userId: userId,
-      groupId: groupId,
-    });
-
-    await GrowthService.AchievementMessage({
-      message_title: "Group Achievement",
-      message_content: `You just joined ${groupTitle}`,
-      point: 10,
-      userId: userId,
-      groupId: groupId,
-    });
 
     this.setStatus(200);
     return {
@@ -1738,12 +1754,14 @@ export class SocialController extends Controller {
         ? "Rejoined successfully"
         : "User has joined successfully",
       data: result,
-      gamification: {
-        pointsEarned: gamificationResult.data?.pointsAdded,
-        leveledUp: gamificationResult.data?.leveledUp,
-        newLevel: gamificationResult.data?.newLevel,
-        badgesEarned: gamificationResult.data?.badgesEarned,
-      },
+      gamification: gamificationResult
+        ? {
+            pointsEarned: gamificationResult.data?.pointsAdded,
+            leveledUp: gamificationResult.data?.leveledUp,
+            newLevel: gamificationResult.data?.newLevel,
+            badgesEarned: gamificationResult.data?.badgesEarned,
+          }
+        : null,
     };
   }
 
@@ -1840,7 +1858,7 @@ export class SocialController extends Controller {
       // Get all group members to award XP for event creation
       const groupMembers = await prisma.joinedGroup.findMany({
         where: { groupId, isJoined: true },
-        select: { studentId: true }
+        select: { studentId: true },
       });
 
       // Award XP to group members for event attendance (when they join/attend)
@@ -1849,7 +1867,7 @@ export class SocialController extends Controller {
         await GamificationService.AddPointsWithGamification(
           member.studentId,
           ActionType.ATTEND_EVENT,
-          { eventId: createEvent.id, groupId }
+          { eventId: createEvent.id, groupId },
         );
       }
 
@@ -1866,7 +1884,7 @@ export class SocialController extends Controller {
   @Post("/attend-event/{eventId}")
   public async AttendEvent(
     @Request() req: any,
-    @Path() eventId: string
+    @Path() eventId: string,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -1878,7 +1896,7 @@ export class SocialController extends Controller {
     try {
       const event = await prisma.event.findUnique({
         where: { id: eventId },
-        include: { group: true }
+        include: { group: true },
       });
 
       if (!event) {
@@ -1910,7 +1928,7 @@ export class SocialController extends Controller {
       });
 
       let joinedEvent;
-      
+
       if (existingAttendance) {
         joinedEvent = await prisma.joinedEvent.update({
           where: { id: existingAttendance.id },
@@ -1927,11 +1945,12 @@ export class SocialController extends Controller {
       }
 
       // Award XP for attending event
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.ATTEND_EVENT,
-        { eventId, groupId: event.groupid }
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.ATTEND_EVENT,
+          { eventId, groupId: event.groupid },
+        );
 
       this.setStatus(200);
       return {
