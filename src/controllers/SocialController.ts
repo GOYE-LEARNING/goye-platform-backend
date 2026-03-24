@@ -1623,147 +1623,148 @@ export class SocialController extends Controller {
     };
   }
 
-  @Security("bearerAuth")
-  @Post("/join-group/{groupId}")
-  public async JoinGroup(@Request() req: any, @Path() groupId: string) {
-    const userId = req.user?.id;
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authorized" };
-    }
+@Security("bearerAuth")
+@Post("/join-group/{groupId}")
+public async JoinGroup(@Request() req: any, @Path() groupId: string) {
+  const userId = req.user?.id;
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
+  }
 
-    if (!groupId) {
-      this.setStatus(404);
-      return { message: "Group not found" };
-    }
+  if (!groupId) {
+    this.setStatus(404);
+    return { message: "Group not found" };
+  }
 
-    const isJoined = await prisma.joinedGroup.findUnique({
-      where: {
-        groupId_studentId: {
-          studentId: userId,
-          groupId,
+  const isJoined = await prisma.joinedGroup.findUnique({
+    where: {
+      groupId_studentId: {
+        studentId: userId,
+        groupId,
+      },
+    },
+    include: {
+      student: {
+        select: {
+          id: true,
+          first_name: true,
         },
       },
-      include: {
-        student: {
-          select: {
-            id: true,
-            first_name: true,
-          },
+      group: {
+        select: {
+          id: true,
+          group_title: true,
         },
+      },
+    },
+  });
+
+  let result: any;
+  let studentName: any;
+  let groupTitle: any;
+  let gamificationResult: any = null;
+
+  if (isJoined) {
+    // User already has a record
+    if (isJoined.isJoined) {
+      return { message: "Already Joined" };
+    }
+
+    // Rejoining - update existing record
+    studentName = isJoined.student.first_name;
+    groupTitle = isJoined.group.group_title;
+
+    result = await prisma.joinedGroup.update({
+      where: {
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
+        },
+      },
+      data: { isJoined: true },
+      include: {
         group: {
-          select: {
-            id: true,
-            group_title: true,
-          },
+          select: { group_title: true },
         },
       },
     });
 
-    let result;
-    let studentName;
-    let groupTitle;
-    let gamificationResult;
+    // Optionally award reduced XP for rejoining
+    // gamificationResult = await GamificationService.AddPointsWithGamification(
+    //   userId,
+    //   ActionType.JOIN_GROUP,
+    //   { groupId: groupId },
+    // );
 
-    if (isJoined) {
-      // User already has a record
-      if (isJoined.isJoined) {
-        return { message: "Already Joined" };
-      }
-
-      // Rejoining - update existing record
-      studentName = isJoined.student.first_name;
-      groupTitle = isJoined.group.group_title;
-
-      result = await prisma.joinedGroup.update({
-        where: {
-          groupId_studentId: {
-            groupId,
-            studentId: userId,
-          },
+    await NotificationService.createNotification({
+      message: `Hello ${studentName}, you rejoined ${groupTitle}`,
+      title: "Group Message",
+      type: "group",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: userId,
+      groupId: groupId,
+    });
+  } else {
+    // First time joining - create new record
+    result = await prisma.joinedGroup.create({
+      data: {
+        studentId: userId,
+        groupId,
+        isJoined: true,
+      },
+      include: {
+        student: {
+          select: { first_name: true },
         },
-        data: { isJoined: true },
-        include: {
-          group: {
-            select: { group_title: true },
-          },
+        group: {
+          select: { id: true, group_title: true },
         },
-      });
+      },
+    });
 
-      // ✅ NO GAMIFICATION FOR REJOINING
-      // Only send notification for rejoining
-      await NotificationService.createNotification({
-        message: `Hello ${studentName}, you rejoined ${groupTitle}`,
-        title: "Group Message",
-        type: "group",
-        role: Role.STUDENT,
-        to: Role.STUDENT,
-        userId: userId,
-        groupId: groupId,
-      });
-    } else {
-      // First time joining - create new record
-      result = await prisma.joinedGroup.create({
-        data: {
-          studentId: userId,
-          groupId,
-          isJoined: true,
-        },
-        include: {
-          student: {
-            select: { first_name: true },
-          },
-          group: {
-            select: { group_title: true },
-          },
-        },
-      });
+    studentName = result.student?.first_name || "User";
+    groupTitle = result.group.group_title;
 
-      studentName = result.student?.first_name || "User";
-      groupTitle = result.group.group_title;
+    // Award XP ONLY FOR FIRST TIME JOINING
+    gamificationResult = await GamificationService.AddPointsWithGamification(
+      userId,
+      ActionType.JOIN_GROUP,
+      { groupId: result.group?.id },
+    );
 
-      // ✅ AWARD XP ONLY FOR FIRST TIME JOINING
-      gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.JOIN_GROUP,
-        { groupId: groupId },
-      );
+    await NotificationService.createNotification({
+      message: `Hello ${studentName}, you just joined ${groupTitle}`,
+      title: "Group Message",
+      type: "group",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: userId,
+      groupId: groupId,
+    });
 
-      await NotificationService.createNotification({
-        message: `Hello ${studentName}, you just joined ${groupTitle}`,
-        title: "Group Message",
-        type: "group",
-        role: Role.STUDENT,
-        to: Role.STUDENT,
-        userId: userId,
-        groupId: groupId,
-      });
-
-      await GrowthService.AchievementMessage({
-        message_title: "Group Achievement",
-        message_content: `You just joined ${groupTitle}`,
-        point: 10,
-        userId: userId,
-        groupId: groupId,
-      });
-    }
-
-    this.setStatus(200);
-    return {
-      message: isJoined
-        ? "Rejoined successfully"
-        : "User has joined successfully",
-      data: result,
-      gamification: gamificationResult
-        ? {
-            pointsEarned: gamificationResult.data?.pointsAdded,
-            leveledUp: gamificationResult.data?.leveledUp,
-            newLevel: gamificationResult.data?.newLevel,
-            badgesEarned: gamificationResult.data?.badgesEarned,
-          }
-        : null,
-    };
+    await GrowthService.AchievementMessage({
+      message_title: "Group Achievement",
+      message_content: `You just joined ${groupTitle}`,
+      point: 10,
+      userId: userId,
+      groupId: groupId,
+    });
   }
+
+  this.setStatus(200);
+  return {
+    message: isJoined ? "Rejoined successfully" : "User has joined successfully",
+    data: result,
+    gamification: gamificationResult ? {
+      pointsEarned: gamificationResult.data?.pointsAdded,
+      leveledUp: gamificationResult.data?.leveledUp,
+      newLevel: gamificationResult.data?.newLevel,
+      badgesEarned: gamificationResult.data?.badgesEarned,
+    } : null,
+  };
+}
 
   @Security("bearerAuth")
   @Delete("/exit-group/{groupId}")
