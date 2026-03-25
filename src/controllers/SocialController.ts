@@ -1922,7 +1922,7 @@ export class SocialController extends Controller {
     });
 
     await GamificationService.DeleteUserPoints(userId, {
-      joinedGroupId: existgroup.id,
+      joinedGroupId: isJoined.id,
       reason: `${existgroup.student.first_name} ${existgroup.student.last_name} lost a point because he left a group.`
     });
 
