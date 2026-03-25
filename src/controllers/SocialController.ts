@@ -1546,63 +1546,63 @@ export class SocialController extends Controller {
     }
   }
 
-@Delete("/delete-group/{id}")
-public async DeleteGroup(@Path() id: string): Promise<any> {
-  try {
-    // Delete in correct order to respect foreign key constraints
-    await prisma.$transaction(async (tx) => {
-      // 1. Delete all joined events for this group's events
-      const events = await tx.event.findMany({
-        where: { groupid: id },
-        select: { id: true }
-      });
-      
-      for (const event of events) {
-        await tx.joinedEvent.deleteMany({
-          where: { eventId: event.id }
+  @Delete("/delete-group/{id}")
+  public async DeleteGroup(@Path() id: string): Promise<any> {
+    try {
+      // Delete in correct order to respect foreign key constraints
+      await prisma.$transaction(async (tx) => {
+        // 1. Delete all joined events for this group's events
+        const events = await tx.event.findMany({
+          where: { groupid: id },
+          select: { id: true },
         });
-      }
-      
-      // 2. Delete all events
-      await tx.event.deleteMany({
-        where: { groupid: id }
+
+        for (const event of events) {
+          await tx.joinedEvent.deleteMany({
+            where: { eventId: event.id },
+          });
+        }
+
+        // 2. Delete all events
+        await tx.event.deleteMany({
+          where: { groupid: id },
+        });
+
+        // 3. Delete all achievements related to this group
+        await tx.achievement.deleteMany({
+          where: { groupId: id },
+        });
+
+        // 4. Delete all joined group members
+        await tx.joinedGroup.deleteMany({
+          where: { groupId: id },
+        });
+
+        // 5. Delete all notifications related to this group
+        await tx.notification.deleteMany({
+          where: { groupId: id },
+        });
+
+        // 6. Finally delete the group itself
+        await tx.group.delete({
+          where: { id },
+        });
       });
-      
-      // 3. Delete all achievements related to this group
-      await tx.achievement.deleteMany({
-        where: { groupId: id }
-      });
-      
-      // 4. Delete all joined group members
-      await tx.joinedGroup.deleteMany({
-        where: { groupId: id }
-      });
-      
-      // 5. Delete all notifications related to this group
-      await tx.notification.deleteMany({
-        where: { groupId: id }
-      });
-      
-      // 6. Finally delete the group itself
-      await tx.group.delete({
-        where: { id }
-      });
-    });
-    
-    this.setStatus(200);
-    return { 
-      message: "Group and all related data deleted successfully",
-      groupId: id
-    };
-  } catch (error: any) {
-    console.error("Error deleting group:", error);
-    this.setStatus(500);
-    return { 
-      message: "Failed to delete group", 
-      error: error.message 
-    };
+
+      this.setStatus(200);
+      return {
+        message: "Group and all related data deleted successfully",
+        groupId: id,
+      };
+    } catch (error: any) {
+      console.error("Error deleting group:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to delete group",
+        error: error.message,
+      };
+    }
   }
-}
 
   @Post("/upload-group-image/{groupId}")
   public async UploadGroupImage(
@@ -1668,268 +1668,287 @@ public async DeleteGroup(@Path() id: string): Promise<any> {
     };
   }
 
-@Security("bearerAuth")
-@Post("/join-group/{groupId}")
-public async JoinGroup(@Request() req: any, @Path() groupId: string) {
-  const userId = req.user?.id;
-  const progressId = req.progressId;
-  
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
+  @Security("bearerAuth")
+  @Post("/join-group/{groupId}")
+  public async JoinGroup(@Request() req: any, @Path() groupId: string) {
+    const userId = req.user?.id;
+    const progressId = req.progressId;
 
-  if (!groupId) {
-    this.setStatus(404);
-    return { message: "Group not found" };
-  }
-
-  const isJoined = await prisma.joinedGroup.findUnique({
-    where: {
-      groupId_studentId: {
-        studentId: userId,
-        groupId,
-      },
-    },
-    include: {
-      student: {
-        select: {
-          id: true,
-          first_name: true,
-        },
-      },
-      group: {
-        select: {
-          id: true,
-          group_title: true,
-        },
-      },
-    },
-  });
-
-  let result: any;
-  let studentName: any;
-  let groupTitle: any;
-  let gamificationResult: any = null;
-  let joinedGroupId: string | null = null;
-
-  if (isJoined) {
-    // User already has a record
-    if (isJoined.isJoined) {
-      this.setStatus(200);
-      return { message: "Already Joined" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    // Rejoining - update existing record
-    studentName = isJoined.student.first_name;
-    groupTitle = isJoined.group.group_title;
-    joinedGroupId = isJoined.id; // Get the JoinedGroup ID
+    if (!groupId) {
+      this.setStatus(404);
+      return { message: "Group not found" };
+    }
 
-    result = await prisma.joinedGroup.update({
+    const isJoined = await prisma.joinedGroup.findUnique({
+      where: {
+        groupId_studentId: {
+          studentId: userId,
+          groupId,
+        },
+      },
+      include: {
+        student: {
+          select: {
+            id: true,
+            first_name: true,
+          },
+        },
+        group: {
+          select: {
+            id: true,
+            group_title: true,
+          },
+        },
+      },
+    });
+
+    let result: any;
+    let studentName: any;
+    let groupTitle: any;
+    let gamificationResult: any = null;
+    let joinedGroupId: string | null = null;
+
+    if (isJoined) {
+      // User already has a record
+      if (isJoined.isJoined) {
+        this.setStatus(200);
+        return { message: "Already Joined" };
+      }
+
+      // Rejoining - update existing record
+      studentName = isJoined.student.first_name;
+      groupTitle = isJoined.group.group_title;
+      joinedGroupId = isJoined.id; // Get the JoinedGroup ID
+
+      result = await prisma.joinedGroup.update({
+        where: {
+          groupId_studentId: {
+            groupId,
+            studentId: userId,
+          },
+        },
+        data: { isJoined: true },
+        include: {
+          group: {
+            select: { group_title: true, id: true },
+          },
+        },
+      });
+
+      await NotificationService.createNotification({
+        message: `Hello ${studentName}, you rejoined ${groupTitle}`,
+        title: "Group Message",
+        type: "group",
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId: userId,
+        groupId: groupId,
+      });
+    } else {
+      // First time joining - create new record
+      result = await prisma.joinedGroup.create({
+        data: {
+          studentId: userId,
+          groupId,
+          isJoined: true,
+        },
+        include: {
+          student: {
+            select: { first_name: true },
+          },
+          group: {
+            select: { id: true, group_title: true },
+          },
+        },
+      });
+
+      studentName = result.student?.first_name || "User";
+      groupTitle = result.group.group_title;
+      joinedGroupId = result.id; // Get the newly created JoinedGroup ID
+
+      await NotificationService.createNotification({
+        message: `Hello ${studentName}, you just joined ${groupTitle}`,
+        title: "Group Message",
+        type: "group",
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId: userId,
+        groupId: groupId,
+      });
+
+      // Handle progressId properly
+      let finalProgressId = progressId;
+      if (!finalProgressId) {
+        const existingProgress = await prisma.progress.findFirst({
+          where: { userId: userId },
+        });
+
+        if (existingProgress) {
+          finalProgressId = existingProgress.id;
+        } else {
+          const newProgress = await prisma.progress.create({
+            data: {
+              userId: userId,
+              progressBar: 0,
+              startedJourney: true,
+            },
+          });
+          finalProgressId = newProgress.id;
+        }
+      }
+
+      await GrowthService.AchievementMessage({
+        message_title: "Group Achievement",
+        message_content: `You just joined ${groupTitle}`,
+        point: 10,
+        userId: userId,
+        progressId: finalProgressId,
+        groupId: groupId,
+      });
+    }
+
+    // Award XP - Pass the JOINEDGROUP ID, not the Group ID
+    if (joinedGroupId) {
+      gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.JOIN_GROUP,
+        {
+          groupId: groupId, // For metadata
+          joinedGroupId: joinedGroupId, // Pass the JoinedGroup ID for point history
+        },
+      );
+    }
+
+    this.setStatus(200);
+    return {
+      message: isJoined
+        ? "Rejoined successfully"
+        : "User has joined successfully",
+      data: result,
+      gamification: gamificationResult
+        ? {
+            pointsEarned: gamificationResult.data?.pointsAdded,
+            leveledUp: gamificationResult.data?.leveledUp,
+            newLevel: gamificationResult.data?.newLevel,
+            badgesEarned: gamificationResult.data?.badgesEarned,
+          }
+        : null,
+    };
+  }
+
+  @Security("bearerAuth")
+  @Delete("/exit-group/{groupId}")
+  public async ExitGroup(@Path() groupId: string, @Request() req: any) {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        message: "User unauthorized",
+      };
+    }
+
+    const group = await prisma.group.findUnique({
+      where: {
+        id: groupId,
+      },
+    });
+
+    if (!group) {
+      this.setStatus(404);
+      return {
+        message: "This group does not exist",
+      };
+    }
+
+    const isJoined = await prisma.joinedGroup.findUnique({
       where: {
         groupId_studentId: {
           groupId,
           studentId: userId,
         },
       },
-      data: { isJoined: true },
       include: {
         group: {
-          select: { group_title: true, id: true },
-        },
-      },
-    });
-
-    await NotificationService.createNotification({
-      message: `Hello ${studentName}, you rejoined ${groupTitle}`,
-      title: "Group Message",
-      type: "group",
-      role: Role.STUDENT,
-      to: Role.STUDENT,
-      userId: userId,
-      groupId: groupId,
-    });
-  } else {
-    // First time joining - create new record
-    result = await prisma.joinedGroup.create({
-      data: {
-        studentId: userId,
-        groupId,
-        isJoined: true,
-      },
-      include: {
-        student: {
-          select: { first_name: true },
-        },
-        group: {
-          select: { id: true, group_title: true },
-        },
-      },
-    });
-
-    studentName = result.student?.first_name || "User";
-    groupTitle = result.group.group_title;
-    joinedGroupId = result.id; // Get the newly created JoinedGroup ID
-
-    await NotificationService.createNotification({
-      message: `Hello ${studentName}, you just joined ${groupTitle}`,
-      title: "Group Message",
-      type: "group",
-      role: Role.STUDENT,
-      to: Role.STUDENT,
-      userId: userId,
-      groupId: groupId,
-    });
-
-    // Handle progressId properly
-    let finalProgressId = progressId;
-    if (!finalProgressId) {
-      const existingProgress = await prisma.progress.findFirst({
-        where: { userId: userId },
-      });
-      
-      if (existingProgress) {
-        finalProgressId = existingProgress.id;
-      } else {
-        const newProgress = await prisma.progress.create({
-          data: {
-            userId: userId,
-            progressBar: 0,
-            startedJourney: true,
+          select: {
+            achievement: {
+              select: {
+                id: true,
+              },
+            },
           },
-        });
-        finalProgressId = newProgress.id;
-      }
+        },
+      },
+    });
+
+    if (!isJoined) {
+      this.setStatus(404);
+      return {
+        message: "User is not a member of this group",
+      };
     }
 
-    await GrowthService.AchievementMessage({
-      message_title: "Group Achievement",
-      message_content: `You just joined ${groupTitle}`,
-      point: 10,
-      userId: userId,
-      progressId: finalProgressId,
-      groupId: groupId,
-    });
-  }
-
-  // Award XP - Pass the JOINEDGROUP ID, not the Group ID
-  if (joinedGroupId) {
-    gamificationResult = await GamificationService.AddPointsWithGamification(
-      userId,
-      ActionType.JOIN_GROUP,
-      { 
-        groupId: groupId, // For metadata
-        joinedGroupId: joinedGroupId // Pass the JoinedGroup ID for point history
-      },
-    );
-  }
-
-  this.setStatus(200);
-  return {
-    message: isJoined ? "Rejoined successfully" : "User has joined successfully",
-    data: result,
-    gamification: gamificationResult ? {
-      pointsEarned: gamificationResult.data?.pointsAdded,
-      leveledUp: gamificationResult.data?.leveledUp,
-      newLevel: gamificationResult.data?.newLevel,
-      badgesEarned: gamificationResult.data?.badgesEarned,
-    } : null,
-  };
-}
-
-@Security("bearerAuth")
-@Delete("/exit-group/{groupId}")
-public async ExitGroup(@Path() groupId: string, @Request() req: any) {
-  const userId = req.user?.id;
-  
-  if (!userId) {
-    this.setStatus(401);
-    return {
-      message: "User unauthorized",
-    };
-  }
-
-  const group = await prisma.group.findUnique({
-    where: {
-      id: groupId,
-    },
-  });
-
-  if (!group) {
-    this.setStatus(404);
-    return {
-      message: "This group does not exist",
-    };
-  }
-
-  const isJoined = await prisma.joinedGroup.findUnique({
-    where: {
-      groupId_studentId: {
-        groupId,
-        studentId: userId,
-      },
-    },
-    include: {
-      group: {
-        select: {
-          achievement: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!isJoined) {
-    this.setStatus(404);
-    return {
-      message: "User is not a member of this group",
-    };
-  }
-
-  // Delete the joined group record
-  const existgroup = await prisma.joinedGroup.delete({
-    where: {
-      groupId_studentId: {
-        groupId,
-        studentId: userId,
-      },
-    },
-    include: {
-      group: {
-        select: {
-          achievement: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  // Safely delete achievements if they exist
-  if (existgroup.group.achievement && existgroup.group.achievement.length > 0) {
-    const achievementIds = existgroup.group.achievement.map((a) => a.id);
-    
-    // Delete all achievements associated with this group membership
-    await prisma.achievement.deleteMany({
+    // Delete the joined group record
+    const existgroup = await prisma.joinedGroup.delete({
       where: {
-        id: {
-          in: achievementIds,
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
         },
       },
+      include: {
+        group: {
+          select: {
+            achievement: {
+              select: {
+                id: true,
+              },
+            },
+          },
+          
+        },
+        student: {
+          select: {
+            first_name: true,
+            last_name: true
+          }
+        }
+      },
     });
-  }
 
-  this.setStatus(200);
-  return {
-    message: "This user just left the group.",
-    data: existgroup,
-  };
-}
+    await GamificationService.DeleteUserPoints(userId, {
+      joinedGroupId: existgroup.id,
+      reason: `${existgroup.student.first_name} ${existgroup.student.last_name} lost a point because he left a group.`
+    });
+
+    // Safely delete achievements if they exist
+    if (
+      existgroup.group.achievement &&
+      existgroup.group.achievement.length > 0
+    ) {
+      const achievementIds = existgroup.group.achievement.map((a) => a.id);
+
+      // Delete all achievements associated with this group membership
+      await prisma.achievement.deleteMany({
+        where: {
+          id: {
+            in: achievementIds,
+          },
+        },
+      });
+    }
+
+    this.setStatus(200);
+    return {
+      message: "This user just left the group.",
+      data: existgroup,
+    };
+  }
 
   @Post("/create-event/{groupId}")
   public async CreateEvent(

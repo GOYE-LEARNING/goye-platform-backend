@@ -160,7 +160,9 @@ export class LeaderBoardAndGamificationController extends Controller {
             last_name: true,
             user_pic: true,
             point: true,
+            country: true,
             level: true,
+            Group: true,
             enrollment: {
               where: { status: "COMPLETED" },
               select: { id: true },
@@ -180,6 +182,8 @@ export class LeaderBoardAndGamificationController extends Controller {
             total_xp: user.point || 0,
             level: user.level || levelInfo.name,
             level_number: levelInfo.level,
+            country: user.country,
+            groupjoined: user.Group.length,
             courses_completed: user.enrollment.length,
           };
         });

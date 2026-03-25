@@ -9,7 +9,7 @@ interface AddPointData {
   lessonId?: string;
   quizAttemptId?: string;
   enrollmentId?: string;
-  joinGroupId?: string;
+  joinGroupId?: string; // This should be JoinedGroup.id, NOT Group.id
   eventId?: string;
   progressId?: string;
   reason?: string; // For tracking why points were added
@@ -121,237 +121,232 @@ export class GamificationService {
    * Add points to a user for various activities
    */
   static async AddPoint(data: AddPointData): Promise<PointResult> {
-  try {
-    // Validate required fields
-    if (!data.userId || !data.point) {
-      return {
-        success: false,
-        message: "User ID and point amount are required",
-      };
-    }
+    try {
+      // Validate required fields
+      if (!data.userId || !data.point) {
+        return {
+          success: false,
+          message: "User ID and point amount are required",
+        };
+      }
 
-    // Validate point is positive (for addition)
-    if (data.point <= 0 && data.point !== -Math.abs(data.point)) {
-      return {
-        success: false,
-        message: "Point amount must be greater than 0",
-      };
-    }
+      // Validate point is positive (for addition)
+      if (data.point <= 0 && data.point !== -Math.abs(data.point)) {
+        return {
+          success: false,
+          message: "Point amount must be greater than 0",
+        };
+      }
 
-    // Check if user exists
-    const userExists = await prisma.user.findUnique({
-      where: { id: data.userId },
-      select: { point: true } // Get current points
-    });
-
-    if (!userExists) {
-      return {
-        success: false,
-        message: "User not found",
-      };
-    }
-
-    // Use transaction to ensure all updates succeed or fail together
-    const result = await prisma.$transaction(async (tx) => {
-      let updatedUser;
-      let updatedCourse = null;
-      let updatedGroup = null;
-      let updatedQuizAttempt = null;
-      let updatedEnrollment = null;
-      let updatedProgress = null;
-
-      // 1. Update user's total points - FIX THIS
-      // Make sure point field is not null by using a default value
-      const currentPoints = userExists.point || 0;
-      const newPoints = currentPoints + data.point;
-      
-      updatedUser = await tx.user.update({
+      // Check if user exists
+      const userExists = await prisma.user.findUnique({
         where: { id: data.userId },
-        data: {
-          point: newPoints, // Set the exact value instead of increment
-        },
+        select: { point: true },
       });
 
-      // 2. Handle Course points
-      if (data.courseId) {
-        const course = await tx.course.findUnique({
-          where: { id: data.courseId },
-        });
+      if (!userExists) {
+        return {
+          success: false,
+          message: "User not found",
+        };
+      }
 
-        if (!course) {
-          throw new Error(`Course with ID ${data.courseId} not found`);
-        }
+      // Use transaction to ensure all updates succeed or fail together
+      const result = await prisma.$transaction(async (tx) => {
+        let updatedUser;
+        let updatedCourse = null;
+        let updatedGroup = null;
+        let updatedQuizAttempt = null;
+        let updatedEnrollment = null;
+        let updatedProgress = null;
 
-        // Update course points
-        const courseCurrentPoints = course.point || 0;
-        updatedCourse = await tx.course.update({
-          where: { id: data.courseId },
+        // 1. Update user's total points
+        const currentPoints = userExists.point || 0;
+        const newPoints = currentPoints + data.point;
+
+        updatedUser = await tx.user.update({
+          where: { id: data.userId },
           data: {
-            point: courseCurrentPoints + data.point,
+            point: newPoints,
           },
         });
 
-        // Update or create enrollment points
-        if (data.enrollmentId) {
-          const enrollment = await tx.enrollment.findUnique({
-            where: { id: data.enrollmentId },
+        // 2. Handle Course points
+        if (data.courseId) {
+          const course = await tx.course.findUnique({
+            where: { id: data.courseId },
           });
-          const currentScore = enrollment?.score || 0;
-          updatedEnrollment = await tx.enrollment.update({
-            where: { id: data.enrollmentId },
+
+          if (!course) {
+            throw new Error(`Course with ID ${data.courseId} not found`);
+          }
+
+          const courseCurrentPoints = course.point || 0;
+          updatedCourse = await tx.course.update({
+            where: { id: data.courseId },
             data: {
-              score: currentScore + data.point,
-            },
-          });
-        } else {
-          // Check if enrollment exists
-          const existingEnrollment = await tx.enrollment.findFirst({
-            where: {
-              userId: data.userId,
-              courseId: data.courseId,
+              point: courseCurrentPoints + data.point,
             },
           });
 
-          if (existingEnrollment) {
-            const currentScore = existingEnrollment.score || 0;
+          // Update or create enrollment points
+          if (data.enrollmentId) {
+            const enrollment = await tx.enrollment.findUnique({
+              where: { id: data.enrollmentId },
+            });
+            const currentScore = enrollment?.score || 0;
             updatedEnrollment = await tx.enrollment.update({
-              where: { id: existingEnrollment.id },
+              where: { id: data.enrollmentId },
               data: {
                 score: currentScore + data.point,
               },
             });
           } else {
-            // Create enrollment if it doesn't exist
-            updatedEnrollment = await tx.enrollment.create({
-              data: {
+            const existingEnrollment = await tx.enrollment.findFirst({
+              where: {
                 userId: data.userId,
                 courseId: data.courseId,
-                score: data.point > 0 ? data.point : 0,
-                status: "ENROLLED",
-                startedAt: new Date(),
+              },
+            });
+
+            if (existingEnrollment) {
+              const currentScore = existingEnrollment.score || 0;
+              updatedEnrollment = await tx.enrollment.update({
+                where: { id: existingEnrollment.id },
+                data: {
+                  score: currentScore + data.point,
+                },
+              });
+            } else {
+              updatedEnrollment = await tx.enrollment.create({
+                data: {
+                  userId: data.userId,
+                  courseId: data.courseId,
+                  score: data.point > 0 ? data.point : 0,
+                  status: "ENROLLED",
+                  startedAt: new Date(),
+                },
+              });
+            }
+          }
+        }
+
+        // 3. Handle Group points - data.joinGroupId should be JoinedGroup.id
+        if (data.joinGroupId) {
+          const joinedGroup = await tx.joinedGroup.findUnique({
+            where: { id: data.joinGroupId },
+          });
+
+          if (!joinedGroup) {
+            throw new Error(
+              `JoinedGroup with ID ${data.joinGroupId} not found`,
+            );
+          }
+
+          const currentGroupPoints = joinedGroup.point || 0;
+          updatedGroup = await tx.joinedGroup.update({
+            where: { id: data.joinGroupId },
+            data: {
+              point: currentGroupPoints + data.point,
+            },
+          });
+        }
+
+        // 4. Handle Quiz points
+        if (data.quizAttemptId) {
+          const quizAttempt = await tx.quizAttempt.findUnique({
+            where: { id: data.quizAttemptId },
+          });
+
+          if (!quizAttempt) {
+            throw new Error(
+              `Quiz attempt with ID ${data.quizAttemptId} not found`,
+            );
+          }
+
+          const currentScore = quizAttempt.score || 0;
+          updatedQuizAttempt = await tx.quizAttempt.update({
+            where: { id: data.quizAttemptId },
+            data: {
+              score: currentScore + data.point,
+            },
+          });
+        }
+
+        // 5. Handle Progress points
+        if (data.progressId) {
+          const progress = await tx.progress.findUnique({
+            where: { id: data.progressId },
+          });
+
+          if (progress) {
+            const currentProgress = progress.progressBar || 0;
+            updatedProgress = await tx.progress.update({
+              where: { id: data.progressId },
+              data: {
+                progressBar: currentProgress + data.point,
               },
             });
           }
         }
-      }
 
-      // 3. Handle Group points - USING JOINEDGROUP ID
-      if (data.joinGroupId) {
-        const joinedGroup = await tx.joinedGroup.findUnique({
-          where: { id: data.joinGroupId },
-        });
-
-        if (!joinedGroup) {
-          throw new Error(
-            `JoinedGroup with ID ${data.joinGroupId} not found`,
-          );
-        }
-
-        // Update joined group points
-        const currentGroupPoints = joinedGroup.point || 0;
-        updatedGroup = await tx.joinedGroup.update({
-          where: { id: data.joinGroupId },
+        // 6. Create point history record for tracking
+        await tx.pointHistory.create({
           data: {
-            point: currentGroupPoints + data.point,
+            userId: data.userId,
+            point: data.point,
+            reason: data.reason || "Points awarded",
+            courseId: data.courseId,
+            lessonId: data.lessonId,
+            quizAttemptId: data.quizAttemptId,
+            joinedGroupId: data.joinGroupId,
+            enrollmentId: data.enrollmentId,
+            progressId: data.progressId,
           },
         });
-      }
 
-      // 4. Handle Quiz points (QuizAttempt model)
-      if (data.quizAttemptId) {
-        const quizAttempt = await tx.quizAttempt.findUnique({
-          where: { id: data.quizAttemptId },
-        });
-
-        if (!quizAttempt) {
-          throw new Error(
-            `Quiz attempt with ID ${data.quizAttemptId} not found`,
-          );
-        }
-
-        const currentScore = quizAttempt.score || 0;
-        updatedQuizAttempt = await tx.quizAttempt.update({
-          where: { id: data.quizAttemptId },
-          data: {
-            score: currentScore + data.point,
-          },
-        });
-      }
-
-      // 5. Handle Progress points
-      if (data.progressId) {
-        const progress = await tx.progress.findUnique({
-          where: { id: data.progressId },
-        });
-
-        if (progress) {
-          const currentProgress = progress.progressBar || 0;
-          updatedProgress = await tx.progress.update({
-            where: { id: data.progressId },
-            data: {
-              progressBar: currentProgress + data.point,
-            },
-          });
-        }
-      }
-
-      // 6. Create point history record for tracking
-      await tx.pointHistory.create({
-        data: {
-          userId: data.userId,
-          point: data.point,
-          reason: data.reason || "Points awarded",
-          courseId: data.courseId,
-          lessonId: data.lessonId,
-          quizAttemptId: data.quizAttemptId,
-          joinedGroupId: data.joinGroupId,
-          enrollmentId: data.enrollmentId,
-          progressId: data.progressId,
-        },
+        return {
+          updatedUser,
+          updatedCourse,
+          updatedGroup,
+          updatedQuizAttempt,
+          updatedEnrollment,
+          updatedProgress,
+        };
       });
 
-      return {
-        updatedUser,
-        updatedCourse,
-        updatedGroup,
-        updatedQuizAttempt,
-        updatedEnrollment,
-        updatedProgress,
+      // Prepare success response
+      const responseData: any = {
+        userPoints: result.updatedUser.point || 0,
+        pointsAdded: data.point,
       };
-    });
 
-    // Prepare success response
-    const responseData: any = {
-      userPoints: result.updatedUser.point || 0,
-      pointsAdded: data.point,
-    };
+      if (result.updatedCourse) {
+        responseData.coursePoints = result.updatedCourse.point;
+      }
 
-    if (result.updatedCourse) {
-      responseData.coursePoints = result.updatedCourse.point;
+      if (result.updatedGroup) {
+        responseData.groupPoints = result.updatedGroup.point;
+      }
+
+      if (result.updatedEnrollment) {
+        responseData.enrollmentPoints = result.updatedEnrollment.score;
+      }
+
+      return {
+        success: true,
+        message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ""}`,
+        data: responseData,
+      };
+    } catch (error) {
+      console.error("Error adding points:", error);
+      return {
+        success: false,
+        message: "Failed to add points",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
-
-    if (result.updatedGroup) {
-      responseData.groupPoints = result.updatedGroup.point;
-    }
-
-    if (result.updatedEnrollment) {
-      responseData.enrollmentPoints = result.updatedEnrollment.score;
-    }
-
-    return {
-      success: true,
-      message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ""}`,
-      data: responseData,
-    };
-  } catch (error) {
-    console.error("Error adding points:", error);
-    return {
-      success: false,
-      message: "Failed to add points",
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
   }
-}
 
   /**
    * Get user's total points
@@ -717,7 +712,7 @@ export class GamificationService {
     }
   }
 
-  // ==================== NEW GAMIFICATION METHODS ====================
+  // ==================== GAMIFICATION METHODS ====================
 
   /**
    * Get XP points for a specific action
@@ -764,9 +759,6 @@ export class GamificationService {
   /**
    * Add points with full gamification logic (levels, badges, streaks)
    */
-  /**
-   * Add points with full gamification logic (levels, badges, streaks)
-   */
   static async AddPointsWithGamification(
     userId: string,
     actionType: ActionType,
@@ -775,7 +767,7 @@ export class GamificationService {
       quizScore?: number;
       lessonId?: string;
       groupId?: string;
-      joinedGroupId?: string; // Add this line
+      joinedGroupId?: string;
       eventId?: string;
       quizAttemptId?: string;
     },
@@ -790,7 +782,6 @@ export class GamificationService {
         };
       }
 
-      // Check if user exists and get current state
       const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
@@ -808,16 +799,13 @@ export class GamificationService {
 
       const previousXP = user.point || 0;
       const previousLevel = this.calculateLevel(previousXP);
-
-      // Update streak
       const currentStreak = await this.updateStreak(userId);
 
-      // Add points - NOW USING joinedGroupId for group points
       const result = await this.AddPoint({
         userId,
         point: points,
         courseId: metadata?.courseId,
-        joinGroupId: metadata?.joinedGroupId, // Use joinedGroupId, not groupId
+        joinGroupId: metadata?.joinedGroupId,
         eventId: metadata?.eventId,
         lessonId: metadata?.lessonId,
         quizAttemptId: metadata?.quizAttemptId,
@@ -835,11 +823,9 @@ export class GamificationService {
       let leveledUp = false;
       let badgesEarned: BadgeEarned[] = [];
 
-      // Check for level up
       if (newLevel.level > previousLevel.level) {
         leveledUp = true;
 
-        // Update user's level in database
         await prisma.user.update({
           where: { id: userId },
           data: {
@@ -847,7 +833,6 @@ export class GamificationService {
           },
         });
 
-        // Create level up achievement in point history
         await prisma.pointHistory.create({
           data: {
             userId,
@@ -856,7 +841,6 @@ export class GamificationService {
           },
         });
 
-        // Send notification for level up
         await this.createNotification(
           userId,
           `🎉 Level Up! You're now a ${newLevel.name}!`,
@@ -865,14 +849,12 @@ export class GamificationService {
         );
       }
 
-      // Check for badges
       badgesEarned = await this.checkAndAwardBadges(
         userId,
         actionType,
         metadata,
       );
 
-      // Check for streak bonus (7-day streak)
       if (currentStreak === 7) {
         await this.AddPointsWithGamification(userId, ActionType.STREAK_7_DAY);
       }
@@ -901,9 +883,6 @@ export class GamificationService {
   /**
    * Check and award badges based on user activity
    */
-  /**
-   * Check and award badges based on user activity
-   */
   private static async checkAndAwardBadges(
     userId: string,
     actionType: ActionType,
@@ -912,14 +891,13 @@ export class GamificationService {
       quizScore?: number;
       lessonId?: string;
       groupId?: string;
-      joinedGroupId?: string; // Add this line
+      joinedGroupId?: string;
       eventId?: string;
       quizAttemptId?: string;
     },
   ): Promise<BadgeEarned[]> {
     const earnedBadges: BadgeEarned[] = [];
 
-    // Get user's existing badges
     const existingBadges = await prisma.badges.findMany({
       where: { userId },
       include: { achievement: true },
@@ -927,7 +905,7 @@ export class GamificationService {
 
     const existingBadgeTypes = existingBadges.map((b) => b.badges);
 
-    // 1. Course Completion Badge
+    // Course Completion Badge
     if (actionType === ActionType.COURSE_COMPLETE && metadata?.courseId) {
       if (!existingBadgeTypes.includes(BadgeType.COURSE_COMPLETION as any)) {
         const badge = await this.awardBadge(
@@ -941,7 +919,7 @@ export class GamificationService {
       }
     }
 
-    // 2. Mastery Badge (Quiz score >= 80%)
+    // Mastery Badge (Quiz score >= 80%)
     if (
       actionType === ActionType.QUIZ_PASS &&
       metadata?.quizScore &&
@@ -955,7 +933,7 @@ export class GamificationService {
       }
     }
 
-    // 3. Consistency Badge (7-day streak)
+    // Consistency Badge (7-day streak)
     if (actionType === ActionType.STREAK_7_DAY) {
       if (!existingBadgeTypes.includes(BadgeType.CONSISTENCY as any)) {
         const badge = await this.awardBadge(userId, BadgeType.CONSISTENCY);
@@ -963,7 +941,7 @@ export class GamificationService {
       }
     }
 
-    // 4. Milestone Badge (5+ courses completed)
+    // Milestone Badge (5+ courses completed)
     if (actionType === ActionType.COURSE_COMPLETE) {
       const completedCourses = await prisma.enrollment.count({
         where: {
@@ -983,7 +961,7 @@ export class GamificationService {
       }
     }
 
-    // 5. Community Badge (Active participation - 10 discussions)
+    // Community Badge (Active participation - 10 discussions)
     if (actionType === ActionType.DISCUSSION_PARTICIPATION) {
       const participationCount = await prisma.post.count({
         where: { userId },
@@ -1014,7 +992,6 @@ export class GamificationService {
     try {
       const badgeConfig = BADGE_CONFIG[badgeType];
 
-      // Create achievement record
       const achievement = await prisma.achievement.create({
         data: {
           title: badgeConfig.name,
@@ -1024,7 +1001,6 @@ export class GamificationService {
         },
       });
 
-      // Create badge record
       const badge = await prisma.badges.create({
         data: {
           badges: badgeType as any,
@@ -1033,7 +1009,6 @@ export class GamificationService {
         },
       });
 
-      // Create notification for badge earned
       await this.createNotification(
         userId,
         `🏆 New Badge: ${badgeConfig.name}!`,
@@ -1041,7 +1016,6 @@ export class GamificationService {
         "BADGE_EARNED",
       );
 
-      // Add bonus XP for earning badge
       await this.AddPoint({
         userId,
         point: 25,
@@ -1071,7 +1045,6 @@ export class GamificationService {
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
-      // Get user's last activity
       const lastActivity = await prisma.pointHistory.findFirst({
         where: { userId },
         orderBy: { createdAt: "desc" },
@@ -1084,7 +1057,6 @@ export class GamificationService {
       const lastActivityDate = new Date(lastActivity.createdAt);
       lastActivityDate.setHours(0, 0, 0, 0);
 
-      // Check if streak continues
       if (lastActivityDate.getTime() === yesterday.getTime()) {
         const streakCount = await this.getCurrentStreak(userId);
         return streakCount + 1;
@@ -1158,7 +1130,6 @@ export class GamificationService {
       const levelInfo = this.calculateLevel(totalXP);
       const currentStreak = await this.getCurrentStreak(userId);
 
-      // Get completed courses count
       const completedCourses = await prisma.enrollment.count({
         where: {
           userId,
@@ -1166,7 +1137,6 @@ export class GamificationService {
         },
       });
 
-      // Get courses in progress
       const inProgressCourses = await prisma.enrollment.count({
         where: {
           userId,
@@ -1174,7 +1144,6 @@ export class GamificationService {
         },
       });
 
-      // Get quiz mastery count (quizzes with score >= 80%)
       const masteryQuizzes = await prisma.quizAttempt.count({
         where: {
           userId,
@@ -1182,7 +1151,6 @@ export class GamificationService {
         },
       });
 
-      // Calculate XP needed for next level
       const xpNeededForNextLevel = levelInfo.nextLevelXP;
 
       return {
@@ -1271,7 +1239,6 @@ export class GamificationService {
         0,
       );
       const activeMembers = members.filter((m) => {
-        // Consider active if they have any completed courses or recent activity
         return m.enrollment.length > 0 || (m.point || 0) > 0;
       }).length;
 
@@ -1348,8 +1315,6 @@ export class GamificationService {
         0,
       );
 
-      // Get completed lessons count (you'll need to track lesson completion)
-      // This is a placeholder - implement based on your lesson progress tracking
       const completedLessons = 0;
 
       const progressPercentage =
@@ -1373,7 +1338,7 @@ export class GamificationService {
             id: module.id,
             title: module.module_title,
             lessons: module.lesson.length,
-            completed: 0, // Calculate based on completed lessons
+            completed: 0,
           })),
         },
       };
@@ -1412,54 +1377,484 @@ export class GamificationService {
       console.error("Error creating notification:", error);
     }
   }
+
+  // ==================== DELETE POINT METHODS ====================
+
+  /**
+   * Delete a specific point record (reverse a point addition)
+   * Useful for admin corrections or reverting erroneous point awards
+   */
+  static async DeletePoint(
+    pointHistoryId: string,
+    reason?: string,
+  ): Promise<PointResult> {
+    try {
+      const pointHistory = await prisma.pointHistory.findUnique({
+        where: { id: pointHistoryId },
+        include: {
+          user: true,
+          course: true,
+          joinedGroup: true,
+          enrollment: true,
+          progress: true,
+          quizAttempt: true,
+        },
+      });
+
+      if (!pointHistory) {
+        return {
+          success: false,
+          message: "Point history record not found",
+        };
+      }
+
+      const result = await prisma.$transaction(async (tx) => {
+        let updatedUser;
+        let updatedCourse = null;
+        let updatedGroup = null;
+        let updatedQuizAttempt = null;
+        let updatedEnrollment = null;
+        let updatedProgress = null;
+
+        // 1. Subtract points from user's total points
+        const currentUserPoints = pointHistory.user?.point || 0;
+        const newUserPoints = currentUserPoints - pointHistory.point;
+
+        updatedUser = await tx.user.update({
+          where: { id: pointHistory.userId },
+          data: {
+            point: newUserPoints,
+          },
+        });
+
+        // 2. Handle Course points deduction
+        if (pointHistory.courseId) {
+          const course = await tx.course.findUnique({
+            where: { id: pointHistory.courseId },
+          });
+
+          if (course) {
+            const currentCoursePoints = course.point || 0;
+            updatedCourse = await tx.course.update({
+              where: { id: pointHistory.courseId },
+              data: {
+                point: currentCoursePoints - pointHistory.point,
+              },
+            });
+          }
+
+          // Handle enrollment points deduction
+          if (pointHistory.enrollmentId) {
+            const enrollment = await tx.enrollment.findUnique({
+              where: { id: pointHistory.enrollmentId },
+            });
+
+            if (enrollment) {
+              const currentScore = enrollment.score || 0;
+              updatedEnrollment = await tx.enrollment.update({
+                where: { id: pointHistory.enrollmentId },
+                data: {
+                  score: currentScore - pointHistory.point,
+                },
+              });
+            }
+          } else {
+            const enrollment = await tx.enrollment.findFirst({
+              where: {
+                userId: pointHistory.userId,
+                courseId: pointHistory.courseId,
+              },
+            });
+
+            if (enrollment) {
+              const currentScore = enrollment.score || 0;
+              updatedEnrollment = await tx.enrollment.update({
+                where: { id: enrollment.id },
+                data: {
+                  score: currentScore - pointHistory.point,
+                },
+              });
+            }
+          }
+        }
+
+        // 3. Handle Group points deduction (using JoinedGroup)
+        if (pointHistory.joinedGroupId) {
+          const joinedGroup = await tx.joinedGroup.findUnique({
+            where: { id: pointHistory.joinedGroupId },
+          });
+
+          if (joinedGroup) {
+            const currentGroupPoints = joinedGroup.point || 0;
+            updatedGroup = await tx.joinedGroup.update({
+              where: { id: pointHistory.joinedGroupId },
+              data: {
+                point: currentGroupPoints - pointHistory.point,
+              },
+            });
+          }
+        }
+
+        // 4. Handle Quiz points deduction
+        if (pointHistory.quizAttemptId) {
+          const quizAttempt = await tx.quizAttempt.findUnique({
+            where: { id: pointHistory.quizAttemptId },
+          });
+
+          if (quizAttempt) {
+            const currentScore = quizAttempt.score || 0;
+            updatedQuizAttempt = await tx.quizAttempt.update({
+              where: { id: pointHistory.quizAttemptId },
+              data: {
+                score: currentScore - pointHistory.point,
+              },
+            });
+          }
+        }
+
+        // 5. Handle Progress points deduction
+        if (pointHistory.progressId) {
+          const progress = await tx.progress.findUnique({
+            where: { id: pointHistory.progressId },
+          });
+
+          if (progress) {
+            const currentProgress = progress.progressBar || 0;
+            updatedProgress = await tx.progress.update({
+              where: { id: pointHistory.progressId },
+              data: {
+                progressBar: currentProgress - pointHistory.point,
+              },
+            });
+          }
+        }
+
+        // 6. Create a reversal record
+        await tx.pointHistory.create({
+          data: {
+            userId: pointHistory.userId,
+            point: -pointHistory.point,
+            reason:
+              reason ||
+              `Reversal: ${pointHistory.reason || "Point adjustment"}`,
+            courseId: pointHistory.courseId,
+            lessonId: pointHistory.lessonId,
+            quizAttemptId: pointHistory.quizAttemptId,
+            joinedGroupId: pointHistory.joinedGroupId,
+            enrollmentId: pointHistory.enrollmentId,
+            progressId: pointHistory.progressId,
+          },
+        });
+
+        return {
+          updatedUser,
+          updatedCourse,
+          updatedGroup,
+          updatedQuizAttempt,
+          updatedEnrollment,
+          updatedProgress,
+        };
+      });
+
+      const responseData: any = {
+        userPoints: result.updatedUser.point || 0,
+        pointsRemoved: pointHistory.point,
+      };
+
+      if (result.updatedCourse) {
+        responseData.coursePoints = result.updatedCourse.point;
+      }
+
+      if (result.updatedGroup) {
+        responseData.groupPoints = result.updatedGroup.point;
+      }
+
+      if (result.updatedEnrollment) {
+        responseData.enrollmentPoints = result.updatedEnrollment.score;
+      }
+
+      return {
+        success: true,
+        message: `Successfully removed ${Math.abs(pointHistory.point)} points. ${reason || "Point reversal completed."}`,
+        data: responseData,
+      };
+    } catch (error) {
+      console.error("Error deleting point:", error);
+      return {
+        success: false,
+        message: "Failed to delete point",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Delete all points for a specific JoinedGroup (when user leaves a group)
+   * This removes all points earned from that specific group membership
+   */
+  static async DeletePointsByJoinedGroup(
+    joinedGroupId: string,
+    reason?: string,
+  ): Promise<PointResult> {
+    try {
+      const pointHistories = await prisma.pointHistory.findMany({
+        where: {
+          joinedGroupId: joinedGroupId,
+        },
+        include: {
+          user: true,
+          joinedGroup: true,
+        },
+      });
+
+      if (pointHistories.length === 0) {
+        return {
+          success: false,
+          message: "No point records found for this group membership",
+        };
+      }
+
+      const totalPointsToRemove = pointHistories.reduce(
+        (sum, record) => sum + record.point,
+        0,
+      );
+
+      const userId = pointHistories[0].userId;
+
+      const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { point: true },
+        });
+
+        const currentUserPoints = user?.point || 0;
+        const newUserPoints = currentUserPoints - totalPointsToRemove;
+
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: {
+            point: newUserPoints,
+          },
+        });
+
+        const joinedGroup = await tx.joinedGroup.findUnique({
+          where: { id: joinedGroupId },
+        });
+
+        let updatedGroup = null;
+        if (joinedGroup) {
+          const currentGroupPoints = joinedGroup.point || 0;
+          updatedGroup = await tx.joinedGroup.update({
+            where: { id: joinedGroupId },
+            data: {
+              point: currentGroupPoints - totalPointsToRemove,
+            },
+          });
+        }
+
+        await tx.pointHistory.create({
+          data: {
+            userId: userId,
+            point: -totalPointsToRemove,
+            reason:
+              reason ||
+              `Points removed for leaving group: ${joinedGroup?.groupId?.toString() || "Unknown group"}`,
+            joinedGroupId: joinedGroupId,
+          },
+        });
+
+        const pointIds = pointHistories.map((p) => p.id);
+        await tx.pointHistory.deleteMany({
+          where: {
+            id: { in: pointIds },
+          },
+        });
+
+        return {
+          updatedUser,
+          updatedGroup,
+          pointsRemoved: pointHistories.length,
+          totalPointsRemoved: totalPointsToRemove,
+        };
+      });
+
+      return {
+        success: true,
+        message: `Successfully removed ${result.pointsRemoved} point records totaling ${Math.abs(result.totalPointsRemoved)} points from group membership.`,
+        data: {
+          userPoints: result.updatedUser.point || 0,
+          groupPoints: result.updatedGroup?.point,
+          pointsRemoved: result.pointsRemoved,
+          totalPointsRemoved: result.totalPointsRemoved,
+        } as any,
+      };
+    } catch (error) {
+      console.error("Error deleting points by joined group:", error);
+      return {
+        success: false,
+        message: "Failed to delete group points",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
+
+  /**
+   * Delete multiple point records for a user (bulk delete)
+   */
+  static async DeleteUserPoints(
+    userId: string,
+    options?: {
+      courseId?: string;
+      joinedGroupId?: string;
+      actionType?: ActionType;
+      beforeDate?: Date;
+      maxPoints?: number;
+      reason?: string;
+    },
+  ): Promise<PointResult> {
+    try {
+      const whereClause: any = { userId };
+
+      if (options?.courseId) {
+        whereClause.courseId = options.courseId;
+      }
+
+      if (options?.joinedGroupId) {
+        whereClause.joinedGroupId = options.joinedGroupId;
+      }
+
+      if (options?.actionType) {
+        whereClause.reason = {
+          contains: options.actionType,
+        };
+      }
+
+      if (options?.beforeDate) {
+        whereClause.createdAt = {
+          lt: options.beforeDate,
+        };
+      }
+
+      const pointHistories = await prisma.pointHistory.findMany({
+        where: whereClause,
+        orderBy: { createdAt: "asc" },
+      });
+
+      if (pointHistories.length === 0) {
+        return {
+          success: false,
+          message: "No point records found to delete",
+        };
+      }
+
+      const pointsToDelete = options?.maxPoints
+        ? pointHistories.slice(0, options.maxPoints)
+        : pointHistories;
+
+      const totalPointsToRemove = pointsToDelete.reduce(
+        (sum, record) => sum + record.point,
+        0,
+      );
+
+      const result = await prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { point: true },
+        });
+
+        const currentUserPoints = user?.point || 0;
+        const newUserPoints = currentUserPoints - totalPointsToRemove;
+
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: {
+            point: newUserPoints,
+          },
+        });
+
+        let updatedCourse = null;
+        if (options?.courseId) {
+          const course = await tx.course.findUnique({
+            where: { id: options.courseId },
+          });
+
+          if (course) {
+            const currentCoursePoints = course.point || 0;
+            updatedCourse = await tx.course.update({
+              where: { id: options.courseId },
+              data: {
+                point: currentCoursePoints - totalPointsToRemove,
+              },
+            });
+          }
+        }
+
+        let updatedGroup = null;
+        if (options?.joinedGroupId) {
+          const joinedGroup = await tx.joinedGroup.findFirst({
+            where: {
+              studentId: userId,
+              id: options.joinedGroupId,
+            },
+          });
+
+          if (joinedGroup) {
+            const currentGroupPoints = joinedGroup.point || 0;
+            updatedGroup = await tx.joinedGroup.update({
+              where: { id: joinedGroup.id },
+              data: {
+                point: currentGroupPoints - totalPointsToRemove,
+              },
+            });
+          }
+        }
+
+        await tx.pointHistory.create({
+          data: {
+            userId,
+            point: -totalPointsToRemove,
+            reason:
+              options?.reason ||
+              `Bulk reversal: Removed ${pointsToDelete.length} point records`,
+            courseId: options?.courseId,
+            joinedGroupId: options?.joinedGroupId,
+          },
+        });
+
+        const pointIds = pointsToDelete.map((p) => p.id);
+        await tx.pointHistory.deleteMany({
+          where: {
+            id: { in: pointIds },
+          },
+        });
+
+        return {
+          updatedUser,
+          updatedCourse,
+          updatedGroup,
+          pointsRemoved: pointsToDelete.length,
+          totalPointsRemoved: totalPointsToRemove,
+        };
+      });
+
+      return {
+        success: true,
+        message: `Successfully removed ${result.pointsRemoved} point records totaling ${Math.abs(result.totalPointsRemoved)} points.`,
+        data: {
+          userPoints: result.updatedUser.point || 0,
+          coursePoints: result.updatedCourse?.point,
+          groupPoints: result.updatedGroup?.point,
+          pointsRemoved: result.pointsRemoved,
+          totalPointsRemoved: result.totalPointsRemoved,
+        } as any,
+      };
+    } catch (error) {
+      console.error("Error deleting user points:", error);
+      return {
+        success: false,
+        message: "Failed to delete user points",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
+    }
+  }
 }
-
-// ==================== USAGE EXAMPLES ====================
-/*
-// When user completes a lesson
-await GamificationService.AddPointsWithGamification(
-  userId,
-  ActionType.LESSON_COMPLETE,
-  { courseId, lessonId }
-);
-
-// When user passes a quiz (score >= 80%)
-await GamificationService.AddPointsWithGamification(
-  userId,
-  ActionType.QUIZ_PASS,
-  { courseId, quizScore: 85, quizAttemptId }
-);
-
-// When user completes a course
-await GamificationService.AddPointsWithGamification(
-  userId,
-  ActionType.COURSE_COMPLETE,
-  { courseId }
-);
-
-// When user participates in discussion
-await GamificationService.AddPointsWithGamification(
-  userId,
-  ActionType.DISCUSSION_PARTICIPATION,
-  { courseId }
-);
-
-// When user joins a group
-await GamificationService.AddPointsWithGamification(
-  userId,
-  ActionType.JOIN_GROUP,
-  { groupId }
-);
-
-// Get user's gamification dashboard
-const dashboard = await GamificationService.getUserDashboard(userId);
-console.log(dashboard);
-
-// Get organization leaderboard
-const leaderboard = await GamificationService.getOrganizationLeaderboard(organizationId, 10);
-console.log(leaderboard);
-
-// Get course progress
-const progress = await GamificationService.getCourseProgress(userId, courseId);
-console.log(progress);
-*/
