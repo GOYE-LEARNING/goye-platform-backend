@@ -83,7 +83,10 @@ const LEVEL_CONFIG = [
 ];
 
 // ==================== BADGE CONFIGURATION ====================
-const BADGE_CONFIG: Record<BadgeType, { name: string; description: string; requirements: any }> = {
+const BADGE_CONFIG: Record<
+  BadgeType,
+  { name: string; description: string; requirements: any }
+> = {
   [BadgeType.COURSE_COMPLETION]: {
     name: "Course Completion Badge",
     description: "Completed a course",
@@ -113,11 +116,11 @@ const BADGE_CONFIG: Record<BadgeType, { name: string; description: string; requi
 
 export class GamificationService {
   // ==================== EXISTING BASE METHODS ====================
-  
+
   /**
    * Add points to a user for various activities
    */
-static async AddPoint(data: AddPointData): Promise<PointResult> {
+  static async AddPoint(data: AddPointData): Promise<PointResult> {
   try {
     // Validate required fields
     if (!data.userId || !data.point) {
@@ -138,6 +141,7 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
     // Check if user exists
     const userExists = await prisma.user.findUnique({
       where: { id: data.userId },
+      select: { point: true } // Get current points
     });
 
     if (!userExists) {
@@ -156,11 +160,15 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
       let updatedEnrollment = null;
       let updatedProgress = null;
 
-      // 1. Update user's total points
+      // 1. Update user's total points - FIX THIS
+      // Make sure point field is not null by using a default value
+      const currentPoints = userExists.point || 0;
+      const newPoints = currentPoints + data.point;
+      
       updatedUser = await tx.user.update({
         where: { id: data.userId },
         data: {
-          point: { increment: data.point },
+          point: newPoints, // Set the exact value instead of increment
         },
       });
 
@@ -175,19 +183,24 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
         }
 
         // Update course points
+        const courseCurrentPoints = course.point || 0;
         updatedCourse = await tx.course.update({
           where: { id: data.courseId },
           data: {
-            point: { increment: data.point },
+            point: courseCurrentPoints + data.point,
           },
         });
 
         // Update or create enrollment points
         if (data.enrollmentId) {
+          const enrollment = await tx.enrollment.findUnique({
+            where: { id: data.enrollmentId },
+          });
+          const currentScore = enrollment?.score || 0;
           updatedEnrollment = await tx.enrollment.update({
             where: { id: data.enrollmentId },
             data: {
-              score: { increment: data.point },
+              score: currentScore + data.point,
             },
           });
         } else {
@@ -200,10 +213,11 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
           });
 
           if (existingEnrollment) {
+            const currentScore = existingEnrollment.score || 0;
             updatedEnrollment = await tx.enrollment.update({
               where: { id: existingEnrollment.id },
               data: {
-                score: { increment: data.point },
+                score: currentScore + data.point,
               },
             });
           } else {
@@ -221,22 +235,24 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
         }
       }
 
-      // 3. Handle Group points - NOW USING JOINEDGROUP ID
+      // 3. Handle Group points - USING JOINEDGROUP ID
       if (data.joinGroupId) {
-        // data.joinGroupId should be the JoinedGroup ID, not the Group ID
         const joinedGroup = await tx.joinedGroup.findUnique({
           where: { id: data.joinGroupId },
         });
 
         if (!joinedGroup) {
-          throw new Error(`JoinedGroup with ID ${data.joinGroupId} not found`);
+          throw new Error(
+            `JoinedGroup with ID ${data.joinGroupId} not found`,
+          );
         }
 
         // Update joined group points
+        const currentGroupPoints = joinedGroup.point || 0;
         updatedGroup = await tx.joinedGroup.update({
           where: { id: data.joinGroupId },
           data: {
-            point: { increment: data.point },
+            point: currentGroupPoints + data.point,
           },
         });
       }
@@ -248,13 +264,16 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
         });
 
         if (!quizAttempt) {
-          throw new Error(`Quiz attempt with ID ${data.quizAttemptId} not found`);
+          throw new Error(
+            `Quiz attempt with ID ${data.quizAttemptId} not found`,
+          );
         }
 
+        const currentScore = quizAttempt.score || 0;
         updatedQuizAttempt = await tx.quizAttempt.update({
           where: { id: data.quizAttemptId },
           data: {
-            score: { increment: data.point },
+            score: currentScore + data.point,
           },
         });
       }
@@ -266,10 +285,11 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
         });
 
         if (progress) {
+          const currentProgress = progress.progressBar || 0;
           updatedProgress = await tx.progress.update({
             where: { id: data.progressId },
             data: {
-              progressBar: { increment: data.point },
+              progressBar: currentProgress + data.point,
             },
           });
         }
@@ -284,7 +304,7 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
           courseId: data.courseId,
           lessonId: data.lessonId,
           quizAttemptId: data.quizAttemptId,
-          joinedGroupId: data.joinGroupId, // This should be the JoinedGroup ID
+          joinedGroupId: data.joinGroupId,
           enrollmentId: data.enrollmentId,
           progressId: data.progressId,
         },
@@ -320,10 +340,9 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
 
     return {
       success: true,
-      message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ''}`,
+      message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ""}`,
       data: responseData,
     };
-
   } catch (error) {
     console.error("Error adding points:", error);
     return {
@@ -371,7 +390,10 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
   /**
    * Get user's points for a specific course
    */
-  static async GetUserCoursePoints(userId: string, courseId: string): Promise<PointResult> {
+  static async GetUserCoursePoints(
+    userId: string,
+    courseId: string,
+  ): Promise<PointResult> {
     try {
       const enrollment = await prisma.enrollment.findFirst({
         where: {
@@ -407,7 +429,10 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
   /**
    * Get user's points for a specific group
    */
-  static async GetUserGroupPoints(userId: string, groupId: string): Promise<PointResult> {
+  static async GetUserGroupPoints(
+    userId: string,
+    groupId: string,
+  ): Promise<PointResult> {
     try {
       const joinedGroup = await prisma.joinedGroup.findUnique({
         where: {
@@ -448,25 +473,30 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
   static async GetPointHistory(
     userId: string,
     limit?: number,
-    offset?: number
-  ): Promise<{ success: boolean; message: string; data?: any[]; error?: string }> {
+    offset?: number,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data?: any[];
+    error?: string;
+  }> {
     try {
       const history = await prisma.pointHistory.findMany({
         where: { userId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: limit || 50,
         skip: offset || 0,
         include: {
           course: { select: { course_title: true } },
           joinedGroup: {
             include: {
-              group: { select: { group_title: true } }
-            }
+              group: { select: { group_title: true } },
+            },
           },
           enrollment: {
             include: {
-              course: { select: { course_title: true } }
-            }
+              course: { select: { course_title: true } },
+            },
           },
         },
       });
@@ -490,12 +520,17 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
    */
   static async GetCourseLeaderboard(
     courseId: string,
-    limit: number = 10
-  ): Promise<{ success: boolean; message: string; data?: any[]; error?: string }> {
+    limit: number = 10,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data?: any[];
+    error?: string;
+  }> {
     try {
       const leaderboard = await prisma.enrollment.findMany({
         where: { courseId },
-        orderBy: { score: 'desc' },
+        orderBy: { score: "desc" },
         take: limit,
         include: {
           user: {
@@ -528,12 +563,17 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
    */
   static async GetGroupLeaderboard(
     groupId: string,
-    limit: number = 10
-  ): Promise<{ success: boolean; message: string; data?: any[]; error?: string }> {
+    limit: number = 10,
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data?: any[];
+    error?: string;
+  }> {
     try {
       const leaderboard = await prisma.joinedGroup.findMany({
         where: { groupId },
-        orderBy: { point: 'desc' },
+        orderBy: { point: "desc" },
         take: limit,
         include: {
           student: {
@@ -567,7 +607,7 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
   static async DeductPoints(
     userId: string,
     points: number,
-    reason?: string
+    reason?: string,
   ): Promise<PointResult> {
     if (points <= 0) {
       return {
@@ -625,43 +665,44 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
     error?: string;
   }> {
     try {
-      const [user, enrollments, joinedGroups, recentHistory] = await Promise.all([
-        prisma.user.findUnique({
-          where: { id: userId },
-          select: { point: true },
-        }),
-        prisma.enrollment.findMany({
-          where: { userId },
-          include: {
-            course: { select: { course_title: true } },
-          },
-        }),
-        prisma.joinedGroup.findMany({
-          where: { studentId: userId },
-          include: {
-            group: { select: { group_title: true } },
-          },
-        }),
-        prisma.pointHistory.findMany({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        }),
-      ]);
+      const [user, enrollments, joinedGroups, recentHistory] =
+        await Promise.all([
+          prisma.user.findUnique({
+            where: { id: userId },
+            select: { point: true },
+          }),
+          prisma.enrollment.findMany({
+            where: { userId },
+            include: {
+              course: { select: { course_title: true } },
+            },
+          }),
+          prisma.joinedGroup.findMany({
+            where: { studentId: userId },
+            include: {
+              group: { select: { group_title: true } },
+            },
+          }),
+          prisma.pointHistory.findMany({
+            where: { userId },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          }),
+        ]);
 
       return {
         success: true,
         message: "User points summary fetched successfully",
         data: {
           totalPoints: user?.point || 0,
-          coursePoints: enrollments.map(e => ({
+          coursePoints: enrollments.map((e) => ({
             courseId: e.courseId,
             courseTitle: e.course.course_title,
             points: e.score || 0,
           })),
-          groupPoints: joinedGroups.map(g => ({
+          groupPoints: joinedGroups.map((g) => ({
             groupId: g.groupId,
-            groupTitle: g.group?.group_title || '',
+            groupTitle: g.group?.group_title || "",
             points: g.point || 0,
           })),
           recentActivity: recentHistory,
@@ -688,10 +729,15 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
   /**
    * Calculate user's level based on total XP
    */
-  static calculateLevel(totalXP: number): { level: number; name: string; nextLevelXP: number; progressToNext: number } {
+  static calculateLevel(totalXP: number): {
+    level: number;
+    name: string;
+    nextLevelXP: number;
+    progressToNext: number;
+  } {
     let currentLevel = LEVEL_CONFIG[0];
     let nextLevel = LEVEL_CONFIG[1];
-    
+
     for (let i = LEVEL_CONFIG.length - 1; i >= 0; i--) {
       if (totalXP >= LEVEL_CONFIG[i].requiredXP) {
         currentLevel = LEVEL_CONFIG[i];
@@ -699,13 +745,14 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
         break;
       }
     }
-    
+
     const xpNeededForNext = nextLevel.requiredXP - currentLevel.requiredXP;
     const xpGainedInCurrent = totalXP - currentLevel.requiredXP;
-    const progressToNext = xpNeededForNext > 0 ? (xpGainedInCurrent / xpNeededForNext) * 100 : 100;
-    
+    const progressToNext =
+      xpNeededForNext > 0 ? (xpGainedInCurrent / xpNeededForNext) * 100 : 100;
+
     const nextLevelXP = nextLevel.requiredXP - totalXP;
-    
+
     return {
       level: currentLevel.level,
       name: currentLevel.name,
@@ -717,227 +764,244 @@ static async AddPoint(data: AddPointData): Promise<PointResult> {
   /**
    * Add points with full gamification logic (levels, badges, streaks)
    */
- /**
- * Add points with full gamification logic (levels, badges, streaks)
- */
-static async AddPointsWithGamification(
-  userId: string,
-  actionType: ActionType,
-  metadata?: {
-    courseId?: string;
-    quizScore?: number;
-    lessonId?: string;
-    groupId?: string;
-    joinedGroupId?: string; // Add this line
-    eventId?: string;
-    quizAttemptId?: string;
-  }
-): Promise<PointResult> {
-  try {
-    const points = this.getXPAction(actionType);
-    
-    if (points === 0) {
-      return {
-        success: false,
-        message: "Invalid action type",
-      };
-    }
+  /**
+   * Add points with full gamification logic (levels, badges, streaks)
+   */
+  static async AddPointsWithGamification(
+    userId: string,
+    actionType: ActionType,
+    metadata?: {
+      courseId?: string;
+      quizScore?: number;
+      lessonId?: string;
+      groupId?: string;
+      joinedGroupId?: string; // Add this line
+      eventId?: string;
+      quizAttemptId?: string;
+    },
+  ): Promise<PointResult> {
+    try {
+      const points = this.getXPAction(actionType);
 
-    // Check if user exists and get current state
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        badges: true,
-        badgesAndLevel: true,
-      },
-    });
+      if (points === 0) {
+        return {
+          success: false,
+          message: "Invalid action type",
+        };
+      }
 
-    if (!user) {
-      return {
-        success: false,
-        message: "User not found",
-      };
-    }
-
-    const previousXP = user.point || 0;
-    const previousLevel = this.calculateLevel(previousXP);
-    
-    // Update streak
-    const currentStreak = await this.updateStreak(userId);
-    
-    // Add points - NOW USING joinedGroupId for group points
-    const result = await this.AddPoint({
-      userId,
-      point: points,
-      courseId: metadata?.courseId,
-      joinGroupId: metadata?.joinedGroupId, // Use joinedGroupId, not groupId
-      eventId: metadata?.eventId,
-      lessonId: metadata?.lessonId,
-      quizAttemptId: metadata?.quizAttemptId,
-      reason: `Earned ${points} XP for ${actionType}`,
-      actionType,
-    });
-
-    if (!result.success) {
-      return result;
-    }
-
-    const newTotalXP = result.data?.userPoints || previousXP + points;
-    const newLevel = this.calculateLevel(newTotalXP);
-    
-    let leveledUp = false;
-    let badgesEarned: BadgeEarned[] = [];
-
-    // Check for level up
-    if (newLevel.level > previousLevel.level) {
-      leveledUp = true;
-      
-      // Update user's level in database
-      await prisma.user.update({
+      // Check if user exists and get current state
+      const user = await prisma.user.findUnique({
         where: { id: userId },
-        data: {
-          level: newLevel.name,
+        include: {
+          badges: true,
+          badgesAndLevel: true,
         },
       });
-      
-      // Create level up achievement in point history
-      await prisma.pointHistory.create({
-        data: {
-          userId,
-          point: 0,
-          reason: `🏆 LEVEL UP! You've reached ${newLevel.name} level!`,
-        },
-      });
-      
-      // Send notification for level up
-      await this.createNotification(
+
+      if (!user) {
+        return {
+          success: false,
+          message: "User not found",
+        };
+      }
+
+      const previousXP = user.point || 0;
+      const previousLevel = this.calculateLevel(previousXP);
+
+      // Update streak
+      const currentStreak = await this.updateStreak(userId);
+
+      // Add points - NOW USING joinedGroupId for group points
+      const result = await this.AddPoint({
         userId,
-        `🎉 Level Up! You're now a ${newLevel.name}!`,
-        `Congratulations on reaching ${newLevel.name} level! Keep growing in your discipleship journey.`,
-        "LEVEL_UP"
+        point: points,
+        courseId: metadata?.courseId,
+        joinGroupId: metadata?.joinedGroupId, // Use joinedGroupId, not groupId
+        eventId: metadata?.eventId,
+        lessonId: metadata?.lessonId,
+        quizAttemptId: metadata?.quizAttemptId,
+        reason: `Earned ${points} XP for ${actionType}`,
+        actionType,
+      });
+
+      if (!result.success) {
+        return result;
+      }
+
+      const newTotalXP = result.data?.userPoints || previousXP + points;
+      const newLevel = this.calculateLevel(newTotalXP);
+
+      let leveledUp = false;
+      let badgesEarned: BadgeEarned[] = [];
+
+      // Check for level up
+      if (newLevel.level > previousLevel.level) {
+        leveledUp = true;
+
+        // Update user's level in database
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            level: newLevel.name,
+          },
+        });
+
+        // Create level up achievement in point history
+        await prisma.pointHistory.create({
+          data: {
+            userId,
+            point: 0,
+            reason: `🏆 LEVEL UP! You've reached ${newLevel.name} level!`,
+          },
+        });
+
+        // Send notification for level up
+        await this.createNotification(
+          userId,
+          `🎉 Level Up! You're now a ${newLevel.name}!`,
+          `Congratulations on reaching ${newLevel.name} level! Keep growing in your discipleship journey.`,
+          "LEVEL_UP",
+        );
+      }
+
+      // Check for badges
+      badgesEarned = await this.checkAndAwardBadges(
+        userId,
+        actionType,
+        metadata,
       );
+
+      // Check for streak bonus (7-day streak)
+      if (currentStreak === 7) {
+        await this.AddPointsWithGamification(userId, ActionType.STREAK_7_DAY);
+      }
+
+      return {
+        success: true,
+        message: `✨ Earned ${points} XP for ${actionType.replace(/_/g, " ")}!`,
+        data: {
+          ...result.data,
+          leveledUp,
+          newLevel: leveledUp ? newLevel.name : undefined,
+          badgesEarned,
+          streakUpdated: currentStreak,
+        },
+      };
+    } catch (error) {
+      console.error("Error in gamification:", error);
+      return {
+        success: false,
+        message: "Failed to process gamification",
+        error: error instanceof Error ? error.message : "Unknown error",
+      };
     }
-    
-    // Check for badges
-    badgesEarned = await this.checkAndAwardBadges(userId, actionType, metadata);
-    
-    // Check for streak bonus (7-day streak)
-    if (currentStreak === 7) {
-      await this.AddPointsWithGamification(userId, ActionType.STREAK_7_DAY);
-    }
-    
-    return {
-      success: true,
-      message: `✨ Earned ${points} XP for ${actionType.replace(/_/g, ' ')}!`,
-      data: {
-        ...result.data,
-        leveledUp,
-        newLevel: leveledUp ? newLevel.name : undefined,
-        badgesEarned,
-        streakUpdated: currentStreak,
-      },
-    };
-    
-  } catch (error) {
-    console.error("Error in gamification:", error);
-    return {
-      success: false,
-      message: "Failed to process gamification",
-      error: error instanceof Error ? error.message : "Unknown error",
-    };
   }
-}
 
   /**
    * Check and award badges based on user activity
    */
- /**
- * Check and award badges based on user activity
- */
-private static async checkAndAwardBadges(
-  userId: string,
-  actionType: ActionType,
-  metadata?: {
-    courseId?: string;
-    quizScore?: number;
-    lessonId?: string;
-    groupId?: string;
-    joinedGroupId?: string; // Add this line
-    eventId?: string;
-    quizAttemptId?: string;
-  }
-): Promise<BadgeEarned[]> {
-  const earnedBadges: BadgeEarned[] = [];
-  
-  // Get user's existing badges
-  const existingBadges = await prisma.badges.findMany({
-    where: { userId },
-    include: { achievement: true },
-  });
-  
-  const existingBadgeTypes = existingBadges.map(b => b.badges);
-  
-  // 1. Course Completion Badge
-  if (actionType === ActionType.COURSE_COMPLETE && metadata?.courseId) {
-    if (!existingBadgeTypes.includes(BadgeType.COURSE_COMPLETION as any)) {
-      const badge = await this.awardBadge(userId, BadgeType.COURSE_COMPLETION, {
-        courseId: metadata.courseId,
-      });
-      if (badge) earnedBadges.push(badge);
-    }
-  }
-  
-  // 2. Mastery Badge (Quiz score >= 80%)
-  if (actionType === ActionType.QUIZ_PASS && metadata?.quizScore && metadata.quizScore >= 80) {
-    if (!existingBadgeTypes.includes(BadgeType.MASTERY as any)) {
-      const badge = await this.awardBadge(userId, BadgeType.MASTERY, {
-        quizScore: metadata.quizScore,
-      });
-      if (badge) earnedBadges.push(badge);
-    }
-  }
-  
-  // 3. Consistency Badge (7-day streak)
-  if (actionType === ActionType.STREAK_7_DAY) {
-    if (!existingBadgeTypes.includes(BadgeType.CONSISTENCY as any)) {
-      const badge = await this.awardBadge(userId, BadgeType.CONSISTENCY);
-      if (badge) earnedBadges.push(badge);
-    }
-  }
-  
-  // 4. Milestone Badge (5+ courses completed)
-  if (actionType === ActionType.COURSE_COMPLETE) {
-    const completedCourses = await prisma.enrollment.count({
-      where: {
-        userId,
-        status: "COMPLETED",
-      },
-    });
-    
-    if (completedCourses >= 5 && !existingBadgeTypes.includes(BadgeType.MILESTONE as any)) {
-      const badge = await this.awardBadge(userId, BadgeType.MILESTONE, {
-        completedCourses,
-      });
-      if (badge) earnedBadges.push(badge);
-    }
-  }
-  
-  // 5. Community Badge (Active participation - 10 discussions)
-  if (actionType === ActionType.DISCUSSION_PARTICIPATION) {
-    const participationCount = await prisma.post.count({
+  /**
+   * Check and award badges based on user activity
+   */
+  private static async checkAndAwardBadges(
+    userId: string,
+    actionType: ActionType,
+    metadata?: {
+      courseId?: string;
+      quizScore?: number;
+      lessonId?: string;
+      groupId?: string;
+      joinedGroupId?: string; // Add this line
+      eventId?: string;
+      quizAttemptId?: string;
+    },
+  ): Promise<BadgeEarned[]> {
+    const earnedBadges: BadgeEarned[] = [];
+
+    // Get user's existing badges
+    const existingBadges = await prisma.badges.findMany({
       where: { userId },
+      include: { achievement: true },
     });
-    
-    if (participationCount >= 10 && !existingBadgeTypes.includes(BadgeType.COMMUNITY as any)) {
-      const badge = await this.awardBadge(userId, BadgeType.COMMUNITY, {
-        participationCount,
-      });
-      if (badge) earnedBadges.push(badge);
+
+    const existingBadgeTypes = existingBadges.map((b) => b.badges);
+
+    // 1. Course Completion Badge
+    if (actionType === ActionType.COURSE_COMPLETE && metadata?.courseId) {
+      if (!existingBadgeTypes.includes(BadgeType.COURSE_COMPLETION as any)) {
+        const badge = await this.awardBadge(
+          userId,
+          BadgeType.COURSE_COMPLETION,
+          {
+            courseId: metadata.courseId,
+          },
+        );
+        if (badge) earnedBadges.push(badge);
+      }
     }
+
+    // 2. Mastery Badge (Quiz score >= 80%)
+    if (
+      actionType === ActionType.QUIZ_PASS &&
+      metadata?.quizScore &&
+      metadata.quizScore >= 80
+    ) {
+      if (!existingBadgeTypes.includes(BadgeType.MASTERY as any)) {
+        const badge = await this.awardBadge(userId, BadgeType.MASTERY, {
+          quizScore: metadata.quizScore,
+        });
+        if (badge) earnedBadges.push(badge);
+      }
+    }
+
+    // 3. Consistency Badge (7-day streak)
+    if (actionType === ActionType.STREAK_7_DAY) {
+      if (!existingBadgeTypes.includes(BadgeType.CONSISTENCY as any)) {
+        const badge = await this.awardBadge(userId, BadgeType.CONSISTENCY);
+        if (badge) earnedBadges.push(badge);
+      }
+    }
+
+    // 4. Milestone Badge (5+ courses completed)
+    if (actionType === ActionType.COURSE_COMPLETE) {
+      const completedCourses = await prisma.enrollment.count({
+        where: {
+          userId,
+          status: "COMPLETED",
+        },
+      });
+
+      if (
+        completedCourses >= 5 &&
+        !existingBadgeTypes.includes(BadgeType.MILESTONE as any)
+      ) {
+        const badge = await this.awardBadge(userId, BadgeType.MILESTONE, {
+          completedCourses,
+        });
+        if (badge) earnedBadges.push(badge);
+      }
+    }
+
+    // 5. Community Badge (Active participation - 10 discussions)
+    if (actionType === ActionType.DISCUSSION_PARTICIPATION) {
+      const participationCount = await prisma.post.count({
+        where: { userId },
+      });
+
+      if (
+        participationCount >= 10 &&
+        !existingBadgeTypes.includes(BadgeType.COMMUNITY as any)
+      ) {
+        const badge = await this.awardBadge(userId, BadgeType.COMMUNITY, {
+          participationCount,
+        });
+        if (badge) earnedBadges.push(badge);
+      }
+    }
+
+    return earnedBadges;
   }
-  
-  return earnedBadges;
-}
 
   /**
    * Award a badge to a user
@@ -945,11 +1009,11 @@ private static async checkAndAwardBadges(
   private static async awardBadge(
     userId: string,
     badgeType: BadgeType,
-    metadata?: any
+    metadata?: any,
   ): Promise<BadgeEarned | null> {
     try {
       const badgeConfig = BADGE_CONFIG[badgeType];
-      
+
       // Create achievement record
       const achievement = await prisma.achievement.create({
         data: {
@@ -959,7 +1023,7 @@ private static async checkAndAwardBadges(
           userId,
         },
       });
-      
+
       // Create badge record
       const badge = await prisma.badges.create({
         data: {
@@ -968,29 +1032,28 @@ private static async checkAndAwardBadges(
           achievementId: achievement.id,
         },
       });
-      
+
       // Create notification for badge earned
       await this.createNotification(
         userId,
         `🏆 New Badge: ${badgeConfig.name}!`,
         `${badgeConfig.description}. Keep up the great work!`,
-        "BADGE_EARNED"
+        "BADGE_EARNED",
       );
-      
+
       // Add bonus XP for earning badge
       await this.AddPoint({
         userId,
         point: 25,
         reason: `🎖️ Bonus XP for earning ${badgeConfig.name} badge!`,
       });
-      
+
       return {
         badgeId: badge.id,
         badgeName: badgeConfig.name,
         badgeType,
         awardedAt: new Date(),
       };
-      
     } catch (error) {
       console.error("Error awarding badge:", error);
       return null;
@@ -1004,23 +1067,23 @@ private static async checkAndAwardBadges(
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      
+
       // Get user's last activity
       const lastActivity = await prisma.pointHistory.findFirst({
         where: { userId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
       });
-      
+
       if (!lastActivity) {
         return 1;
       }
-      
+
       const lastActivityDate = new Date(lastActivity.createdAt);
       lastActivityDate.setHours(0, 0, 0, 0);
-      
+
       // Check if streak continues
       if (lastActivityDate.getTime() === yesterday.getTime()) {
         const streakCount = await this.getCurrentStreak(userId);
@@ -1030,7 +1093,6 @@ private static async checkAndAwardBadges(
       } else {
         return 1;
       }
-      
     } catch (error) {
       console.error("Error updating streak:", error);
       return 0;
@@ -1044,18 +1106,18 @@ private static async checkAndAwardBadges(
     try {
       const activities = await prisma.pointHistory.findMany({
         where: { userId },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: "desc" },
         take: 30,
       });
-      
+
       let streak = 0;
       let currentDate = new Date();
       currentDate.setHours(0, 0, 0, 0);
-      
+
       for (const activity of activities) {
         const activityDate = new Date(activity.createdAt);
         activityDate.setHours(0, 0, 0, 0);
-        
+
         if (activityDate.getTime() === currentDate.getTime()) {
           streak++;
           currentDate.setDate(currentDate.getDate() - 1);
@@ -1065,9 +1127,8 @@ private static async checkAndAwardBadges(
           break;
         }
       }
-      
+
       return streak;
-      
     } catch (error) {
       return 0;
     }
@@ -1083,21 +1144,20 @@ private static async checkAndAwardBadges(
         include: {
           badges: {
             include: { achievement: true },
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
           },
           pointHistory: {
             take: 20,
-            orderBy: { createdAt: 'desc' },
+            orderBy: { createdAt: "desc" },
           },
         },
       });
-      
+
       if (!user) return null;
-      
       const totalXP = user.point || 0;
       const levelInfo = this.calculateLevel(totalXP);
       const currentStreak = await this.getCurrentStreak(userId);
-      
+
       // Get completed courses count
       const completedCourses = await prisma.enrollment.count({
         where: {
@@ -1105,7 +1165,7 @@ private static async checkAndAwardBadges(
           status: "COMPLETED",
         },
       });
-      
+
       // Get courses in progress
       const inProgressCourses = await prisma.enrollment.count({
         where: {
@@ -1113,7 +1173,7 @@ private static async checkAndAwardBadges(
           status: "IN_PROGRESS",
         },
       });
-      
+
       // Get quiz mastery count (quizzes with score >= 80%)
       const masteryQuizzes = await prisma.quizAttempt.count({
         where: {
@@ -1121,10 +1181,10 @@ private static async checkAndAwardBadges(
           score: { gte: 80 },
         },
       });
-      
+
       // Calculate XP needed for next level
       const xpNeededForNextLevel = levelInfo.nextLevelXP;
-      
+
       return {
         success: true,
         data: {
@@ -1147,13 +1207,13 @@ private static async checkAndAwardBadges(
             masteryQuizzes,
             badgesCount: user.badges.length,
           },
-          recentActivity: user.pointHistory.slice(0, 10).map(history => ({
+          recentActivity: user.pointHistory.slice(0, 10).map((history) => ({
             action: history.reason,
             points: history.point,
             date: history.createdAt,
             isBonus: history.point > 0 && history.reason?.includes("Bonus"),
           })),
-          badges: user.badges.map(badge => ({
+          badges: user.badges.map((badge) => ({
             id: badge.id,
             name: badge.achievement?.title || badge.badges,
             type: badge.badges,
@@ -1162,7 +1222,6 @@ private static async checkAndAwardBadges(
           })),
         },
       };
-      
     } catch (error) {
       console.error("Error fetching user dashboard:", error);
       return {
@@ -1178,7 +1237,7 @@ private static async checkAndAwardBadges(
    */
   static async getOrganizationLeaderboard(
     organizationId: string,
-    limit: number = 10
+    limit: number = 10,
   ): Promise<any> {
     try {
       const members = await prisma.user.findMany({
@@ -1201,18 +1260,21 @@ private static async checkAndAwardBadges(
             select: { id: true },
           },
         },
-        orderBy: { point: 'desc' },
+        orderBy: { point: "desc" },
         take: limit,
       });
-      
+
       const totalMembers = members.length;
       const totalXP = members.reduce((sum, m) => sum + (m.point || 0), 0);
-      const totalCoursesCompleted = members.reduce((sum, m) => sum + m.enrollment.length, 0);
-      const activeMembers = members.filter(m => {
+      const totalCoursesCompleted = members.reduce(
+        (sum, m) => sum + m.enrollment.length,
+        0,
+      );
+      const activeMembers = members.filter((m) => {
         // Consider active if they have any completed courses or recent activity
         return m.enrollment.length > 0 || (m.point || 0) > 0;
       }).length;
-      
+
       return {
         success: true,
         data: {
@@ -1222,7 +1284,8 @@ private static async checkAndAwardBadges(
             totalCoursesCompleted,
             activeMembers,
             totalMembers,
-            completionRate: totalMembers > 0 ? (activeMembers / totalMembers) * 100 : 0,
+            completionRate:
+              totalMembers > 0 ? (activeMembers / totalMembers) * 100 : 0,
             averageXPPerMember: totalMembers > 0 ? totalXP / totalMembers : 0,
           },
           leaderboard: members.map((member, index) => ({
@@ -1236,7 +1299,6 @@ private static async checkAndAwardBadges(
           })),
         },
       };
-      
     } catch (error) {
       console.error("Error fetching organization leaderboard:", error);
       return {
@@ -1250,7 +1312,10 @@ private static async checkAndAwardBadges(
   /**
    * Get user's progress for a specific course
    */
-  static async getCourseProgress(userId: string, courseId: string): Promise<any> {
+  static async getCourseProgress(
+    userId: string,
+    courseId: string,
+  ): Promise<any> {
     try {
       const enrollment = await prisma.enrollment.findFirst({
         where: {
@@ -1264,33 +1329,32 @@ private static async checkAndAwardBadges(
                 include: {
                   lesson: true,
                 },
-                orderBy: { order: 'asc' },
+                orderBy: { order: "asc" },
               },
             },
           },
         },
       });
-      
+
       if (!enrollment) {
         return {
           success: false,
           message: "User not enrolled in this course",
         };
       }
-      
+
       const totalLessons = enrollment.course.module.reduce(
         (sum, module) => sum + module.lesson.length,
-        0
+        0,
       );
-      
+
       // Get completed lessons count (you'll need to track lesson completion)
       // This is a placeholder - implement based on your lesson progress tracking
       const completedLessons = 0;
-      
-      const progressPercentage = totalLessons > 0 
-        ? (completedLessons / totalLessons) * 100 
-        : 0;
-      
+
+      const progressPercentage =
+        totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+
       return {
         success: true,
         data: {
@@ -1305,7 +1369,7 @@ private static async checkAndAwardBadges(
             lessonsCompleted: completedLessons,
             totalLessons,
           },
-          modules: enrollment.course.module.map(module => ({
+          modules: enrollment.course.module.map((module) => ({
             id: module.id,
             title: module.module_title,
             lessons: module.lesson.length,
@@ -1313,7 +1377,6 @@ private static async checkAndAwardBadges(
           })),
         },
       };
-      
     } catch (error) {
       console.error("Error fetching course progress:", error);
       return {
@@ -1331,7 +1394,7 @@ private static async checkAndAwardBadges(
     userId: string,
     title: string,
     message: string,
-    type: string
+    type: string,
   ): Promise<void> {
     try {
       await prisma.notification.create({
@@ -1340,9 +1403,9 @@ private static async checkAndAwardBadges(
           message,
           type,
           to: userId,
-          role: 'student',
+          role: "student",
           userId,
-          isRead: false
+          isRead: false,
         },
       });
     } catch (error) {
