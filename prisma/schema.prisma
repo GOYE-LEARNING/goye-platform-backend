@@ -691,7 +691,6 @@ model Objectives {
 
 model Discussion {
   id        String   @id @default(cuid())
-  title     String
   content   String
   isPublic  Boolean  @default(true)
   authorId  String

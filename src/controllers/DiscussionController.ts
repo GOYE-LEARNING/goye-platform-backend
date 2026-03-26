@@ -20,7 +20,6 @@ import {
 } from "../services/gamificationService";
 
 interface CreateDiscussionDTO {
-  title: string;
   content: string;
   isPublic: boolean;
 }
@@ -59,7 +58,6 @@ export class DiscussionController extends Controller {
     try {
       const discussion = await prisma.discussion.create({
         data: {
-          title: body.title,
           content: body.content,
           isPublic: true,
           authorId: userId,
@@ -114,12 +112,9 @@ export class DiscussionController extends Controller {
    */
   @Get("/public")
   public async GetPublicDiscussions(
-    @Query() page: number = 1,
-    @Query() limit: number = 20,
     @Query() sort: "latest" | "popular" = "latest"
   ): Promise<any> {
     try {
-      const skip = (page - 1) * limit;
       
       let orderBy: any = { createdAt: "desc" };
       if (sort === "popular") {
@@ -169,8 +164,7 @@ export class DiscussionController extends Controller {
           },
         },
         orderBy,
-        skip,
-        take: limit,
+
       });
 
       const totalCount = await prisma.discussion.count({
@@ -186,10 +180,8 @@ export class DiscussionController extends Controller {
         data: {
           discussions,
           pagination: {
-            page,
-            limit,
+ 
             total: totalCount,
-            totalPages: Math.ceil(totalCount / limit),
           },
         },
       };
@@ -357,7 +349,6 @@ export class DiscussionController extends Controller {
 
       const reply = await prisma.discussion.create({
         data: {
-          title: `Re: ${parent.title}`,
           content: body.content,
           isPublic: true,
           authorId: userId,
@@ -390,7 +381,7 @@ export class DiscussionController extends Controller {
       // Send notification to the discussion author
       if (parent.authorId !== userId) {
         await NotificationService.createNotification({
-          message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion: "${parent.title}"`,
+          message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion"`,
           title: "New Reply",
           type: "discussion",
           role: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
