@@ -18,29 +18,116 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
+import { EncryptionUtil } from "../utils/encryption";
+import { MediaService } from "../services/mediaServices";
 
 interface CreateDiscussionDTO {
   content: string;
   isPublic: boolean;
+  mediaUrls?: string[]; // URLs from Cloudinary
 }
 
 interface ReplyToDiscussionDTO {
   content: string;
+  mediaUrls?: string[];
 }
 
 interface SendPrivateMessageDTO {
   receiverId: string;
   content: string;
+  mediaUrls?: string[]; // Images/videos can be sent in private messages too
 }
 
 @Route("discussion")
 @Tags("Discussion & Messaging APIs")
 export class DiscussionController extends Controller {
   
+  // ==================== MEDIA UPLOADS ====================
+  
+  /**
+   * Upload image for public discussion
+   */
+  @Security("bearerAuth")
+  @Post("/upload/image")
+  public async UploadPublicImage(
+    @Request() req: any,
+    @Body() body: { file: string; fileName: string; mimeType: string }
+  ): Promise<any> {
+    const userId = req.user?.id;
+    const discussionId = `temp_${userId}_${Date.now()}`;
+    
+    const buffer = Buffer.from(body.file, "base64");
+    
+    try {
+      const result = await MediaService.uploadPublicMessageImage(
+        discussionId,
+        userId,
+        buffer,
+        body.fileName,
+        body.mimeType
+      );
+      
+      if (result.error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error: result.error };
+      }
+      
+      this.setStatus(201);
+      return {
+        message: "Image uploaded successfully",
+        data: { url: result.url }
+      };
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      this.setStatus(500);
+      return { message: "Failed to upload image", error: error.message };
+    }
+  }
+  
+  /**
+   * Upload video for public discussion
+   */
+  @Security("bearerAuth")
+  @Post("/upload/video")
+  public async UploadPublicVideo(
+    @Request() req: any,
+    @Body() body: { file: string; fileName: string; mimeType: string }
+  ): Promise<any> {
+    const userId = req.user?.id;
+    const discussionId = `temp_${userId}_${Date.now()}`;
+    
+    const buffer = Buffer.from(body.file, "base64");
+    
+    try {
+      const result = await MediaService.uploadPublicMessageVideos(
+        discussionId,
+        userId,
+        buffer,
+        body.fileName
+      );
+      
+      if (result.error) {
+        this.setStatus(500);
+        return { message: "Upload failed", error: result.error };
+      }
+      
+      this.setStatus(201);
+      return {
+        message: "Video uploaded successfully",
+        data: { url: result.url }
+      };
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      this.setStatus(500);
+      return { message: "Failed to upload video", error: error.message };
+    }
+  }
+  
   // ==================== PUBLIC DISCUSSIONS ====================
   
   /**
-   * Create a new public discussion
+   * Create a new public discussion (text only, images/videos are uploaded separately)
+   * Public discussions: NO ENCRYPTION
    */
   @Security("bearerAuth")
   @Post("/public")
@@ -56,9 +143,11 @@ export class DiscussionController extends Controller {
     }
 
     try {
+      // Public discussions: no encryption needed
       const discussion = await prisma.discussion.create({
         data: {
           content: body.content,
+          mediaUrls: body.mediaUrls || [], // Store Cloudinary URLs
           isPublic: true,
           authorId: userId,
         },
@@ -108,7 +197,7 @@ export class DiscussionController extends Controller {
   }
 
   /**
-   * Get all public discussions
+   * Get all public discussions (content is plain text, no decryption needed)
    */
   @Get("/public")
   public async GetPublicDiscussions(
@@ -164,7 +253,6 @@ export class DiscussionController extends Controller {
           },
         },
         orderBy,
-
       });
 
       const totalCount = await prisma.discussion.count({
@@ -180,7 +268,6 @@ export class DiscussionController extends Controller {
         data: {
           discussions,
           pagination: {
- 
             total: totalCount,
           },
         },
@@ -196,7 +283,7 @@ export class DiscussionController extends Controller {
   }
 
   /**
-   * Get a single discussion with all replies
+   * Get a single discussion with all replies (plain text)
    */
   @Get("/public/{discussionId}")
   public async GetDiscussionById(
@@ -310,7 +397,7 @@ export class DiscussionController extends Controller {
   }
 
   /**
-   * Reply to a discussion
+   * Reply to a public discussion (plain text)
    */
   @Security("bearerAuth")
   @Post("/public/{discussionId}/reply")
@@ -350,6 +437,7 @@ export class DiscussionController extends Controller {
       const reply = await prisma.discussion.create({
         data: {
           content: body.content,
+          mediaUrls: body.mediaUrls || [],
           isPublic: true,
           authorId: userId,
           parentId: discussionId,
@@ -540,10 +628,10 @@ export class DiscussionController extends Controller {
     }
   }
 
-  // ==================== PRIVATE MESSAGES ====================
+  // ==================== PRIVATE MESSAGES (ENCRYPTED) ====================
   
   /**
-   * Send a private message to another user
+   * Send a private message to another user (content is ENCRYPTED)
    */
   @Security("bearerAuth")
   @Post("/private")
@@ -575,9 +663,13 @@ export class DiscussionController extends Controller {
         return { message: "You cannot send a message to yourself" };
       }
 
+      // ENCRYPT the message content before storing
+      const encryptedContent = EncryptionUtil.encrypt(body.content);
+      
+      // Media URLs are NOT encrypted (they're already secure via Cloudinary)
       const message = await prisma.privateMessage.create({
         data: {
-          content: body.content,
+          content: encryptedContent, // Store encrypted text
           senderId: userId,
           receiverId: body.receiverId,
         },
@@ -622,7 +714,10 @@ export class DiscussionController extends Controller {
       this.setStatus(201);
       return {
         message: "Message sent successfully",
-        data: message,
+        data: {
+          ...message,
+          content: body.content, // Return plain text (not encrypted) for the sender
+        },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -641,6 +736,7 @@ export class DiscussionController extends Controller {
 
   /**
    * Get all conversations (list of users you've messaged with)
+   * Returns conversation summaries with unread counts
    */
   @Security("bearerAuth")
   @Get("/private/conversations")
@@ -749,6 +845,7 @@ export class DiscussionController extends Controller {
 
   /**
    * Get private messages between current user and another user
+   * Messages are DECRYPTED before sending to the client
    */
   @Security("bearerAuth")
   @Get("/private/{userId}")
@@ -799,6 +896,12 @@ export class DiscussionController extends Controller {
         take: limit,
       });
 
+      // DECRYPT each message content before sending to client
+      const decryptedMessages = messages.map(message => ({
+        ...message,
+        content: EncryptionUtil.decrypt(message.content), // Decrypt the content
+      }));
+
       // Mark messages as read
       await prisma.privateMessage.updateMany({
         where: {
@@ -824,7 +927,7 @@ export class DiscussionController extends Controller {
       return {
         message: "Messages fetched successfully",
         data: {
-          messages: messages.reverse(),
+          messages: decryptedMessages.reverse(), // Return in chronological order
           pagination: {
             page,
             limit,

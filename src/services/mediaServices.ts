@@ -28,10 +28,10 @@ export class MediaService {
         ],
       });
 
-      console.log("✅ Avatar upload successful:", result.secure_url);
+      console.log(" Avatar upload successful:", result.secure_url);
       return { url: result.secure_url, error: null };
     } catch (error: any) {
-      console.error("❌ Cloudinary avatar upload error:", error);
+      console.error(" Cloudinary avatar upload error:", error);
       return { url: "", error: error.message };
     }
   }
@@ -59,10 +59,10 @@ export class MediaService {
           { quality: "auto:good" }, // Optimize quality
         ],
       });
-      console.log("✅ Avatar upload successful:", result.secure_url);
+      console.log(" Avatar upload successful:", result.secure_url);
       return { url: result.secure_url, error: null };
     } catch (error: any) {
-      console.error("❌ Cloudinary avatar upload error:", error);
+      console.error(" Cloudinary avatar upload error:", error);
       return { url: "", error: error.message };
     }
   }
@@ -89,13 +89,13 @@ export class MediaService {
         ],
       });
 
-      console.log("✅ Group image upload successful:", result.secure_url);
+      console.log(" Group image upload successful:", result.secure_url);
       return {
         url: result.secure_url,
         error: null,
       };
     } catch (error: any) {
-      console.error("❌ Group image upload error:", error);
+      console.error(" Group image upload error:", error);
       return { url: "", error: error.message };
     }
   }
@@ -123,10 +123,10 @@ export class MediaService {
         ],
       });
 
-      console.log("✅ Course image upload successful:", result.secure_url);
+      console.log(" Course image upload successful:", result.secure_url);
       return { url: result.secure_url, error: null };
     } catch (error: any) {
-      console.error("❌ Course image upload error:", error);
+      console.error(" Course image upload error:", error);
       return { url: "", error: error.message };
     }
   }
@@ -159,10 +159,10 @@ export class MediaService {
         },
         (error, result) => {
           if (error) {
-            console.error("❌ Cloudinary Error:", error);
+            console.error(" Cloudinary Error:", error);
             return resolve({ url: "", error: error.message });
           }
-          console.log("✅ Video uploaded successfully:", result?.secure_url);
+          console.log(" Video uploaded successfully:", result?.secure_url);
           resolve({ url: result?.secure_url || "", error: null });
         },
       );
@@ -222,11 +222,11 @@ export class MediaService {
             },
             (error, result) => {
               if (error) {
-                console.error("❌ Course material upload error:", error);
+                console.error(" Course material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
                 console.log(
-                  "✅ Course material upload successful:",
+                  " Course material upload successful:",
                   result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
@@ -252,11 +252,11 @@ export class MediaService {
             },
             (error, result) => {
               if (error) {
-                console.error("❌ Course material upload error:", error);
+                console.error(" Course material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
                 console.log(
-                  "✅ Course material upload successful:",
+                  " Course material upload successful:",
                   result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
@@ -265,7 +265,7 @@ export class MediaService {
           );
         }
       } catch (error: any) {
-        console.error("❌ Unexpected error in uploadCourseMaterial:", error);
+        console.error(" Unexpected error in uploadCourseMaterial:", error);
         resolve({ url: "", error: error.message });
       }
     });
@@ -283,14 +283,14 @@ export class MediaService {
       });
 
       if (result.result === "ok") {
-        console.log(`✅ File deleted successfully: ${publicId}`);
+        console.log(` File deleted successfully: ${publicId}`);
         return { success: true, error: null };
       } else {
-        console.error(`❌ File deletion failed: ${result.result}`);
+        console.error(` File deletion failed: ${result.result}`);
         return { success: false, error: result.result };
       }
     } catch (error: any) {
-      console.error("❌ Delete error:", error);
+      console.error(" Delete error:", error);
       return { success: false, error: error.message };
     }
   }
@@ -322,7 +322,7 @@ export class MediaService {
         error: null,
       };
     } catch (error: any) {
-      console.error("❌ Church image upload error:", error);
+      console.error(" Church image upload error:", error);
       return { url: "", error: error.message };
     }
   }
@@ -354,7 +354,7 @@ export class MediaService {
         error: null,
       };
     } catch (error: any) {
-      console.error("❌ School image upload error:", error);
+      console.error(" School image upload error:", error);
       return { url: "", error: error.message };
     }
   }
@@ -387,11 +387,11 @@ export class MediaService {
             },
             (error, result) => {
               if (error) {
-                console.error("❌ School material upload error:", error);
+                console.error(" School material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
                 console.log(
-                  "✅ School material upload successful:",
+                  " School material upload successful:",
                   result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
@@ -417,11 +417,11 @@ export class MediaService {
             },
             (error, result) => {
               if (error) {
-                console.error("❌ School material upload error:", error);
+                console.error(" School material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
                 console.log(
-                  "✅ School material upload successful:",
+                  " School material upload successful:",
                   result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
@@ -430,7 +430,7 @@ export class MediaService {
           );
         }
       } catch (error: any) {
-        console.error("❌ Unexpected error in uploadSchoolMaterial:", error);
+        console.error(" Unexpected error in uploadSchoolMaterial:", error);
         resolve({ url: "", error: error.message });
       }
     });
@@ -464,11 +464,11 @@ export class MediaService {
             },
             (error, result) => {
               if (error) {
-                console.error("❌ Club material upload error:", error);
+                console.error(" Club material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
                 console.log(
-                  "✅ Club material upload successful:",
+                  " Club material upload successful:",
                   result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
@@ -494,11 +494,11 @@ export class MediaService {
             },
             (error, result) => {
               if (error) {
-                console.error("❌ Club material upload error:", error);
+                console.error(" Club material upload error:", error);
                 resolve({ url: "", error: error.message });
               } else {
                 console.log(
-                  "✅ Club material upload successful:",
+                  " Club material upload successful:",
                   result.secure_url,
                 );
                 resolve({ url: result.secure_url, error: null });
@@ -507,11 +507,130 @@ export class MediaService {
           );
         }
       } catch (error: any) {
-        console.error("❌ Unexpected error in uploadClubMaterial:", error);
+        console.error(" Unexpected error in uploadClubMaterial:", error);
         resolve({ url: "", error: error.message });
       }
     });
   }
+
+static async uploadPublicMessageImage(
+  publicId: string,
+  authorId: string,
+  file: Buffer,
+  fileName: string,
+  mimeType: string,
+): Promise<{ url: string; error: string | null }> {
+  try {
+    console.log("📤 Uploading image to Cloudinary...");
+    const base64File = `data:${mimeType};base64,${file.toString("base64")}`;
+
+    const result = await cloudinary.uploader.upload(base64File, {
+      folder: `public_discussions/${publicId}/${authorId}`,
+      public_id: `image_${Date.now()}`,
+      resource_type: "image",
+      chunk_size: 20000000, // 20MB chunks
+      timeout: 60000, // 60 second timeout (longer for images)
+      quality: "auto:good",
+      transformation: [
+        { width: 1200, height: 1200, crop: "limit" }, // Max dimensions, preserve aspect ratio
+        { quality: "auto" },
+        { fetch_format: "auto" }, // Auto format (webp for modern browsers)
+      ],
+    });
+
+    console.log(" Image upload successful:", result.secure_url);
+    
+    // Return media object with metadata
+    return { 
+      url: result.secure_url, 
+      error: null 
+    };
+  } catch (error) {
+    console.error(" Image upload error:", error);
+    return { url: "", error: error.message };
+  }
+}
+
+static async uploadPublicMessageVideos(
+  publicId: string,
+  authorId: string,
+  file: Buffer,
+  fileName: string,
+): Promise<{ url: string; error: string | null; metadata?: any }> {
+  return new Promise((resolve) => {
+    console.log("📤 Uploading video to Cloudinary...");
+    console.log(`File size: ${(file.length / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`File name: ${fileName}`);
+
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: `public_discussions/${publicId}/${authorId}`,
+        public_id: `video_${Date.now()}`,
+        resource_type: "video",
+        chunk_size: 20000000, // 20MB chunks
+        timeout: 300000, // 5 minutes timeout
+        eager: [
+          { streaming_profile: "hd", format: "m3u8" }, // HLS streaming
+          { width: 640, height: 360, crop: "pad", format: "jpg" }, // Thumbnail
+        ],
+        eager_async: true,
+        allowed_formats: ["mp4", "mov", "avi", "mkv", "webm", "m4v"],
+        transformation: [
+          { quality: "auto" },
+          { fetch_format: "auto" },
+        ],
+      },
+      (error, result) => {
+        if (error) {
+          console.error(" Cloudinary Error:", error);
+          return resolve({ url: "", error: error.message });
+        }
+        
+        console.log(" Video uploaded successfully:", result?.secure_url);
+        
+        // Return media object with metadata
+        resolve({ 
+          url: result?.secure_url || "", 
+          error: null,
+          metadata: {
+            duration: result?.duration,
+            format: result?.format,
+            width: result?.width,
+            height: result?.height,
+            bytes: result?.bytes,
+            thumbnail: result?.eager?.[1]?.secure_url || null,
+            streamingUrl: result?.eager?.[0]?.secure_url || null,
+          }
+        });
+      },
+    );
+
+    // Handle large files by streaming in chunks
+    const chunkSize = 1024 * 1024; // 1MB chunks
+    let offset = 0;
+
+    const writeNextChunk = () => {
+      if (offset >= file.length) {
+        uploadStream.end();
+        return;
+      }
+
+      const end = Math.min(offset + chunkSize, file.length);
+      const chunk = file.slice(offset, end);
+      const canWrite = uploadStream.write(chunk);
+
+      offset = end;
+
+      if (canWrite) {
+        process.nextTick(writeNextChunk);
+      } else {
+        uploadStream.once("drain", writeNextChunk);
+      }
+    };
+
+    writeNextChunk();
+  });
+}
 
   // Additional utility method for getting video info
   static async getVideoInfo(publicId: string): Promise<any> {
@@ -521,7 +640,7 @@ export class MediaService {
       });
       return result;
     } catch (error) {
-      console.error("❌ Error getting video info:", error);
+      console.error(" Error getting video info:", error);
       throw error;
     }
   }
@@ -545,7 +664,7 @@ export class MediaService {
 
       return thumbnailUrl;
     } catch (error) {
-      console.error("❌ Error generating thumbnail:", error);
+      console.error(" Error generating thumbnail:", error);
       return "";
     }
   }

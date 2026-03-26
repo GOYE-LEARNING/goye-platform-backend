@@ -692,6 +692,7 @@ model Objectives {
 model Discussion {
   id        String   @id @default(cuid())
   content   String
+  mediaUrls Json? @default("[]")
   isPublic  Boolean  @default(true)
   authorId  String
   parentId  String?
