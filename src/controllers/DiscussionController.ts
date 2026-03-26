@@ -21,21 +21,30 @@ import {
 import { EncryptionUtil } from "../utils/encryption";
 import { MediaService } from "../services/mediaServices";
 
+// Update the interface to accept objects
 interface CreateDiscussionDTO {
   content: string;
   isPublic: boolean;
-  mediaUrls?: string[]; // URLs from Cloudinary
+  mediaUrls?: any[]; // Change from string[] to any[] to accept objects
 }
 
 interface ReplyToDiscussionDTO {
   content: string;
-  mediaUrls?: string[];
+  mediaUrls?: any[];
+}
+
+// Or create a proper interface
+
+interface CreateDiscussionDTO {
+  content: string;
+  isPublic: boolean;
+  mediaUrls?: any[];
 }
 
 interface SendPrivateMessageDTO {
   receiverId: string;
   content: string;
-  mediaUrls?: string[]; // Images/videos can be sent in private messages too
+  // No media for private messages (text only for security)
 }
 
 @Route("discussion")
@@ -129,72 +138,82 @@ export class DiscussionController extends Controller {
    * Create a new public discussion (text only, images/videos are uploaded separately)
    * Public discussions: NO ENCRYPTION
    */
-  @Security("bearerAuth")
-  @Post("/public")
-  public async CreatePublicDiscussion(
-    @Request() req: any,
-    @Body() body: CreateDiscussionDTO
-  ): Promise<any> {
-    const userId = req.user?.id;
+ /**
+ * Create a new public discussion (text only, images/videos are uploaded separately)
+ * Public discussions: NO ENCRYPTION
+ */
+@Security("bearerAuth")
+@Post("/public")
+public async CreatePublicDiscussion(
+  @Request() req: any,
+  @Body() body: CreateDiscussionDTO
+): Promise<any> {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authorized" };
-    }
-
-    try {
-      // Public discussions: no encryption needed
-      const discussion = await prisma.discussion.create({
-        data: {
-          content: body.content,
-          mediaUrls: body.mediaUrls || [], // Store Cloudinary URLs
-          isPublic: true,
-          authorId: userId,
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
-            },
-          },
-          _count: {
-            select: {
-              replies: true,
-              likes: true,
-            },
-          },
-        },
-      });
-
-      // Award XP for starting a discussion
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-      );
-
-      this.setStatus(201);
-      return {
-        message: "Discussion created successfully",
-        data: discussion,
-        gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error creating discussion:", error);
-      this.setStatus(500);
-      return {
-        message: "Failed to create discussion",
-        error: error.message,
-      };
-    }
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
   }
+
+  try {
+    // Validate content
+    if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
+      this.setStatus(400);
+      return { message: "Content or media is required" };
+    }
+
+    // Public discussions: no encryption needed
+    const discussion = await prisma.discussion.create({
+      data: {
+        content: body.content || "",
+        mediaUrls: body.mediaUrls || [], // Store the array of objects as JSON
+        isPublic: true,
+        authorId: userId,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        _count: {
+          select: {
+            replies: true,
+            likes: true,
+          },
+        },
+      },
+    });
+
+    // Award XP for starting a discussion
+    const gamificationResult = await GamificationService.AddPointsWithGamification(
+      userId,
+      ActionType.DISCUSSION_PARTICIPATION,
+    );
+
+    this.setStatus(201);
+    return {
+      message: "Discussion created successfully",
+      data: discussion,
+      gamification: {
+        pointsEarned: gamificationResult.data?.pointsAdded,
+        leveledUp: gamificationResult.data?.leveledUp,
+        newLevel: gamificationResult.data?.newLevel,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error creating discussion:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to create discussion",
+      error: error.message,
+    };
+  }
+}
 
   /**
    * Get all public discussions (content is plain text, no decryption needed)
@@ -399,104 +418,104 @@ export class DiscussionController extends Controller {
   /**
    * Reply to a public discussion (plain text)
    */
-  @Security("bearerAuth")
-  @Post("/public/{discussionId}/reply")
-  public async ReplyToDiscussion(
-    @Request() req: any,
-    @Path() discussionId: string,
-    @Body() body: ReplyToDiscussionDTO
-  ): Promise<any> {
-    const userId = req.user?.id;
+@Security("bearerAuth")
+@Post("/public/{discussionId}/reply")
+public async ReplyToDiscussion(
+  @Request() req: any,
+  @Path() discussionId: string,
+  @Body() body: ReplyToDiscussionDTO
+): Promise<any> {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authorized" };
-    }
-
-    try {
-      // Check if parent discussion exists
-      const parent = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true },
-        include: {
-          author: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              role: true
-            },
-          },
-        },
-      });
-
-      if (!parent) {
-        this.setStatus(404);
-        return { message: "Discussion not found" };
-      }
-
-      const reply = await prisma.discussion.create({
-        data: {
-          content: body.content,
-          mediaUrls: body.mediaUrls || [],
-          isPublic: true,
-          authorId: userId,
-          parentId: discussionId,
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
-            },
-          },
-          _count: {
-            select: {
-              likes: true,
-            },
-          },
-        },
-      });
-
-      // Award XP for replying
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-      );
-
-      // Send notification to the discussion author
-      if (parent.authorId !== userId) {
-        await NotificationService.createNotification({
-          message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion"`,
-          title: "New Reply",
-          type: "discussion",
-          role: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
-          to: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
-          userId: parent.authorId,
-        });
-      }
-
-      this.setStatus(201);
-      return {
-        message: "Reply added successfully",
-        data: reply,
-        gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error replying to discussion:", error);
-      this.setStatus(500);
-      return {
-        message: "Failed to add reply",
-        error: error.message,
-      };
-    }
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
   }
+
+  try {
+    // Check if parent discussion exists
+    const parent = await prisma.discussion.findUnique({
+      where: { id: discussionId, isPublic: true },
+      include: {
+        author: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            role: true
+          },
+        },
+      },
+    });
+
+    if (!parent) {
+      this.setStatus(404);
+      return { message: "Discussion not found" };
+    }
+
+    const reply = await prisma.discussion.create({
+      data: {
+        content: body.content,
+        mediaUrls: body.mediaUrls || [], // Store media objects
+        isPublic: true,
+        authorId: userId,
+        parentId: discussionId,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+          },
+        },
+      },
+    });
+
+    // Award XP for replying
+    const gamificationResult = await GamificationService.AddPointsWithGamification(
+      userId,
+      ActionType.DISCUSSION_PARTICIPATION,
+    );
+
+    // Send notification to the discussion author
+    if (parent.authorId !== userId) {
+      await NotificationService.createNotification({
+        message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion"`,
+        title: "New Reply",
+        type: "discussion",
+        role: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+        to: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+        userId: parent.authorId,
+      });
+    }
+
+    this.setStatus(201);
+    return {
+      message: "Reply added successfully",
+      data: reply,
+      gamification: {
+        pointsEarned: gamificationResult.data?.pointsAdded,
+        leveledUp: gamificationResult.data?.leveledUp,
+        newLevel: gamificationResult.data?.newLevel,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error replying to discussion:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to add reply",
+      error: error.message,
+    };
+  }
+}
 
   /**
    * Like or unlike a discussion/reply
