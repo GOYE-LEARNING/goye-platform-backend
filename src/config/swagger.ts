@@ -1,23 +1,36 @@
 // src/config/swagger.ts
 import swaggerUi from "swagger-ui-express";
+import { readFileSync } from "fs";
 import { join } from "path";
-import fs from "fs";
 
 export const setupSwagger = (app: any) => {
   try {
-    // Look for swagger.json in the routes folder
-    const swaggerPath = join(__dirname, "../routes", "swagger.json");
+    // Try multiple possible locations
+    const possiblePaths = [
+      join(__dirname, "../routes/swagger.json"),      // /src/config/../routes/swagger.json
+      join(process.cwd(), "src/routes/swagger.json"), // absolute path from root
+      join(process.cwd(), "dist/routes/swagger.json"), // production path
+    ];
+
+    let swaggerDocument = null;
     
-    console.log(` Looking for swagger at: ${swaggerPath}`);
-    if (fs.existsSync(swaggerPath)) {
-      console.log(` Found swagger.json`);
-      const swaggerDocument = JSON.parse(fs.readFileSync(swaggerPath, "utf8"));
+    for (const path of possiblePaths) {
+      try {
+        swaggerDocument = JSON.parse(readFileSync(path, "utf8"));
+        console.log(`✅ Found swagger.json at: ${path}`);
+        break;
+      } catch (e) {
+        // continue trying
+      }
+    }
+
+    if (swaggerDocument) {
       app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
       console.log("✅ Swagger UI available at /api/docs");
     } else {
-      console.log("⚠️ swagger.json not found. Run 'npm run swagger' to generate it.");
+      console.log("⚠️ swagger.json not found in any location");
     }
   } catch (error) {
-    console.error("❌ Swagger error:", error);
+    console.error("❌ Swagger setup error:", error);
   }
 };
