@@ -39,11 +39,17 @@ interface CreateDiscussionDTO {
 interface ReplyToDiscussionDTO {
   content: string;
   mediaUrls?: MediaItem[];
+  parentReplyId?: string; // For nested replies
 }
 
 interface SendPrivateMessageDTO {
   receiverId: string;
   content: string;
+}
+
+interface NestedReplyDTO {
+  content: string;
+  mediaUrls?: MediaItem[];
 }
 
 @Route("discussion")
@@ -151,7 +157,7 @@ export class DiscussionController extends Controller {
       
       const discussion = await prisma.discussion.create({
         data: {
-          content: encryptedContent, // Store encrypted content
+          content: encryptedContent,
           mediaUrls: body.mediaUrls as any || [],
           isPublic: true,
           authorId: userId,
@@ -185,7 +191,7 @@ export class DiscussionController extends Controller {
         message: "Discussion created successfully",
         data: {
           ...discussion,
-          content: body.content, // Return plain text to the creator
+          content: body.content,
         },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
@@ -234,38 +240,14 @@ export class DiscussionController extends Controller {
               likes: true,
             },
           },
-          replies: {
-            take: 3,
-            orderBy: { createdAt: "asc" },
-            include: {
-              author: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  user_pic: true,
-                  role: true,
-                },
-              },
-              _count: {
-                select: {
-                  likes: true,
-                },
-              },
-            },
-          },
         },
         orderBy,
       });
 
-      // DECRYPT each discussion content before sending to client
+      // DECRYPT each discussion content
       const decryptedDiscussions = discussions.map(discussion => ({
         ...discussion,
         content: EncryptionUtil.decrypt(discussion.content),
-        replies: discussion.replies.map(reply => ({
-          ...reply,
-          content: EncryptionUtil.decrypt(reply.content),
-        })),
       }));
 
       const totalCount = await prisma.discussion.count({
@@ -295,6 +277,9 @@ export class DiscussionController extends Controller {
     }
   }
 
+  /**
+   * Get a single discussion with all nested replies (full thread)
+   */
   @Get("/public/{discussionId}")
   public async GetDiscussionById(
     @Path() discussionId: string,
@@ -343,7 +328,6 @@ export class DiscussionController extends Controller {
                 },
               },
               replies: {
-                take: 3,
                 orderBy: { createdAt: "asc" },
                 include: {
                   author: {
@@ -352,6 +336,23 @@ export class DiscussionController extends Controller {
                       first_name: true,
                       last_name: true,
                       user_pic: true,
+                      role: true,
+                    },
+                  },
+                  _count: {
+                    select: {
+                      likes: true,
+                    },
+                  },
+                  parent: {
+                    include: {
+                      author: {
+                        select: {
+                          id: true,
+                          first_name: true,
+                          last_name: true,
+                        },
+                      },
                     },
                   },
                 },
@@ -377,18 +378,23 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
-      // DECRYPT the discussion content and replies
+      // Recursive function to decrypt nested replies
+      const decryptNestedReplies = (replies: any[]): any[] => {
+        return replies.map(reply => ({
+          ...reply,
+          content: EncryptionUtil.decrypt(reply.content),
+          replies: reply.replies ? decryptNestedReplies(reply.replies) : [],
+          parent: reply.parent ? {
+            ...reply.parent,
+            author: reply.parent.author,
+          } : null,
+        }));
+      };
+
       const decryptedDiscussion = {
         ...discussion,
         content: EncryptionUtil.decrypt(discussion.content),
-        replies: discussion.replies.map(reply => ({
-          ...reply,
-          content: EncryptionUtil.decrypt(reply.content),
-          replies: reply.replies.map(nestedReply => ({
-            ...nestedReply,
-            content: EncryptionUtil.decrypt(nestedReply.content),
-          })),
-        })),
+        replies: decryptNestedReplies(discussion.replies),
       };
 
       const totalReplies = await prisma.discussion.count({
@@ -420,6 +426,9 @@ export class DiscussionController extends Controller {
     }
   }
 
+  /**
+   * Reply to a discussion (top-level comment)
+   */
   @Security("bearerAuth")
   @Post("/public/{discussionId}/reply")
   public async ReplyToDiscussion(
@@ -443,7 +452,7 @@ export class DiscussionController extends Controller {
               id: true,
               first_name: true,
               last_name: true,
-              role: true
+              role: true,
             },
           },
         },
@@ -454,12 +463,11 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
-      // ENCRYPT the reply content
       const encryptedContent = EncryptionUtil.encrypt(body.content);
 
       const reply = await prisma.discussion.create({
         data: {
-          content: encryptedContent, // Store encrypted content
+          content: encryptedContent,
           mediaUrls: body.mediaUrls as any || [],
           isPublic: true,
           authorId: userId,
@@ -504,7 +512,7 @@ export class DiscussionController extends Controller {
         message: "Reply added successfully",
         data: {
           ...reply,
-          content: body.content, // Return plain text to the sender
+          content: body.content,
         },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
@@ -522,9 +530,276 @@ export class DiscussionController extends Controller {
     }
   }
 
-  // ... (keep all other methods the same: ToggleLike, DeleteDiscussion, etc.)
-  // ... (private message methods remain the same - they're already encrypted)
+  /**
+   * Reply to a specific reply (nested reply)
+   * This creates a nested comment showing "User replied to @User"
+   */
+  @Security("bearerAuth")
+  @Post("/reply/{replyId}/nested")
+  public async ReplyToReply(
+    @Request() req: any,
+    @Path() replyId: string,
+    @Body() body: NestedReplyDTO
+  ): Promise<any> {
+    const userId = req.user?.id;
 
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
+
+    try {
+      // Find the parent reply
+      const parentReply = await prisma.discussion.findUnique({
+        where: { id: replyId, isPublic: true },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              role: true,
+            },
+          },
+          parent: {
+            select: {
+              id: true,
+              authorId: true,
+              author: {
+                select: {
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!parentReply) {
+        this.setStatus(404);
+        return { message: "Reply not found" };
+      }
+
+      // Get the original discussion ID (root parent)
+      let rootDiscussionId = replyId;
+      let current = parentReply;
+      while (current.parentId) {
+        const parent = await prisma.discussion.findUnique({
+          where: { id: current.parentId },
+          select: { id: true, parentId: true },
+        });
+        if (!parent) break;
+        rootDiscussionId = parent.id;
+        current = parent as any;
+      }
+
+      // Create the nested reply with reference to who they're replying to
+      const replyToName = `${parentReply.author.first_name} ${parentReply.author.last_name}`;
+      const contentWithMention = `${body.content}`;
+      
+      const encryptedContent = EncryptionUtil.encrypt(contentWithMention);
+
+      const nestedReply = await prisma.discussion.create({
+        data: {
+          content: encryptedContent,
+          mediaUrls: body.mediaUrls as any || [],
+          isPublic: true,
+          authorId: userId,
+          parentId: replyId, // This makes it a child of the parent reply
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          _count: {
+            select: {
+              likes: true,
+            },
+          },
+        },
+      });
+
+      const gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+      );
+
+      // Send notification to the user being replied to
+      if (parentReply.authorId !== userId) {
+        await NotificationService.createNotification({
+          message: `${req.user?.first_name} ${req.user?.last_name} replied to your comment: "${body.content.substring(0, 50)}..."`,
+          title: "New Reply",
+          type: "discussion",
+          role: parentReply.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+          to: parentReply.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+          userId: parentReply.authorId,
+        });
+      }
+
+      this.setStatus(201);
+      return {
+        message: "Nested reply added successfully",
+        data: {
+          ...nestedReply,
+          content: body.content,
+          replyTo: {
+            id: parentReply.author.id,
+            name: replyToName,
+          },
+        },
+        gamification: {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error creating nested reply:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to add nested reply",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get a single reply with all its nested replies
+   */
+  @Get("/reply/{replyId}")
+  public async GetReplyWithNested(
+    @Path() replyId: string,
+    @Query() page: number = 1,
+    @Query() limit: number = 20
+  ): Promise<any> {
+    try {
+      const skip = (page - 1) * limit;
+
+      const reply = await prisma.discussion.findUnique({
+        where: { id: replyId, isPublic: true },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          _count: {
+            select: {
+              likes: true,
+              replies: true,
+            },
+          },
+          parent: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+          },
+          replies: {
+            orderBy: { createdAt: "asc" },
+            skip,
+            take: limit,
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                  role: true,
+                },
+              },
+              _count: {
+                select: {
+                  likes: true,
+                },
+              },
+              parent: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!reply) {
+        this.setStatus(404);
+        return { message: "Reply not found" };
+      }
+
+      // Decrypt all content
+      const decryptedReply = {
+        ...reply,
+        content: EncryptionUtil.decrypt(reply.content),
+        replies: reply.replies.map(nestedReply => ({
+          ...nestedReply,
+          content: EncryptionUtil.decrypt(nestedReply.content),
+          parent: nestedReply.parent ? {
+            ...nestedReply.parent,
+            author: nestedReply.parent.author,
+          } : null,
+        })),
+        parent: reply.parent ? {
+          ...reply.parent,
+          author: reply.parent.author,
+        } : null,
+      };
+
+      const totalReplies = await prisma.discussion.count({
+        where: {
+          parentId: replyId,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Reply fetched successfully",
+        data: {
+          ...decryptedReply,
+          pagination: {
+            page,
+            limit,
+            total: totalReplies,
+            totalPages: Math.ceil(totalReplies / limit),
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching reply:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch reply",
+        error: error.message,
+      };
+    }
+  }
+
+  // ==================== LIKE FUNCTIONALITY ====================
+  
   @Security("bearerAuth")
   @Post("/{discussionId}/like")
   public async ToggleLike(
@@ -678,12 +953,11 @@ export class DiscussionController extends Controller {
         return { message: "You cannot send a message to yourself" };
       }
 
-      // ENCRYPT the message content before storing
       const encryptedContent = EncryptionUtil.encrypt(body.content);
       
       const message = await prisma.privateMessage.create({
         data: {
-          content: encryptedContent, // Store encrypted text
+          content: encryptedContent,
           senderId: userId,
           receiverId: body.receiverId,
         },
@@ -728,7 +1002,7 @@ export class DiscussionController extends Controller {
         message: "Message sent successfully",
         data: {
           ...message,
-          content: body.content, // Return plain text for the sender
+          content: body.content,
         },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
@@ -897,7 +1171,6 @@ export class DiscussionController extends Controller {
         take: limit,
       });
 
-      // DECRYPT each message content before sending to client
       const decryptedMessages = messages.map(message => ({
         ...message,
         content: EncryptionUtil.decrypt(message.content),
