@@ -1,3 +1,4 @@
+// src/utils/constants.ts
 export const PORT = process.env.PORT || 10000;
 
 export const ALLOWED_ORIGINS = [

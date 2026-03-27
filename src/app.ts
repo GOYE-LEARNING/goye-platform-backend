@@ -1,13 +1,17 @@
-import express, { Request, Response } from "express";
+// src/app.ts
+import express, { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { RegisterRoutes } from "./routes/routes";
-import { corsOptions } from "./config/cors";
 import { setupSwagger } from "./config/swagger";
-import { requestLogger } from "./middleware/logger";
 import { errorHandler } from "./middleware/errorHandler";
+import { requestLogger } from "./middleware/logger";
+import { corsOptions } from "./config/cors";
+import prisma from "./db";
 
-export const createApp = () => {
+export const createApp = async () => {
   const app = express();
+
+  console.log("🔄 Setting up middleware...");
 
   // Basic middleware
   app.use(express.json({ limit: "500mb" }));
@@ -26,16 +30,35 @@ export const createApp = () => {
     res.json({ status: "OK", timestamp: new Date().toISOString() });
   });
 
+  // Test database connection endpoint
+  app.get("/api/db-test", async (req: Request, res: Response) => {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      res.json({ message: "Database connected successfully" });
+    } catch (error) {
+      console.error("Database test failed:", error);
+      res.status(500).json({ error: "Database connection failed" });
+    }
+  });
+
   // Test endpoint
   app.get("/api/test", (req: Request, res: Response) => {
     res.json({ message: "API is working!" });
   });
 
   // Swagger documentation
+  console.log("📚 Setting up Swagger...");
   setupSwagger(app);
 
   // Register tsoa routes
-  RegisterRoutes(app);
+  console.log("🛣️ Registering routes...");
+  try {
+    RegisterRoutes(app);
+    console.log("✅ Routes registered successfully");
+  } catch (error) {
+    console.error("❌ Failed to register routes:", error);
+    throw error;
+  }
 
   // Error handler
   app.use(errorHandler);
@@ -45,5 +68,6 @@ export const createApp = () => {
     res.status(404).json({ message: "Route not found" });
   });
 
+  console.log("✅ App created successfully");
   return app;
 };

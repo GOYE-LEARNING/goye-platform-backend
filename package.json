@@ -3,17 +3,19 @@
   "version": "1.0.0",
   "description": "GOYE Education Platform API",
   "main": "dist/app.js",
+ 
   "scripts": {
     "postinstall": "npx prisma generate",
     "build": "npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
-    "start": "node dist/app.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "tsoa:routes": "tsoa routes",
     "tsoa:spec": "tsoa spec",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
     "render-build": "npm install && npm run build"
   },
+
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
