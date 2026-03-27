@@ -90,22 +90,6 @@ const models: TsoaRoute.Models = {
         "type": {"ref":"Pick_Group.Exclude_keyofGroup.id__","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "BadgeType": {
-        "dataType": "refEnum",
-        "enums": ["COURSE_COMPLETION","CONSISTENCY","MASTERY","MILESTONE","COMMUNITY"],
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "BadgeEarned": {
-        "dataType": "refObject",
-        "properties": {
-            "badgeId": {"dataType":"string","required":true},
-            "badgeName": {"dataType":"string","required":true},
-            "badgeType": {"ref":"BadgeType","required":true},
-            "awardedAt": {"dataType":"datetime","required":true},
-        },
-        "additionalProperties": false,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_EventDTO.Exclude_keyofEventDTO.id__": {
         "dataType": "refAlias",
         "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"event_name":{"dataType":"string"},"event_description":{"dataType":"string"},"event_time":{"dataType":"string"},"event_date":{"dataType":"string"},"event_type":{"dataType":"string"},"event_link":{"dataType":"string"}},"validators":{}},
@@ -178,12 +162,23 @@ const models: TsoaRoute.Models = {
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MediaItem": {
+        "dataType": "refObject",
+        "properties": {
+            "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["image"]},{"dataType":"enum","enums":["video"]}],"required":true},
+            "url": {"dataType":"string","required":true},
+            "filename": {"dataType":"string","required":true},
+            "caption": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "CreateDiscussionDTO": {
         "dataType": "refObject",
         "properties": {
-            "title": {"dataType":"string","required":true},
             "content": {"dataType":"string","required":true},
             "isPublic": {"dataType":"boolean","required":true},
+            "mediaUrls": {"dataType":"array","array":{"dataType":"refObject","ref":"MediaItem"}},
         },
         "additionalProperties": false,
     },
@@ -192,6 +187,17 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "content": {"dataType":"string","required":true},
+            "mediaUrls": {"dataType":"array","array":{"dataType":"refObject","ref":"MediaItem"}},
+            "parentReplyId": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "NestedReplyDTO": {
+        "dataType": "refObject",
+        "properties": {
+            "content": {"dataType":"string","required":true},
+            "mediaUrls": {"dataType":"array","array":{"dataType":"refObject","ref":"MediaItem"}},
         },
         "additionalProperties": false,
     },
@@ -3692,6 +3698,70 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_UploadPublicImage: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"mimeType":{"dataType":"string","required":true},"fileName":{"dataType":"string","required":true},"file":{"dataType":"string","required":true}}},
+        };
+        app.post('/api/discussion/upload/image',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.UploadPublicImage)),
+
+            async function DiscussionController_UploadPublicImage(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_UploadPublicImage, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'UploadPublicImage',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_UploadPublicVideo: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"mimeType":{"dataType":"string","required":true},"fileName":{"dataType":"string","required":true},"file":{"dataType":"string","required":true}}},
+        };
+        app.post('/api/discussion/upload/video',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.UploadPublicVideo)),
+
+            async function DiscussionController_UploadPublicVideo(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_UploadPublicVideo, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'UploadPublicVideo',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsDiscussionController_CreatePublicDiscussion: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 body: {"in":"body","name":"body","required":true,"ref":"CreateDiscussionDTO"},
@@ -3725,8 +3795,6 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsDiscussionController_GetPublicDiscussions: Record<string, TsoaRoute.ParameterSchema> = {
-                page: {"default":1,"in":"query","name":"page","dataType":"double"},
-                limit: {"default":20,"in":"query","name":"limit","dataType":"double"},
                 sort: {"default":"latest","in":"query","name":"sort","dataType":"union","subSchemas":[{"dataType":"enum","enums":["latest"]},{"dataType":"enum","enums":["popular"]}]},
         };
         app.get('/api/discussion/public',
@@ -3810,6 +3878,71 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'ReplyToDiscussion',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_ReplyToReply: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                replyId: {"in":"path","name":"replyId","required":true,"dataType":"string"},
+                body: {"in":"body","name":"body","required":true,"ref":"NestedReplyDTO"},
+        };
+        app.post('/api/discussion/reply/:replyId/nested',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.ReplyToReply)),
+
+            async function DiscussionController_ReplyToReply(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_ReplyToReply, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'ReplyToReply',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_GetReplyWithNested: Record<string, TsoaRoute.ParameterSchema> = {
+                replyId: {"in":"path","name":"replyId","required":true,"dataType":"string"},
+                page: {"default":1,"in":"query","name":"page","dataType":"double"},
+                limit: {"default":20,"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/discussion/reply/:replyId',
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.GetReplyWithNested)),
+
+            async function DiscussionController_GetReplyWithNested(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_GetReplyWithNested, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'GetReplyWithNested',
                 controller,
                 response,
                 next,
