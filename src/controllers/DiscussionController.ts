@@ -125,7 +125,7 @@ export class DiscussionController extends Controller {
     }
   }
   
-  // ==================== PUBLIC DISCUSSIONS (NO ENCRYPTION) ====================
+  // ==================== PUBLIC DISCUSSIONS (ENCRYPTED) ====================
   
   @Security("bearerAuth")
   @Post("/public")
@@ -146,10 +146,12 @@ export class DiscussionController extends Controller {
         return { message: "Content or media is required" };
       }
 
-      // Public discussions: NO ENCRYPTION - store as plain text
+      // ENCRYPT the public discussion content
+      const encryptedContent = EncryptionUtil.encrypt(body.content);
+      
       const discussion = await prisma.discussion.create({
         data: {
-          content: body.content || "",
+          content: encryptedContent, // Store encrypted content
           mediaUrls: body.mediaUrls as any || [],
           isPublic: true,
           authorId: userId,
@@ -181,7 +183,10 @@ export class DiscussionController extends Controller {
       this.setStatus(201);
       return {
         message: "Discussion created successfully",
-        data: discussion,
+        data: {
+          ...discussion,
+          content: body.content, // Return plain text to the creator
+        },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -253,6 +258,16 @@ export class DiscussionController extends Controller {
         orderBy,
       });
 
+      // DECRYPT each discussion content before sending to client
+      const decryptedDiscussions = discussions.map(discussion => ({
+        ...discussion,
+        content: EncryptionUtil.decrypt(discussion.content),
+        replies: discussion.replies.map(reply => ({
+          ...reply,
+          content: EncryptionUtil.decrypt(reply.content),
+        })),
+      }));
+
       const totalCount = await prisma.discussion.count({
         where: {
           isPublic: true,
@@ -260,12 +275,11 @@ export class DiscussionController extends Controller {
         },
       });
 
-      // Public discussions: NO DECRYPTION - return as is
       this.setStatus(200);
       return {
         message: "Discussions fetched successfully",
         data: {
-          discussions,
+          discussions: decryptedDiscussions,
           pagination: {
             total: totalCount,
           },
@@ -363,6 +377,20 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
+      // DECRYPT the discussion content and replies
+      const decryptedDiscussion = {
+        ...discussion,
+        content: EncryptionUtil.decrypt(discussion.content),
+        replies: discussion.replies.map(reply => ({
+          ...reply,
+          content: EncryptionUtil.decrypt(reply.content),
+          replies: reply.replies.map(nestedReply => ({
+            ...nestedReply,
+            content: EncryptionUtil.decrypt(nestedReply.content),
+          })),
+        })),
+      };
+
       const totalReplies = await prisma.discussion.count({
         where: {
           parentId: discussionId,
@@ -373,7 +401,7 @@ export class DiscussionController extends Controller {
       return {
         message: "Discussion fetched successfully",
         data: {
-          ...discussion,
+          ...decryptedDiscussion,
           pagination: {
             page,
             limit,
@@ -426,9 +454,12 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
+      // ENCRYPT the reply content
+      const encryptedContent = EncryptionUtil.encrypt(body.content);
+
       const reply = await prisma.discussion.create({
         data: {
-          content: body.content,
+          content: encryptedContent, // Store encrypted content
           mediaUrls: body.mediaUrls as any || [],
           isPublic: true,
           authorId: userId,
@@ -471,7 +502,10 @@ export class DiscussionController extends Controller {
       this.setStatus(201);
       return {
         message: "Reply added successfully",
-        data: reply,
+        data: {
+          ...reply,
+          content: body.content, // Return plain text to the sender
+        },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -487,6 +521,9 @@ export class DiscussionController extends Controller {
       };
     }
   }
+
+  // ... (keep all other methods the same: ToggleLike, DeleteDiscussion, etc.)
+  // ... (private message methods remain the same - they're already encrypted)
 
   @Security("bearerAuth")
   @Post("/{discussionId}/like")
