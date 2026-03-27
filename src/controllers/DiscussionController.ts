@@ -21,30 +21,29 @@ import {
 import { EncryptionUtil } from "../utils/encryption";
 import { MediaService } from "../services/mediaServices";
 
-// Update the interface to accept objects
+// ==================== INTERFACES ====================
+
+interface MediaItem {
+  type: "image" | "video";
+  url: string;
+  filename: string;
+  caption?: string;
+}
+
 interface CreateDiscussionDTO {
   content: string;
   isPublic: boolean;
-  mediaUrls?: any[]; // Change from string[] to any[] to accept objects
+  mediaUrls?: MediaItem[];
 }
 
 interface ReplyToDiscussionDTO {
   content: string;
-  mediaUrls?: any[];
-}
-
-// Or create a proper interface
-
-interface CreateDiscussionDTO {
-  content: string;
-  isPublic: boolean;
-  mediaUrls?: any[];
+  mediaUrls?: MediaItem[];
 }
 
 interface SendPrivateMessageDTO {
   receiverId: string;
   content: string;
-  // No media for private messages (text only for security)
 }
 
 @Route("discussion")
@@ -53,9 +52,6 @@ export class DiscussionController extends Controller {
   
   // ==================== MEDIA UPLOADS ====================
   
-  /**
-   * Upload image for public discussion
-   */
   @Security("bearerAuth")
   @Post("/upload/image")
   public async UploadPublicImage(
@@ -93,9 +89,6 @@ export class DiscussionController extends Controller {
     }
   }
   
-  /**
-   * Upload video for public discussion
-   */
   @Security("bearerAuth")
   @Post("/upload/video")
   public async UploadPublicVideo(
@@ -132,98 +125,84 @@ export class DiscussionController extends Controller {
     }
   }
   
-  // ==================== PUBLIC DISCUSSIONS ====================
+  // ==================== PUBLIC DISCUSSIONS (NO ENCRYPTION) ====================
   
-  /**
-   * Create a new public discussion (text only, images/videos are uploaded separately)
-   * Public discussions: NO ENCRYPTION
-   */
- /**
- * Create a new public discussion (text only, images/videos are uploaded separately)
- * Public discussions: NO ENCRYPTION
- */
-@Security("bearerAuth")
-@Post("/public")
-public async CreatePublicDiscussion(
-  @Request() req: any,
-  @Body() body: CreateDiscussionDTO
-): Promise<any> {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Post("/public")
+  public async CreatePublicDiscussion(
+    @Request() req: any,
+    @Body() body: CreateDiscussionDTO
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    // Validate content
-    if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
-      this.setStatus(400);
-      return { message: "Content or media is required" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    // Public discussions: no encryption needed
-    const discussion = await prisma.discussion.create({
-      data: {
-        content: body.content || "",
-        mediaUrls: body.mediaUrls || [], // Store the array of objects as JSON
-        isPublic: true,
-        authorId: userId,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
+    try {
+      if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
+        this.setStatus(400);
+        return { message: "Content or media is required" };
+      }
+
+      // Public discussions: NO ENCRYPTION - store as plain text
+      const discussion = await prisma.discussion.create({
+        data: {
+          content: body.content || "",
+          mediaUrls: body.mediaUrls as any || [],
+          isPublic: true,
+          authorId: userId,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          _count: {
+            select: {
+              replies: true,
+              likes: true,
+            },
           },
         },
-        _count: {
-          select: {
-            replies: true,
-            likes: true,
-          },
+      });
+
+      const gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+      );
+
+      this.setStatus(201);
+      return {
+        message: "Discussion created successfully",
+        data: discussion,
+        gamification: {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
         },
-      },
-    });
-
-    // Award XP for starting a discussion
-    const gamificationResult = await GamificationService.AddPointsWithGamification(
-      userId,
-      ActionType.DISCUSSION_PARTICIPATION,
-    );
-
-    this.setStatus(201);
-    return {
-      message: "Discussion created successfully",
-      data: discussion,
-      gamification: {
-        pointsEarned: gamificationResult.data?.pointsAdded,
-        leveledUp: gamificationResult.data?.leveledUp,
-        newLevel: gamificationResult.data?.newLevel,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error creating discussion:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to create discussion",
-      error: error.message,
-    };
+      };
+    } catch (error: any) {
+      console.error("Error creating discussion:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to create discussion",
+        error: error.message,
+      };
+    }
   }
-}
 
-  /**
-   * Get all public discussions (content is plain text, no decryption needed)
-   */
   @Get("/public")
   public async GetPublicDiscussions(
     @Query() sort: "latest" | "popular" = "latest"
   ): Promise<any> {
     try {
-      
       let orderBy: any = { createdAt: "desc" };
       if (sort === "popular") {
         orderBy = { likes: { _count: "desc" } };
@@ -281,6 +260,7 @@ public async CreatePublicDiscussion(
         },
       });
 
+      // Public discussions: NO DECRYPTION - return as is
       this.setStatus(200);
       return {
         message: "Discussions fetched successfully",
@@ -301,9 +281,6 @@ public async CreatePublicDiscussion(
     }
   }
 
-  /**
-   * Get a single discussion with all replies (plain text)
-   */
   @Get("/public/{discussionId}")
   public async GetDiscussionById(
     @Path() discussionId: string,
@@ -415,111 +392,102 @@ public async CreatePublicDiscussion(
     }
   }
 
-  /**
-   * Reply to a public discussion (plain text)
-   */
-@Security("bearerAuth")
-@Post("/public/{discussionId}/reply")
-public async ReplyToDiscussion(
-  @Request() req: any,
-  @Path() discussionId: string,
-  @Body() body: ReplyToDiscussionDTO
-): Promise<any> {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Post("/public/{discussionId}/reply")
+  public async ReplyToDiscussion(
+    @Request() req: any,
+    @Path() discussionId: string,
+    @Body() body: ReplyToDiscussionDTO
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    // Check if parent discussion exists
-    const parent = await prisma.discussion.findUnique({
-      where: { id: discussionId, isPublic: true },
-      include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            role: true
-          },
-        },
-      },
-    });
-
-    if (!parent) {
-      this.setStatus(404);
-      return { message: "Discussion not found" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    const reply = await prisma.discussion.create({
-      data: {
-        content: body.content,
-        mediaUrls: body.mediaUrls || [], // Store media objects
-        isPublic: true,
-        authorId: userId,
-        parentId: discussionId,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
+    try {
+      const parent = await prisma.discussion.findUnique({
+        where: { id: discussionId, isPublic: true },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              role: true
+            },
           },
         },
-        _count: {
-          select: {
-            likes: true,
-          },
-        },
-      },
-    });
-
-    // Award XP for replying
-    const gamificationResult = await GamificationService.AddPointsWithGamification(
-      userId,
-      ActionType.DISCUSSION_PARTICIPATION,
-    );
-
-    // Send notification to the discussion author
-    if (parent.authorId !== userId) {
-      await NotificationService.createNotification({
-        message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion"`,
-        title: "New Reply",
-        type: "discussion",
-        role: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
-        to: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
-        userId: parent.authorId,
       });
+
+      if (!parent) {
+        this.setStatus(404);
+        return { message: "Discussion not found" };
+      }
+
+      const reply = await prisma.discussion.create({
+        data: {
+          content: body.content,
+          mediaUrls: body.mediaUrls as any || [],
+          isPublic: true,
+          authorId: userId,
+          parentId: discussionId,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          _count: {
+            select: {
+              likes: true,
+            },
+          },
+        },
+      });
+
+      const gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+      );
+
+      if (parent.authorId !== userId) {
+        await NotificationService.createNotification({
+          message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion`,
+          title: "New Reply",
+          type: "discussion",
+          role: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+          to: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+          userId: parent.authorId,
+        });
+      }
+
+      this.setStatus(201);
+      return {
+        message: "Reply added successfully",
+        data: reply,
+        gamification: {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error replying to discussion:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to add reply",
+        error: error.message,
+      };
     }
-
-    this.setStatus(201);
-    return {
-      message: "Reply added successfully",
-      data: reply,
-      gamification: {
-        pointsEarned: gamificationResult.data?.pointsAdded,
-        leveledUp: gamificationResult.data?.leveledUp,
-        newLevel: gamificationResult.data?.newLevel,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error replying to discussion:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to add reply",
-      error: error.message,
-    };
   }
-}
 
-  /**
-   * Like or unlike a discussion/reply
-   */
   @Security("bearerAuth")
   @Post("/{discussionId}/like")
   public async ToggleLike(
@@ -596,9 +564,6 @@ public async ReplyToDiscussion(
     }
   }
 
-  /**
-   * Delete a discussion or reply (only author or admin can delete)
-   */
   @Security("bearerAuth")
   @Delete("/{discussionId}")
   public async DeleteDiscussion(
@@ -623,7 +588,6 @@ public async ReplyToDiscussion(
         return { message: "Discussion not found" };
       }
 
-      // Check if user is author or admin/instructor
       if (discussion.authorId !== userId && userRole !== "instructor" && userRole !== "admin") {
         this.setStatus(403);
         return { message: "You don't have permission to delete this" };
@@ -649,9 +613,6 @@ public async ReplyToDiscussion(
 
   // ==================== PRIVATE MESSAGES (ENCRYPTED) ====================
   
-  /**
-   * Send a private message to another user (content is ENCRYPTED)
-   */
   @Security("bearerAuth")
   @Post("/private")
   public async SendPrivateMessage(
@@ -666,7 +627,6 @@ public async ReplyToDiscussion(
     }
 
     try {
-      // Check if receiver exists
       const receiver = await prisma.user.findUnique({
         where: { id: body.receiverId },
       });
@@ -676,7 +636,6 @@ public async ReplyToDiscussion(
         return { message: "User not found" };
       }
 
-      // Don't allow sending message to self
       if (userId === body.receiverId) {
         this.setStatus(400);
         return { message: "You cannot send a message to yourself" };
@@ -685,7 +644,6 @@ public async ReplyToDiscussion(
       // ENCRYPT the message content before storing
       const encryptedContent = EncryptionUtil.encrypt(body.content);
       
-      // Media URLs are NOT encrypted (they're already secure via Cloudinary)
       const message = await prisma.privateMessage.create({
         data: {
           content: encryptedContent, // Store encrypted text
@@ -714,7 +672,6 @@ public async ReplyToDiscussion(
         },
       });
 
-      // Send notification
       await NotificationService.createNotification({
         message: `${req.user?.first_name} ${req.user?.last_name} sent you a private message`,
         title: "New Private Message",
@@ -724,7 +681,6 @@ public async ReplyToDiscussion(
         userId: receiver.id,
       });
 
-      // Award XP for sending a message
       const gamificationResult = await GamificationService.AddPointsWithGamification(
         userId,
         ActionType.DISCUSSION_PARTICIPATION,
@@ -735,7 +691,7 @@ public async ReplyToDiscussion(
         message: "Message sent successfully",
         data: {
           ...message,
-          content: body.content, // Return plain text (not encrypted) for the sender
+          content: body.content, // Return plain text for the sender
         },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
@@ -753,10 +709,6 @@ public async ReplyToDiscussion(
     }
   }
 
-  /**
-   * Get all conversations (list of users you've messaged with)
-   * Returns conversation summaries with unread counts
-   */
   @Security("bearerAuth")
   @Get("/private/conversations")
   public async GetPrivateConversations(@Request() req: any): Promise<any> {
@@ -768,7 +720,6 @@ public async ReplyToDiscussion(
     }
 
     try {
-      // Get all unique users that the current user has messaged with
       const sentMessages = await prisma.privateMessage.findMany({
         where: { senderId: userId },
         distinct: ["receiverId"],
@@ -791,7 +742,6 @@ public async ReplyToDiscussion(
         orderBy: { createdAt: "desc" },
       });
 
-      // Combine and deduplicate
       const conversationsMap = new Map();
 
       for (const msg of sentMessages) {
@@ -828,7 +778,6 @@ public async ReplyToDiscussion(
             unreadCount,
           });
         } else {
-          // Update unread count for existing conversation
           const existing = conversationsMap.get(msg.senderId);
           const unreadCount = await prisma.privateMessage.count({
             where: {
@@ -862,10 +811,6 @@ public async ReplyToDiscussion(
     }
   }
 
-  /**
-   * Get private messages between current user and another user
-   * Messages are DECRYPTED before sending to the client
-   */
   @Security("bearerAuth")
   @Get("/private/{userId}")
   public async GetPrivateMessages(
@@ -918,10 +863,9 @@ public async ReplyToDiscussion(
       // DECRYPT each message content before sending to client
       const decryptedMessages = messages.map(message => ({
         ...message,
-        content: EncryptionUtil.decrypt(message.content), // Decrypt the content
+        content: EncryptionUtil.decrypt(message.content),
       }));
 
-      // Mark messages as read
       await prisma.privateMessage.updateMany({
         where: {
           senderId: userId,
@@ -946,7 +890,7 @@ public async ReplyToDiscussion(
       return {
         message: "Messages fetched successfully",
         data: {
-          messages: decryptedMessages.reverse(), // Return in chronological order
+          messages: decryptedMessages.reverse(),
           pagination: {
             page,
             limit,
@@ -965,9 +909,6 @@ public async ReplyToDiscussion(
     }
   }
 
-  /**
-   * Get unread message count
-   */
   @Security("bearerAuth")
   @Get("/private/unread/count")
   public async GetUnreadCount(@Request() req: any): Promise<any> {
