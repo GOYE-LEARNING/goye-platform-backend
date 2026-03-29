@@ -35,7 +35,7 @@ export class SocketService {
 
         const parsedCookies = cookie.parse(cookieHeader); 
         const token = parsedCookies.token; 
-        if (!token) return next(new Error("Authentication error"));
+        if (!token) return next(new Error(`Authentication error: ${token}`));
 
         const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
           id: string;
