@@ -33,16 +33,16 @@ export class SocketService {
         const cookieHeader = socket.handshake.headers.cookie;
         if (!cookieHeader) return next(new Error("Authentication error"));
 
-        const parsedCookies = cookie.parse(cookieHeader); 
-        const token = parsedCookies.token; 
+        const parsedCookies = cookie.parse(cookieHeader);
+        const token = parsedCookies.token;
         if (!token) return next(new Error(`Authentication error: ${token}`));
 
         const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
           id: string;
-        }; 
+        };
         if (!decoded.id)
           return next(new Error("Authentication error: Invalid token"));
-        socket.data.id = decoded.id;
+        socket.data.userId = decoded.id;
 
         next();
       } catch (err) {
