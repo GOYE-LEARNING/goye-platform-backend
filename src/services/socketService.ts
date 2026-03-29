@@ -2,7 +2,8 @@ import { Server, Socket } from "socket.io";
 import prisma from "../db";
 import { EncryptionUtil } from "../utils/encryption";
 import { SOCKET_EVENTS, ALLOWED_ORIGINS } from "../utils/constant";
-
+import cookie from 'cookie'
+import jwt from 'jsonwebtoken'
 interface SocketUser {
   userId: string;
   socketId: string;
@@ -27,24 +28,24 @@ export class SocketService {
   }
 
   private setupMiddleware() {
-    this.io.use(async (socket, next) => {
-      const token = socket.handshake.auth.token;
-      if (!token) {
-        return next(new Error("Authentication error"));
-      }
+    this.io.use((socket, next) => {
+  try {
+    const cookieHeader = socket.handshake.headers.cookie;
+    if (!cookieHeader) return next(new Error("Authentication error"));
 
-      try {
-        // TODO: Implement proper token verification
-        const userId = socket.handshake.headers.userId;
-        if (!userId) {
-          return next(new Error("User ID required"));
-        }
-        socket.data.userId = userId;
-        next();
-      } catch (error) {
-        next(new Error("Authentication error"));
-      }
-    });
+    const parsedCookies = cookie.parse(cookieHeader); // parse the cookies
+    const token = parsedCookies.token; // get your token
+    if (!token) return next(new Error("Authentication error"));
+
+    // TODO: verify token and extract userId
+    const userId = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {userId: string} // replace with your decoding logic
+    socket.data.userId = userId;
+
+    next();
+  } catch (err) {
+    next(new Error("Authentication error"));
+  }
+});
   }
 
   private setupEventHandlers() {

@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "GOYE Education Platform API",
   "main": "dist/app.js",
- 
   "scripts": {
     "postinstall": "npx prisma generate",
     "build": "npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
@@ -15,7 +14,6 @@
     "prisma:push": "npx prisma db push",
     "render-build": "npm install && npm run build"
   },
-
   "dependencies": {
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
@@ -25,6 +23,7 @@
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "cloudinary": "^2.8.0",
+    "cookie": "^1.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "crypto-js": "^4.2.0",
@@ -43,6 +42,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/cookie": "^0.6.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/crypto-js": "^4.2.2",
