@@ -2,8 +2,8 @@ import { Server, Socket } from "socket.io";
 import prisma from "../db";
 import { EncryptionUtil } from "../utils/encryption";
 import { SOCKET_EVENTS, ALLOWED_ORIGINS } from "../utils/constant";
-import cookie from 'cookie'
-import jwt from 'jsonwebtoken'
+import cookie from "cookie";
+import jwt from "jsonwebtoken";
 interface SocketUser {
   userId: string;
   socketId: string;
@@ -11,7 +11,7 @@ interface SocketUser {
   lastSeen: Date;
 }
 
-export class SocketService {  
+export class SocketService {
   private io: Server;
   private onlineUsers: Map<string, SocketUser> = new Map();
 
@@ -29,23 +29,26 @@ export class SocketService {
 
   private setupMiddleware() {
     this.io.use((socket, next) => {
-  try {
-    const cookieHeader = socket.handshake.headers.cookie;
-    if (!cookieHeader) return next(new Error("Authentication error"));
+      try {
+        const cookieHeader = socket.handshake.headers.cookie;
+        if (!cookieHeader) return next(new Error("Authentication error"));
 
-    const parsedCookies = cookie.parse(cookieHeader); // parse the cookies
-    const token = parsedCookies.token; // get your token
-    if (!token) return next(new Error("Authentication error"));
+        const parsedCookies = cookie.parse(cookieHeader); 
+        const token = parsedCookies.token; 
+        if (!token) return next(new Error("Authentication error"));
 
-    // TODO: verify token and extract userId
-    const userId = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {userId: string} // replace with your decoding logic
-    socket.data.userId = userId;
+        const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
+          userId: string;
+        }; 
+        if (!decoded.userId)
+          return next(new Error("Authentication error: Invalid token"));
+        socket.data.userId = decoded.userId;
 
-    next();
-  } catch (err) {
-    next(new Error("Authentication error"));
-  }
-});
+        next();
+      } catch (err) {
+        next(new Error("Authentication error"));
+      }
+    });
   }
 
   private setupEventHandlers() {
@@ -88,7 +91,9 @@ export class SocketService {
         const senderId = userId;
 
         if (!receiverId || !content) {
-          socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, { message: "Invalid message data" });
+          socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
+            message: "Invalid message data",
+          });
           return;
         }
 
@@ -139,7 +144,9 @@ export class SocketService {
         });
       } catch (error) {
         console.error("Error sending private message:", error);
-        socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, { message: "Failed to send message" });
+        socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
+          message: "Failed to send message",
+        });
       }
     });
 
@@ -202,16 +209,16 @@ export class SocketService {
     // Get online users
     socket.on("users:online", () => {
       const online = Array.from(this.onlineUsers.values())
-        .filter(u => u.online)
-        .map(u => u.userId);
+        .filter((u) => u.online)
+        .map((u) => u.userId);
       socket.emit(SOCKET_EVENTS.USERS_ONLINE_LIST, online);
     });
   }
 
   getOnlineUsers() {
     return Array.from(this.onlineUsers.values())
-      .filter(u => u.online)
-      .map(u => u.userId);
+      .filter((u) => u.online)
+      .map((u) => u.userId);
   }
 
   getUserStatus(userId: string) {
