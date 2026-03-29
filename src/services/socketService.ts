@@ -31,10 +31,11 @@ export class SocketService {
     this.io.use((socket, next) => {
       try {
         const cookieHeader = socket.handshake.headers.cookie;
-        if (!cookieHeader) return next(new Error("Authentication error"));
+        console.log("🍪 Cookie header:", cookieHeader); // 👈 add this
 
-        const parsedCookies = cookie.parse(cookieHeader);
+        const parsedCookies = cookie.parse(cookieHeader || "");
         const token = parsedCookies.token;
+        console.log("🔑 Token found:", !!token);
         if (!token) return next(new Error(`Authentication error: ${token}`));
 
         const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
