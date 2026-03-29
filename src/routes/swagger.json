@@ -10167,6 +10167,129 @@
 				"parameters": []
 			}
 		},
+		"/discussion/tutors": {
+			"get": {
+				"operationId": "GetAvailableTutors",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get tutors/instructors based on student's enrolled courses and groups\r\nThis returns all instructors/tutors that the student can message",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/discussion/tutors/search": {
+			"get": {
+				"operationId": "SearchTutors",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Search for tutors by name (for finding new conversations)",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "query",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/tutors/{tutorId}/conversation": {
+			"get": {
+				"operationId": "GetTutorConversation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get the latest conversation for a specific tutor",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "tutorId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 50,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
 		"/course/create-course": {
 			"post": {
 				"operationId": "CreateCourse",
