@@ -2,7 +2,7 @@ import { Server, Socket } from "socket.io";
 import prisma from "../db";
 import { EncryptionUtil } from "../utils/encryption";
 import { SOCKET_EVENTS, ALLOWED_ORIGINS } from "../utils/constant";
-import cookie from "cookie";
+import * as cookie from "cookie";
 import jwt from "jsonwebtoken";
 interface SocketUser {
   userId: string;
