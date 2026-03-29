@@ -47,6 +47,7 @@ export class SocketService {
 
         next();
       } catch (err) {
+        console.error(" JWT verify failed:", err);
         next(new Error("Authentication error"));
       }
     });
