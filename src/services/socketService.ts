@@ -38,11 +38,11 @@ export class SocketService {
         if (!token) return next(new Error("Authentication error"));
 
         const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
-          userId: string;
+          id: string;
         }; 
-        if (!decoded.userId)
+        if (!decoded.id)
           return next(new Error("Authentication error: Invalid token"));
-        socket.data.userId = decoded.userId;
+        socket.data.id = decoded.id;
 
         next();
       } catch (err) {
