@@ -10,7 +10,7 @@ interface SocketUser {
   lastSeen: Date;
 }
 
-export class SocketService {
+export class SocketService {  
   private io: Server;
   private onlineUsers: Map<string, SocketUser> = new Map();
 
@@ -35,7 +35,7 @@ export class SocketService {
 
       try {
         // TODO: Implement proper token verification
-        const userId = socket.handshake.auth.userId;
+        const userId = socket.handshake.headers.userId;
         if (!userId) {
           return next(new Error("User ID required"));
         }
