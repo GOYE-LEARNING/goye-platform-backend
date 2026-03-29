@@ -55,38 +55,37 @@ interface NestedReplyDTO {
 @Route("discussion")
 @Tags("Discussion & Messaging APIs")
 export class DiscussionController extends Controller {
-  
   // ==================== MEDIA UPLOADS ====================
-  
+
   @Security("bearerAuth")
   @Post("/upload/image")
   public async UploadPublicImage(
     @Request() req: any,
-    @Body() body: { file: string; fileName: string; mimeType: string }
+    @Body() body: { file: string; fileName: string; mimeType: string },
   ): Promise<any> {
     const userId = req.user?.id;
     const discussionId = `temp_${userId}_${Date.now()}`;
-    
+
     const buffer = Buffer.from(body.file, "base64");
-    
+
     try {
       const result = await MediaService.uploadPublicMessageImage(
         discussionId,
         userId,
         buffer,
         body.fileName,
-        body.mimeType
+        body.mimeType,
       );
-      
+
       if (result.error) {
         this.setStatus(500);
         return { message: "Upload failed", error: result.error };
       }
-      
+
       this.setStatus(201);
       return {
         message: "Image uploaded successfully",
-        data: { url: result.url }
+        data: { url: result.url },
       };
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -94,35 +93,35 @@ export class DiscussionController extends Controller {
       return { message: "Failed to upload image", error: error.message };
     }
   }
-  
+
   @Security("bearerAuth")
   @Post("/upload/video")
   public async UploadPublicVideo(
     @Request() req: any,
-    @Body() body: { file: string; fileName: string; mimeType: string }
+    @Body() body: { file: string; fileName: string; mimeType: string },
   ): Promise<any> {
     const userId = req.user?.id;
     const discussionId = `temp_${userId}_${Date.now()}`;
-    
+
     const buffer = Buffer.from(body.file, "base64");
-    
+
     try {
       const result = await MediaService.uploadPublicMessageVideos(
         discussionId,
         userId,
         buffer,
-        body.fileName
+        body.fileName,
       );
-      
+
       if (result.error) {
         this.setStatus(500);
         return { message: "Upload failed", error: result.error };
       }
-      
+
       this.setStatus(201);
       return {
         message: "Video uploaded successfully",
-        data: { url: result.url }
+        data: { url: result.url },
       };
     } catch (error: any) {
       console.error("Upload error:", error);
@@ -130,14 +129,14 @@ export class DiscussionController extends Controller {
       return { message: "Failed to upload video", error: error.message };
     }
   }
-  
+
   // ==================== PUBLIC DISCUSSIONS (ENCRYPTED) ====================
-  
+
   @Security("bearerAuth")
   @Post("/public")
   public async CreatePublicDiscussion(
     @Request() req: any,
-    @Body() body: CreateDiscussionDTO
+    @Body() body: CreateDiscussionDTO,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -154,11 +153,11 @@ export class DiscussionController extends Controller {
 
       // ENCRYPT the public discussion content
       const encryptedContent = EncryptionUtil.encrypt(body.content);
-      
+
       const discussion = await prisma.discussion.create({
         data: {
           content: encryptedContent,
-          mediaUrls: body.mediaUrls as any || [],
+          mediaUrls: (body.mediaUrls as any) || [],
           isPublic: true,
           authorId: userId,
         },
@@ -181,10 +180,11 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.DISCUSSION_PARTICIPATION,
+        );
 
       this.setStatus(201);
       return {
@@ -211,7 +211,7 @@ export class DiscussionController extends Controller {
 
   @Get("/public")
   public async GetPublicDiscussions(
-    @Query() sort: "latest" | "popular" = "latest"
+    @Query() sort: "latest" | "popular" = "latest",
   ): Promise<any> {
     try {
       let orderBy: any = { createdAt: "desc" };
@@ -245,7 +245,7 @@ export class DiscussionController extends Controller {
       });
 
       // DECRYPT each discussion content
-      const decryptedDiscussions = discussions.map(discussion => ({
+      const decryptedDiscussions = discussions.map((discussion) => ({
         ...discussion,
         content: EncryptionUtil.decrypt(discussion.content),
       }));
@@ -284,7 +284,7 @@ export class DiscussionController extends Controller {
   public async GetDiscussionById(
     @Path() discussionId: string,
     @Query() page: number = 1,
-    @Query() limit: number = 20
+    @Query() limit: number = 20,
   ): Promise<any> {
     try {
       const skip = (page - 1) * limit;
@@ -380,14 +380,16 @@ export class DiscussionController extends Controller {
 
       // Recursive function to decrypt nested replies
       const decryptNestedReplies = (replies: any[]): any[] => {
-        return replies.map(reply => ({
+        return replies.map((reply) => ({
           ...reply,
           content: EncryptionUtil.decrypt(reply.content),
           replies: reply.replies ? decryptNestedReplies(reply.replies) : [],
-          parent: reply.parent ? {
-            ...reply.parent,
-            author: reply.parent.author,
-          } : null,
+          parent: reply.parent
+            ? {
+                ...reply.parent,
+                author: reply.parent.author,
+              }
+            : null,
         }));
       };
 
@@ -434,7 +436,7 @@ export class DiscussionController extends Controller {
   public async ReplyToDiscussion(
     @Request() req: any,
     @Path() discussionId: string,
-    @Body() body: ReplyToDiscussionDTO
+    @Body() body: ReplyToDiscussionDTO,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -468,7 +470,7 @@ export class DiscussionController extends Controller {
       const reply = await prisma.discussion.create({
         data: {
           content: encryptedContent,
-          mediaUrls: body.mediaUrls as any || [],
+          mediaUrls: (body.mediaUrls as any) || [],
           isPublic: true,
           authorId: userId,
           parentId: discussionId,
@@ -491,18 +493,25 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.DISCUSSION_PARTICIPATION,
+        );
 
       if (parent.authorId !== userId) {
         await NotificationService.createNotification({
           message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion`,
           title: "New Reply",
           type: "discussion",
-          role: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
-          to: parent.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+          role:
+            parent.author.role === "instructor"
+              ? Role.INSTRUCTOR
+              : Role.STUDENT,
+          to:
+            parent.author.role === "instructor"
+              ? Role.INSTRUCTOR
+              : Role.STUDENT,
           userId: parent.authorId,
         });
       }
@@ -539,7 +548,7 @@ export class DiscussionController extends Controller {
   public async ReplyToReply(
     @Request() req: any,
     @Path() replyId: string,
-    @Body() body: NestedReplyDTO
+    @Body() body: NestedReplyDTO,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -597,13 +606,13 @@ export class DiscussionController extends Controller {
       // Create the nested reply with reference to who they're replying to
       const replyToName = `${parentReply.author.first_name} ${parentReply.author.last_name}`;
       const contentWithMention = `${body.content}`;
-      
+
       const encryptedContent = EncryptionUtil.encrypt(contentWithMention);
 
       const nestedReply = await prisma.discussion.create({
         data: {
           content: encryptedContent,
-          mediaUrls: body.mediaUrls as any || [],
+          mediaUrls: (body.mediaUrls as any) || [],
           isPublic: true,
           authorId: userId,
           parentId: replyId, // This makes it a child of the parent reply
@@ -626,10 +635,11 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.DISCUSSION_PARTICIPATION,
+        );
 
       // Send notification to the user being replied to
       if (parentReply.authorId !== userId) {
@@ -637,8 +647,14 @@ export class DiscussionController extends Controller {
           message: `${req.user?.first_name} ${req.user?.last_name} replied to your comment: "${body.content.substring(0, 50)}..."`,
           title: "New Reply",
           type: "discussion",
-          role: parentReply.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
-          to: parentReply.author.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
+          role:
+            parentReply.author.role === "instructor"
+              ? Role.INSTRUCTOR
+              : Role.STUDENT,
+          to:
+            parentReply.author.role === "instructor"
+              ? Role.INSTRUCTOR
+              : Role.STUDENT,
           userId: parentReply.authorId,
         });
       }
@@ -677,7 +693,7 @@ export class DiscussionController extends Controller {
   public async GetReplyWithNested(
     @Path() replyId: string,
     @Query() page: number = 1,
-    @Query() limit: number = 20
+    @Query() limit: number = 20,
   ): Promise<any> {
     try {
       const skip = (page - 1) * limit;
@@ -755,18 +771,22 @@ export class DiscussionController extends Controller {
       const decryptedReply = {
         ...reply,
         content: EncryptionUtil.decrypt(reply.content),
-        replies: reply.replies.map(nestedReply => ({
+        replies: reply.replies.map((nestedReply) => ({
           ...nestedReply,
           content: EncryptionUtil.decrypt(nestedReply.content),
-          parent: nestedReply.parent ? {
-            ...nestedReply.parent,
-            author: nestedReply.parent.author,
-          } : null,
+          parent: nestedReply.parent
+            ? {
+                ...nestedReply.parent,
+                author: nestedReply.parent.author,
+              }
+            : null,
         })),
-        parent: reply.parent ? {
-          ...reply.parent,
-          author: reply.parent.author,
-        } : null,
+        parent: reply.parent
+          ? {
+              ...reply.parent,
+              author: reply.parent.author,
+            }
+          : null,
       };
 
       const totalReplies = await prisma.discussion.count({
@@ -799,12 +819,12 @@ export class DiscussionController extends Controller {
   }
 
   // ==================== LIKE FUNCTIONALITY ====================
-  
+
   @Security("bearerAuth")
   @Post("/{discussionId}/like")
   public async ToggleLike(
     @Request() req: any,
-    @Path() discussionId: string
+    @Path() discussionId: string,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -880,7 +900,7 @@ export class DiscussionController extends Controller {
   @Delete("/{discussionId}")
   public async DeleteDiscussion(
     @Request() req: any,
-    @Path() discussionId: string
+    @Path() discussionId: string,
   ): Promise<any> {
     const userId = req.user?.id;
     const userRole = req.user?.role;
@@ -900,7 +920,11 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
-      if (discussion.authorId !== userId && userRole !== "instructor" && userRole !== "admin") {
+      if (
+        discussion.authorId !== userId &&
+        userRole !== "instructor" &&
+        userRole !== "admin"
+      ) {
         this.setStatus(403);
         return { message: "You don't have permission to delete this" };
       }
@@ -924,12 +948,12 @@ export class DiscussionController extends Controller {
   }
 
   // ==================== PRIVATE MESSAGES (ENCRYPTED) ====================
-  
+
   @Security("bearerAuth")
   @Post("/private")
   public async SendPrivateMessage(
     @Request() req: any,
-    @Body() body: SendPrivateMessageDTO
+    @Body() body: SendPrivateMessageDTO,
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -954,7 +978,7 @@ export class DiscussionController extends Controller {
       }
 
       const encryptedContent = EncryptionUtil.encrypt(body.content);
-      
+
       const message = await prisma.privateMessage.create({
         data: {
           content: encryptedContent,
@@ -992,10 +1016,11 @@ export class DiscussionController extends Controller {
         userId: receiver.id,
       });
 
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.DISCUSSION_PARTICIPATION,
+        );
 
       this.setStatus(201);
       return {
@@ -1034,8 +1059,8 @@ export class DiscussionController extends Controller {
       const sentMessages = await prisma.privateMessage.findMany({
         where: { senderId: userId },
         distinct: ["receiverId"],
-        select: { 
-          receiverId: true, 
+        select: {
+          receiverId: true,
           receiver: true,
           createdAt: true,
         },
@@ -1045,8 +1070,8 @@ export class DiscussionController extends Controller {
       const receivedMessages = await prisma.privateMessage.findMany({
         where: { receiverId: userId },
         distinct: ["senderId"],
-        select: { 
-          senderId: true, 
+        select: {
+          senderId: true,
           sender: true,
           createdAt: true,
         },
@@ -1064,7 +1089,7 @@ export class DiscussionController extends Controller {
               readAt: null,
             },
           });
-          
+
           conversationsMap.set(msg.receiverId, {
             user: msg.receiver,
             lastMessageAt: msg.createdAt,
@@ -1082,7 +1107,7 @@ export class DiscussionController extends Controller {
               readAt: null,
             },
           });
-          
+
           conversationsMap.set(msg.senderId, {
             user: msg.sender,
             lastMessageAt: msg.createdAt,
@@ -1104,8 +1129,11 @@ export class DiscussionController extends Controller {
         }
       }
 
-      const conversations = Array.from(conversationsMap.values())
-        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+      const conversations = Array.from(conversationsMap.values()).sort(
+        (a, b) =>
+          new Date(b.lastMessageAt).getTime() -
+          new Date(a.lastMessageAt).getTime(),
+      );
 
       this.setStatus(200);
       return {
@@ -1128,7 +1156,7 @@ export class DiscussionController extends Controller {
     @Request() req: any,
     @Path() userId: string,
     @Query() page: number = 1,
-    @Query() limit: number = 50
+    @Query() limit: number = 50,
   ): Promise<any> {
     const currentUserId = req.user?.id;
 
@@ -1171,7 +1199,7 @@ export class DiscussionController extends Controller {
         take: limit,
       });
 
-      const decryptedMessages = messages.map(message => ({
+      const decryptedMessages = messages.map((message) => ({
         ...message,
         content: EncryptionUtil.decrypt(message.content),
       }));
@@ -1254,443 +1282,656 @@ export class DiscussionController extends Controller {
 
   // ==================== TUTOR FETCHING ENDPOINTS ====================
 
-/**
- * Get tutors/instructors based on student's enrolled courses and groups
- * This returns all instructors/tutors that the student can message
- */
-@Security("bearerAuth")
-@Get("/tutors")
-public async GetAvailableTutors(@Request() req: any): Promise<any> {
-  const userId = req.user?.id;
+  /**
+   * Get tutors/instructors based on student's enrolled courses and groups
+   * This returns all instructors/tutors that the student can message
+   */
+  @Security("bearerAuth")
+  @Get("/tutors")
+  public async GetAvailableTutors(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
 
-  try {
-    // Get the user's role
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { role: true }
-    });
+    try {
+      // Get the user's role
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
 
-    // If user is an instructor/tutor, they can see other instructors in their courses
-    const isInstructor = user?.role === "instructor" || user?.role === "admin" || user?.role === "tutor";
+      // If user is an instructor/tutor, they can see other instructors in their courses
+      const isInstructor =
+        user?.role === "instructor" ||
+        user?.role === "admin" ||
+        user?.role === "tutor";
 
-    let tutors: any[] = [];
+      let tutors: any[] = [];
 
-    if (isInstructor) {
-      // For instructors: get other instructors from shared courses
-      const instructorCourses = await prisma.course.findMany({
-        where: {
-          createdUserId: userId
-        },
-        select: {
-          id: true,
-          createdUserId: true
+      if (isInstructor) {
+        // For instructors: get other instructors from shared courses
+        const instructorCourses = await prisma.course.findMany({
+          where: {
+            createdUserId: userId,
+          },
+          select: {
+            id: true,
+            createdUserId: true,
+          },
+        });
+
+        const courseIds = instructorCourses.map((c) => c.id);
+
+        // Get other instructors from same courses
+        const otherInstructors = await prisma.course.findMany({
+          where: {
+            id: { in: courseIds },
+            createdUserId: { not: userId },
+          },
+          select: {
+            createdByDetails: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+                role: true,
+              },
+            },
+          },
+        });
+
+        tutors = otherInstructors
+          .filter((c) => c.createdByDetails)
+          .map((c) => ({
+            id: c.createdByDetails.id,
+            first_name: c.createdByDetails.first_name,
+            last_name: c.createdByDetails.last_name,
+            user_pic: c.createdByDetails.user_pic,
+            role: c.createdByDetails.role,
+            source: "course",
+          }));
+      } else {
+        // For students: get tutors from enrolled courses
+
+        // 1. Get all courses the student is enrolled in
+        const enrollments = await prisma.enrollment.findMany({
+          where: {
+            userId: userId,
+            status: "ENROLLED",
+          },
+          include: {
+            course: {
+              include: {
+                createdByDetails: {
+                  select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    user_pic: true,
+                    role: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Extract tutors from courses
+        const courseTutors = enrollments
+          .filter((e) => e.course.createdByDetails)
+          .map((e) => ({
+            id: e.course.createdByDetails.id,
+            first_name: e.course.createdByDetails.first_name,
+            last_name: e.course.createdByDetails.last_name,
+            user_pic: e.course.createdByDetails.user_pic,
+            role: e.course.createdByDetails.role,
+            source: "course",
+          }));
+
+        // 2. Get groups the student has joined
+        const joinedGroups = await prisma.joinedGroup.findMany({
+          where: {
+            studentId: userId,
+            isJoined: true,
+          },
+          include: {
+            group: {
+              include: {
+                createdBy: {
+                  select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    user_pic: true,
+                    role: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        // Extract group creators (tutors)
+        const groupTutors = joinedGroups
+          .filter((g) => g.group.createdBy)
+          .map((g) => ({
+            id: g.group.createdBy.id,
+            first_name: g.group.createdBy.first_name,
+            last_name: g.group.createdBy.last_name,
+            user_pic: g.group.createdBy.user_pic,
+            role: g.group.createdBy.role,
+            source: "group",
+          }));
+
+        // Combine and deduplicate tutors
+        const tutorMap = new Map();
+
+        [...courseTutors, ...groupTutors].forEach((tutor) => {
+          if (!tutorMap.has(tutor.id)) {
+            tutorMap.set(tutor.id, {
+              ...tutor,
+              sources: [tutor.source],
+            });
+          } else {
+            const existing = tutorMap.get(tutor.id);
+            existing.sources.push(tutor.source);
+            tutorMap.set(tutor.id, existing);
+          }
+        });
+
+        tutors = Array.from(tutorMap.values());
+      }
+
+      // Remove duplicate tutors and sort by name
+      const uniqueTutors = tutors.reduce((acc, current) => {
+        const exists = acc.find((t) => t.id === current.id);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
+      uniqueTutors.sort((a, b) => a.first_name.localeCompare(b.first_name));
+
+      // Get last message and unread count for each tutor
+      const tutorsWithMessages = await Promise.all(
+        uniqueTutors.map(async (tutor) => {
+          // Get last message between current user and this tutor
+          const lastMessage = await prisma.privateMessage.findFirst({
+            where: {
+              OR: [
+                { senderId: userId, receiverId: tutor.id },
+                { senderId: tutor.id, receiverId: userId },
+              ],
+            },
+            orderBy: { createdAt: "desc" },
+            select: {
+              content: true,
+              createdAt: true,
+              senderId: true,
+            },
+          });
+
+          // Get unread count
+          const unreadCount = await prisma.privateMessage.count({
+            where: {
+              senderId: tutor.id,
+              receiverId: userId,
+              readAt: null,
+            },
+          });
+
+          // Decrypt last message content if exists
+          let lastMessageContent = null;
+          if (lastMessage) {
+            lastMessageContent = {
+              text: EncryptionUtil.decrypt(lastMessage.content),
+              time: lastMessage.createdAt,
+              isFromCurrentUser: lastMessage.senderId === userId,
+            };
+          }
+
+          return {
+            ...tutor,
+            lastMessage: lastMessageContent,
+            unreadCount,
+            online: false, // Will be updated by Socket.IO
+          };
+        }),
+      );
+
+      // Group tutors by conversation time
+      const today: any[] = [];
+      const yesterday: any[] = [];
+      const older: any[] = [];
+
+      const now = new Date();
+      const todayStart = new Date(now.setHours(0, 0, 0, 0));
+      const yesterdayStart = new Date(todayStart);
+      yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+      tutorsWithMessages.forEach((tutor) => {
+        if (!tutor.lastMessage) {
+          older.push(tutor);
+          return;
+        }
+
+        const messageDate = new Date(tutor.lastMessage.time);
+
+        if (messageDate >= todayStart) {
+          today.push(tutor);
+        } else if (messageDate >= yesterdayStart) {
+          yesterday.push(tutor);
+        } else {
+          older.push(tutor);
         }
       });
 
-      const courseIds = instructorCourses.map(c => c.id);
+      this.setStatus(200);
+      return {
+        message: "Tutors fetched successfully",
+        data: {
+          today,
+          yesterday,
+          older,
+          total: tutorsWithMessages.length,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching tutors:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch tutors",
+        error: error.message,
+      };
+    }
+  }
 
-      // Get other instructors from same courses
-      const otherInstructors = await prisma.course.findMany({
+  /**
+   * Search for tutors by name (for finding new conversations)
+   */
+  @Security("bearerAuth")
+  @Get("/tutors/search")
+  public async SearchTutors(
+    @Request() req: any,
+    @Query() query: string,
+    @Query() limit: number = 20,
+  ): Promise<any> {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
+
+    try {
+      if (!query || query.length < 2) {
+        this.setStatus(400);
+        return { message: "Search query must be at least 2 characters" };
+      }
+
+      // Search for users with role instructor/tutor/admin
+      const tutors = await prisma.user.findMany({
         where: {
-          id: { in: courseIds },
-          createdUserId: { not: userId }
+          AND: [
+            {
+              OR: [
+                { role: "instructor" },
+                { role: "tutor" },
+                { role: "admin" },
+              ],
+            },
+            {
+              id: { not: userId },
+            },
+            {
+              OR: [
+                { first_name: { contains: query, mode: "insensitive" } },
+                { last_name: { contains: query, mode: "insensitive" } },
+                { email_address: { contains: query, mode: "insensitive" } },
+              ],
+            },
+          ],
         },
         select: {
-          createdByDetails: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          user_pic: true,
+          role: true,
+        },
+        take: limit,
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Tutors found",
+        data: tutors,
+      };
+    } catch (error: any) {
+      console.error("Error searching tutors:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to search tutors",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get the latest conversation for a specific tutor
+   */
+  @Security("bearerAuth")
+  @Get("/tutors/{tutorId}/conversation")
+  public async GetTutorConversation(
+    @Request() req: any,
+    @Path() tutorId: string,
+    @Query() page: number = 1,
+    @Query() limit: number = 50,
+  ): Promise<any> {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
+
+    try {
+      const skip = (page - 1) * limit;
+
+      const messages = await prisma.privateMessage.findMany({
+        where: {
+          OR: [
+            { senderId: userId, receiverId: tutorId },
+            { senderId: tutorId, receiverId: userId },
+          ],
+        },
+        include: {
+          sender: {
             select: {
               id: true,
               first_name: true,
               last_name: true,
               user_pic: true,
-              role: true
-            }
-          }
-        }
+              role: true,
+            },
+          },
+          receiver: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
       });
 
-      tutors = otherInstructors
-        .filter(c => c.createdByDetails)
-        .map(c => ({
-          id: c.createdByDetails.id,
-          first_name: c.createdByDetails.first_name,
-          last_name: c.createdByDetails.last_name,
-          user_pic: c.createdByDetails.user_pic,
-          role: c.createdByDetails.role,
-          source: "course"
-        }));
+      const decryptedMessages = messages
+        .map((message) => ({
+          ...message,
+          content: EncryptionUtil.decrypt(message.content),
+        }))
+        .reverse();
 
-    } else {
-      // For students: get tutors from enrolled courses
-      
-      // 1. Get all courses the student is enrolled in
+      const totalCount = await prisma.privateMessage.count({
+        where: {
+          OR: [
+            { senderId: userId, receiverId: tutorId },
+            { senderId: tutorId, receiverId: userId },
+          ],
+        },
+      });
+
+      // Mark messages from tutor as read
+      await prisma.privateMessage.updateMany({
+        where: {
+          senderId: tutorId,
+          receiverId: userId,
+          readAt: null,
+        },
+        data: {
+          readAt: new Date(),
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Conversation fetched successfully",
+        data: {
+          messages: decryptedMessages,
+          pagination: {
+            page,
+            limit,
+            total: totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching conversation:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch conversation",
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Get students for tutors/instructors to communicate with
+   * Returns all students enrolled in the tutor's courses or groups
+   */
+  @Security("bearerAuth")
+  @Get("/students")
+  public async GetAvailableStudents(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
+
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
+
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+
+      // Only instructors/tutors/admins can fetch students
+      const isInstructor =
+        user?.role === "instructor" ||
+        user?.role === "admin" ||
+        user?.role === "tutor";
+
+      if (!isInstructor) {
+        this.setStatus(403);
+        return { message: "Only tutors can access this endpoint" };
+      }
+
+      // 1. Get all courses created by this tutor
+      const tutorCourses = await prisma.course.findMany({
+        where: { createdUserId: userId },
+        select: { id: true, course_title: true },
+      });
+
+      const courseIds = tutorCourses.map((c) => c.id);
+
+      // 2. Get all students enrolled in those courses
       const enrollments = await prisma.enrollment.findMany({
         where: {
-          userId: userId,
-          status: "ENROLLED"
+          courseId: { in: courseIds },
+          status: "ENROLLED",
         },
         include: {
-          course: {
-            include: {
-              createdByDetails: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  user_pic: true,
-                  role: true
-                }
-              }
-            }
-          }
-        }
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+        },
       });
 
-      // Extract tutors from courses
-      const courseTutors = enrollments
-        .filter(e => e.course.createdByDetails)
-        .map(e => ({
-          id: e.course.createdByDetails.id,
-          first_name: e.course.createdByDetails.first_name,
-          last_name: e.course.createdByDetails.last_name,
-          user_pic: e.course.createdByDetails.user_pic,
-          role: e.course.createdByDetails.role,
-          source: "course"
-        }));
+      // 3. Get all groups created by this tutor
+      const tutorGroups = await prisma.group.findMany({
+        where: { createdBy: userId },
+        select: { id: true, group_title: true },
+      });
 
-      // 2. Get groups the student has joined
-      const joinedGroups = await prisma.joinedGroup.findMany({
+      const groupIds = tutorGroups.map((g) => g.id);
+
+      // 4. Get all students in those groups
+      const groupMembers = await prisma.joinedGroup.findMany({
         where: {
-          studentId: userId,
-          isJoined: true
+          groupId: { in: groupIds },
+          isJoined: true,
         },
         include: {
-          group: {
-            include: {
-              createdBy: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  user_pic: true,
-                  role: true
-                }
-              }
+          student: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      // 5. Combine and deduplicate students
+      const studentMap = new Map();
+
+      enrollments.forEach((e) => {
+        if (e.user && e.user.id !== userId) {
+          if (!studentMap.has(e.user.id)) {
+            studentMap.set(e.user.id, {
+              ...e.user,
+              sources: ["course"],
+            });
+          }
+        }
+      });
+
+      groupMembers.forEach((g) => {
+        if (g.student && g.student.id !== userId) {
+          if (!studentMap.has(g.student.id)) {
+            studentMap.set(g.student.id, {
+              ...g.student,
+              sources: ["group"],
+            });
+          } else {
+            const existing = studentMap.get(g.student.id);
+            if (!existing.sources.includes("group")) {
+              existing.sources.push("group");
             }
           }
         }
       });
 
-      // Extract group creators (tutors)
-      const groupTutors = joinedGroups
-        .filter(g => g.group.createdBy)
-        .map(g => ({
-          id: g.group.createdBy.id,
-          first_name: g.group.createdBy.first_name,
-          last_name: g.group.createdBy.last_name,
-          user_pic: g.group.createdBy.user_pic,
-          role: g.group.createdBy.role,
-          source: "group"
-        }));
+      const students = Array.from(studentMap.values());
+      students.sort((a, b) => a.first_name.localeCompare(b.first_name));
 
-      // Combine and deduplicate tutors
-      const tutorMap = new Map();
-      
-      [...courseTutors, ...groupTutors].forEach(tutor => {
-        if (!tutorMap.has(tutor.id)) {
-          tutorMap.set(tutor.id, {
-            ...tutor,
-            sources: [tutor.source]
+      // 6. Get last message and unread count for each student
+      const studentsWithMessages = await Promise.all(
+        students.map(async (student) => {
+          const lastMessage = await prisma.privateMessage.findFirst({
+            where: {
+              OR: [
+                { senderId: userId, receiverId: student.id },
+                { senderId: student.id, receiverId: userId },
+              ],
+            },
+            orderBy: { createdAt: "desc" },
+            select: {
+              content: true,
+              createdAt: true,
+              senderId: true,
+            },
           });
+
+          const unreadCount = await prisma.privateMessage.count({
+            where: {
+              senderId: student.id,
+              receiverId: userId,
+              readAt: null,
+            },
+          });
+
+          let lastMessageContent = null;
+          if (lastMessage) {
+            lastMessageContent = {
+              text: EncryptionUtil.decrypt(lastMessage.content),
+              time: lastMessage.createdAt,
+              isFromCurrentUser: lastMessage.senderId === userId,
+            };
+          }
+
+          return {
+            ...student,
+            lastMessage: lastMessageContent,
+            unreadCount,
+            online: false,
+          };
+        }),
+      );
+
+      // 7. Group by conversation time (today, yesterday, older)
+      const today: any[] = [];
+      const yesterday: any[] = [];
+      const older: any[] = [];
+
+      const now = new Date();
+      const todayStart = new Date(now.setHours(0, 0, 0, 0));
+      const yesterdayStart = new Date(todayStart);
+      yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+
+      studentsWithMessages.forEach((student) => {
+        if (!student.lastMessage) {
+          older.push(student);
+          return;
+        }
+
+        const messageDate = new Date(student.lastMessage.time);
+
+        if (messageDate >= todayStart) {
+          today.push(student);
+        } else if (messageDate >= yesterdayStart) {
+          yesterday.push(student);
         } else {
-          const existing = tutorMap.get(tutor.id);
-          existing.sources.push(tutor.source);
-          tutorMap.set(tutor.id, existing);
+          older.push(student);
         }
       });
 
-      tutors = Array.from(tutorMap.values());
-    }
-
-    // Remove duplicate tutors and sort by name
-    const uniqueTutors = tutors.reduce((acc, current) => {
-      const exists = acc.find(t => t.id === current.id);
-      if (!exists) {
-        acc.push(current);
-      }
-      return acc;
-    }, []);
-
-    uniqueTutors.sort((a, b) => a.first_name.localeCompare(b.first_name));
-
-    // Get last message and unread count for each tutor
-    const tutorsWithMessages = await Promise.all(
-      uniqueTutors.map(async (tutor) => {
-        // Get last message between current user and this tutor
-        const lastMessage = await prisma.privateMessage.findFirst({
-          where: {
-            OR: [
-              { senderId: userId, receiverId: tutor.id },
-              { senderId: tutor.id, receiverId: userId }
-            ]
-          },
-          orderBy: { createdAt: "desc" },
-          select: {
-            content: true,
-            createdAt: true,
-            senderId: true
-          }
-        });
-
-        // Get unread count
-        const unreadCount = await prisma.privateMessage.count({
-          where: {
-            senderId: tutor.id,
-            receiverId: userId,
-            readAt: null
-          }
-        });
-
-        // Decrypt last message content if exists
-        let lastMessageContent = null;
-        if (lastMessage) {
-          lastMessageContent = {
-            text: EncryptionUtil.decrypt(lastMessage.content),
-            time: lastMessage.createdAt,
-            isFromCurrentUser: lastMessage.senderId === userId
-          };
-        }
-
-        return {
-          ...tutor,
-          lastMessage: lastMessageContent,
-          unreadCount,
-          online: false // Will be updated by Socket.IO
-        };
-      })
-    );
-
-    // Group tutors by conversation time
-    const today: any[] = [];
-    const yesterday: any[] = [];
-    const older: any[] = [];
-
-    const now = new Date();
-    const todayStart = new Date(now.setHours(0, 0, 0, 0));
-    const yesterdayStart = new Date(todayStart);
-    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
-
-    tutorsWithMessages.forEach(tutor => {
-      if (!tutor.lastMessage) {
-        older.push(tutor);
-        return;
-      }
-
-      const messageDate = new Date(tutor.lastMessage.time);
-      
-      if (messageDate >= todayStart) {
-        today.push(tutor);
-      } else if (messageDate >= yesterdayStart) {
-        yesterday.push(tutor);
-      } else {
-        older.push(tutor);
-      }
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Tutors fetched successfully",
-      data: {
-        today,
-        yesterday,
-        older,
-        total: tutorsWithMessages.length
-      }
-    };
-  } catch (error: any) {
-    console.error("Error fetching tutors:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to fetch tutors",
-      error: error.message
-    };
-  }
-}
-
-/**
- * Search for tutors by name (for finding new conversations)
- */
-@Security("bearerAuth")
-@Get("/tutors/search")
-public async SearchTutors(
-  @Request() req: any,
-  @Query() query: string,
-  @Query() limit: number = 20
-): Promise<any> {
-  const userId = req.user?.id;
-
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    if (!query || query.length < 2) {
-      this.setStatus(400);
-      return { message: "Search query must be at least 2 characters" };
-    }
-
-    // Search for users with role instructor/tutor/admin
-    const tutors = await prisma.user.findMany({
-      where: {
-        AND: [
-          {
-            OR: [
-              { role: "instructor" },
-              { role: "tutor" },
-              { role: "admin" }
-            ]
-          },
-          {
-            id: { not: userId }
-          },
-          {
-            OR: [
-              { first_name: { contains: query, mode: "insensitive" } },
-              { last_name: { contains: query, mode: "insensitive" } },
-              { email_address: { contains: query, mode: "insensitive" } }
-            ]
-          }
-        ]
-      },
-      select: {
-        id: true,
-        first_name: true,
-        last_name: true,
-        user_pic: true,
-        role: true
-      },
-      take: limit
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Tutors found",
-      data: tutors
-    };
-  } catch (error: any) {
-    console.error("Error searching tutors:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to search tutors",
-      error: error.message
-    };
-  }
-}
-
-/**
- * Get the latest conversation for a specific tutor
- */
-@Security("bearerAuth")
-@Get("/tutors/{tutorId}/conversation")
-public async GetTutorConversation(
-  @Request() req: any,
-  @Path() tutorId: string,
-  @Query() page: number = 1,
-  @Query() limit: number = 50
-): Promise<any> {
-  const userId = req.user?.id;
-
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    const skip = (page - 1) * limit;
-
-    const messages = await prisma.privateMessage.findMany({
-      where: {
-        OR: [
-          { senderId: userId, receiverId: tutorId },
-          { senderId: tutorId, receiverId: userId }
-        ]
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true
-          }
+      this.setStatus(200);
+      return {
+        message: "Students fetched successfully",
+        data: {
+          today,
+          yesterday,
+          older,
+          total: studentsWithMessages.length,
         },
-        receiver: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true
-          }
-        }
-      },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit
-    });
-
-    const decryptedMessages = messages.map(message => ({
-      ...message,
-      content: EncryptionUtil.decrypt(message.content)
-    })).reverse();
-
-    const totalCount = await prisma.privateMessage.count({
-      where: {
-        OR: [
-          { senderId: userId, receiverId: tutorId },
-          { senderId: tutorId, receiverId: userId }
-        ]
-      }
-    });
-
-    // Mark messages from tutor as read
-    await prisma.privateMessage.updateMany({
-      where: {
-        senderId: tutorId,
-        receiverId: userId,
-        readAt: null
-      },
-      data: {
-        readAt: new Date()
-      }
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Conversation fetched successfully",
-      data: {
-        messages: decryptedMessages,
-        pagination: {
-          page,
-          limit,
-          total: totalCount,
-          totalPages: Math.ceil(totalCount / limit)
-        }
-      }
-    };
-  } catch (error: any) {
-    console.error("Error fetching conversation:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to fetch conversation",
-      error: error.message
-    };
+      };
+    } catch (error: any) {
+      console.error("Error fetching students:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch students",
+        error: error.message,
+      };
+    }
   }
-}
 }

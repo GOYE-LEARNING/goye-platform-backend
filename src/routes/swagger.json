@@ -10290,6 +10290,31 @@
 				]
 			}
 		},
+		"/discussion/students": {
+			"get": {
+				"operationId": "GetAvailableStudents",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get students for tutors/instructors to communicate with\r\nReturns all students enrolled in the tutor's courses or groups",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/course/create-course": {
 			"post": {
 				"operationId": "CreateCourse",
