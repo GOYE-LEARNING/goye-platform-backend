@@ -1448,6 +1448,157 @@ public async GetProfile(@Request() req: any) {
     };
   }
 
+  // Global admin dashboard statistics
+  @Security("bearerAuth")
+  @Get("/admin-dashboard-stats")
+  public async GetAdminDashboardStats(@Request() req: any): Promise<any> {
+    const userRole = req.user?.role;
+
+    // Only allow platform admins to access this endpoint
+    if (userRole !== "admin" && userRole !== "ADMIN") {
+      this.setStatus(403);
+      return {
+        message: "Only admins can access dashboard statistics",
+      };
+    }
+
+    // Basic user stats
+    const totalUsers = await prisma.user.count();
+    const activeUsers = await prisma.user.count({
+      where: { isOnline: true },
+    });
+    const newUsersToday = await prisma.user.count({
+      where: {
+        createdAt: {
+          gte: new Date(new Date().setHours(0, 0, 0, 0)),
+        },
+      },
+    });
+
+    // Organizations and courses
+    const totalOrganizations = await prisma.organization.count();
+    const totalCourses = await prisma.course.count();
+
+    // Enrollment / completion stats
+    const totalEnrollments = await prisma.enrollment.count();
+    const completedEnrollments = await prisma.enrollment.count({
+      where: { status: "COMPLETED" },
+    });
+
+    const avgCompletionRate =
+      totalEnrollments > 0
+        ? Math.round((completedEnrollments / totalEnrollments) * 100)
+        : 0;
+
+    // Engagement: percentage of users who enrolled in at least one course
+    const engagedUsers = await prisma.enrollment.groupBy({
+      by: ["userId"],
+      _count: { userId: true },
+    });
+
+    const engagedUserCount = engagedUsers.length;
+    const engagementRate =
+      totalUsers > 0
+        ? Math.round((engagedUserCount / totalUsers) * 100)
+        : 0;
+
+    this.setStatus(200);
+    return {
+      message: "Admin dashboard statistics fetched successfully",
+      stats: {
+        totalUsers,
+        activeUsers,
+        newUsersToday,
+        totalOrganizations,
+        totalCourses,
+        totalEnrollments,
+        completedEnrollments,
+        avgCompletionRate,
+        engagementRate,
+      },
+    };
+  }
+
+  @Security("bearerAuth")
+  @Get("/settings")
+  public async GetSettings(@Request() req: any): Promise<any> {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
+
+    if (!userId && !orgId) {
+      this.setStatus(401);
+      return { message: "Unauthorized" };
+    }
+
+    const settings = await prisma.settings.findFirst({
+      where: orgId ? { organizationId: orgId } : { userId },
+      select: {
+        id: true,
+        darkMode: true,
+        enable_push_notification: true,
+        course_updates: true,
+        event: true,
+        achievement: true,
+        daily_reminders: true,
+        group_activity: true,
+        email_notification: true,
+        userId: true,
+        organizationId: true,
+        updatedAt: true,
+        createdAt: true,
+      },
+    });
+
+    this.setStatus(200);
+    return { message: "Settings fetched successfully", settings };
+  }
+
+  @Security("bearerAuth")
+  @Put("/settings/dark-mode")
+  public async UpdateDarkMode(
+    @Request() req: any,
+    @Body() body: { darkMode: boolean },
+  ): Promise<any> {
+    const userId = req.user?.id;
+    const orgId = req.org?.id;
+
+    if (!userId && !orgId) {
+      this.setStatus(401);
+      return { message: "Unauthorized" };
+    }
+
+    const existing = await prisma.settings.findFirst({
+      where: orgId ? { organizationId: orgId } : { userId },
+      select: { id: true },
+    });
+
+    const updated = existing
+      ? await prisma.settings.update({
+          where: { id: existing.id },
+          data: { darkMode: !!body.darkMode, updatedAt: new Date() },
+          select: { id: true, darkMode: true },
+        })
+      : await prisma.settings.create({
+          data: {
+            enable_push_notification: true,
+            course_updates: true,
+            event: true,
+            achievement: true,
+            daily_reminders: false,
+            group_activity: true,
+            email_notification: true,
+            darkMode: !!body.darkMode,
+            updatedAt: new Date(),
+            userId: orgId ? null : userId,
+            organizationId: orgId || null,
+          },
+          select: { id: true, darkMode: true },
+        });
+
+    this.setStatus(200);
+    return { message: "Dark mode updated successfully", settings: updated };
+  }
+
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
