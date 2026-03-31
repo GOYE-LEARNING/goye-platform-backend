@@ -1507,7 +1507,7 @@ export class DiscussionController extends Controller {
       // Group tutors by conversation time
       const today: any[] = [];
       const yesterday: any[] = [];
-      const older: any[] = [];
+      const persons: any[] = [];
 
       const now = new Date();
       const todayStart = new Date(now.setHours(0, 0, 0, 0));
@@ -1516,7 +1516,7 @@ export class DiscussionController extends Controller {
 
       tutorsWithMessages.forEach((tutor) => {
         if (!tutor.lastMessage) {
-          older.push(tutor);
+          persons.push(tutor);
           return;
         }
 
@@ -1527,7 +1527,7 @@ export class DiscussionController extends Controller {
         } else if (messageDate >= yesterdayStart) {
           yesterday.push(tutor);
         } else {
-          older.push(tutor);
+          persons.push(tutor);
         }
       });
 
@@ -1537,7 +1537,7 @@ export class DiscussionController extends Controller {
         data: {
           today,
           yesterday,
-          older,
+          persons,
           total: tutorsWithMessages.length,
         },
       };
@@ -1786,8 +1786,8 @@ export class DiscussionController extends Controller {
 
       // 3. Get all groups created by this tutor
       const tutorGroups = await prisma.group.findMany({
-        where: { createdBy: userId },
-        select: { id: true, group_title: true },
+        where: { userId },
+        select: { id: true, group_title: true, member: true },
       });
 
       const groupIds = tutorGroups.map((g) => g.id);
@@ -1888,10 +1888,10 @@ export class DiscussionController extends Controller {
         }),
       );
 
-      // 7. Group by conversation time (today, yesterday, older)
+      // 7. Group by conversation time (today, yesterday, persons)
       const today: any[] = [];
       const yesterday: any[] = [];
-      const older: any[] = [];
+      const persons: any[] = [];
 
       const now = new Date();
       const todayStart = new Date(now.setHours(0, 0, 0, 0));
@@ -1900,7 +1900,7 @@ export class DiscussionController extends Controller {
 
       studentsWithMessages.forEach((student) => {
         if (!student.lastMessage) {
-          older.push(student);
+          persons.push(student);
           return;
         }
 
@@ -1911,7 +1911,7 @@ export class DiscussionController extends Controller {
         } else if (messageDate >= yesterdayStart) {
           yesterday.push(student);
         } else {
-          older.push(student);
+          persons.push(student);
         }
       });
 
@@ -1921,7 +1921,7 @@ export class DiscussionController extends Controller {
         data: {
           today,
           yesterday,
-          older,
+          persons,
           total: studentsWithMessages.length,
         },
       };
