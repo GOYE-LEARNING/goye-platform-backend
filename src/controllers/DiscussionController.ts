@@ -1150,6 +1150,132 @@ export class DiscussionController extends Controller {
     }
   }
 
+  /**
+ * Get all comments/replies for a specific discussion
+ */
+@Get("/public/{discussionId}/comments")
+public async GetDiscussionComments(
+  @Path() discussionId: string,
+  @Query() page: number = 1,
+  @Query() limit: number = 20,
+): Promise<any> {
+  try {
+    const skip = (page - 1) * limit;
+
+    // Check discussion exists
+    const discussion = await prisma.discussion.findUnique({
+      where: { id: discussionId, isPublic: true },
+      select: { id: true },
+    });
+
+    if (!discussion) {
+      this.setStatus(404);
+      return { message: "Discussion not found" };
+    }
+
+    // Get top-level replies only
+    const replies = await prisma.discussion.findMany({
+      where: {
+        parentId: discussionId,
+        isPublic: true,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        _count: {
+          select: {
+            likes: true,
+            replies: true,
+          },
+        },
+        // Fetch nested replies too
+        replies: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            author: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+                role: true,
+              },
+            },
+            _count: {
+              select: {
+                likes: true,
+              },
+            },
+            parent: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: "asc" },
+      skip,
+      take: limit,
+    });
+
+    // Decrypt all content
+    const decryptedReplies = replies.map((reply) => ({
+      ...reply,
+      content: EncryptionUtil.decrypt(reply.content),
+      replies: reply.replies.map((nested) => ({
+        ...nested,
+        content: EncryptionUtil.decrypt(nested.content),
+        parent: nested.parent
+          ? { ...nested.parent, author: nested.parent.author }
+          : null,
+      })),
+    }));
+
+    const totalCount = await prisma.discussion.count({
+      where: {
+        parentId: discussionId,
+        isPublic: true,
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Comments fetched successfully",
+      data: {
+        comments: decryptedReplies,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
+          hasMore: skip + replies.length < totalCount,
+        },
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching comments:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to fetch comments",
+      error: error.message,
+    };
+  }
+}
+
   @Security("bearerAuth")
   @Get("/private/{userId}")
   public async GetPrivateMessages(
@@ -1286,6 +1412,7 @@ export class DiscussionController extends Controller {
    * Get tutors/instructors based on student's enrolled courses and groups
    * This returns all instructors/tutors that the student can message
    */
+
   @Security("bearerAuth")
   @Get("/tutors")
   public async GetAvailableTutors(@Request() req: any): Promise<any> {
