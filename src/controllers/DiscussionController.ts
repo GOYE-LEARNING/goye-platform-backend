@@ -897,6 +897,75 @@ export class DiscussionController extends Controller {
   }
 
   @Security("bearerAuth")
+@Put("/{discussionId}")
+public async UpdateDiscussion(
+  @Request() req: any,
+  @Path() discussionId: string,
+  @Body() body: { content: string; mediaUrls?: MediaItem[] },
+): Promise<any> {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
+  }
+
+  try {
+    const discussion = await prisma.discussion.findUnique({
+      where: { id: discussionId },
+    });
+
+    if (!discussion) {
+      this.setStatus(404);
+      return { message: "Discussion not found" };
+    }
+
+    // Only the author can edit
+    if (discussion.authorId !== userId) {
+      this.setStatus(403);
+      return { message: "You can only edit your own posts" };
+    }
+
+    const encryptedContent = EncryptionUtil.encrypt(body.content);
+
+    const updated = await prisma.discussion.update({
+      where: { id: discussionId },
+      data: {
+        content: encryptedContent,
+        mediaUrls: (body.mediaUrls as any) || discussion.mediaUrls,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        _count: {
+          select: { replies: true, likes: true },
+        },
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Post updated successfully",
+      data: {
+        ...updated,
+        content: body.content, // return decrypted
+      },
+    };
+  } catch (error: any) {
+    console.error("Error updating discussion:", error);
+    this.setStatus(500);
+    return { message: "Failed to update post", error: error.message };
+  }
+}
+
+  @Security("bearerAuth")
   @Delete("/{discussionId}")
   public async DeleteDiscussion(
     @Request() req: any,

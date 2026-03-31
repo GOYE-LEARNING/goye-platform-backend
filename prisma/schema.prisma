@@ -700,9 +700,9 @@ model Discussion {
   updatedAt DateTime @updatedAt
 
   author  User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent  Discussion?      @relation("DiscussionReplies", fields: [parentId], references: [id])
+  parent  Discussion?      @relation("DiscussionReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies Discussion[]     @relation("DiscussionReplies")
-  likes   DiscussionLike[]
+  likes   DiscussionLike[] 
 
   @@index([authorId])
   @@index([parentId])
