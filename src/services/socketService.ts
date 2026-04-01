@@ -87,10 +87,10 @@ export class SocketService {
   private setupSocketEvents(socket: Socket) {
     const userId = socket.data.userId;
 
-    // Handle private message
+    // Handle private message with reply
     socket.on(SOCKET_EVENTS.PRIVATE_MESSAGE, async (data) => {
       try {
-        const { receiverId, content, mediaUrls, replyToId, replyTo } = data;
+        const { receiverId, content, replyToId } = data;
         const senderId = userId;
 
         if (!receiverId || !content) {
@@ -102,7 +102,32 @@ export class SocketService {
 
         const encryptedContent = EncryptionUtil.encrypt(content);
         
-        // Create message with reply data if provided
+        // Get reply message data if replying
+        let replyData = null;
+        if (replyToId) {
+          const originalMessage = await prisma.privateMessage.findUnique({
+            where: { id: replyToId },
+            include: {
+              sender: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+          });
+          
+          if (originalMessage) {
+            replyData = {
+              id: originalMessage.id,
+              text: EncryptionUtil.decrypt(originalMessage.content),
+              senderName: originalMessage.sender.first_name,
+              senderId: originalMessage.sender.id,
+            };
+          }
+        }
+        
         const message = await prisma.privateMessage.create({
           data: {
             content: encryptedContent,
@@ -129,32 +154,15 @@ export class SocketService {
                 role: true,
               },
             },
-            replyTo: {
-              include: {
-                sender: {
-                  select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
-                  },
-                },
-              },
-            },
           },
         });
 
         const decryptedMessage = {
           ...message,
           content,
-          replyTo: replyTo ? {
-            id: replyTo.id,
-            text: replyTo.text,
-            senderName: replyTo.senderName,
-            senderId: replyTo.senderId,
-          } : undefined,
+          replyTo: replyData,
         };
 
-        // Send to receiver if online
         const receiverSocket = this.onlineUsers.get(receiverId);
         if (receiverSocket?.online) {
           this.io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.PRIVATE_MESSAGE, {
@@ -163,7 +171,6 @@ export class SocketService {
           });
         }
 
-        // Send confirmation to sender
         socket.emit(SOCKET_EVENTS.PRIVATE_MESSAGE_SENT, {
           ...decryptedMessage,
           delivered: !!receiverSocket?.online,
@@ -176,36 +183,19 @@ export class SocketService {
       }
     });
 
-    // Handle message update (edit)
-    socket.on("private:message:update", async (data) => {
+    // Handle message update (edit) - STORE isEdited flag
+    socket.on("private:message:updated", async (data) => {
       const { messageId, content } = data;
 
       try {
-        // Find the message and verify sender
         const message = await prisma.privateMessage.findFirst({
           where: {
             id: messageId,
             senderId: userId,
           },
           include: {
-            sender: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-                role: true,
-              },
-            },
-            receiver: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-                role: true,
-              },
-            },
+            sender: true,
+            receiver: true,
           },
         });
 
@@ -216,48 +206,27 @@ export class SocketService {
           return;
         }
 
-        // Encrypt new content
         const encryptedContent = EncryptionUtil.encrypt(content);
 
-        // Update in database
-        const updated = await prisma.privateMessage.update({
+        // Update with isEdited flag
+        await prisma.privateMessage.update({
           where: { id: messageId },
-          data: { content: encryptedContent },
-          include: {
-            sender: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-                role: true,
-              },
-            },
-            receiver: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-                role: true,
-              },
-            },
+          data: { 
+            content: encryptedContent,
+            isEdited: true,
           },
         });
 
-        // Prepare the update event data
         const updateEventData = {
-          id: updated.id,
-          content: content,
+          id: message.id,
+          content,
           isEdited: true,
-          senderId: updated.senderId,
-          receiverId: updated.receiverId,
-          sender: updated.sender,
-          receiver: updated.receiver,
-          time: updated.createdAt,
+          senderId: message.senderId,
+          receiverId: message.receiverId,
+          time: message.createdAt,
         };
 
-        // Send to both sender and receiver
+        // Send to both users
         this.io.to(`user:${message.senderId}`).emit("private:message:updated", updateEventData);
         this.io.to(`user:${message.receiverId}`).emit("private:message:updated", updateEventData);
 
@@ -274,7 +243,6 @@ export class SocketService {
       const { messageId } = data;
 
       try {
-        // Find the message and verify sender
         const message = await prisma.privateMessage.findFirst({
           where: {
             id: messageId,
@@ -295,16 +263,14 @@ export class SocketService {
           return;
         }
 
-        // Option 1: Hard delete
-        await prisma.privateMessage.delete({
+        // Soft delete - update content and set isDeleted flag
+        await prisma.privateMessage.update({
           where: { id: messageId },
+          data: { 
+            isDeleted: true,
+            content: "This message was deleted",
+          },
         });
-
-        // Option 2: Soft delete (if you have a deleted field)
-        // await prisma.privateMessage.update({
-        //   where: { id: messageId },
-        //   data: { isDeleted: true, content: "This message was deleted" },
-        // });
 
         const deleteEventData = {
           id: message.id,
@@ -332,13 +298,17 @@ export class SocketService {
       const { receiverId } = data;
 
       try {
-        // Delete all messages between these two users
-        await prisma.privateMessage.deleteMany({
+        // Soft delete all messages between these two users
+        await prisma.privateMessage.updateMany({
           where: {
             OR: [
               { senderId: userId, receiverId: receiverId },
               { senderId: receiverId, receiverId: userId },
             ],
+          },
+          data: {
+            isDeleted: true,
+            content: "This message was deleted",
           },
         });
 

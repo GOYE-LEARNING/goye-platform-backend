@@ -744,14 +744,15 @@ model PrivateMessage {
   receiverId String
   replyToId  String?
   isDeleted  Boolean   @default(false)
+  isEdited   Boolean   @default(false)  // Add this field
   readAt     DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sender   User            @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver User            @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender   User            @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User            @relation("ReceivedMessages", fields: [receiverId], references: [id])
   replyTo  PrivateMessage? @relation("ReplyTo", fields: [replyToId], references: [id])
-  replies  PrivateMessage[] @relation("ReplyTo") // This completes the self-relation
+  replies  PrivateMessage[] @relation("ReplyTo")
 
   @@index([senderId])
   @@index([receiverId])
