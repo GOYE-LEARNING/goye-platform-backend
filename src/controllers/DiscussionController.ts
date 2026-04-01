@@ -211,9 +211,12 @@ export class DiscussionController extends Controller {
 
   @Get("/public")
   public async GetPublicDiscussions(
+    @Request() req: any,
     @Query() sort: "latest" | "popular" = "latest",
   ): Promise<any> {
     try {
+      const userId = req.user?.id; // Get current user ID
+
       let orderBy: any = { createdAt: "desc" };
       if (sort === "popular") {
         orderBy = { likes: { _count: "desc" } };
@@ -240,14 +243,21 @@ export class DiscussionController extends Controller {
               likes: true,
             },
           },
+          // Include likes to check if current user liked this discussion
+          likes: {
+            where: { userId: userId },
+            select: { userId: true },
+          },
         },
         orderBy,
       });
 
-      // DECRYPT each discussion content
+      // DECRYPT each discussion content and add liked status
       const decryptedDiscussions = discussions.map((discussion) => ({
         ...discussion,
         content: EncryptionUtil.decrypt(discussion.content),
+        liked: discussion.likes && discussion.likes.length > 0, // This adds the liked field
+        likes: undefined, // Remove the likes array from response
       }));
 
       const totalCount = await prisma.discussion.count({
@@ -282,11 +292,13 @@ export class DiscussionController extends Controller {
    */
   @Get("/public/{discussionId}")
   public async GetDiscussionById(
+    @Request() req: any,
     @Path() discussionId: string,
     @Query() page: number = 1,
     @Query() limit: number = 20,
   ): Promise<any> {
     try {
+      const userId = req.user?.id;
       const skip = (page - 1) * limit;
 
       const discussion = await prisma.discussion.findUnique({
@@ -306,6 +318,11 @@ export class DiscussionController extends Controller {
               replies: true,
               likes: true,
             },
+          },
+          // Include likes to check if current user liked this discussion
+          likes: {
+            where: { userId: userId },
+            select: { userId: true },
           },
           replies: {
             where: { parentId: null },
@@ -327,6 +344,11 @@ export class DiscussionController extends Controller {
                   likes: true,
                 },
               },
+              // Include likes for replies
+              likes: {
+                where: { userId: userId },
+                select: { userId: true },
+              },
               replies: {
                 orderBy: { createdAt: "asc" },
                 include: {
@@ -344,6 +366,11 @@ export class DiscussionController extends Controller {
                       likes: true,
                     },
                   },
+                  // Include likes for nested replies
+                  likes: {
+                    where: { userId: userId },
+                    select: { userId: true },
+                  },
                   parent: {
                     include: {
                       author: {
@@ -359,17 +386,6 @@ export class DiscussionController extends Controller {
               },
             },
           },
-          likes: {
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                },
-              },
-            },
-          },
         },
       });
 
@@ -378,12 +394,14 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
-      // Recursive function to decrypt nested replies
-      const decryptNestedReplies = (replies: any[]): any[] => {
+      // Recursive function to decrypt and add liked status
+      const decryptAndAddLiked = (replies: any[]): any[] => {
         return replies.map((reply) => ({
           ...reply,
           content: EncryptionUtil.decrypt(reply.content),
-          replies: reply.replies ? decryptNestedReplies(reply.replies) : [],
+          liked: reply.likes && reply.likes.length > 0, // Add liked for reply
+          likes: undefined,
+          replies: reply.replies ? decryptAndAddLiked(reply.replies) : [],
           parent: reply.parent
             ? {
                 ...reply.parent,
@@ -396,7 +414,9 @@ export class DiscussionController extends Controller {
       const decryptedDiscussion = {
         ...discussion,
         content: EncryptionUtil.decrypt(discussion.content),
-        replies: decryptNestedReplies(discussion.replies),
+        liked: discussion.likes && discussion.likes.length > 0, // Add liked for discussion
+        likes: undefined,
+        replies: decryptAndAddLiked(discussion.replies),
       };
 
       const totalReplies = await prisma.discussion.count({
