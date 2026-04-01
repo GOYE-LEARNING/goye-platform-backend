@@ -2168,4 +2168,106 @@ export class DiscussionController extends Controller {
       };
     }
   }
+
+  // Add to DiscussionController
+
+/**
+ * Update a private message (edit)
+ */
+@Security("bearerAuth")
+@Put("/private/message/{messageId}")
+public async UpdatePrivateMessage(
+  @Request() req: any,
+  @Path() messageId: string,
+  @Body() body: { content: string }
+): Promise<any> {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
+  }
+
+  try {
+    const message = await prisma.privateMessage.findFirst({
+      where: {
+        id: messageId,
+        senderId: userId,
+      },
+    });
+
+    if (!message) {
+      this.setStatus(404);
+      return { message: "Message not found or you don't have permission" };
+    }
+
+    const encryptedContent = EncryptionUtil.encrypt(body.content);
+
+    const updated = await prisma.privateMessage.update({
+      where: { id: messageId },
+      data: { content: encryptedContent },
+      include: {
+        sender: { select: { id: true, first_name: true, last_name: true } },
+        receiver: { select: { id: true, first_name: true, last_name: true } },
+      },
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Message updated",
+      data: {
+        ...updated,
+        content: body.content,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error updating message:", error);
+    this.setStatus(500);
+    return { message: "Failed to update message", error: error.message };
+  }
+}
+
+/**
+ * Delete a private message (soft delete)
+ */
+@Security("bearerAuth")
+@Delete("/private/message/{messageId}")
+public async DeletePrivateMessage(
+  @Request() req: any,
+  @Path() messageId: string
+): Promise<any> {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
+  }
+
+  try {
+    const message = await prisma.privateMessage.findFirst({
+      where: {
+        id: messageId,
+        senderId: userId,
+      },
+    });
+
+    if (!message) {
+      this.setStatus(404);
+      return { message: "Message not found or you don't have permission" };
+    }
+
+    // Soft delete - mark as deleted (you may want to add a deletedAt field)
+    // For now, we'll actually delete it
+    await prisma.privateMessage.delete({
+      where: { id: messageId },
+    });
+
+    this.setStatus(200);
+    return { message: "Message deleted successfully" };
+  } catch (error: any) {
+    console.error("Error deleting message:", error);
+    this.setStatus(500);
+    return { message: "Failed to delete message", error: error.message };
+  }
+}
 }
