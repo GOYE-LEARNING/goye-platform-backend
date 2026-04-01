@@ -203,7 +203,7 @@ public async Login(
     });
 
     // Check for admin user first (before invited or regular)
-    if (user && user.role === "admin") {
+    if (user && user.role === "goye_admin") {
       const isPasswordValid = await bcrypt.compare(
         credentials.password,
         user.password,
