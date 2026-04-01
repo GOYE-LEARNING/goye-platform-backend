@@ -897,73 +897,73 @@ export class DiscussionController extends Controller {
   }
 
   @Security("bearerAuth")
-@Put("/{discussionId}")
-public async UpdateDiscussion(
-  @Request() req: any,
-  @Path() discussionId: string,
-  @Body() body: { content: string; mediaUrls?: MediaItem[] },
-): Promise<any> {
-  const userId = req.user?.id;
+  @Put("/{discussionId}")
+  public async UpdateDiscussion(
+    @Request() req: any,
+    @Path() discussionId: string,
+    @Body() body: { content: string; mediaUrls?: MediaItem[] },
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    const discussion = await prisma.discussion.findUnique({
-      where: { id: discussionId },
-    });
-
-    if (!discussion) {
-      this.setStatus(404);
-      return { message: "Discussion not found" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    // Only the author can edit
-    if (discussion.authorId !== userId) {
-      this.setStatus(403);
-      return { message: "You can only edit your own posts" };
-    }
+    try {
+      const discussion = await prisma.discussion.findUnique({
+        where: { id: discussionId },
+      });
 
-    const encryptedContent = EncryptionUtil.encrypt(body.content);
+      if (!discussion) {
+        this.setStatus(404);
+        return { message: "Discussion not found" };
+      }
 
-    const updated = await prisma.discussion.update({
-      where: { id: discussionId },
-      data: {
-        content: encryptedContent,
-        mediaUrls: (body.mediaUrls as any) || discussion.mediaUrls,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
+      // Only the author can edit
+      if (discussion.authorId !== userId) {
+        this.setStatus(403);
+        return { message: "You can only edit your own posts" };
+      }
+
+      const encryptedContent = EncryptionUtil.encrypt(body.content);
+
+      const updated = await prisma.discussion.update({
+        where: { id: discussionId },
+        data: {
+          content: encryptedContent,
+          mediaUrls: (body.mediaUrls as any) || discussion.mediaUrls,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          _count: {
+            select: { replies: true, likes: true },
           },
         },
-        _count: {
-          select: { replies: true, likes: true },
-        },
-      },
-    });
+      });
 
-    this.setStatus(200);
-    return {
-      message: "Post updated successfully",
-      data: {
-        ...updated,
-        content: body.content, // return decrypted
-      },
-    };
-  } catch (error: any) {
-    console.error("Error updating discussion:", error);
-    this.setStatus(500);
-    return { message: "Failed to update post", error: error.message };
+      this.setStatus(200);
+      return {
+        message: "Post updated successfully",
+        data: {
+          ...updated,
+          content: body.content, // return decrypted
+        },
+      };
+    } catch (error: any) {
+      console.error("Error updating discussion:", error);
+      this.setStatus(500);
+      return { message: "Failed to update post", error: error.message };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Delete("/{discussionId}")
@@ -1017,7 +1017,45 @@ public async UpdateDiscussion(
   }
 
   // ==================== PRIVATE MESSAGES (ENCRYPTED) ====================
+  /**
+   * Get a user's public profile by ID
+   */
+  @Security("bearerAuth")
+  @Get("/profile/:userId")
+  public async GetUserById(
+    @Request() req: any,
+    @Path() userId: string,
+  ): Promise<any> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          user_pic: true,
+          role: true,
+          isOnline: true,
+          lastActive: true,
+        },
+      });
 
+      if (!user) {
+        this.setStatus(404);
+        return { message: "User not found" };
+      }
+
+      this.setStatus(200);
+      return {
+        message: "User fetched successfully",
+        data: user,
+      };
+    } catch (error: any) {
+      console.error("Error fetching user:", error);
+      this.setStatus(500);
+      return { message: "Failed to fetch user", error: error.message };
+    }
+  }
   @Security("bearerAuth")
   @Post("/private")
   public async SendPrivateMessage(
@@ -1220,130 +1258,130 @@ public async UpdateDiscussion(
   }
 
   /**
- * Get all comments/replies for a specific discussion
- */
-@Get("/public/{discussionId}/comments")
-public async GetDiscussionComments(
-  @Path() discussionId: string,
-  @Query() page: number = 1,
-  @Query() limit: number = 20,
-): Promise<any> {
-  try {
-    const skip = (page - 1) * limit;
+   * Get all comments/replies for a specific discussion
+   */
+  @Get("/public/{discussionId}/comments")
+  public async GetDiscussionComments(
+    @Path() discussionId: string,
+    @Query() page: number = 1,
+    @Query() limit: number = 20,
+  ): Promise<any> {
+    try {
+      const skip = (page - 1) * limit;
 
-    // Check discussion exists
-    const discussion = await prisma.discussion.findUnique({
-      where: { id: discussionId, isPublic: true },
-      select: { id: true },
-    });
+      // Check discussion exists
+      const discussion = await prisma.discussion.findUnique({
+        where: { id: discussionId, isPublic: true },
+        select: { id: true },
+      });
 
-    if (!discussion) {
-      this.setStatus(404);
-      return { message: "Discussion not found" };
-    }
+      if (!discussion) {
+        this.setStatus(404);
+        return { message: "Discussion not found" };
+      }
 
-    // Get top-level replies only
-    const replies = await prisma.discussion.findMany({
-      where: {
-        parentId: discussionId,
-        isPublic: true,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
+      // Get top-level replies only
+      const replies = await prisma.discussion.findMany({
+        where: {
+          parentId: discussionId,
+          isPublic: true,
         },
-        _count: {
-          select: {
-            likes: true,
-            replies: true,
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
           },
-        },
-        // Fetch nested replies too
-        replies: {
-          orderBy: { createdAt: "asc" },
-          include: {
-            author: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-                role: true,
-              },
+          _count: {
+            select: {
+              likes: true,
+              replies: true,
             },
-            _count: {
-              select: {
-                likes: true,
+          },
+          // Fetch nested replies too
+          replies: {
+            orderBy: { createdAt: "asc" },
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                  role: true,
+                },
               },
-            },
-            parent: {
-              include: {
-                author: {
-                  select: {
-                    id: true,
-                    first_name: true,
-                    last_name: true,
+              _count: {
+                select: {
+                  likes: true,
+                },
+              },
+              parent: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "asc" },
-      skip,
-      take: limit,
-    });
+        orderBy: { createdAt: "asc" },
+        skip,
+        take: limit,
+      });
 
-    // Decrypt all content
-    const decryptedReplies = replies.map((reply) => ({
-      ...reply,
-      content: EncryptionUtil.decrypt(reply.content),
-      replies: reply.replies.map((nested) => ({
-        ...nested,
-        content: EncryptionUtil.decrypt(nested.content),
-        parent: nested.parent
-          ? { ...nested.parent, author: nested.parent.author }
-          : null,
-      })),
-    }));
+      // Decrypt all content
+      const decryptedReplies = replies.map((reply) => ({
+        ...reply,
+        content: EncryptionUtil.decrypt(reply.content),
+        replies: reply.replies.map((nested) => ({
+          ...nested,
+          content: EncryptionUtil.decrypt(nested.content),
+          parent: nested.parent
+            ? { ...nested.parent, author: nested.parent.author }
+            : null,
+        })),
+      }));
 
-    const totalCount = await prisma.discussion.count({
-      where: {
-        parentId: discussionId,
-        isPublic: true,
-      },
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Comments fetched successfully",
-      data: {
-        comments: decryptedReplies,
-        pagination: {
-          page,
-          limit,
-          total: totalCount,
-          totalPages: Math.ceil(totalCount / limit),
-          hasMore: skip + replies.length < totalCount,
+      const totalCount = await prisma.discussion.count({
+        where: {
+          parentId: discussionId,
+          isPublic: true,
         },
-      },
-    };
-  } catch (error: any) {
-    console.error("Error fetching comments:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to fetch comments",
-      error: error.message,
-    };
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Comments fetched successfully",
+        data: {
+          comments: decryptedReplies,
+          pagination: {
+            page,
+            limit,
+            total: totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            hasMore: skip + replies.length < totalCount,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching comments:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch comments",
+        error: error.message,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Get("/private/{userId}")
