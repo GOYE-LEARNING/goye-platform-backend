@@ -12,6 +12,8 @@
     "tsoa:spec": "tsoa spec",
     "prisma:generate": "npx prisma generate",
     "prisma:push": "npx prisma db push",
+    "admin:create": "ts-node prisma/create-admin.ts",
+    "admin:create:standalone": "ts-node prisma/create-admin-standalone.ts",
     "render-build": "npm install && npm run build"
   },
   "dependencies": {

@@ -185,485 +185,402 @@ export class UserController extends Controller {
   }
 
   //login
-  @Post("/login")
-  public async Login(
-    @Body() credentials: { email: string; password: string },
-    @Request() req: any,
-  ): Promise<any> {
-    const settingsId = req.org?.settingsId;
-    try {
-      //Check For invited Users
-      const invitedUser = await prisma.user.findUnique({
-        where: {
-          email_address: credentials.email,
+@Post("/login")
+public async Login(
+  @Body() credentials: { email: string; password: string },
+  @Request() req: any,
+): Promise<any> {
+  const settingsId = req.org?.settingsId;
+  try {
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: {
+        email_address: credentials.email,
+      },
+      include: {
+        adminProfile: true, // Include admin profile if exists
+      },
+    });
+
+    // Check for admin user first (before invited or regular)
+    if (user && user.role === "admin") {
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
         },
       });
 
-      if (invitedUser && invitedUser.form_type === "INVITED") {
-        const invitationOrg = await prisma.inviteUser.findFirst({
-          where: {
-            email: credentials.email,
-          },
-        });
+      // Get or create progress for admin
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
 
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          invitedUser.password,
-        );
-
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return {
-            message: "Password is invalid",
-          };
-        }
-
-        const updateInvitedUser = await prisma.user.update({
-          where: { id: invitedUser.id },
+      if (!progress) {
+        progress = await prisma.progress.create({
           data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            progress: true,
-          },
-        });
-
-        //To create a new progress for invited user
-        if (
-          updateInvitedUser.progress &&
-          updateInvitedUser.progress.length > 0
-        ) {
-          const progressId = updateInvitedUser.progress[0].id;
-
-          const token = jwt.sign(
-            {
-              type: "INVITED_USER",
-              id: updateInvitedUser.id,
-              full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
-              email: updateInvitedUser.email_address,
-              role: updateInvitedUser.role,
-              progressId: progressId,
-              level: updateInvitedUser.level,
-              updateStatus: updateInvitedUser.isOnline,
-              organizationId: invitationOrg?.organizationId || null,
-            },
-            (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-            { expiresIn: "7d" },
-          );
-
-          // Set the token cookie
-          if (req.res) {
-            req.res.cookie("token", token, {
-              httpOnly: true,
-              secure: true,
-              sameSite: "none",
-              path: "/",
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
-
-            req.res.cookie("progress_id", progressId, {
-              httpOnly: true,
-              secure: true,
-              sameSite: "none",
-              path: "/",
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
-          }
-
-          this.setStatus(200);
-          return {
-            data: {
-              message: "Login successful for invited user",
-              token,
-              user: {
-                type: "INVITED_USER",
-                id: updateInvitedUser.id,
-                first_name: updateInvitedUser.first_name,
-                last_name: updateInvitedUser.last_name,
-                role: updateInvitedUser.role,
-                progressId: progressId ?? null,
-                form_type: updateInvitedUser.form_type,
-                organizationId: invitationOrg?.organizationId || null,
-              },
-            },
-          };
-        }
-        const startJourney = await prisma.progress.create({
-          data: {
-            userId: updateInvitedUser.id,
+            userId: user.id,
             startedJourney: true,
             progressBar: 0,
           },
-          include: {
-            user: {
-              select: {
-                first_name: true,
-                last_name: true,
-              },
-            },
-          },
         });
-
-        // Create achievement message
-        const achievementResult = await GrowthService.AchievementMessage({
-          message_title: "Christian Cadet",
-          message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
-          point: 10,
-          progress_message: "",
-          userId: updateInvitedUser.id,
-          badge: "CADET_BADGE",
-          progressId: startJourney.id,
-        });
-
-        // Check if achievement was created successfully
-        if (achievementResult.error) {
-          console.error(
-            "Achievement creation failed:",
-            achievementResult.error,
-          );
-          // Still return success for journey but with achievement error
-          this.setStatus(200);
-          return {
-            message:
-              "Journey created successfully, but achievement creation failed",
-            data: startJourney,
-            achievementError: achievementResult.error,
-          };
-        }
-
-        const token = jwt.sign(
-          {
-            type: "INVITED_USER",
-            id: updateInvitedUser.id,
-            full_name: `${updateInvitedUser.first_name} ${updateInvitedUser.last_name}`,
-            email: updateInvitedUser.email_address,
-            role: updateInvitedUser.role,
-            progressId: startJourney.id,
-            level: updateInvitedUser.level,
-            updateStatus: updateInvitedUser.isOnline,
-            organizationId: invitationOrg?.organizationId || null,
-          },
-          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-          { expiresIn: "7d" },
-        );
-
-        // Set the token cookie
-        if (req.res) {
-          req.res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", startJourney.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful for invited user",
-            token,
-            user: {
-              type: "INVITED_USER",
-              id: updateInvitedUser.id,
-              first_name: updateInvitedUser.first_name,
-              last_name: updateInvitedUser.last_name,
-              role: updateInvitedUser.role,
-              progressId: startJourney.id ?? null,
-              form_type: updateInvitedUser.form_type,
-              organizationId: invitationOrg?.organizationId || null,
-            },
-          },
-        };
       }
 
-      // Check for regular users
-      if (invitedUser) {
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          invitedUser.password,
-        );
+      const token = jwt.sign(
+        {
+          type: "ADMIN",
+          id: updateUser.id,
+          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+          email: updateUser.email_address,
+          role: updateUser.role,
+          adminRole: user.adminProfile?.role || "super_admin",
+          progressId: progress.id,
+          level: updateUser.level,
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "7d" },
+      );
 
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return {
-            message: "Password is invalid",
-          };
-        }
-
-        const updateUser = await prisma.user.update({
-          where: { id: invitedUser?.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            progress: true,
-          },
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
         });
 
-        //To create a new progress for invited user
-        if (updateUser.progress && updateUser.progress.length > 0) {
-          const organizationData = await prisma.organization.findFirst({
-            where: { userId: invitedUser.id },
-          });
-          const progressId = updateUser.progress[0].id;
-          const token = jwt.sign(
-            {
-              type: "USER",
-              id: updateUser.id,
-              full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-              email: updateUser.email_address,
-              role: updateUser.role,
-              level: updateUser.level,
-              progressId: progressId,
-              updateStatus: updateUser.isOnline,
-              organizationId: organizationData?.id || null,
-            },
-            (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-            { expiresIn: "7d" },
-          );
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
 
-          // Set the token cookie
-          if (req.res) {
-            req.res.cookie("token", token, {
-              httpOnly: true,
-              secure: true,
-              sameSite: "none",
-              path: "/",
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful",
+          token,
+          user: {
+            type: "ADMIN",
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            role: updateUser.role,
+            adminRole: user.adminProfile?.role || "super_admin",
+            progressId: progress.id,
+          },
+        },
+      };
+    }
 
-            req.res.cookie("progress_id", progressId, {
-              httpOnly: true,
-              secure: true,
-              sameSite: "none",
-              path: "/",
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
-          }
+    // Check for invited users
+    if (user && user.form_type === "INVITED") {
+      const invitationOrg = await prisma.inviteUser.findFirst({
+        where: {
+          email: credentials.email,
+        },
+      });
 
-          this.setStatus(200);
-          return {
-            data: {
-              message: "Login successful",
-              token,
-              user: {
-                type: "user",
-                id: updateUser.id,
-                first_name: updateUser.first_name,
-                last_name: updateUser.last_name,
-                role: updateUser.role,
-                progressId: progressId ?? null,
-                form_type: updateUser.form_type,
-              },
-            },
-          };
-        }
-        const startJourney = await prisma.progress.create({
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+        include: { progress: {
+            include: { user: true },
+        } },
+      });
+
+      let progress = updateUser.progress?.[0];
+      
+      if (!progress) {
+        progress = await prisma.progress.create({
           data: {
             userId: updateUser.id,
             startedJourney: true,
             progressBar: 0,
           },
-          include: {
-            user: {
-              select: {
-                first_name: true,
-                last_name: true,
-              },
-            },
-          },
+          include: { user: true },
         });
 
-        // Create achievement message
-        const achievementResult = await GrowthService.AchievementMessage({
+        await GrowthService.AchievementMessage({
           message_title: "Christian Cadet",
-          message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
+          message_content: `${progress.user.first_name} you just joined the rest of the soldiers to join the army`,
           point: 10,
           progress_message: "",
           userId: updateUser.id,
           badge: "CADET_BADGE",
-          progressId: startJourney.id,
+          progressId: progress.id,
         });
-
-        // Check if achievement was created successfully
-        if (achievementResult.error) {
-          console.error(
-            "Achievement creation failed:",
-            achievementResult.error,
-          );
-          // Still return success for journey but with achievement error
-          this.setStatus(200);
-          return {
-            message:
-              "Journey created successfully, but achievement creation failed",
-            data: startJourney,
-            achievementError: achievementResult.error,
-          };
-        }
-        //To login in user organization
-        const organizationData = await prisma.organization.findFirst({
-          where: { userId: invitedUser.id },
-        });
-
-        const token = jwt.sign(
-          {
-            type: "USER",
-            id: updateUser.id,
-            full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-            email: updateUser.email_address,
-            role: updateUser.role,
-            level: updateUser.level,
-            progressId: startJourney.id,
-            updateStatus: updateUser.isOnline,
-            organizationId: organizationData?.id || null,
-          },
-          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-          { expiresIn: "7d" },
-        );
-
-        // Set the token cookie
-        if (req.res) {
-          req.res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", startJourney.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful",
-            token,
-            user: {
-              type: "user",
-              id: updateUser.id,
-              first_name: updateUser.first_name,
-              last_name: updateUser.last_name,
-              role: updateUser.role,
-              progressId: startJourney.id ?? null,
-              form_type: updateUser.form_type,
-            },
-          },
-        };
       }
 
-      // Check for organization
-      const organization = await prisma.organization.findUnique({
+      const token = jwt.sign(
+        {
+          type: "INVITED_USER",
+          id: updateUser.id,
+          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+          email: updateUser.email_address,
+          role: updateUser.role,
+          progressId: progress.id,
+          level: updateUser.level,
+          updateStatus: updateUser.isOnline,
+          organizationId: invitationOrg?.organizationId || null,
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "7d" },
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful",
+          token,
+          user: {
+            type: "INVITED_USER",
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            role: updateUser.role,
+            progressId: progress.id,
+            form_type: updateUser.form_type,
+            organizationId: invitationOrg?.organizationId || null,
+          },
+        },
+      };
+    }
+
+    // Check for regular users
+    if (user && user.form_type === "INDIVIDUAL") {
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+        include: { progress: {
+            include: { user: true },
+        } },
+      });
+
+      let progress = updateUser.progress?.[0];
+      
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
+            userId: updateUser.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+          include: { user: true },
+        });
+
+        await GrowthService.AchievementMessage({
+          message_title: "Christian Cadet",
+          message_content: `${progress.user.first_name} you just joined the rest of the soldiers to join the army`,
+          point: 10,
+          progress_message: "",
+          userId: updateUser.id,
+          badge: "CADET_BADGE",
+          progressId: progress.id,
+        });
+      }
+
+      const organizationData = await prisma.organization.findFirst({
+        where: { userId: user.id },
+      });
+
+      const token = jwt.sign(
+        {
+          type: "USER",
+          id: updateUser.id,
+          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+          email: updateUser.email_address,
+          role: updateUser.role,
+          level: updateUser.level,
+          progressId: progress.id,
+          updateStatus: updateUser.isOnline,
+          organizationId: organizationData?.id || null,
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "7d" },
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful",
+          token,
+          user: {
+            type: "USER",
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            role: updateUser.role,
+            progressId: progress.id,
+            form_type: updateUser.form_type,
+          },
+        },
+      };
+    }
+
+    // Check for organization
+    const organization = await prisma.organization.findUnique({
+      where: {
+        organization_email: credentials.email,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (organization) {
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        organization.organization_password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      const updatedOrganization = await prisma.organization.update({
         where: {
           organization_email: credentials.email,
+        },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
         },
         include: {
           user: true,
         },
       });
 
-      if (organization) {
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          organization.organization_password,
-        );
+      const token = jwt.sign(
+        {
+          type: "ORGANIZATION",
+          id: updatedOrganization.user.id,
+          settingsId: settingsId,
+          organizationId: updatedOrganization.id,
+          organization_name: updatedOrganization.organization_name,
+          organization_email: updatedOrganization.organization_email,
+          organization_role: updatedOrganization.user.role,
+          userId: updatedOrganization.user.id,
+          full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
+          email: updatedOrganization.user.email_address,
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "7d" },
+      );
 
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return {
-            message: "Password is invalid",
-          };
-        }
-
-        const updatedOrganization = await prisma.organization.update({
-          where: {
-            organization_email: credentials.email,
-          },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user: true,
-          },
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
         });
-
-        // Session management is handled by middleware based on device/tab ID
-        // No cleanup needed here - middleware will handle device conflicts
-
-        const token = jwt.sign(
-          {
-            type: "ORGANIZATION",
-            id: updatedOrganization.user.id,
-            settingsId: settingsId,
-            organizationId: updatedOrganization.id ?? null,
-            organization_name: updatedOrganization.organization_name ?? null,
-            organization_email: updatedOrganization.organization_email ?? null,
-            organization_role: updatedOrganization.user.role ?? null,
-            organization_online: updatedOrganization.isOnline ?? null,
-            userId: updatedOrganization.user.id,
-            full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
-            email: updatedOrganization.user.email_address,
-          },
-          (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
-          { expiresIn: "7d" },
-        );
-        // Set the token cookie
-        if (req.res) {
-          req.res.cookie("token", token, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful",
-            token,
-            organization: {
-              type: "organization",
-              id: updatedOrganization.id,
-              organization_name: updatedOrganization.organization_name,
-              organization_email: updatedOrganization.organization_email,
-              organization_role: updatedOrganization.user.role,
-              organization_isOnline: updatedOrganization.isOnline,
-            },
-          },
-        };
       }
 
-      this.setStatus(404);
+      this.setStatus(200);
       return {
-        message: "User or Login not found",
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: `An error occurred: ${error.message}`,
+        data: {
+          message: "Login successful",
+          token,
+          organization: {
+            type: "organization",
+            id: updatedOrganization.id,
+            organization_name: updatedOrganization.organization_name,
+            organization_email: updatedOrganization.organization_email,
+            organization_role: updatedOrganization.user.role,
+            organization_isOnline: updatedOrganization.isOnline,
+          },
+        },
       };
     }
+
+    this.setStatus(404);
+    return { message: "User or Login not found" };
+  } catch (error: any) {
+    console.error("Login error:", error);
+    this.setStatus(500);
+    return {
+      message: `An error occurred: ${error.message}`,
+    };
   }
+}
 
   //create and send Otp
   @Post("/sendOtp")

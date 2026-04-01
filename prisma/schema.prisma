@@ -53,7 +53,25 @@ model User {
   discussionLikes  DiscussionLike[]
   sentMessages     PrivateMessage[]       @relation("SentMessages") // Messages sent
   receivedMessages PrivateMessage[]       @relation("ReceivedMessages")
-  privateMessages PrivateMessage[]
+  privateMessages  PrivateMessage[]
+  adminProfile     AdminProfile?
+}
+
+model AdminProfile {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role        String    @default("super_admin") // super_admin, content_admin, user_admin
+  permissions Json? // Store permissions as JSON
+  createdBy   String? // Which admin created this admin
+  lastLoginAt DateTime?
+  loginCount  Int       @default(0)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([role])
 }
 
 // schema.prisma
@@ -81,6 +99,7 @@ enum FormType {
   ORGANIZATION
   INDIVIDUAL
   INVITED
+  ADMIN
 }
 
 model InviteUser {
@@ -692,7 +711,7 @@ model Objectives {
 model Discussion {
   id        String   @id @default(cuid())
   content   String
-  mediaUrls Json? @default("[]")
+  mediaUrls Json?    @default("[]")
   isPublic  Boolean  @default(true)
   authorId  String
   parentId  String?
@@ -702,7 +721,7 @@ model Discussion {
   author  User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent  Discussion?      @relation("DiscussionReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies Discussion[]     @relation("DiscussionReplies")
-  likes   DiscussionLike[] 
+  likes   DiscussionLike[]
 
   @@index([authorId])
   @@index([parentId])
