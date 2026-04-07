@@ -2186,6 +2186,93 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
+  @Get("/tutor-overview")
+  public async GetTutorOverview(@Request() req: any): Promise<any> {
+    const tutorId = req.user?.id;
+    const orgId = req.org?.id;
+
+    try {
+      // Step 1 — Fetch all courses belonging to this tutor/org
+      const allCourses = await prisma.course.findMany({
+        where: orgId ? { organizationId: orgId } : { createdUserId: tutorId },
+        select: {
+          id: true,
+          course_title: true,
+          course_short_description: true,
+          course_image: true,
+          course_level: true,
+          _count: {
+            select: { enrollment: true },
+          },
+        },
+      });
+
+      const totalPublishedCourses = allCourses.length;
+
+      if (totalPublishedCourses === 0) {
+        this.setStatus(200);
+        return {
+          message: "No courses found",
+          data: {
+            topCourse: null,
+            totalPublishedCourses: 0,
+            avgCompletionPercentage: 0,
+          },
+        };
+      }
+
+      // Step 2 — Pick the course with the most enrollments
+      const topCourse = allCourses.reduce((prev, curr) =>
+        curr._count.enrollment > prev._count.enrollment ? curr : prev,
+      );
+
+      // Step 3 — Compute completion % across all tutor's courses
+      const courseIds = allCourses.map((c) => c.id);
+
+      const [totalEnrollments, completedEnrollments] = await Promise.all([
+        prisma.enrollment.count({
+          where: { courseId: { in: courseIds } },
+        }),
+        prisma.enrollment.count({
+          where: {
+            courseId: { in: courseIds },
+            status: "COMPLETED",
+          },
+        }),
+      ]);
+
+      const avgCompletionPercentage =
+        totalEnrollments > 0
+          ? Math.round((completedEnrollments / totalEnrollments) * 100)
+          : 0;
+
+      this.setStatus(200);
+      return {
+        message: "Tutor overview fetched successfully",
+        data: {
+          topCourse: {
+            id: topCourse.id,
+            course_title: topCourse.course_title,
+            course_short_description: topCourse.course_short_description,
+            course_image: topCourse.course_image,
+            course_level: topCourse.course_level,
+            totalStudents: topCourse._count.enrollment,
+          },
+          totalPublishedCourses,
+          avgCompletionPercentage,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching tutor overview:", error);
+      this.setStatus(500);
+      return {
+        message: "Error fetching tutor overview: " + error.message,
+        data: null,
+      };
+    }
+  }
+
+  @Security("bearerAuth")
   @Get("/fetch-student_spiritual-growth")
   public async FetchStudentSpiritualGrowth(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
