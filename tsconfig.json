@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "es2021",
+    "target": "ES2021",
     "lib": ["ES2021", "DOM"],
-    "module": "CommonJS",
+    "module": "ESNext",
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,

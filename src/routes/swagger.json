@@ -69,7 +69,8 @@
 				"enum": [
 					"ORGANIZATION",
 					"INDIVIDUAL",
-					"INVITED"
+					"INVITED",
+					"ADMIN"
 				]
 			},
 			"_36_Enums.EnrollmentStatus": {
@@ -2835,6 +2836,96 @@
 				],
 				"security": [],
 				"parameters": []
+			}
+		},
+		"/user/admin-dashboard-stats": {
+			"get": {
+				"operationId": "GetAdminDashboardStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/user/settings": {
+			"get": {
+				"operationId": "GetSettings",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/user/settings/dark-mode": {
+			"put": {
+				"operationId": "UpdateDarkMode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"darkMode": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"darkMode"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/user/logout": {
@@ -10000,6 +10091,61 @@
 			}
 		},
 		"/discussion/{discussionId}": {
+			"put": {
+				"operationId": "UpdateDiscussion",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"mediaUrls": {
+										"items": {
+											"$ref": "#/components/schemas/MediaItem"
+										},
+										"type": "array"
+									},
+									"content": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"content"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			},
 			"delete": {
 				"operationId": "DeleteDiscussion",
 				"responses": {
@@ -10024,6 +10170,40 @@
 					{
 						"in": "path",
 						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/profile/{userId}": {
+			"get": {
+				"operationId": "GetUserById",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get a user's public profile by ID",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
 						"required": true,
 						"schema": {
 							"type": "string"
@@ -10088,6 +10268,56 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/discussion/public/{discussionId}/comments": {
+			"get": {
+				"operationId": "GetDiscussionComments",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Get all comments/replies for a specific discussion",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "discussionId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
 			}
 		},
 		"/discussion/private/{userId}": {
@@ -10313,6 +10543,124 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/discussion/private/message/{messageId}": {
+			"put": {
+				"operationId": "UpdatePrivateMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Update a private message (edit)",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "messageId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"content": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"content"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeletePrivateMessage",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Delete a private message (soft delete)",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "messageId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/discussion/private/clear/{userId}": {
+			"delete": {
+				"operationId": "ClearPrivateMessages",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Clear all messages between current user and another user",
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/course/create-course": {
@@ -13012,6 +13360,30 @@
 										}
 									]
 								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/course/tutor-overview": {
+			"get": {
+				"operationId": "GetTutorOverview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
 							}
 						}
 					}
