@@ -12,11 +12,6 @@ dotenv.config();
 
 export const createApp = async () => {
   const app = express();
-  console.log("GMAIL_USER:", process.env.GMAIL_USER);
-  console.log(
-    "GMAIL_PASSWORD:",
-    process.env.GMAIL_PASSWORD ? "Loaded ✅" : "Missing ",
-  );
   console.log("🔄 Setting up middleware...");
 
   // Basic middleware
