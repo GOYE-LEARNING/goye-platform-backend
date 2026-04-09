@@ -606,6 +606,7 @@ public async Login(
       newOtp.email,
       "GOYE VERIFICATION",
       `Your Otp ${newOtp.code}`,
+      'otp'
     );
 
     this.setStatus(200);
@@ -1255,6 +1256,7 @@ public async GetProfile(@Request() req: any) {
       checkEmail.email_address,
       "Forgot Password Link",
       body.link,
+      "reset-password"
     );
     this.setStatus(200);
     return {
