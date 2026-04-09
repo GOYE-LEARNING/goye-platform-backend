@@ -1,4 +1,4 @@
-// src/app.ts 
+// src/app.ts
 import express, { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import { RegisterRoutes } from "./routes/routes";
@@ -7,10 +7,16 @@ import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/logger";
 import { corsOptions } from "./config/cors";
 import prisma from "./db";
+import dotenv from "dotenv";
+dotenv.config();
 
 export const createApp = async () => {
   const app = express();
-
+  console.log("GMAIL_USER:", process.env.GMAIL_USER);
+  console.log(
+    "GMAIL_PASSWORD:",
+    process.env.GMAIL_PASSWORD ? "Loaded ✅" : "Missing ",
+  );
   console.log("🔄 Setting up middleware...");
 
   // Basic middleware
