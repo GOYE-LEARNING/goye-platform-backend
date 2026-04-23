@@ -1,9 +1,7 @@
 {
   "entryFile": "src/app.ts",
   "noImplicitAdditionalProperties": "throw-on-extras",
-  "controllerPathGlobs": [
-    "src/controllers/**/*.ts"
-  ],
+  "controllerPathGlobs": ["src/controllers/**/*.ts"],
   "spec": {
     "outputDirectory": "src/routes",
     "specVersion": 3,
@@ -19,9 +17,9 @@
     "routesDir": "src/routes",
     "basePath": "/api",
     "authenticationModule": "./src/auth/authentication.ts",
-      "multerOpts": {
+    "multerOpts": {
       "limits": {
-        "fileSize": 500000000, 
+        "fileSize": 10485760,
         "files": 1
       },
       "fileFilter": null

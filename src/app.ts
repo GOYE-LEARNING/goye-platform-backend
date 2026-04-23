@@ -6,18 +6,45 @@ import { setupSwagger } from "./config/swagger";
 import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/logger";
 import { corsOptions } from "./config/cors";
+import rateLimit from "express-rate-limit";
 import prisma from "./db";
 import dotenv from "dotenv";
 dotenv.config();
 
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // max 100 requests per 15 minutes per IP
+  message: {
+    status: 429,
+    message: "Too many requests, please slow down and try again later.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    status: 429,
+    message: "Too many login attempts, please try again in 15 minutes.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 export const createApp = async () => {
   const app = express();
   console.log("🔄 Setting up middleware...");
-
+  app.use(generalLimiter);
+  app.use("/api/user/signup", authLimiter);
+  app.use("/api/user/login", authLimiter);
   // Basic middleware
-  app.use(express.json({ limit: "500mb" }));
+  app.use(express.json({ limit: "15mb" }));
   app.use(cookieParser());
-  app.use(express.urlencoded({ extended: true, limit: "500mb" }));
+
+
+  app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
   // CORS
   app.use(corsOptions);
