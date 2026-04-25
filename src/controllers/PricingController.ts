@@ -10,7 +10,9 @@ export class PricingController extends Controller {
       ...data,
     });
 
-    return code;
+    return {
+        recipitent: code
+    }
   }
 
   @Post("/transfer")
@@ -19,6 +21,8 @@ export class PricingController extends Controller {
       ...data,
     });
 
-    return code;
+    return {
+        data: code
+    }
   }
 }
