@@ -12,6 +12,8 @@ import { StudentEnrollmentController } from './../controllers/StudentEnrollmentC
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { SocialController } from './../controllers/SocialController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { PricingController } from './../controllers/PricingController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { OrganizationController } from './../controllers/OrganizationController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { NotificationController } from './../controllers/NotificationController';
@@ -98,6 +100,18 @@ const models: TsoaRoute.Models = {
     "Omit_EventDTO.id_": {
         "dataType": "refAlias",
         "type": {"ref":"Pick_EventDTO.Exclude_keyofEventDTO.id__","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "Receipitence": {
+        "dataType": "refObject",
+        "properties": {
+            "type": {"dataType":"string","required":true},
+            "name": {"dataType":"string","required":true},
+            "account_number": {"dataType":"string","required":true},
+            "bank_code": {"dataType":"string","required":true},
+            "currency": {"dataType":"string","required":true},
+        },
+        "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Church": {
@@ -2377,6 +2391,36 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'DeleteEvent',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsPricingController_PayPricing: Record<string, TsoaRoute.ParameterSchema> = {
+                data: {"in":"body","name":"data","required":true,"ref":"Receipitence"},
+        };
+        app.post('/api/pricing/transferRecipitent',
+            ...(fetchMiddlewares<RequestHandler>(PricingController)),
+            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.PayPricing)),
+
+            async function PricingController_PayPricing(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_PayPricing, request, response });
+
+                const controller = new PricingController();
+
+              await templateService.apiHandler({
+                methodName: 'PayPricing',
                 controller,
                 response,
                 next,

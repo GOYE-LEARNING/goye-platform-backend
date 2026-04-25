@@ -21,6 +21,7 @@ model User {
   point            Int?
   completed        String                 @default("false")
   form_type        FormType?              @default(INDIVIDUAL)
+  user_plan        PricingHistory[]
   createdAt        DateTime               @default(now())
   isOnline         Boolean                @default(false)
   lastActive       DateTime               @default(now())
@@ -54,6 +55,41 @@ model User {
   sentMessages     PrivateMessage[]       @relation("SentMessages")
   receivedMessages PrivateMessage[]       @relation("ReceivedMessages")
   adminProfile     AdminProfile?
+}
+
+model PricingHistory {
+  id              String         @id @default(uuid())
+  type            MemberPlanType
+  amountPayed     String
+  planDuration    PlanDuration
+  plans           Plans
+  user            User?          @relation(fields: [userId], references: [id])
+  userId          String?
+  organization    Organization?  @relation(fields: [organizationId], references: [id])
+  organizationId  String?
+  planActivatedAt DateTime       @default(now())
+  planUpdatedAt   DateTime?
+}
+
+enum Plans {
+  FREEMIUM_USER
+  STUDENT_PLUS
+  STUDENT_UNLIMITED
+  TUTOR_PRO
+  TUTOR_ELITE
+  STARTER_ORG
+  MINISTRY_GROWTH_ORG
+  ENTERPRISE_ORG
+}
+
+enum PlanDuration {
+  MONTHLY_PLAN
+  YEARLY_PLAN
+}
+
+enum MemberPlanType {
+  ORGANIZATION
+  INDIVIDUAL
 }
 
 model AdminProfile {
@@ -127,6 +163,7 @@ model Organization {
   organization_password     String?
   organization_year         String
   organization_image        String?
+  organization_plan         PricingHistory[]
   form_type                 FormType?            @default(ORGANIZATION)
   isOnline                  Boolean?             @default(false)
   lastActive                DateTime
@@ -744,14 +781,14 @@ model PrivateMessage {
   receiverId String
   replyToId  String?
   isDeleted  Boolean   @default(false)
-  isEdited   Boolean   @default(false)  // Add this field
+  isEdited   Boolean   @default(false) // Add this field
   readAt     DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sender   User            @relation("SentMessages", fields: [senderId], references: [id])
-  receiver User            @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  replyTo  PrivateMessage? @relation("ReplyTo", fields: [replyToId], references: [id])
+  sender   User             @relation("SentMessages", fields: [senderId], references: [id])
+  receiver User             @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  replyTo  PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id])
   replies  PrivateMessage[] @relation("ReplyTo")
 
   @@index([senderId])

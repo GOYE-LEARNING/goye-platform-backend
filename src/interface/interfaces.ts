@@ -196,3 +196,17 @@ export interface Club {
   club_document?: string;
   club_role?: string
 }
+
+export interface Receipitence {
+  type: string
+  name: string
+  account_number: string
+  bank_code: string
+  currency: string
+}
+
+export interface TransferMoney {
+  source: string
+  amount: string
+  recipitent: string
+}
