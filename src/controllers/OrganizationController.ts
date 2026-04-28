@@ -18,6 +18,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { MediaService } from "../services/mediaServices";
 import { SendEmail } from "../utils/sendmail";
+import { PricingService } from "../services/pricingService";
 enum OrgType {
   CHURCH,
   SCHOOL,
@@ -147,6 +148,12 @@ export class OrganizationController extends Controller {
           userId: null,
           organizationId: createOrganization.id,
         },
+      });
+
+      await PricingService.GenerateNewPaymentForNewUser({
+        userId: null,
+        orgId: createOrganization.id,
+        type: "ORGANIZATION",
       });
 
       this.setStatus(201);

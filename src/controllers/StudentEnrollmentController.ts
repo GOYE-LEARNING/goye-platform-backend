@@ -14,6 +14,7 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
+import { Limitations } from "../utils/functionLimitations";
 
 @Route("enroll")
 @Tags("Student Enrollment Course APIs")
@@ -25,7 +26,7 @@ export class StudentEnrollmentController extends Controller {
     @Path() courseId: string,
   ): Promise<any> {
     const userId = req.user?.id;
-
+    const planId = req.user?.planId
     // Check userId FIRST before checking enrollment
     if (!userId) {
       this.setStatus(400);
@@ -34,6 +35,7 @@ export class StudentEnrollmentController extends Controller {
       };
     }
 
+    Limitations(planId, userId)
     // Check if course exists
     const course = await prisma.course.findUnique({
       where: { id: courseId },

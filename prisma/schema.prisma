@@ -12,6 +12,7 @@ model User {
   first_name       String
   last_name        String
   email_address    String                 @unique
+  paymentCode      String?
   password         String?
   country          String
   state            String
@@ -60,12 +61,12 @@ model User {
 model PricingHistory {
   id              String         @id @default(uuid())
   type            MemberPlanType
-  amountPayed     String
+  amountPayed     Int
   planDuration    PlanDuration
   plans           Plans
-  user            User?          @relation(fields: [userId], references: [id])
+  user            User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId          String?
-  organization    Organization?  @relation(fields: [organizationId], references: [id])
+  organization    Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId  String?
   planActivatedAt DateTime       @default(now())
   planUpdatedAt   DateTime?
@@ -73,16 +74,33 @@ model PricingHistory {
 
 enum Plans {
   FREEMIUM_USER
+  INVITED_STUDENT_UNLIMITED
+  // STUDENTS
   STUDENT_PLUS
   STUDENT_UNLIMITED
+
+  // TUTORS
   TUTOR_PRO
   TUTOR_ELITE
-  STARTER_ORG
-  MINISTRY_GROWTH_ORG
-  ENTERPRISE_ORG
+
+  // CHURCH
+  CHURCH_STARTER
+  CHURCH_GROWTH
+  CHURCH_ENTERPRISE
+
+  // SCHOOL
+  SCHOOL_STARTER
+  SCHOOL_GROWTH
+  SCHOOL_ENTERPRISE
+
+  // CLUB / NGO
+  CLUB_STARTER
+  CLUB_GROWTH
+  CLUB_ENTERPRISE
 }
 
 enum PlanDuration {
+  FREE_PLAN
   MONTHLY_PLAN
   YEARLY_PLAN
 }
@@ -90,6 +108,7 @@ enum PlanDuration {
 enum MemberPlanType {
   ORGANIZATION
   INDIVIDUAL
+  INVITED_INDIVIDUAL
 }
 
 model AdminProfile {
@@ -175,6 +194,7 @@ model Organization {
   quizAttempt               QuizAttempt[]
   inviteUser                InviteUser[]
   notification              Notification[]
+  enrollment                Enrollment[]
   userId                    String
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
@@ -593,18 +613,20 @@ model JoinedEvent {
 }
 
 model Enrollment {
-  id           String           @id @default(cuid())
-  userId       String
-  courseId     String
-  score        Int?             @default(0)
-  status       EnrollmentStatus @default(NOT_ENROLLED)
-  course       Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  enrolledAt   DateTime         @default(now())
-  completedAt  DateTime?
-  startedAt    DateTime
-  createdAt    DateTime         @default(now())
-  pointHistory PointHistory[]
+  id             String           @id @default(cuid())
+  userId         String
+  courseId       String
+  score          Int?             @default(0)
+  status         EnrollmentStatus @default(NOT_ENROLLED)
+  course         Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enrolledAt     DateTime         @default(now())
+  completedAt    DateTime?
+  startedAt      DateTime
+  createdAt      DateTime         @default(now())
+  pointHistory   PointHistory[]
+  organization   Organization?    @relation(fields: [organizationId], references: [id])
+  organizationId String?
 
   @@unique([userId, courseId])
 }

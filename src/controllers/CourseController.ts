@@ -23,6 +23,7 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
+import { Limitations } from "../utils/functionLimitations";
 
 //To determine levels
 const levels: Record<string, string> = {
@@ -44,11 +45,13 @@ export class CourseController extends Controller {
     @Request() req: any,
   ): Promise<CourseResponse> {
     const tutorName = req.user?.full_name;
+    const planId = req.user?.planId
     const tutorId = req.user?.id;
     const orgId = req.org?.id;
     const orgName = req.org?.organization_name;
     try {
       // Use organizationId if exists, otherwise use createdUserId
+      Limitations(planId, tutorId, orgId,)
       const course = await prisma.course.create({
         data: {
           organizationId: orgId ?? null,

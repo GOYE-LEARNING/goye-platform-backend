@@ -182,7 +182,7 @@ export interface School {
   school_website?: string;
   school_accreditation_number?: string;
   school_document?: string;
-  school_email?: string
+  school_email?: string;
 }
 
 export interface Club {
@@ -194,19 +194,25 @@ export interface Club {
   club_parent_org?: string;
   club_description?: string;
   club_document?: string;
-  club_role?: string
+  club_role?: string;
 }
 
-export interface Receipitence {
-  type: string
-  name: string
-  account_number: string
-  bank_code: string
-  currency: string
+export interface Recipitent {
+  account_back: string;
+  account_number: string;
+  amount: string;
+  currency: string;
+  reference: string;
+  narration: string;
 }
 
-export interface TransferMoney {
-  source: string
-  amount: string
-  recipitent: string
+export interface IFlutterwaveTransferPayload {
+  account_bank: string;    
+  account_number: string;  
+  amount: number;          
+  currency: "NGN" | "USD" | "GHS" | "KES"; 
+  narration: string;      
+  reference: string;      
+  callback_url?: string;   
+  debit_currency?: string;
 }

@@ -102,16 +102,34 @@ const models: TsoaRoute.Models = {
         "type": {"ref":"Pick_EventDTO.Exclude_keyofEventDTO.id__","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "Receipitence": {
-        "dataType": "refObject",
-        "properties": {
-            "type": {"dataType":"string","required":true},
-            "name": {"dataType":"string","required":true},
-            "account_number": {"dataType":"string","required":true},
-            "bank_code": {"dataType":"string","required":true},
-            "currency": {"dataType":"string","required":true},
-        },
-        "additionalProperties": false,
+    "_36_Enums.PlanDuration": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["FREE_PLAN"]},{"dataType":"enum","enums":["MONTHLY_PLAN"]},{"dataType":"enum","enums":["YEARLY_PLAN"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.MemberPlanType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ORGANIZATION"]},{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["INVITED_INDIVIDUAL"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.Plans": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["FREEMIUM_USER"]},{"dataType":"enum","enums":["INVITED_STUDENT_UNLIMITED"]},{"dataType":"enum","enums":["STUDENT_PLUS"]},{"dataType":"enum","enums":["STUDENT_UNLIMITED"]},{"dataType":"enum","enums":["TUTOR_PRO"]},{"dataType":"enum","enums":["TUTOR_ELITE"]},{"dataType":"enum","enums":["CHURCH_STARTER"]},{"dataType":"enum","enums":["CHURCH_GROWTH"]},{"dataType":"enum","enums":["CHURCH_ENTERPRISE"]},{"dataType":"enum","enums":["SCHOOL_STARTER"]},{"dataType":"enum","enums":["SCHOOL_GROWTH"]},{"dataType":"enum","enums":["SCHOOL_ENTERPRISE"]},{"dataType":"enum","enums":["CLUB_STARTER"]},{"dataType":"enum","enums":["CLUB_GROWTH"]},{"dataType":"enum","enums":["CLUB_ENTERPRISE"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "Plans": {
+        "dataType": "refAlias",
+        "type": {"ref":"_36_Enums.Plans","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "PlanDuration": {
+        "dataType": "refAlias",
+        "type": {"ref":"_36_Enums.PlanDuration","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "MemberPlanType": {
+        "dataType": "refAlias",
+        "type": {"ref":"_36_Enums.MemberPlanType","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Church": {
@@ -2402,25 +2420,118 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsPricingController_PayPricing: Record<string, TsoaRoute.ParameterSchema> = {
-                data: {"in":"body","name":"data","required":true,"ref":"Receipitence"},
+        const argsPricingController_TransferCode: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
-        app.post('/api/pricing/transferRecipitent',
+        app.post('/api/pricing/getCode',
+            authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(PricingController)),
-            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.PayPricing)),
+            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.TransferCode)),
 
-            async function PricingController_PayPricing(request: ExRequest, response: ExResponse, next: any) {
+            async function PricingController_TransferCode(request: ExRequest, response: ExResponse, next: any) {
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
             let validatedArgs: any[] = [];
             try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_PayPricing, request, response });
+                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_TransferCode, request, response });
 
                 const controller = new PricingController();
 
               await templateService.apiHandler({
-                methodName: 'PayPricing',
+                methodName: 'TransferCode',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsPricingController_GetCode: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/pricing/fetch-code',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(PricingController)),
+            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.GetCode)),
+
+            async function PricingController_GetCode(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_GetCode, request, response });
+
+                const controller = new PricingController();
+
+              await templateService.apiHandler({
+                methodName: 'GetCode',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsPricingController_MakeTransfer: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                data: {"in":"body","name":"data","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"type":{"ref":"MemberPlanType","required":true},"planDuration":{"ref":"PlanDuration","required":true},"plan":{"ref":"Plans","required":true},"debit_currency":{"dataType":"string"},"callback_url":{"dataType":"string"},"reference":{"dataType":"string","required":true},"narration":{"dataType":"string","required":true},"currency":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["NGN"]},{"dataType":"enum","enums":["USD"]},{"dataType":"enum","enums":["GHS"]},{"dataType":"enum","enums":["KES"]}],"required":true},"amount":{"dataType":"double","required":true},"account_number":{"dataType":"string","required":true},"account_bank":{"dataType":"string","required":true}}},
+        };
+        app.post('/api/pricing/make-transfer',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(PricingController)),
+            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.MakeTransfer)),
+
+            async function PricingController_MakeTransfer(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_MakeTransfer, request, response });
+
+                const controller = new PricingController();
+
+              await templateService.apiHandler({
+                methodName: 'MakeTransfer',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsPricingController_TestPlans: Record<string, TsoaRoute.ParameterSchema> = {
+        };
+        app.get('/api/pricing/test-plans',
+            ...(fetchMiddlewares<RequestHandler>(PricingController)),
+            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.TestPlans)),
+
+            async function PricingController_TestPlans(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_TestPlans, request, response });
+
+                const controller = new PricingController();
+
+              await templateService.apiHandler({
+                methodName: 'TestPlans',
                 controller,
                 response,
                 next,

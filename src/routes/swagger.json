@@ -177,33 +177,50 @@
 				"$ref": "#/components/schemas/Pick_EventDTO.Exclude_keyofEventDTO.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
-			"Receipitence": {
-				"properties": {
-					"type": {
-						"type": "string"
-					},
-					"name": {
-						"type": "string"
-					},
-					"account_number": {
-						"type": "string"
-					},
-					"bank_code": {
-						"type": "string"
-					},
-					"currency": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"type",
-					"name",
-					"account_number",
-					"bank_code",
-					"currency"
-				],
-				"type": "object",
-				"additionalProperties": false
+			"_36_Enums.PlanDuration": {
+				"type": "string",
+				"enum": [
+					"FREE_PLAN",
+					"MONTHLY_PLAN",
+					"YEARLY_PLAN"
+				]
+			},
+			"_36_Enums.MemberPlanType": {
+				"type": "string",
+				"enum": [
+					"ORGANIZATION",
+					"INDIVIDUAL",
+					"INVITED_INDIVIDUAL"
+				]
+			},
+			"_36_Enums.Plans": {
+				"type": "string",
+				"enum": [
+					"FREEMIUM_USER",
+					"INVITED_STUDENT_UNLIMITED",
+					"STUDENT_PLUS",
+					"STUDENT_UNLIMITED",
+					"TUTOR_PRO",
+					"TUTOR_ELITE",
+					"CHURCH_STARTER",
+					"CHURCH_GROWTH",
+					"CHURCH_ENTERPRISE",
+					"SCHOOL_STARTER",
+					"SCHOOL_GROWTH",
+					"SCHOOL_ENTERPRISE",
+					"CLUB_STARTER",
+					"CLUB_GROWTH",
+					"CLUB_ENTERPRISE"
+				]
+			},
+			"Plans": {
+				"$ref": "#/components/schemas/_36_Enums.Plans"
+			},
+			"PlanDuration": {
+				"$ref": "#/components/schemas/_36_Enums.PlanDuration"
+			},
+			"MemberPlanType": {
+				"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
 			},
 			"Church": {
 				"properties": {
@@ -2381,6 +2398,9 @@
 												"completed": {
 													"type": "string"
 												},
+												"paymentCode": {
+													"type": "string"
+												},
 												"level": {
 													"type": "string"
 												},
@@ -2434,6 +2454,7 @@
 												"isOnline",
 												"form_type",
 												"completed",
+												"paymentCode",
 												"level",
 												"role",
 												"phone_number",
@@ -2595,6 +2616,9 @@
 														"completed": {
 															"type": "string"
 														},
+														"paymentCode": {
+															"type": "string"
+														},
 														"level": {
 															"type": "string"
 														},
@@ -2648,6 +2672,7 @@
 														"isOnline",
 														"form_type",
 														"completed",
+														"paymentCode",
 														"level",
 														"role",
 														"phone_number",
@@ -5430,16 +5455,125 @@
 				]
 			}
 		},
-		"/pricing/transferRecipitent": {
+		"/pricing/getCode": {
 			"post": {
-				"operationId": "PayPricing",
+				"operationId": "TransferCode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Pricing API integration"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/pricing/fetch-code": {
+			"get": {
+				"operationId": "GetCode",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Pricing API integration"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/pricing/make-transfer": {
+			"post": {
+				"operationId": "MakeTransfer",
 				"responses": {
 					"200": {
 						"description": "Ok",
 						"content": {
 							"application/json": {
 								"schema": {
-									"type": "string"
+									"properties": {
+										"user": {
+											"properties": {
+												"planUpdatedAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"planActivatedAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"plans": {
+													"$ref": "#/components/schemas/_36_Enums.Plans"
+												},
+												"planDuration": {
+													"$ref": "#/components/schemas/_36_Enums.PlanDuration"
+												},
+												"amountPayed": {
+													"type": "number",
+													"format": "double"
+												},
+												"type": {
+													"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
+												},
+												"organizationId": {
+													"type": "string"
+												},
+												"userId": {
+													"type": "string"
+												},
+												"id": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"planUpdatedAt",
+												"planActivatedAt",
+												"plans",
+												"planDuration",
+												"amountPayed",
+												"type",
+												"organizationId",
+												"userId",
+												"id"
+											],
+											"type": "object"
+										},
+										"plan": {
+											"$ref": "#/components/schemas/_36_Enums.PlanDuration"
+										},
+										"data": {},
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"user",
+										"plan",
+										"data",
+										"message"
+									],
+									"type": "object"
 								}
 							}
 						}
@@ -5448,18 +5582,95 @@
 				"tags": [
 					"Pricing API integration"
 				],
-				"security": [],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
 				"parameters": [],
 				"requestBody": {
 					"required": true,
 					"content": {
 						"application/json": {
 							"schema": {
-								"$ref": "#/components/schemas/Receipitence"
+								"properties": {
+									"type": {
+										"$ref": "#/components/schemas/MemberPlanType"
+									},
+									"planDuration": {
+										"$ref": "#/components/schemas/PlanDuration"
+									},
+									"plan": {
+										"$ref": "#/components/schemas/Plans"
+									},
+									"debit_currency": {
+										"type": "string"
+									},
+									"callback_url": {
+										"type": "string"
+									},
+									"reference": {
+										"type": "string"
+									},
+									"narration": {
+										"type": "string"
+									},
+									"currency": {
+										"type": "string",
+										"enum": [
+											"NGN",
+											"USD",
+											"GHS",
+											"KES"
+										]
+									},
+									"amount": {
+										"type": "number",
+										"format": "double"
+									},
+									"account_number": {
+										"type": "string"
+									},
+									"account_bank": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"type",
+									"planDuration",
+									"plan",
+									"reference",
+									"narration",
+									"currency",
+									"amount",
+									"account_number",
+									"account_bank"
+								],
+								"type": "object"
 							}
 						}
 					}
 				}
+			}
+		},
+		"/pricing/test-plans": {
+			"get": {
+				"operationId": "TestPlans",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Pricing API integration"
+				],
+				"security": [],
+				"parameters": []
 			}
 		},
 		"/organizations/auth/create-organization": {
@@ -6223,6 +6434,9 @@
 																		"completed": {
 																			"type": "string"
 																		},
+																		"paymentCode": {
+																			"type": "string"
+																		},
 																		"level": {
 																			"type": "string"
 																		},
@@ -6276,6 +6490,7 @@
 																		"isOnline",
 																		"form_type",
 																		"completed",
+																		"paymentCode",
 																		"level",
 																		"role",
 																		"phone_number",
@@ -6752,6 +6967,9 @@
 																		"completed": {
 																			"type": "string"
 																		},
+																		"paymentCode": {
+																			"type": "string"
+																		},
 																		"level": {
 																			"type": "string"
 																		},
@@ -6805,6 +7023,7 @@
 																		"isOnline",
 																		"form_type",
 																		"completed",
+																		"paymentCode",
 																		"level",
 																		"role",
 																		"phone_number",

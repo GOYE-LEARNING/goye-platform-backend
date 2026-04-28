@@ -21,6 +21,7 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
+import { Limitations } from "../utils/functionLimitations";
 
 @Route("socials")
 @Tags("Social controllers")
@@ -1672,6 +1673,7 @@ export class SocialController extends Controller {
   @Post("/join-group/{groupId}")
   public async JoinGroup(@Request() req: any, @Path() groupId: string) {
     const userId = req.user?.id;
+    const planId = req.user?.id;
     const progressId = req.progressId;
 
     if (!userId) {
@@ -1683,6 +1685,9 @@ export class SocialController extends Controller {
       this.setStatus(404);
       return { message: "Group not found" };
     }
+
+        Limitations(planId, userId)
+    
 
     const isJoined = await prisma.joinedGroup.findUnique({
       where: {

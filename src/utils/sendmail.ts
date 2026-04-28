@@ -30,7 +30,7 @@ const otpTemplate = (otp: string) => `
         </p>
 
         <div style="background:#252830; border-radius:12px; border:1px solid rgba(255,165,0,0.2); padding:24px 16px; text-align:center; margin-bottom:24px;">
-          <div style="letter-spacing:14px; font-size:36px; font-weight:bold; color:#FFA500; margin-left:14px;">
+          <div style="font-size:18px; font-weight:bold; color:#FFA500; margin-left:14px;">
             ${otp}
           </div>
           <p style="margin:10px 0 0; font-size:12px; color:#9CA3B0;">Your one-time passcode</p>
