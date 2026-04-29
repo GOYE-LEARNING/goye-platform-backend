@@ -26,7 +26,7 @@ export class StudentEnrollmentController extends Controller {
     @Path() courseId: string,
   ): Promise<any> {
     const userId = req.user?.id;
-    const planId = req.user?.planId
+    const planId = req.user?.planId;
     // Check userId FIRST before checking enrollment
     if (!userId) {
       this.setStatus(400);
@@ -35,7 +35,7 @@ export class StudentEnrollmentController extends Controller {
       };
     }
 
-    Limitations(planId, userId)
+
     // Check if course exists
     const course = await prisma.course.findUnique({
       where: { id: courseId },
@@ -74,6 +74,17 @@ export class StudentEnrollmentController extends Controller {
       };
     }
 
+     const limitations = await Limitations(planId, userId); //Limitations On Enrollment
+    if (!limitations || limitations.status !== "OK") {
+      this.setStatus(400);
+      return (
+        limitations || {
+          message: "Something went wrong with plan validation",
+          status: "ERROR",
+        }
+      );
+    }
+
     // Create enrollment
     const studentEnroll = await prisma.enrollment.create({
       data: {
@@ -102,11 +113,12 @@ export class StudentEnrollmentController extends Controller {
     });
 
     // Award XP for course enrollment
-    const gamificationResult = await GamificationService.AddPointsWithGamification(
-      userId,
-      ActionType.COURSE_ENROLLMENT,
-      { courseId }
-    );
+    const gamificationResult =
+      await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.COURSE_ENROLLMENT,
+        { courseId },
+      );
 
     // Send notification to instructor
     await NotificationService.createNotification({
@@ -250,19 +262,18 @@ export class StudentEnrollmentController extends Controller {
       },
     });
 
-    const completedLessonIds = new Set(completedLessons.map(l => l.lessonId));
+    const completedLessonIds = new Set(completedLessons.map((l) => l.lessonId));
 
     // Calculate progress for each course
     const coursesWithProgress = studentEnrollments.map((enrollment) => {
-      const allLessons = enrollment.course.module.flatMap(m => m.lesson);
+      const allLessons = enrollment.course.module.flatMap((m) => m.lesson);
       const totalLessons = allLessons.length;
-      const completedInCourse = allLessons.filter(l => 
-        completedLessonIds.has(l.id)
+      const completedInCourse = allLessons.filter((l) =>
+        completedLessonIds.has(l.id),
       ).length;
-      
-      const progressPercentage = totalLessons > 0 
-        ? (completedInCourse / totalLessons) * 100 
-        : 0;
+
+      const progressPercentage =
+        totalLessons > 0 ? (completedInCourse / totalLessons) * 100 : 0;
 
       return {
         enrollment_id: enrollment.id,
@@ -410,8 +421,10 @@ export class StudentEnrollmentController extends Controller {
         const studentId = enrollment.user.id;
 
         if (!studentsMap.has(studentId)) {
-          const levelInfo = GamificationService.calculateLevel(enrollment.user.point || 0);
-          
+          const levelInfo = GamificationService.calculateLevel(
+            enrollment.user.point || 0,
+          );
+
           studentsMap.set(studentId, {
             student_id: enrollment.user.id,
             full_name: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
@@ -477,7 +490,7 @@ export class StudentEnrollmentController extends Controller {
       const totalXP = students.reduce((sum, s) => sum + (s.total_xp || 0), 0);
       const totalCoursesCompleted = students.reduce(
         (sum, s) => sum + s.total_completed_courses,
-        0
+        0,
       );
 
       // Add context about who is viewing
@@ -496,7 +509,8 @@ export class StudentEnrollmentController extends Controller {
             total_enrollments: enrollments.length,
             total_xp_earned: totalXP,
             total_courses_completed: totalCoursesCompleted,
-            average_xp_per_student: students.length > 0 ? Math.round(totalXP / students.length) : 0,
+            average_xp_per_student:
+              students.length > 0 ? Math.round(totalXP / students.length) : 0,
           },
           students: students,
         },
@@ -583,7 +597,7 @@ export class StudentEnrollmentController extends Controller {
         where: {
           module: {
             courseId: {
-              in: enrollments.map(e => e.courseId),
+              in: enrollments.map((e) => e.courseId),
             },
           },
         },
@@ -593,26 +607,29 @@ export class StudentEnrollmentController extends Controller {
       const completedLessons = await prisma.progress.findMany({
         where: {
           userId: studentId,
-          lessonId: { in: allLessonsInCourses.map(l => l.id) },
+          lessonId: { in: allLessonsInCourses.map((l) => l.id) },
           progressBar: { gte: 100 },
         },
         select: { lessonId: true },
       });
 
-      const completedLessonIds = new Set(completedLessons.map(l => l.lessonId));
+      const completedLessonIds = new Set(
+        completedLessons.map((l) => l.lessonId),
+      );
 
       // Calculate progress per course
-      const enrollmentsWithProgress = enrollments.map(enrollment => {
+      const enrollmentsWithProgress = enrollments.map((enrollment) => {
         const courseLessons = allLessonsInCourses.filter(
-          l => l.module.courseId === enrollment.courseId
+          (l) => l.module.courseId === enrollment.courseId,
         );
-        const completedInCourse = courseLessons.filter(l => 
-          completedLessonIds.has(l.id)
+        const completedInCourse = courseLessons.filter((l) =>
+          completedLessonIds.has(l.id),
         ).length;
-        
-        const progressPercentage = courseLessons.length > 0 
-          ? (completedInCourse / courseLessons.length) * 100 
-          : 0;
+
+        const progressPercentage =
+          courseLessons.length > 0
+            ? (completedInCourse / courseLessons.length) * 100
+            : 0;
 
         return {
           ...enrollment,
@@ -776,7 +793,8 @@ export class StudentEnrollmentController extends Controller {
         progress = {
           completed_lessons: completedLessons,
           total_lessons: totalLessons,
-          percentage: totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+          percentage:
+            totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
         };
       }
 

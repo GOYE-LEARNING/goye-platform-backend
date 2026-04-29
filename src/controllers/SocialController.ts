@@ -1686,8 +1686,16 @@ export class SocialController extends Controller {
       return { message: "Group not found" };
     }
 
-        Limitations(planId, userId)
-    
+  const limitations = await Limitations(planId, userId); //Limitations On Enrollment
+    if (!limitations || limitations.status !== "OK") {
+      this.setStatus(400);
+      return (
+        limitations || {
+          message: "Something went wrong with plan validation",
+          status: "ERROR",
+        }
+      );
+    }    
 
     const isJoined = await prisma.joinedGroup.findUnique({
       where: {

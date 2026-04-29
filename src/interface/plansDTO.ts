@@ -52,8 +52,8 @@ export const PLAN_CONFIG: Record<Plans, PlanDTO> = {
   // FREE (STUDENT)
   // =====================
   FREEMIUM_USER: createPlan("Free Plan", "student", PlanDuration.FREE_PLAN, 0, {
-    enrolledCourses: 5,
-    joinedGroups: 10,
+    enrolledCourses: 2,
+    joinedGroups: 2,
   }),
 
   // =====================

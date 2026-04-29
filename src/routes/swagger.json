@@ -5513,51 +5513,81 @@
 							"application/json": {
 								"schema": {
 									"properties": {
+										"userQuery": {
+											"type": "string"
+										},
 										"user": {
-											"properties": {
-												"planUpdatedAt": {
-													"type": "string",
-													"format": "date-time"
+											"allOf": [
+												{
+													"properties": {
+														"user": {
+															"properties": {
+																"last_name": {
+																	"type": "string"
+																},
+																"first_name": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"last_name",
+																"first_name"
+															],
+															"type": "object"
+														}
+													},
+													"required": [
+														"user"
+													],
+													"type": "object"
 												},
-												"planActivatedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"plans": {
-													"$ref": "#/components/schemas/_36_Enums.Plans"
-												},
-												"planDuration": {
-													"$ref": "#/components/schemas/_36_Enums.PlanDuration"
-												},
-												"amountPayed": {
-													"type": "number",
-													"format": "double"
-												},
-												"type": {
-													"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
-												},
-												"organizationId": {
-													"type": "string"
-												},
-												"userId": {
-													"type": "string"
-												},
-												"id": {
-													"type": "string"
+												{
+													"properties": {
+														"planUpdatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"planActivatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"plans": {
+															"$ref": "#/components/schemas/_36_Enums.Plans"
+														},
+														"planDuration": {
+															"$ref": "#/components/schemas/_36_Enums.PlanDuration"
+														},
+														"amountPayed": {
+															"type": "number",
+															"format": "double"
+														},
+														"type": {
+															"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"planUpdatedAt",
+														"planActivatedAt",
+														"plans",
+														"planDuration",
+														"amountPayed",
+														"type",
+														"organizationId",
+														"userId",
+														"id"
+													],
+													"type": "object"
 												}
-											},
-											"required": [
-												"planUpdatedAt",
-												"planActivatedAt",
-												"plans",
-												"planDuration",
-												"amountPayed",
-												"type",
-												"organizationId",
-												"userId",
-												"id"
-											],
-											"type": "object"
+											]
 										},
 										"plan": {
 											"$ref": "#/components/schemas/_36_Enums.PlanDuration"
@@ -5568,6 +5598,7 @@
 										}
 									},
 									"required": [
+										"userQuery",
 										"user",
 										"plan",
 										"data",
@@ -11405,6 +11436,9 @@
 																							"status": {
 																								"$ref": "#/components/schemas/_36_Enums.EnrollmentStatus"
 																							},
+																							"organizationId": {
+																								"type": "string"
+																							},
 																							"userId": {
 																								"type": "string"
 																							},
@@ -11425,6 +11459,7 @@
 																							"enrolledAt",
 																							"score",
 																							"status",
+																							"organizationId",
 																							"userId",
 																							"createdAt",
 																							"courseId",
