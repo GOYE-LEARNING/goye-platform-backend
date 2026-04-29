@@ -11,8 +11,6 @@ const startServer = async () => {
   try {
     console.log(" Creating app...");
     const app = await createApp();
-    console.log("Connecting Redis")
-    const redis = await connectRedis()
     console.log(" Creating HTTP server...");
     const httpServer = createServer(app);
 
@@ -32,7 +30,6 @@ const startServer = async () => {
     console.log(` Listening on port ${PORT}...`);
     httpServer.listen(PORT, () => {
       console.log(` Server running on port ${PORT}`);
-      console.log(`Redis connected at ${redis}`)
       console.log(` Swagger: http://localhost:${PORT}/api/docs`);
       console.log(` Socket.IO server ready`);
     });
