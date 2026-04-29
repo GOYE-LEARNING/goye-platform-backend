@@ -26,6 +26,13 @@ export async function Limitations(
     where: { studentId: userId },
   });
 
+  if (!userId) {
+  return {
+    status: "ERROR",
+    message: "Invalid user",
+  };
+}
+
   // ✅ Enrolled Courses
   const enrollLimit = planConfig.limits.enrolledCourses;
   if (courseId && enrollLimit !== "UNLIMITED" && enrollLimit !== undefined) {

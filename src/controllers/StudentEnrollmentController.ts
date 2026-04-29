@@ -27,6 +27,12 @@ export class StudentEnrollmentController extends Controller {
   ): Promise<any> {
     const userId = req.user?.id;
     const planId = req.user?.planId;
+    if (!userId) {
+      this.setStatus(400);
+      return {
+        message: "This enrollment cannot be made by this user",
+      };
+    }
     // Check userId FIRST before checking enrollment
     const limitations = await Limitations(planId, courseId, null, userId, null); //Limitations On Enrollment
     if (!limitations || limitations.status !== "OK") {
@@ -37,13 +43,6 @@ export class StudentEnrollmentController extends Controller {
           status: "ERROR",
         }
       );
-    }
-
-    if (!userId) {
-      this.setStatus(400);
-      return {
-        message: "This enrollment cannot be made by this user",
-      };
     }
 
     // Check if course exists
