@@ -1686,7 +1686,7 @@ export class SocialController extends Controller {
       return { message: "Group not found" };
     }
 
-  const limitations = await Limitations(planId, userId); //Limitations On Enrollment
+    const limitations = await Limitations(planId, null, groupId, userId, null); //Limitations On Enrollment
     if (!limitations || limitations.status !== "OK") {
       this.setStatus(400);
       return (
@@ -1695,7 +1695,7 @@ export class SocialController extends Controller {
           status: "ERROR",
         }
       );
-    }    
+    }
 
     const isJoined = await prisma.joinedGroup.findUnique({
       where: {
@@ -1854,119 +1854,123 @@ export class SocialController extends Controller {
     };
   }
 
-@Security("bearerAuth")
-@Delete("/exit-group/{groupId}")
-public async ExitGroup(@Path() groupId: string, @Request() req: any) {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Delete("/exit-group/{groupId}")
+  public async ExitGroup(@Path() groupId: string, @Request() req: any) {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return {
-      message: "User unauthorized",
-    };
-  }
+    if (!userId) {
+      this.setStatus(401);
+      return {
+        message: "User unauthorized",
+      };
+    }
 
-  const group = await prisma.group.findUnique({
-    where: {
-      id: groupId,
-    },
-  });
-
-  if (!group) {
-    this.setStatus(404);
-    return {
-      message: "This group does not exist",
-    };
-  }
-
-  const isJoined = await prisma.joinedGroup.findUnique({
-    where: {
-      groupId_studentId: {
-        groupId,
-        studentId: userId,
-      },
-    },
-    include: {
-      group: {
-        select: {
-          achievement: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
-    },
-  });
-
-  if (!isJoined) {
-    this.setStatus(404);
-    return {
-      message: "User is not a member of this group",
-    };
-  }
-
-  // Delete the joined group record
-  const existgroup = await prisma.joinedGroup.delete({
-    where: {
-      groupId_studentId: {
-        groupId,
-        studentId: userId,
-      },
-    },
-    include: {
-      group: {
-        select: {
-          achievement: {
-            select: {
-              id: true,
-            },
-          },
-        },
-      },
-      student: {
-        select: {
-          first_name: true,
-          last_name: true,
-        },
-      },
-    },
-  });
-
-  // FIXED: Use DeletePointsByJoinedGroup instead of DeleteUserPoints
-  // This will remove all points associated with this specific group membership
-  try {
-    const deletionResult = await GamificationService.DeletePointsByJoinedGroup(
-      isJoined.id, // Pass the JoinedGroup ID
-      `${existgroup.student.first_name} ${existgroup.student.last_name} left the group: ${group.group_title}`
-    );
-    
-    console.log("Points deletion result:", deletionResult);
-  } catch (error) {
-    console.error("Error deleting points:", error);
-  }
-
-  // Safely delete achievements if they exist
-  if (existgroup.group.achievement && existgroup.group.achievement.length > 0) {
-    const achievementIds = existgroup.group.achievement.map((a) => a.id);
-
-    // Delete all achievements associated with this group membership
-    await prisma.achievement.deleteMany({
+    const group = await prisma.group.findUnique({
       where: {
-        id: {
-          in: achievementIds,
+        id: groupId,
+      },
+    });
+
+    if (!group) {
+      this.setStatus(404);
+      return {
+        message: "This group does not exist",
+      };
+    }
+
+    const isJoined = await prisma.joinedGroup.findUnique({
+      where: {
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
+        },
+      },
+      include: {
+        group: {
+          select: {
+            achievement: {
+              select: {
+                id: true,
+              },
+            },
+          },
         },
       },
     });
-  }
 
-  this.setStatus(200);
-  return {
-    message: "This user just left the group.",
-    data: existgroup,
-    points_removed: true,
-  };
-}
+    if (!isJoined) {
+      this.setStatus(404);
+      return {
+        message: "User is not a member of this group",
+      };
+    }
+
+    // Delete the joined group record
+    const existgroup = await prisma.joinedGroup.delete({
+      where: {
+        groupId_studentId: {
+          groupId,
+          studentId: userId,
+        },
+      },
+      include: {
+        group: {
+          select: {
+            achievement: {
+              select: {
+                id: true,
+              },
+            },
+          },
+        },
+        student: {
+          select: {
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    // FIXED: Use DeletePointsByJoinedGroup instead of DeleteUserPoints
+    // This will remove all points associated with this specific group membership
+    try {
+      const deletionResult =
+        await GamificationService.DeletePointsByJoinedGroup(
+          isJoined.id, // Pass the JoinedGroup ID
+          `${existgroup.student.first_name} ${existgroup.student.last_name} left the group: ${group.group_title}`,
+        );
+
+      console.log("Points deletion result:", deletionResult);
+    } catch (error) {
+      console.error("Error deleting points:", error);
+    }
+
+    // Safely delete achievements if they exist
+    if (
+      existgroup.group.achievement &&
+      existgroup.group.achievement.length > 0
+    ) {
+      const achievementIds = existgroup.group.achievement.map((a) => a.id);
+
+      // Delete all achievements associated with this group membership
+      await prisma.achievement.deleteMany({
+        where: {
+          id: {
+            in: achievementIds,
+          },
+        },
+      });
+    }
+
+    this.setStatus(200);
+    return {
+      message: "This user just left the group.",
+      data: existgroup,
+      points_removed: true,
+    };
+  }
 
   @Post("/create-event/{groupId}")
   public async CreateEvent(

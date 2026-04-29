@@ -3,6 +3,8 @@ import { PLAN_CONFIG } from "../interface/plansDTO";
 
 export async function Limitations(
   planId: string,
+  courseId?: string,
+  groupId?: string,
   userId?: string,
   orgId?: string,
 ) {
@@ -17,7 +19,7 @@ export async function Limitations(
   const planConfig = PLAN_CONFIG[getPlans.plans];
 
   const enrollCourses = await prisma.enrollment.count({
-    where: { userId },
+    where: { userId, },
   });
 
   const joinedGroup = await prisma.joinedGroup.count({
@@ -26,7 +28,7 @@ export async function Limitations(
 
   // ✅ Enrolled Courses
   const enrollLimit = planConfig.limits.enrolledCourses;
-  if (enrollLimit !== "UNLIMITED" && enrollLimit !== undefined) {
+  if (courseId && enrollLimit !== "UNLIMITED" && enrollLimit !== undefined) {
     if (enrollCourses >= enrollLimit) {
       return {
         message: "You have exceeded your limit to enroll in courses",
@@ -37,7 +39,7 @@ export async function Limitations(
 
   // ✅ Joined Groups
   const groupLimit = planConfig.limits.joinedGroups;
-  if (groupLimit !== "UNLIMITED" && groupLimit !== undefined) {
+  if (groupId && groupLimit !== "UNLIMITED" && groupLimit !== undefined) {
     if (joinedGroup >= groupLimit) {
       return {
         message: "You have exceeded your limit to join groups",
