@@ -5011,6 +5011,33 @@
 									"anyOf": [
 										{
 											"properties": {
+												"status": {
+													"type": "string"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"status",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"message": {},
+												"status": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"status"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
 												"gamification": {},
 												"data": {},
 												"message": {
