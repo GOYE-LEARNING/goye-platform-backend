@@ -38,6 +38,12 @@ export async function VerifyToken(
       req.progressId = decoded.progressId;
       console.log("📋 Progress ID attached to request:", req.progressId);
     }
+
+    
+    if(decoded.planId) {
+      req.planId = decoded.planId;
+      console.log("📋 Plan ID attached to request in expressAuthentication:", decoded.planId);
+    }
     
     await prisma.user.update({
       where: { id: user.id },

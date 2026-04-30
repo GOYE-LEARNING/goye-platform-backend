@@ -39,6 +39,11 @@ export async function expressAuthentication(
       (request as any).progressId = decoded.progressId;
       console.log("📋 Progress ID attached to request in expressAuthentication:", decoded.progressId);
     }
+
+    if(decoded.planId) {
+      (request as any).planId = decoded.planId;
+      console.log("📋 Plan ID attached to request in expressAuthentication:", decoded.planId);
+    }
     // Update user online status
     await prisma.user.update({
       where: { id: user.id },
