@@ -267,6 +267,8 @@ export class UserController extends Controller {
           },
         });
 
+        const planId = plan?.id ?? null
+
         if (!plan) {
           await PricingService.GenerateNewPaymentForNewUser({
             userId: updateUser.id,
@@ -285,7 +287,7 @@ export class UserController extends Controller {
             adminRole: user.adminProfile?.role || "super_admin",
             progressId: progress.id,
             level: updateUser.level,
-            planId: plan.id,
+            planId
           },
           process.env.BEARERAUTH_SECRET || "secret-key",
           { expiresIn: "7d" },
@@ -308,7 +310,7 @@ export class UserController extends Controller {
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
 
-          req.res.cookie("plan_id", plan.id, {
+          req.res.cookie("plan_id", planId, {
             httpOnly: true,
             secure: true,
             sameSite: "none",
@@ -395,6 +397,9 @@ export class UserController extends Controller {
           },
         });
 
+                const planId = plan?.id ?? null
+
+
         if (!plan) {
           await PricingService.GenerateNewPaymentForNewUser({
             userId: updateUser.id,
@@ -414,7 +419,7 @@ export class UserController extends Controller {
             level: updateUser.level,
             updateStatus: updateUser.isOnline,
             organizationId: invitationOrg?.organizationId || null,
-            planId: plan.id,
+            planId
           },
           process.env.BEARERAUTH_SECRET || "secret-key",
           { expiresIn: "7d" },
@@ -435,7 +440,7 @@ export class UserController extends Controller {
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-          req.res.cookie("plan_id", plan.id, {
+          req.res.cookie("plan_id", planId, {
             httpOnly: true,
             secure: true,
             sameSite: "none",
@@ -521,6 +526,8 @@ export class UserController extends Controller {
           },
         });
 
+                const planId = plan?.id ?? null
+
         if (!plan) {
           await PricingService.GenerateNewPaymentForNewUser({
             userId: updateUser.id,
@@ -540,7 +547,7 @@ export class UserController extends Controller {
             progressId: progress.id,
             updateStatus: updateUser.isOnline,
             organizationId: organizationData?.id || null,
-            planId: plan.id,
+            planId
           },
           process.env.BEARERAUTH_SECRET || "secret-key",
           { expiresIn: "7d" },
@@ -561,7 +568,7 @@ export class UserController extends Controller {
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-          req.res.cookie("plan_id", plan.id, {
+          req.res.cookie("plan_id", planId, {
             httpOnly: true,
             secure: true,
             sameSite: "none",
@@ -628,6 +635,8 @@ export class UserController extends Controller {
           },
         });
 
+                const planId = plan?.id ?? null
+
         if (!plan) {
           await PricingService.GenerateNewPaymentForNewUser({
             userId: null,
@@ -648,7 +657,7 @@ export class UserController extends Controller {
             userId: updatedOrganization.user.id,
             full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
             email: updatedOrganization.user.email_address,
-            planId: plan.id,
+            planId
           },
           process.env.BEARERAUTH_SECRET || "secret-key",
           { expiresIn: "7d" },
@@ -663,7 +672,7 @@ export class UserController extends Controller {
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
 
-          req.res.cookie("plan_id", plan.id, {
+          req.res.cookie("plan_id", planId, {
             httpOnly: true,
             secure: true,
             sameSite: "none",
