@@ -631,7 +631,7 @@ export class UserController extends Controller {
 
         const plan = await prisma.pricingHistory.findFirst({
           where: {
-            userId: user.id,
+            userId: updatedOrganization.user.id,
           },
         });
 
