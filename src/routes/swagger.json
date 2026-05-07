@@ -1970,6 +1970,64 @@
 				]
 			}
 		},
+		"/verify/refresh-token": {
+			"post": {
+				"operationId": "RefreshToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User Verification"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/user/auth/google": {
+			"post": {
+				"operationId": "GoogleAuth",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"idToken": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"idToken"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/user/signup": {
 			"post": {
 				"operationId": "CreateUser",
@@ -2024,6 +2082,12 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"deviceId": {
+										"type": "string"
+									},
+									"deviceType": {
+										"type": "string"
+									},
 									"password": {
 										"type": "string"
 									},
@@ -2367,6 +2431,9 @@
 									"properties": {
 										"user": {
 											"properties": {
+												"isProfileComplete": {
+													"type": "boolean"
+												},
 												"completedVideo": {
 													"type": "number",
 													"format": "double"
@@ -2378,6 +2445,9 @@
 												"completedCourses": {
 													"type": "number",
 													"format": "double"
+												},
+												"provider": {
+													"type": "string"
 												},
 												"invited": {
 													"type": "boolean"
@@ -2399,6 +2469,9 @@
 													"type": "string"
 												},
 												"paymentCode": {
+													"type": "string"
+												},
+												"firebase_uid": {
 													"type": "string"
 												},
 												"level": {
@@ -2445,9 +2518,11 @@
 												}
 											},
 											"required": [
+												"isProfileComplete",
 												"completedVideo",
 												"completedLessons",
 												"completedCourses",
+												"provider",
 												"invited",
 												"user_pic",
 												"lastActive",
@@ -2455,6 +2530,7 @@
 												"form_type",
 												"completed",
 												"paymentCode",
+												"firebase_uid",
 												"level",
 												"role",
 												"phone_number",
@@ -2585,6 +2661,9 @@
 												"status": {},
 												"user": {
 													"properties": {
+														"isProfileComplete": {
+															"type": "boolean"
+														},
 														"completedVideo": {
 															"type": "number",
 															"format": "double"
@@ -2596,6 +2675,9 @@
 														"completedCourses": {
 															"type": "number",
 															"format": "double"
+														},
+														"provider": {
+															"type": "string"
 														},
 														"invited": {
 															"type": "boolean"
@@ -2617,6 +2699,9 @@
 															"type": "string"
 														},
 														"paymentCode": {
+															"type": "string"
+														},
+														"firebase_uid": {
 															"type": "string"
 														},
 														"level": {
@@ -2663,9 +2748,11 @@
 														}
 													},
 													"required": [
+														"isProfileComplete",
 														"completedVideo",
 														"completedLessons",
 														"completedCourses",
+														"provider",
 														"invited",
 														"user_pic",
 														"lastActive",
@@ -2673,6 +2760,7 @@
 														"form_type",
 														"completed",
 														"paymentCode",
+														"firebase_uid",
 														"level",
 														"role",
 														"phone_number",
@@ -5011,16 +5099,16 @@
 									"anyOf": [
 										{
 											"properties": {
-												"status": {
+												"message": {
 													"type": "string"
 												},
-												"message": {
+												"status": {
 													"type": "string"
 												}
 											},
 											"required": [
-												"status",
-												"message"
+												"message",
+												"status"
 											],
 											"type": "object"
 										},
@@ -6461,6 +6549,9 @@
 																},
 																"user": {
 																	"properties": {
+																		"isProfileComplete": {
+																			"type": "boolean"
+																		},
 																		"completedVideo": {
 																			"type": "number",
 																			"format": "double"
@@ -6472,6 +6563,9 @@
 																		"completedCourses": {
 																			"type": "number",
 																			"format": "double"
+																		},
+																		"provider": {
+																			"type": "string"
 																		},
 																		"invited": {
 																			"type": "boolean"
@@ -6493,6 +6587,9 @@
 																			"type": "string"
 																		},
 																		"paymentCode": {
+																			"type": "string"
+																		},
+																		"firebase_uid": {
 																			"type": "string"
 																		},
 																		"level": {
@@ -6539,9 +6636,11 @@
 																		}
 																	},
 																	"required": [
+																		"isProfileComplete",
 																		"completedVideo",
 																		"completedLessons",
 																		"completedCourses",
+																		"provider",
 																		"invited",
 																		"user_pic",
 																		"lastActive",
@@ -6549,6 +6648,7 @@
 																		"form_type",
 																		"completed",
 																		"paymentCode",
+																		"firebase_uid",
 																		"level",
 																		"role",
 																		"phone_number",
@@ -6994,6 +7094,9 @@
 																},
 																"user": {
 																	"properties": {
+																		"isProfileComplete": {
+																			"type": "boolean"
+																		},
 																		"completedVideo": {
 																			"type": "number",
 																			"format": "double"
@@ -7005,6 +7108,9 @@
 																		"completedCourses": {
 																			"type": "number",
 																			"format": "double"
+																		},
+																		"provider": {
+																			"type": "string"
 																		},
 																		"invited": {
 																			"type": "boolean"
@@ -7026,6 +7132,9 @@
 																			"type": "string"
 																		},
 																		"paymentCode": {
+																			"type": "string"
+																		},
+																		"firebase_uid": {
 																			"type": "string"
 																		},
 																		"level": {
@@ -7072,9 +7181,11 @@
 																		}
 																	},
 																	"required": [
+																		"isProfileComplete",
 																		"completedVideo",
 																		"completedLessons",
 																		"completedCourses",
+																		"provider",
 																		"invited",
 																		"user_pic",
 																		"lastActive",
@@ -7082,6 +7193,7 @@
 																		"form_type",
 																		"completed",
 																		"paymentCode",
+																		"firebase_uid",
 																		"level",
 																		"role",
 																		"phone_number",

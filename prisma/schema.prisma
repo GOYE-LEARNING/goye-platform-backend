@@ -8,54 +8,64 @@ datasource db {
 }
 
 model User {
-  id               String                 @id @default(cuid())
-  first_name       String
-  last_name        String
-  email_address    String                 @unique
-  paymentCode      String?
-  password         String?
-  country          String
-  state            String
-  phone_number     String
-  role             String                 @default("student")
-  level            String
-  point            Int?
-  completed        String                 @default("false")
-  form_type        FormType?              @default(INDIVIDUAL)
-  user_plan        PricingHistory[]
-  createdAt        DateTime               @default(now())
-  isOnline         Boolean                @default(false)
-  lastActive       DateTime               @default(now())
-  updatedAt        DateTime               @updatedAt
-  user_pic         String?
-  invited          Boolean?               @default(false)
-  completedCourses Int?
-  completedLessons Int?
-  completedVideo   Int?
-  enrollment       Enrollment[]
-  post             Post[]
-  reply            Reply[]
-  quizAttempt      QuizAttempt[]
-  likes            Likes[]
-  Courses          Course[]
-  Group            Group[]
-  joinedGroups     JoinedGroup[]
-  notification     Notification[]
-  message          Message[]
-  organization     Organization[]
-  inviteUser       InviteUser[]
-  settings         Settings[]
-  achievement      Achievement[]
-  badgesAndLevel   BadgesAndLevelEarned[]
-  progress         Progress[]
-  badges           Badges[]
-  userSessions     UserSession[]
-  pointHistory     PointHistory[]
-  discussions      Discussion[]
-  discussionLikes  DiscussionLike[]
-  sentMessages     PrivateMessage[]       @relation("SentMessages")
-  receivedMessages PrivateMessage[]       @relation("ReceivedMessages")
-  adminProfile     AdminProfile?
+  id                String                 @id @default(cuid())
+  firebase_uid      String?                @unique
+  first_name        String
+  last_name         String
+  email_address     String                 @unique
+  paymentCode       String?
+  password          String?
+  country           String
+  state             String
+  phone_number      String
+  role              String                 @default("student")
+  level             String
+  point             Int?
+  completed         String                 @default("false")
+  form_type         FormType?              @default(INDIVIDUAL)
+  user_plan         PricingHistory[]
+  createdAt         DateTime               @default(now())
+  isOnline          Boolean                @default(false)
+  lastActive        DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  user_pic          String?
+  invited           Boolean?               @default(false)
+  provider          String?                @default("OTHER")
+  completedCourses  Int?
+  completedLessons  Int?
+  completedVideo    Int?
+  isProfileComplete Boolean?               @default(false)
+  enrollment        Enrollment[]
+  post              Post[]
+  reply             Reply[]
+  quizAttempt       QuizAttempt[]
+  likes             Likes[]
+  Courses           Course[]
+  Group             Group[]
+  joinedGroups      JoinedGroup[]
+  notification      Notification[]
+  message           Message[]
+  organization      Organization[]
+  inviteUser        InviteUser[]
+  settings          Settings[]
+  achievement       Achievement[]
+  badgesAndLevel    BadgesAndLevelEarned[]
+  progress          Progress[]
+  badges            Badges[]
+  userSessions      UserSession[]
+  pointHistory      PointHistory[]
+  discussions       Discussion[]
+  discussionLikes   DiscussionLike[]
+  sentMessages      PrivateMessage[]       @relation("SentMessages")
+  receivedMessages  PrivateMessage[]       @relation("ReceivedMessages")
+  adminProfile      AdminProfile?
+}
+
+enum Provider {
+  GOOGLE
+  FACEBOOK
+  APPLE
+  OTHER
 }
 
 model PricingHistory {
@@ -129,23 +139,26 @@ model AdminProfile {
 }
 
 model UserSession {
-  id         String   @id @default(cuid())
-  userId     String
-  deviceId   String   @unique
-  deviceType String
-  token      String
-  userType   String
-  createdAt  DateTime @default(now())
-  lastActive DateTime @updatedAt
-  expiresAt  DateTime
-  userAgent  String?
-  ipAddress  String?
+  id           String   @id @default(cuid())
+  userId       String
+  deviceId     String   @unique
+  deviceType   String // "mobile", "web", "desktop", "tablet", etc.
+  accessToken  String? // Store current access token (optional, for validation)
+  refreshToken String // Store refresh token
+  userType     String // "USER", "ADMIN", "INVITED_USER", "ORGANIZATION"
+  createdAt    DateTime @default(now())
+  lastActive   DateTime @updatedAt
+  expiresAt    DateTime
+  isRevoked    Boolean  @default(false)
+  userAgent    String?
+  ipAddress    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([deviceId])
   @@index([expiresAt])
+  @@index([refreshToken])
 }
 
 enum FormType {

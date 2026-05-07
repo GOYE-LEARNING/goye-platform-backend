@@ -1,26 +1,71 @@
 import { NextFunction, Request, Response } from "express";
-import jwt from 'jsonwebtoken'
+import jwt from 'jsonwebtoken';
 import prisma from "../db";
+import { verifyAccessToken } from "../utils/jwtHelper";
+
 export async function VerifyToken(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
   try {
-    const tokenFromCookie = req.cookies?.token;
+    // Try to get access token from cookie or header
+    const accessTokenFromCookie = req.cookies?.accessToken;
+    const accessTokenFromHeader = req.headers.authorization?.split(" ")[1];
+    let accessToken = accessTokenFromCookie || accessTokenFromHeader;
 
-    const tokenFromHeader = req.headers.authorization?.split(" ")[1];
-    const token = tokenFromCookie || tokenFromHeader;
+    // If no access token, check for refresh token
+    if (!accessToken) {
+      const refreshToken = req.cookies?.refreshToken;
+      
+      if (!refreshToken) {
+        return res.status(401).json({ message: "No tokens found" });
+      }
 
-    if (!token) {
-      return res.status(401).json({ message: "No token found" });
+      // Attempt to refresh the access token
+      try {
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET!);
+        const user = await prisma.user.findUnique({
+          where: { id: (decoded as any).id }
+        });
+
+        if (!user) {
+          return res.status(401).json({ message: "User not found" });
+        }
+
+        // Generate new access token
+        accessToken = jwt.sign(
+          {
+            id: user.id,
+            email: user.email_address,
+            role: user.role
+          },
+          process.env.ACCESS_SECRET!,
+          { expiresIn: "15m" }
+        );
+
+        // Set new access token in cookie
+        res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 15 * 60 * 1000
+        });
+      } catch (refreshError) {
+        return res.status(401).json({ message: "Invalid or expired refresh token" });
+      }
     }
 
+    // Verify access token
     let decoded: any;
     try {
-      decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET!);
+      decoded = verifyAccessToken(accessToken);
+      if (!decoded) {
+        return res.status(403).json({ message: "Invalid access token" });
+      }
     } catch {
-      return res.status(403).json({ message: "Invalid or expired token" });
+      return res.status(403).json({ message: "Invalid access token" });
     }
 
     // ✅ Attach USER
@@ -34,11 +79,10 @@ export async function VerifyToken(
 
     req.user = user;
 
-        if (decoded.progressId) {
+    if (decoded.progressId) {
       req.progressId = decoded.progressId;
       console.log("📋 Progress ID attached to request:", req.progressId);
     }
-
     
     if(decoded.planId) {
       req.planId = decoded.planId;
@@ -49,9 +93,8 @@ export async function VerifyToken(
       where: { id: user.id },
       data: { isOnline: true, lastActive: new Date() },
     });
-
     
-    //Attach Organization if organizationId exists
+    // Attach Organization if organizationId exists
     if (decoded.organizationId) {
       const organization = await prisma.organization.findUnique({
         where: {

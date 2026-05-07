@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOYE Google Auth Test - Port 10000</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 30px;
+            margin-bottom: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .btn-google {
+            background: #4285f4;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #48bb78 0%, #2f855a 100%);
+        }
+
+        .response-area {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            overflow-x: auto;
+            margin-top: 20px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .user-info {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .info-row {
+            display: flex;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-label {
+            font-weight: 600;
+            width: 150px;
+        }
+
+        .info-value {
+            color: #4a5568;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-complete {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-incomplete {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .connection-status {
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .connected {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .disconnected {
+            background: #fed7d7;
+            color: #742a2a;
+            border: 1px solid #fc8181;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>🔐 GOYE Google Authentication Test</h1>
+                <p class="subtitle">Backend running on port 10000</p>
+            </div>
+
+            <div id="connectionStatus" class="connection-status">
+                🔍 Checking connection to backend...
+            </div>
+
+            <div class="grid-2">
+                <div>
+                    <h3>📱 Step 1: Sign in with Google</h3>
+                    <button id="googleSignInBtn" class="btn btn-google">
+                        🚀 Sign in with Google
+                    </button>
+                    
+                    <div id="userInfo" style="display:none;" class="user-info">
+                        <h4>👤 User Information</h4>
+                        <div class="info-row">
+                            <span class="info-label">Name:</span>
+                            <span id="userName" class="info-value"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span id="userEmail" class="info-value"></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Avatar:</span>
+                            <img id="userAvatar" width="40" height="40" style="border-radius: 50%;">
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Profile Status:</span>
+                            <span id="profileStatus" class="status-badge"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3>📝 Step 2: Complete Your Profile</h3>
+                    <div id="profileForm" style="display:none;">
+                        <div class="form-group">
+                            <label>First Name *</label>
+                            <input type="text" id="firstName" placeholder="Enter your first name">
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name *</label>
+                            <input type="text" id="lastName" placeholder="Enter your last name">
+                        </div>
+                        <div class="form-group">
+                            <label>Country *</label>
+                            <select id="country">
+                                <option value="">Select Country</option>
+                                <option value="United States">United States</option>
+                                <option value="Canada">Canada</option>
+                                <option value="United Kingdom">United Kingdom</option>
+                                <option value="Nigeria">Nigeria</option>
+                                <option value="Kenya">Kenya</option>
+                                <option value="South Africa">South Africa</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>State *</label>
+                            <input type="text" id="state" placeholder="Enter your state">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number *</label>
+                            <input type="tel" id="phoneNumber" placeholder="+1234567890">
+                        </div>
+                        <button id="completeProfileBtn" class="btn btn-success">
+                            ✅ Complete Profile
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <h3>📡 API Responses</h3>
+                <div id="responseArea" class="response-area">
+                    <div style="color: #888;">Click "Sign in with Google" to begin...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDrpeUgCXyMwbiB5mxkZeJDevaCi96iQOA",
+            authDomain: "goye-media.firebaseapp.com",
+            projectId: "goye-media",
+            storageBucket: "goye-media.firebasestorage.app",
+            messagingSenderId: "202109054723",
+            appId: "1:202109054723:web:ad78ce716c45fd0ddf0336",
+            measurementId: "G-KGYP9GQ59T"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const provider = new GoogleAuthProvider();
+
+        // IMPORTANT: Your backend is on port 10000
+        const API_BASE_URL = 'http://localhost:10000';
+        
+        let accessToken = null;
+
+        function displayResponse(title, data, isError = false) {
+            const responseArea = document.getElementById('responseArea');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = isError ? '#f56565' : '#48bb78';
+            
+            const responseDiv = document.createElement('div');
+            responseDiv.style.marginBottom = '15px';
+            responseDiv.style.padding = '10px';
+            responseDiv.style.borderLeft = `3px solid ${color}`;
+            responseDiv.style.background = '#2d2d2d';
+            responseDiv.innerHTML = `
+                <div style="color: ${color}; font-weight: bold; margin-bottom: 5px;">
+                    [${timestamp}] ${title}
+                </div>
+                <pre style="margin: 0; white-space: pre-wrap; word-wrap: break-word;">${JSON.stringify(data, null, 2)}</pre>
+            `;
+            
+            responseArea.insertBefore(responseDiv, responseArea.firstChild);
+        }
+
+        // Check backend connection
+        async function checkConnection() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/user/test`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    document.getElementById('connectionStatus').innerHTML = '✅ Connected to backend on port 10000';
+                    document.getElementById('connectionStatus').className = 'connection-status connected';
+                    return true;
+                }
+            } catch (error) {
+                document.getElementById('connectionStatus').innerHTML = `❌ Cannot connect to backend on ${API_BASE_URL}. Make sure your backend is running.`;
+                document.getElementById('connectionStatus').className = 'connection-status disconnected';
+                return false;
+            }
+        }
+
+        // Check connection on load
+        checkConnection();
+
+        // Google Sign In
+        document.getElementById('googleSignInBtn').addEventListener('click', async () => {
+            try {
+                displayResponse('🔄 Signing in with Google...', { status: 'In progress' });
+                
+                const result = await signInWithPopup(auth, provider);
+                const idToken = await result.user.getIdToken();
+                const user = result.user;
+                
+                displayResponse('✅ Google Sign In Successful', {
+                    name: user.displayName,
+                    email: user.email,
+                    uid: user.uid
+                });
+                
+                displayResponse('📤 Sending token to backend...', { 
+                    endpoint: `${API_BASE_URL}/api/user/auth/google`,
+                    tokenLength: idToken.length 
+                });
+                
+                const response = await fetch(`${API_BASE_URL}/api/user/auth/google`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idToken: idToken }),
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                displayResponse('📥 Backend Response', data);
+                
+                if (data.success) {
+                    accessToken = data.accessToken;
+                    localStorage.setItem('accessToken', accessToken);
+                    
+                    document.getElementById('userInfo').style.display = 'block';
+                    document.getElementById('userName').textContent = data.user.first_name + ' ' + data.user.last_name;
+                    document.getElementById('userEmail').textContent = data.user.email;
+                    if (data.user.user_pic) {
+                        document.getElementById('userAvatar').src = data.user.user_pic;
+                    }
+                    
+                    const statusSpan = document.getElementById('profileStatus');
+                    if (data.user.isProfileComplete) {
+                        statusSpan.textContent = '✅ Complete';
+                        statusSpan.className = 'status-badge status-complete';
+                        document.getElementById('profileForm').style.display = 'none';
+                        displayResponse('🎉 Welcome Back!', { message: 'Your profile is complete!' });
+                    } else {
+                        statusSpan.textContent = '⚠️ Incomplete - Please complete your profile';
+                        statusSpan.className = 'status-badge status-incomplete';
+                        document.getElementById('profileForm').style.display = 'block';
+                        
+                        if (data.user.first_name) document.getElementById('firstName').value = data.user.first_name;
+                        if (data.user.last_name) document.getElementById('lastName').value = data.user.last_name;
+                    }
+                } else {
+                    displayResponse('❌ Authentication Failed', data, true);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                displayResponse('❌ Error', { message: error.message }, true);
+            }
+        });
+        
+        // Complete Profile
+        document.getElementById('completeProfileBtn').addEventListener('click', async () => {
+            const firstName = document.getElementById('firstName').value;
+            const lastName = document.getElementById('lastName').value;
+            const country = document.getElementById('country').value;
+            const state = document.getElementById('state').value;
+            const phoneNumber = document.getElementById('phoneNumber').value;
+            
+            if (!firstName || !lastName || !country || !state || !phoneNumber) {
+                alert('Please fill in all fields');
+                return;
+            }
+            
+            displayResponse('🔄 Completing profile...', { firstName, lastName, country, state, phoneNumber });
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/user/update-user`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({
+                        first_name: firstName,
+                        last_name: lastName,
+                        country: country,
+                        state: state,
+                        phone_number: phoneNumber
+                    }),
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                displayResponse('📥 Profile Update Response', data);
+                
+                if (data.success) {
+                    if (data.accessToken) {
+                        accessToken = data.accessToken;
+                        localStorage.setItem('accessToken', accessToken);
+                    }
+                    
+                    document.getElementById('profileForm').style.display = 'none';
+                    const statusSpan = document.getElementById('profileStatus');
+                    statusSpan.textContent = '✅ Complete';
+                    statusSpan.className = 'status-badge status-complete';
+                    
+                    displayResponse('✅ Success!', { message: 'Profile completed successfully!' });
+                } else {
+                    displayResponse('❌ Update Failed', data, true);
+                }
+            } catch (error) {
+                displayResponse('❌ Error', { message: error.message }, true);
+            }
+        });
+    </script>
+</body>
+</html>
