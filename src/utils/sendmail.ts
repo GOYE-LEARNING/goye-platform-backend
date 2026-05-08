@@ -1,9 +1,8 @@
-// Use require instead of import for Brevo - this works consistently
-const brevo = require('@getbrevo/brevo');
+import * as Brevo from '@getbrevo/brevo';
 
-// Initialize the API client
-const apiInstance = new brevo.TransactionalEmailsApi();
-apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
+// Initialize
+const apiInstance = new Brevo.TransactionalEmailsApi();
+apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY!);
 
 const otpTemplate = (otp: string) => `
 <div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
@@ -112,20 +111,17 @@ export const SendEmail = async (
   to: string,
   subject: string,
   content: string,
-  type: "otp" | "reset-password" = "otp",
+  type: "otp" | "reset-password" = "otp"
 ) => {
-  const html =
-    type === "reset-password"
-      ? resetPasswordTemplate(content)
-      : otpTemplate(content);
+  const html = type === "reset-password" ? resetPasswordTemplate(content) : otpTemplate(content);
 
   try {
-    let sendSmtpEmail = new brevo.SendSmtpEmail();
+    const sendSmtpEmail = new Brevo.SendSmtpEmail();
     sendSmtpEmail.subject = subject;
     sendSmtpEmail.htmlContent = html;
     sendSmtpEmail.sender = {
       name: "GOYE Platform",
-      email: process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER,
+      email: process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER!,
     };
     sendSmtpEmail.to = [{ email: to }];
     sendSmtpEmail.replyTo = {
@@ -134,10 +130,10 @@ export const SendEmail = async (
     };
 
     const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log("Email sent successfully! Message ID:", response.messageId);
+    console.log("Email sent successfully!", response.messageId);
     return response;
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.error("Brevo Error:", error);
     throw error;
   }
 };
