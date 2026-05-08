@@ -111,37 +111,59 @@ export const SendEmail = async (
     ? resetPasswordTemplate(content) 
     : otpTemplate(content);
 
+  // Get sender email from environment variables
+  const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER;
+  
+  if (!senderEmail) {
+    throw new Error("No sender email configured. Set BREVO_SENDER_EMAIL or GMAIL_USER");
+  }
+
+  const apiKey = process.env.BREVO_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("No Brevo API key configured. Set BREVO_API_KEY");
+  }
+
+  console.log(`[Email] Sending ${type} email to ${to} from ${senderEmail}`);
+
   try {
-    // CORRECTED URL: Using the proper Brevo API endpoint
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
         'accept': 'application/json',
-        'api-key': process.env.BREVO_API_KEY!,
+        'api-key': apiKey,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
         sender: {
           name: "GOYE Platform",
-          email: process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER,
+          email: senderEmail,
         },
         to: [{ email: to }],
         subject: subject,
         htmlContent: html,
-        replyTo: { email: "support@goye.com", name: "GOYE Support" },
+        replyTo: { 
+          email: "support@goye.com", 
+          name: "GOYE Support" 
+        },
       }),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(`Brevo API Error: ${data.message || response.statusText}`);
+      console.error("[Email] Brevo API Error:", {
+        status: response.status,
+        statusText: response.statusText,
+        error: data
+      });
+      throw new Error(`Brevo API Error: ${data.message || JSON.stringify(data)}`);
     }
 
-    console.log("Email sent successfully! Message ID:", data.messageId);
+    console.log("[Email] Sent successfully! Message ID:", data.messageId);
     return data;
   } catch (error) {
-    console.error("Error sending email:", error);
+    console.error("[Email] Failed to send:", error);
     throw error;
   }
 };
