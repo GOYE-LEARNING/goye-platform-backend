@@ -1667,14 +1667,15 @@ export class UserController extends Controller {
       const now = Date.now();
       const userRequests = otpRateLimit.get(body.email) || [];
       const recentRequests = userRequests.filter(
-        (time) => time > now - 60 * 60 * 1000,
+        (time) => time > now - 5 * 60 * 1000,
       );
 
       if (recentRequests.length >= 3) {
         this.setStatus(429);
         return {
           success: false,
-          message: "Too many OTP requests. Please try again in an hour.",
+          status: 429,
+          message: "Too many OTP requests. Please try again in an 5 minutes.",
         };
       }
 
