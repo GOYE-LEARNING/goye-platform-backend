@@ -1743,82 +1743,81 @@ export class UserController extends Controller {
     }
   }
 
-@Post("/verify-otp")
-public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
-  try {
-    const { otp, sessionToken } = body;
-    
-    // ✅ CHANGE: Better validation
-    if (!otp || !sessionToken) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "OTP and session token are required"
-      };
-    }
-    
-    let decoded: { email: string; otpId: string };
+  @Post("/verify-otp")
+  public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
     try {
-      decoded = jwt.verify(
-        sessionToken,
-        process.env.JWT_SECRET || "secret-key",
-      ) as any;
-    } catch (jwtError) {
-      this.setStatus(401);
-      return {
-        success: false,
-        message: "Invalid or expired session token"
-      };
-    }
+      const { otp, sessionToken } = body;
 
-    const verifyOtp = await prisma.otp.findFirst({
-      where: {
-        code: otp,
-        email: decoded.email,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+      // ✅ CHANGE: Better validation
+      if (!otp || !sessionToken) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "OTP and session token are required",
+        };
+      }
 
-    if (!verifyOtp) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Invalid OTP code",
-      };
-    }
-    
-    if (verifyOtp.expiresIn < new Date()) {
-      // ✅ CHANGE: Delete expired OTP
+      let decoded: { email: string; otpId: string };
+      try {
+        decoded = jwt.verify(
+          sessionToken,
+          process.env.JWT_SECRET || "secret-key",
+        ) as any;
+      } catch (jwtError) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Invalid or expired session token",
+        };
+      }
+
+      const verifyOtp = await prisma.otp.findFirst({
+        where: {
+          code: otp,
+          email: decoded.email,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      if (!verifyOtp) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid OTP code",
+        };
+      }
+
+      if (verifyOtp.expiresIn < new Date()) {
+        // ✅ CHANGE: Delete expired OTP
+        await prisma.otp.delete({ where: { id: verifyOtp.id } });
+
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "OTP has expired. Please request a new one.",
+        };
+      }
+
+      // Delete the used OTP
       await prisma.otp.delete({ where: { id: verifyOtp.id } });
-      
-      this.setStatus(400);
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Email verified successfully",
+        email: decoded.email,
+      };
+    } catch (error: any) {
+      console.error("VerifyOTP error:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "OTP has expired. Please request a new one.",
+        message: `Verification failed: ${error.message}`,
       };
     }
-
-    // Delete the used OTP
-    await prisma.otp.delete({ where: { id: verifyOtp.id } });
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Email verified successfully",
-      email: decoded.email,
-    };
-    
-  } catch (error: any) {
-    console.error("VerifyOTP error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Verification failed: ${error.message}`
-    };
   }
-}
 
   @Security("bearerAuth")
   @Post("/upload-profile-picture")
@@ -2026,185 +2025,212 @@ public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
   }
 
   //update User
- //update User - Complete implementation with settings, progress, and plan
-//update User - Complete implementation with settings, progress, and plan
-@Security("bearerAuth")
-@Put("/update-user")
-public async UpdateUser(
-  @Request() req: any,
-  @Body()
-  data: {
-    first_name: string;
-    last_name: string;
-    country: string;
-    state: string;
-    phone_number: string;
-  },
-): Promise<any> {
-  const userId = req.user?.id;
+  //update User - Complete implementation with settings, progress, and plan
+  //update User - Complete implementation with settings, progress, and plan
+  @Security("bearerAuth")
+  @Put("/update-user")
+  public async UpdateUser(
+    @Request() req: any,
+    @Body()
+    data: {
+      first_name: string;
+      last_name: string;
+      country: string;
+      state: string;
+      phone_number: string;
+    },
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(404);
-    return {
-      success: false,
-      message: "User not found",
-    };
-  }
-
-  try {
-    // Check if user exists with relations
-    const existingUser = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        progress: true,
-        settings: true,
-        user_plan: true,
-      },
-    });
-
-    if (!existingUser) {
+    if (!userId) {
       this.setStatus(404);
       return {
         success: false,
-        message: "User does not exist",
+        message: "User not found",
       };
     }
 
-    // Update user information
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        first_name: data.first_name,
-        last_name: data.last_name,
-        country: data.country,
-        state: data.state,
-        phone_number: data.phone_number,
-      },
-    });
-
-    // Check if user has settings, if not create them (like signup)
-    let settings = existingUser.settings?.[0];
-    if (!settings) {
-      settings = await prisma.settings.create({
-        data: {
-          enable_push_notification: true,
-          course_updates: true,
-          event: true,
-          achievement: true,
-          daily_reminders: true,
-          darkMode: false,
-          email_notification: true,
-          updatedAt: new Date(),
-          userId: userId,
-          organizationId: null,
-        },
-      });
-      console.log(`Created settings for user ${userId}`);
-    }
-
-    // Check if user has progress, if not create it (like signup)
-    let progress = existingUser.progress?.[0];
-    if (!progress) {
-      // First get user details for achievement message
-      const userDetails = await prisma.user.findUnique({
+    try {
+      // Check if user exists with relations
+      const existingUser = await prisma.user.findUnique({
         where: { id: userId },
-        select: { first_name: true, last_name: true },
-      });
-
-      // Create progress
-      progress = await prisma.progress.create({
-        data: {
-          userId: userId,
-          startedJourney: true,
-          progressBar: 0,
+        include: {
+          progress: true,
+          settings: true,
+          user_plan: true,
         },
       });
 
-      // Create achievement message for new user (like signup)
-      if (userDetails) {
-        await GrowthService.AchievementMessage({
-          message_title: "Christian Cadet",
-          message_content: `${userDetails.first_name} you just joined the rest of the soldiers to join the army`,
-          point: 10,
-          progress_message: "",
-          userId: userId,
-          badge: "CADET_BADGE",
-          progressId: progress.id,
-        });
+      if (!existingUser) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "User does not exist",
+        };
       }
-      
-      console.log(`Created progress and achievement for user ${userId}`);
-    }
 
-    // Check if user has a plan, if not create one (like signup)
-    let plan = existingUser.user_plan?.[0];
-    if (!plan) {
-      plan = await PricingService.GenerateNewPaymentForNewUser({
-        userId: userId,
-        type: "INDIVIDUAL",
-        orgId: null,
-      });
-      console.log(`Created plan for user ${userId}`);
-    }
+      if (existingUser.isProfileComplete == false) {
+        // Update user information
+        const updatedUser = await prisma.user.update({
+          where: { id: userId },
+          data: {
+            first_name: data.first_name,
+            last_name: data.last_name,
+            country: data.country,
+            state: data.state,
+            phone_number: data.phone_number,
+            isProfileComplete: true,
+          },
+        });
 
-    // Send welcome notification if new user (first time completing profile)
-    const isFirstTimeCompletingProfile = !existingUser.country && !existingUser.state && !existingUser.phone_number;
-    
-    if (isFirstTimeCompletingProfile) {
-      await NotificationService.createNotification({
-        message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
-        title: "Welcome to GOYE",
-        type: "greeting",
-        role: Role.STUDENT,
-        to: Role.STUDENT,
-        userId: userId,
-      });
-      console.log(`Sent welcome notification to user ${userId}`);
-    }
+        // Check if user has settings, if not create them (like signup)
+        let settings = existingUser.settings?.[0];
+        if (!settings) {
+          settings = await prisma.settings.create({
+            data: {
+              enable_push_notification: true,
+              course_updates: true,
+              event: true,
+              achievement: true,
+              daily_reminders: true,
+              darkMode: false,
+              email_notification: true,
+              updatedAt: new Date(),
+              userId: userId,
+              organizationId: null,
+            },
+          });
+          console.log(`Created settings for user ${userId}`);
+        }
 
-    this.setStatus(200);
-    return {
-      success: true,
-      message: isFirstTimeCompletingProfile 
-        ? "Profile completed successfully! Welcome to GOYE!" 
-        : "User updated successfully",
-      data: {
-        user: {
-          id: updatedUser.id,
-          first_name: updatedUser.first_name,
-          last_name: updatedUser.last_name,
-          email_address: updatedUser.email_address,
-          country: updatedUser.country,
-          state: updatedUser.state,
-          phone_number: updatedUser.phone_number,
-          role: updatedUser.role,
-          user_pic: updatedUser.user_pic,
-        },
-        settings: {
-          id: settings.id,
-          darkMode: settings.darkMode,
-          email_notification: settings.email_notification,
-        },
-        progress: progress ? {
-          id: progress.id,
-          progressBar: progress.progressBar,
-          startedJourney: progress.startedJourney,
-        } : null,
-        plan: plan ? {
-          id: plan.id,
-          type: plan.type,
-        } : null,
-      },
-    };
-  } catch (error: any) {
-    console.error("Update user error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Failed to update user: ${error.message}`,
-    };
+        // Check if user has progress, if not create it (like signup)
+        let progress = existingUser.progress?.[0];
+        if (!progress) {
+          // First get user details for achievement message
+          const userDetails = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { first_name: true, last_name: true },
+          });
+
+          // Create progress
+          progress = await prisma.progress.create({
+            data: {
+              userId: userId,
+              startedJourney: true,
+              progressBar: 0,
+            },
+          });
+
+          // Create achievement message for new user (like signup)
+          if (userDetails) {
+            await GrowthService.AchievementMessage({
+              message_title: "Christian Cadet",
+              message_content: `${userDetails.first_name} you just joined the rest of the soldiers to join the army`,
+              point: 10,
+              progress_message: "",
+              userId: userId,
+              badge: "CADET_BADGE",
+              progressId: progress.id,
+            });
+          }
+
+          console.log(`Created progress and achievement for user ${userId}`);
+        }
+
+        // Check if user has a plan, if not create one (like signup)
+        let plan = existingUser.user_plan?.[0];
+        if (!plan) {
+          plan = await PricingService.GenerateNewPaymentForNewUser({
+            userId: userId,
+            type: "INDIVIDUAL",
+            orgId: null,
+          });
+          console.log(`Created plan for user ${userId}`);
+        }
+
+        // Send welcome notification if new user (first time completing profile)
+        const isFirstTimeCompletingProfile =
+          !existingUser.country &&
+          !existingUser.state &&
+          !existingUser.phone_number;
+
+        if (isFirstTimeCompletingProfile) {
+          await NotificationService.createNotification({
+            message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
+            title: "Welcome to GOYE",
+            type: "greeting",
+            role: Role.STUDENT,
+            to: Role.STUDENT,
+            userId: userId,
+          });
+          console.log(`Sent welcome notification to user ${userId}`);
+        }
+
+        this.setStatus(200);
+        return {
+          success: true,
+          message: isFirstTimeCompletingProfile
+            ? "Profile completed successfully! Welcome to GOYE!"
+            : "User updated successfully",
+          data: {
+            user: {
+              id: updatedUser.id,
+              first_name: updatedUser.first_name,
+              last_name: updatedUser.last_name,
+              email_address: updatedUser.email_address,
+              country: updatedUser.country,
+              state: updatedUser.state,
+              phone_number: updatedUser.phone_number,
+              role: updatedUser.role,
+              user_pic: updatedUser.user_pic,
+            },
+            settings: {
+              id: settings.id,
+              darkMode: settings.darkMode,
+              email_notification: settings.email_notification,
+            },
+            progress: progress
+              ? {
+                  id: progress.id,
+                  progressBar: progress.progressBar,
+                  startedJourney: progress.startedJourney,
+                }
+              : null,
+            plan: plan
+              ? {
+                  id: plan.id,
+                  type: plan.type,
+                }
+              : null,
+          },
+        };
+      } else {
+        const updatedUser = await prisma.user.update({
+          where: {
+            id: userId,
+          },
+          data: {
+            first_name: data.first_name,
+            last_name: data.last_name,
+            country: data.country,
+            state: data.state,
+            phone_number: data.phone_number,
+          },
+        });
+        return {
+          message: "User updated successfully",
+          data: updatedUser,
+        };
+      }
+    } catch (error: any) {
+      console.error("Update user error:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: `Failed to update user: ${error.message}`,
+      };
+    }
   }
-}
 
   //delete user
   @Delete("delete-user/{id}")
