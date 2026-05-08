@@ -2483,6 +2483,35 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsPricingController_FetchPricingDetails: Record<string, TsoaRoute.ParameterSchema> = {
+        };
+        app.get('/api/pricing/fetch-pricing-details',
+            ...(fetchMiddlewares<RequestHandler>(PricingController)),
+            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.FetchPricingDetails)),
+
+            async function PricingController_FetchPricingDetails(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_FetchPricingDetails, request, response });
+
+                const controller = new PricingController();
+
+              await templateService.apiHandler({
+                methodName: 'FetchPricingDetails',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsPricingController_TransferCode: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };

@@ -2159,10 +2159,14 @@
 												"email": {},
 												"message": {
 													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
 												}
 											},
 											"required": [
-												"message"
+												"message",
+												"success"
 											],
 											"type": "object"
 										},
@@ -2173,11 +2177,15 @@
 												},
 												"message": {
 													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
 												}
 											},
 											"required": [
 												"email",
-												"message"
+												"message",
+												"success"
 											],
 											"type": "object"
 										}
@@ -5568,6 +5576,26 @@
 						}
 					}
 				]
+			}
+		},
+		"/pricing/fetch-pricing-details": {
+			"get": {
+				"operationId": "FetchPricingDetails",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Pricing API integration"
+				],
+				"security": [],
+				"parameters": []
 			}
 		},
 		"/pricing/getCode": {
