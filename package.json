@@ -17,6 +17,7 @@
     "render-build": "npm install && npm run build"
   },
   "dependencies": {
+    "@getbrevo/brevo": "^5.0.4",
     "@prisma/adapter-pg": "^7.2.0",
     "@prisma/client": "^7.2.0",
     "@tsoa/runtime": "^6.6.0",
