@@ -1,9 +1,3 @@
-import * as Brevo from '@getbrevo/brevo';
-
-// Initialize
-const apiInstance = new Brevo.TransactionalEmailsApi();
-apiInstance.setApiKey(Brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY!);
-
 const otpTemplate = (otp: string) => `
 <div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
   <div style="max-width:520px; margin:0 auto;">
@@ -111,29 +105,43 @@ export const SendEmail = async (
   to: string,
   subject: string,
   content: string,
-  type: "otp" | "reset-password" = "otp"
+  type: "otp" | "reset-password" = "otp",
 ) => {
-  const html = type === "reset-password" ? resetPasswordTemplate(content) : otpTemplate(content);
+  const html = type === "reset-password" 
+    ? resetPasswordTemplate(content) 
+    : otpTemplate(content);
 
   try {
-    const sendSmtpEmail = new Brevo.SendSmtpEmail();
-    sendSmtpEmail.subject = subject;
-    sendSmtpEmail.htmlContent = html;
-    sendSmtpEmail.sender = {
-      name: "GOYE Platform",
-      email: process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER!,
-    };
-    sendSmtpEmail.to = [{ email: to }];
-    sendSmtpEmail.replyTo = {
-      email: "support@goye.com",
-      name: "GOYE Support",
-    };
+    // CORRECTED URL: Using the proper Brevo API endpoint
+    const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'accept': 'application/json',
+        'api-key': process.env.BREVO_API_KEY!,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        sender: {
+          name: "GOYE Platform",
+          email: process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER,
+        },
+        to: [{ email: to }],
+        subject: subject,
+        htmlContent: html,
+        replyTo: { email: "support@goye.com", name: "GOYE Support" },
+      }),
+    });
 
-    const response = await apiInstance.sendTransacEmail(sendSmtpEmail);
-    console.log("Email sent successfully!", response.messageId);
-    return response;
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`Brevo API Error: ${data.message || response.statusText}`);
+    }
+
+    console.log("Email sent successfully! Message ID:", data.messageId);
+    return data;
   } catch (error) {
-    console.error("Brevo Error:", error);
+    console.error("Error sending email:", error);
     throw error;
   }
 };
