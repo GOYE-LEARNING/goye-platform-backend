@@ -1,8 +1,9 @@
-import * as brevo from '@getbrevo/brevo';
+// Use require instead of import for Brevo - this works consistently
+const brevo = require('@getbrevo/brevo');
 
 // Initialize the API client
 const apiInstance = new brevo.TransactionalEmailsApi();
-apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY!);
+apiInstance.setApiKey(brevo.TransactionalEmailsApiApiKeys.apiKey, process.env.BREVO_API_KEY);
 
 const otpTemplate = (otp: string) => `
 <div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
@@ -107,7 +108,6 @@ const resetPasswordTemplate = (link: string) => `
   </div>
 </div>`;
 
-// IMPORTANT: Export the function - this fixes your build error
 export const SendEmail = async (
   to: string,
   subject: string,
