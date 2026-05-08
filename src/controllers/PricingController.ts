@@ -15,6 +15,18 @@ import { MemberPlanType, PlanDuration, Plans } from "@prisma/client";
 @Tags("Pricing API integration")
 @Route("pricing")
 export class PricingController extends Controller {
+  @Get("/fetch-pricing-details")
+  public async FetchPricingDetails(): Promise<any> {
+    try {
+      const pricingDetails = await PricingService.FetchPricingDetails();
+      return {
+        message: "Pricing details fetched successfully",
+        data: pricingDetails,
+      };
+    } catch (error) {
+      console.error(error.message)
+    }
+  }
   @Security("bearerAuth")
   @Post("/getCode")
   public async TransferCode(@Request() req: any): Promise<any> {
