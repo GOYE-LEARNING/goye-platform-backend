@@ -1714,6 +1714,8 @@ export class UserController extends Controller {
         };
       }
 
+      const hashPassword = bcrypt.hash(body.password, 10)
+
       // Update user information and mark profile as complete
       const updatedUser = await prisma.user.update({
         where: { id: userId },
@@ -1722,7 +1724,7 @@ export class UserController extends Controller {
           last_name: body.last_name,
           country: body.country,
           state: body.state,
-          password: body.password,
+          password: hashPassword as any,
           phone_number: body.phone_number,
           role: body.role,
           level: body.level,
