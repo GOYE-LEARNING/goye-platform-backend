@@ -42,6 +42,7 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
       id: payload.id, 
       email: payload.email,
       deviceId: payload.deviceId,
+      level: payload.level,
       deviceType: payload.deviceType
     },
     process.env.REFRESH_SECRET!,
@@ -107,6 +108,7 @@ export const refreshAccessToken = async (refreshToken: string, deviceId: string)
     email: user.email_address, 
     role: user.role,
     deviceId: deviceId,
+    level: user.level,
     deviceType: userSession.deviceType
   };
   
