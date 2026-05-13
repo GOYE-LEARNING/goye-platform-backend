@@ -130,6 +130,7 @@ export class UserController extends Controller {
           organization_role: updateUser.role,
           userId: updateUser.id,
           provider: "GOOGLE",
+          level: "ORGANIZATION",
           firebase_uid: user.firebase_uid,
           deviceId: deviceId,
           deviceType: deviceType,
@@ -828,7 +829,7 @@ export class UserController extends Controller {
       planId: plan.id,
       deviceId: deviceId,
       deviceType: deviceType,
-      level: updateUser.level || 0,
+      level: updateUser.level,
     });
 
     // Create user session with all required fields
@@ -1566,6 +1567,7 @@ export class UserController extends Controller {
           userId: updatedOrganization.user.id,
           planId: planId,
           deviceId: deviceId,
+          level: "ORGANIZATION",
           deviceType: deviceType,
           full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
           progressId: null, // Add if needed

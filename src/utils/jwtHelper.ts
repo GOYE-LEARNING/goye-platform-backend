@@ -19,10 +19,10 @@ interface TokenPayload {
   organization_role?: string;
   userId?: string;
   full_name?: string;
-  level?: number | string;
+  level?: string;  // Optional in interface but required at runtime
   updateStatus?: boolean;
   adminRole?: string;
-  [key: string]: any; // Allow additional properties
+  [key: string]: any;
 }
 
 interface Tokens {
@@ -31,6 +31,31 @@ interface Tokens {
 }
 
 export const generateTokens = (payload: TokenPayload): Tokens => {
+  // Validate required fields
+  if (!payload.level) {
+    console.error("ERROR: Level is missing from token payload!", {
+      userId: payload.id,
+      email: payload.email,
+      role: payload.role,
+      type: payload.type,
+      payload: JSON.stringify(payload, null, 2)
+    });
+    throw new Error(`Cannot generate token: Level is undefined for user ${payload.id}. User must have a level (Beginners or Intermediate).`);
+  }
+
+  // Validate level is valid
+  const validLevels = ["Beginners", "Intermediate", "ORGANIZATION"];
+  if (!validLevels.includes(payload.level)) {
+    console.error("ERROR: Invalid level value!", {
+      userId: payload.id,
+      level: payload.level,
+      validLevels
+    });
+    throw new Error(`Cannot generate token: Invalid level "${payload.level}" for user ${payload.id}. Level must be one of: ${validLevels.join(", ")}`);
+  }
+
+  console.log(`✅ Generating token with level: ${payload.level} for user: ${payload.id}`);
+  
   const accessToken = jwt.sign(
     payload,
     process.env.ACCESS_SECRET!,
@@ -54,7 +79,20 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
 
 export const verifyAccessToken = (token: string): any => {
   try {
-    return jwt.verify(token, process.env.ACCESS_SECRET!);
+    const decoded = jwt.verify(token, process.env.ACCESS_SECRET!);
+    
+    // Log if level is missing in decoded token
+    if (decoded && typeof decoded === 'object' && !decoded.level) {
+      console.warn("⚠️ Warning: Decoded token has no level field!", {
+        userId: decoded.id,
+        email: decoded.email,
+        role: decoded.role
+      });
+    } else if (decoded && typeof decoded === 'object') {
+      console.log(`✅ Verified token with level: ${decoded.level} for user: ${decoded.id}`);
+    }
+    
+    return decoded;
   } catch (error) {
     return null;
   }
@@ -62,7 +100,8 @@ export const verifyAccessToken = (token: string): any => {
 
 export const verifyRefreshToken = (token: string): any => {
   try {
-    return jwt.verify(token, process.env.REFRESH_SECRET!);
+    const decoded = jwt.verify(token, process.env.REFRESH_SECRET!);
+    return decoded;
   } catch (error) {
     return null;
   }
@@ -102,6 +141,12 @@ export const refreshAccessToken = async (refreshToken: string, deviceId: string)
   });
 
   if (!user) return null;
+
+  // Validate user has a level
+  if (!user.level) {
+    console.error(`ERROR: User ${user.id} has no level set in database!`);
+    return null;
+  }
 
   let additionalData: any = { 
     id: user.id, 
