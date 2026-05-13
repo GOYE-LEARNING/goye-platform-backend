@@ -2587,6 +2587,7 @@ public async CompleteProfile(
     try {
       const userId = req.user?.id;
       const userRole = req.user?.role;
+      const userLevel = req.user?.level
 
       // Check if user exists
       if (!userId) {
@@ -2639,6 +2640,7 @@ public async CompleteProfile(
         return {
           message: "Profile fetched successfully",
           user,
+          level: userLevel ?? null
         };
       }
 

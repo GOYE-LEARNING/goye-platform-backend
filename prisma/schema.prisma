@@ -85,25 +85,16 @@ model PricingHistory {
 enum Plans {
   FREEMIUM_USER
   INVITED_STUDENT_UNLIMITED
-  // STUDENTS
   STUDENT_PLUS
   STUDENT_UNLIMITED
-
-  // TUTORS
   TUTOR_PRO
   TUTOR_ELITE
-
-  // CHURCH
   CHURCH_STARTER
   CHURCH_GROWTH
   CHURCH_ENTERPRISE
-
-  // SCHOOL
   SCHOOL_STARTER
   SCHOOL_GROWTH
   SCHOOL_ENTERPRISE
-
-  // CLUB / NGO
   CLUB_STARTER
   CLUB_GROWTH
   CLUB_ENTERPRISE
@@ -142,10 +133,10 @@ model UserSession {
   id           String   @id @default(cuid())
   userId       String
   deviceId     String   @unique
-  deviceType   String // "mobile", "web", "desktop", "tablet", etc.
-  accessToken  String? // Store current access token (optional, for validation)
-  refreshToken String // Store refresh token
-  userType     String // "USER", "ADMIN", "INVITED_USER", "ORGANIZATION"
+  deviceType   String
+  accessToken  String?
+  refreshToken String
+  userType     String
   createdAt    DateTime @default(now())
   lastActive   DateTime @updatedAt
   expiresAt    DateTime
@@ -283,21 +274,21 @@ model Notification {
   role           String
   to             String
   isRead         Boolean       @default(false)
-  user           User?         @relation(fields: [userId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         String?
-  course         Course?       @relation(fields: [courseId], references: [id])
+  course         Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId       String?
-  group          Group?        @relation(fields: [groupId], references: [id])
+  group          Group?        @relation(fields: [groupId], references: [id], onDelete: Cascade)
   groupId        String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime?
-  achievement    Achievement?  @relation(fields: [achievementId], references: [id])
+  achievement    Achievement?  @relation(fields: [achievementId], references: [id], onDelete: Cascade)
   achievementId  String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String?
-  post           Post?         @relation(fields: [postId], references: [id])
+  post           Post?         @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId         String?
-  reply          Reply?        @relation(fields: [replyId], references: [id])
+  reply          Reply?        @relation(fields: [replyId], references: [id], onDelete: Cascade)
   replyId        String?
 
   @@index([to, courseId])
@@ -317,8 +308,8 @@ model Settings {
   group_activity           Boolean?      @default(true)
   email_notification       Boolean?      @default(true)
   darkMode                 Boolean?      @default(true)
-  user                     User?         @relation(fields: [userId], references: [id])
-  organization             Organization? @relation(fields: [organizationId], references: [id])
+  user                     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization             Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId                   String?
   organizationId           String?
   updatedAt                DateTime
@@ -343,9 +334,9 @@ model Course {
   post                     Post[]
   createdBy                String
   createdUserId            String
-  createdByDetails         User                   @relation(fields: [createdUserId], references: [id])
+  createdByDetails         User                   @relation(fields: [createdUserId], references: [id], onDelete: Cascade)
   organizationName         String?
-  organization             Organization?          @relation(fields: [organizationId], references: [id])
+  organization             Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId           String?
   saved                    Boolean                @default(false)
   point                    Int?                   @default(0)
@@ -355,9 +346,8 @@ model Course {
   badgesAndLevel           BadgesAndLevelEarned[]
   question                 Question[]
   pointHistory             PointHistory[]
-
-  progress   Progress? @relation(fields: [progressId], references: [id])
-  progressId String?
+  progress                 Progress?              @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  progressId               String?
 }
 
 model Achievement {
@@ -378,7 +368,7 @@ model Achievement {
   groupId           String?
   notification      Notification[]
   badges_and_levels BadgesAndLevelEarned[]
-  user              User?                  @relation(fields: [userId], references: [id])
+  user              User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId            String?
 }
 
@@ -394,13 +384,12 @@ model Progress {
   badges            Badges[]
   quizAttempt       QuizAttempt[]
   joinedGroup       JoinedGroup[]
-  user              User?                  @relation(fields: [userId], references: [id])
+  user              User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId            String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime?
-
-  lesson   Lesson? @relation(fields: [lessonId], references: [id])
-  lessonId String?
+  lesson            Lesson?                @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId          String?
 }
 
 model PointHistory {
@@ -410,23 +399,23 @@ model PointHistory {
   point          Int
   createdAt      DateTime      @default(now())
   updatedAt      DateTime?
-  user           User?         @relation(fields: [userId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String?
-  course         Course?       @relation(fields: [courseId], references: [id])
+  course         Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId       String?
-  videoTracker   VideoTracker? @relation(fields: [videoTrackerId], references: [id])
+  videoTracker   VideoTracker? @relation(fields: [videoTrackerId], references: [id], onDelete: Cascade)
   videoTrackerId String?
-  joinedGroup    JoinedGroup?  @relation(fields: [joinedGroupId], references: [id])
+  joinedGroup    JoinedGroup?  @relation(fields: [joinedGroupId], references: [id], onDelete: Cascade)
   joinedGroupId  String?
-  enrollment     Enrollment?   @relation(fields: [enrollmentId], references: [id])
+  enrollment     Enrollment?   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
   enrollmentId   String?
-  lesson         Lesson?       @relation(fields: [lessonId], references: [id])
+  lesson         Lesson?       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId       String?
-  quizAttempt    QuizAttempt?  @relation(fields: [quizAttemptId], references: [id])
+  quizAttempt    QuizAttempt?  @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
   quizAttemptId  String?
-  progress       Progress?     @relation(fields: [progressId], references: [id])
+  progress       Progress?     @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId     String?
 }
 
@@ -435,9 +424,9 @@ model VideoTracker {
   videoFinished     Boolean        @default(false)
   videoTrackTime    Int
   basedTimeTracking Tracking
-  course            Course?        @relation(references: [id], fields: [courseId])
-  lesson            Lesson?        @relation(fields: [lessonId], references: [id])
-  progress          Progress?      @relation(fields: [progressId], references: [id])
+  course            Course?        @relation(references: [id], fields: [courseId], onDelete: Cascade)
+  lesson            Lesson?        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  progress          Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId        String?
   lessonId          String?
   courseId          String?
@@ -453,17 +442,17 @@ enum Tracking {
 
 model BadgesAndLevelEarned {
   id            String       @id @default(uuid())
-  progress      Progress?    @relation(fields: [progressId], references: [id])
+  progress      Progress?    @relation(fields: [progressId], references: [id], onDelete: Cascade)
   badges        Badges[]
   level         Levels       @default(LEVEL1_SEEKER)
-  course        Course?      @relation(fields: [courseId], references: [id])
-  user          User?        @relation(fields: [userId], references: [id])
+  course        Course?      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user          User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        String?
   courseId      String?
   progressId    String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime?
-  achievement   Achievement? @relation(fields: [achievementId], references: [id])
+  achievement   Achievement? @relation(fields: [achievementId], references: [id], onDelete: Cascade)
   achievementId String?
 }
 
@@ -478,7 +467,7 @@ model Badges {
   achievementId          String?
   user                   User?                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId                 String?
-  progress               Progress?             @relation(fields: [progressId], references: [id])
+  progress               Progress?             @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId             String?
 }
 
@@ -510,7 +499,7 @@ model Message {
   id        String    @id @default(uuid())
   content   String
   toUserId  String
-  user      User      @relation(references: [id], fields: [userId])
+  user      User      @relation(references: [id], fields: [userId], onDelete: Cascade)
   userId    String
   createdAt DateTime  @default(now())
   updatedAt DateTime?
@@ -542,7 +531,7 @@ model Reply {
   parentId     String?
   createdAt    DateTime       @default(now())
   notification Notification[]
-  user         User           @relation(fields: [userId], references: [id])
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   post         Post?          @relation("PostReplies", fields: [postId], references: [id], onDelete: Cascade)
   parent       Reply?         @relation("ReplyChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children     Reply[]        @relation("ReplyChildren")
@@ -576,7 +565,7 @@ model Group {
   joinedEvent             JoinedEvent[]
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
-  createdBy               User?          @relation(fields: [userId], references: [id])
+  createdBy               User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId                  String?
   member                  JoinedGroup[]
   achievement             Achievement[]
@@ -593,7 +582,7 @@ model JoinedGroup {
   groupId      String
   studentId    String
   pointHistory PointHistory[]
-  progress     Progress?      @relation(fields: [progressId], references: [id])
+  progress     Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId   String?
 
   @@unique([groupId, studentId])
@@ -619,9 +608,9 @@ model JoinedEvent {
   isjoinedEvent Boolean
   createdAt     DateTime  @default(now())
   updatedAt     DateTime?
-  group         Group?    @relation(fields: [groupId], references: [id])
+  group         Group?    @relation(fields: [groupId], references: [id], onDelete: Cascade)
   groupId       String?
-  event         Event?    @relation(fields: [eventId], references: [id])
+  event         Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId       String?
 }
 
@@ -638,7 +627,7 @@ model Enrollment {
   startedAt      DateTime
   createdAt      DateTime         @default(now())
   pointHistory   PointHistory[]
-  organization   Organization?    @relation(fields: [organizationId], references: [id])
+  organization   Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String?
 
   @@unique([userId, courseId])
@@ -709,7 +698,7 @@ model Quiz {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   QuizAttempt    QuizAttempt[]
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String?
 
   @@map("quizzes")
@@ -725,12 +714,11 @@ model Question {
   order         Int?
   quiz          Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
   quizId        String
-  quizAttempt   QuizAttempt? @relation(fields: [quizAttemptId], references: [id])
+  quizAttempt   QuizAttempt? @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
   quizAttemptId String?
-
-  createdAt DateTime @default(now())
-  course    Course?  @relation(fields: [courseId], references: [id])
-  courseId  String?
+  createdAt     DateTime     @default(now())
+  course        Course?      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId      String?
 
   @@map("questions")
 }
@@ -748,13 +736,12 @@ model QuizAttempt {
   completed    Boolean        @default(false)
   startedAt    DateTime       @default(now())
   completedAt  DateTime?
-  course       Course?        @relation(fields: [courseId], references: [id])
+  course       Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
   courseId     String?
-  progress     Progress?      @relation(fields: [progressId], references: [id])
+  progress     Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId   String?
   pointHistory PointHistory[]
-
-  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String?
 
   @@unique([userId, quizId, courseId, organizationId])
@@ -816,14 +803,14 @@ model PrivateMessage {
   receiverId String
   replyToId  String?
   isDeleted  Boolean   @default(false)
-  isEdited   Boolean   @default(false) // Add this field
+  isEdited   Boolean   @default(false)
   readAt     DateTime?
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sender   User             @relation("SentMessages", fields: [senderId], references: [id])
-  receiver User             @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  replyTo  PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id])
+  sender   User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User             @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  replyTo  PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: Cascade)
   replies  PrivateMessage[] @relation("ReplyTo")
 
   @@index([senderId])
