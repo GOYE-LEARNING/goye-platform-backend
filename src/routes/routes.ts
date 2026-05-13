@@ -54,6 +54,11 @@ const models: TsoaRoute.Models = {
         "type": {"ref":"Pick_User.Exclude_keyofUser.id__","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.MemberPlanType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ORGANIZATION"]},{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["INVITED_INDIVIDUAL"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "_36_Enums.FormType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ORGANIZATION"]},{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["INVITED"]},{"dataType":"enum","enums":["ADMIN"]}],"validators":{}},
@@ -107,11 +112,6 @@ const models: TsoaRoute.Models = {
     "_36_Enums.PlanDuration": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["FREE_PLAN"]},{"dataType":"enum","enums":["MONTHLY_PLAN"]},{"dataType":"enum","enums":["YEARLY_PLAN"]}],"validators":{}},
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "_36_Enums.MemberPlanType": {
-        "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ORGANIZATION"]},{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["INVITED_INDIVIDUAL"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "_36_Enums.Plans": {
@@ -662,6 +662,38 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsUserController_CompleteProfile: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"level":{"dataType":"string","required":true},"role":{"dataType":"string","required":true},"phone_number":{"dataType":"string","required":true},"state":{"dataType":"string","required":true},"country":{"dataType":"string","required":true},"password":{"dataType":"string","required":true},"last_name":{"dataType":"string","required":true},"first_name":{"dataType":"string","required":true}}},
+        };
+        app.post('/api/user/complete-profile',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(UserController)),
+            ...(fetchMiddlewares<RequestHandler>(UserController.prototype.CompleteProfile)),
+
+            async function UserController_CompleteProfile(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsUserController_CompleteProfile, request, response });
+
+                const controller = new UserController();
+
+              await templateService.apiHandler({
+                methodName: 'CompleteProfile',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_SendOtp: Record<string, TsoaRoute.ParameterSchema> = {
                 body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"email":{"dataType":"string","required":true}}},
         };
@@ -852,7 +884,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 data: {"in":"body","name":"data","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"phone_number":{"dataType":"string","required":true},"state":{"dataType":"string","required":true},"country":{"dataType":"string","required":true},"last_name":{"dataType":"string","required":true},"first_name":{"dataType":"string","required":true}}},
         };
         app.put('/api/user/update-user',
-            authenticateMiddleware([{"bearerAuth":[]}]),
+            authenticateMiddleware([{"bearerAuth":[]},{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(UserController)),
             ...(fetchMiddlewares<RequestHandler>(UserController.prototype.UpdateUser)),
 

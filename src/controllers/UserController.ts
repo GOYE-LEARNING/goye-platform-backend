@@ -1660,215 +1660,269 @@ export class UserController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Post("/complete-profile")
-  public async CompleteProfile(
-    @Request() req: any,
-    @Body()
-    body: {
-      first_name: string;
-      last_name: string;
-      password: string
-      country: string;
-      state: string;
-      phone_number: string;
-      role: string;
-      level: string;
-    },
-  ) {
-    const userId = req.user?.id;
+ @Security("bearerAuth")
+@Post("/complete-profile")
+public async CompleteProfile(
+  @Request() req: any,
+  @Body()
+  body: {
+    first_name: string;
+    last_name: string;
+    password: string
+    country: string;
+    state: string;
+    phone_number: string;
+    role: string;
+    level: string;
+  },
+) {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return {
-        success: false,
-        message: "Unauthorized - User not found",
-      };
-    }
-
-    try {
-      // Check if user exists
-      const existingUser = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          progress: true,
-          settings: true,
-          user_plan: true,
-        },
-      });
-
-      if (!existingUser) {
-        this.setStatus(404);
-        return {
-          success: false,
-          message: "User does not exist",
-        };
-      }
-
-      // Check if profile is already complete
-      if (existingUser.isProfileComplete === true) {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Profile is already complete",
-        };
-      }
-
-      const hashPassword = await bcrypt.hash(body.password, 10)
-
-      // Update user information and mark profile as complete
-      const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-          first_name: body.first_name,
-          last_name: body.last_name,
-          country: body.country,
-          state: body.state,
-          password: hashPassword,
-          phone_number: body.phone_number,
-          role: body.role,
-          level: body.level,
-          isProfileComplete: true,
-        },
-      });
-
-      // Check if user has settings, if not create them (like signup)
-      let settings = existingUser.settings?.[0];
-      if (!settings) {
-        settings = await prisma.settings.create({
-          data: {
-            enable_push_notification: true,
-            course_updates: true,
-            event: true,
-            achievement: true,
-            daily_reminders: true,
-            darkMode: false,
-            email_notification: true,
-            updatedAt: new Date(),
-            userId: userId,
-            organizationId: null,
-          },
-        });
-        console.log(`Created settings for user ${userId}`);
-      }
-
-      // Check if user has progress, if not create it (like signup)
-      let progress = existingUser.progress?.[0];
-      if (!progress) {
-        // Create progress
-        progress = await prisma.progress.create({
-          data: {
-            userId: userId,
-            startedJourney: true,
-            progressBar: 0,
-          },
-        });
-
-        // Create achievement message for new user
-        await GrowthService.AchievementMessage({
-          message_title: "Christian Cadet",
-          message_content: `${updatedUser.first_name} you just joined the rest of the soldiers to join the army`,
-          point: 10,
-          progress_message: "",
-          userId: userId,
-          badge: "CADET_BADGE",
-          progressId: progress.id,
-        });
-
-        console.log(`Created progress and achievement for user ${userId}`);
-      }
-
-      // Check if user has a plan, if not create one (like signup)
-      let plan = existingUser.user_plan?.[0];
-      if (!plan) {
-        plan = await PricingService.GenerateNewPaymentForNewUser({
-          userId: userId,
-          type: "INDIVIDUAL",
-          orgId: null,
-        });
-        console.log(`Created plan for user ${userId}`);
-      }
-
-      // Send welcome notification
-      await NotificationService.createNotification({
-        message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
-        title: "Welcome to GOYE",
-        type: "greeting",
-        role: Role.STUDENT,
-        to: Role.STUDENT,
-        userId: userId,
-      });
-      console.log(`Sent welcome notification to user ${userId}`);
-
-      // Update session cookies with progress_id and plan_id if response object exists
-      if (req.res) {
-        if (progress?.id) {
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        if (plan?.id) {
-          req.res.cookie("plan_id", plan.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-      }
-
-      this.setStatus(200);
-      return {
-        success: true,
-        message: "Profile completed successfully! Welcome to GOYE!",
-        data: {
-          user: {
-            id: updatedUser.id,
-            first_name: updatedUser.first_name,
-            last_name: updatedUser.last_name,
-            email_address: updatedUser.email_address,
-            country: updatedUser.country,
-            state: updatedUser.state,
-            phone_number: updatedUser.phone_number,
-            role: updatedUser.role,
-            level: updatedUser.level,
-            isProfileComplete: updatedUser.isProfileComplete,
-          },
-          settings: {
-            id: settings.id,
-            darkMode: settings.darkMode,
-            email_notification: settings.email_notification,
-          },
-          progress: progress
-            ? {
-                id: progress.id,
-                progressBar: progress.progressBar,
-                startedJourney: progress.startedJourney,
-              }
-            : null,
-          plan: plan
-            ? {
-                id: plan.id,
-                type: plan.type,
-              }
-            : null,
-        },
-      };
-    } catch (error: any) {
-      console.error("Complete profile error:", error);
-      this.setStatus(500);
-      return {
-        success: false,
-        message: `Failed to complete profile: ${error.message}`,
-      };
-    }
+  if (!userId) {
+    this.setStatus(401);
+    return {
+      success: false,
+      message: "Unauthorized - User not found",
+    };
   }
+
+  try {
+    // Check if user exists
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        progress: true,
+        settings: true,
+        user_plan: true,
+      },
+    });
+
+    if (!existingUser) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "User does not exist",
+      };
+    }
+
+    // Check if profile is already complete
+    if (existingUser.isProfileComplete === true) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Profile is already complete",
+      };
+    }
+
+    // Ensure level has a value
+    const userLevel = body.level || "1";
+    
+    const hashPassword = await bcrypt.hash(body.password, 10)
+
+    // Update user information and mark profile as complete
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        first_name: body.first_name,
+        last_name: body.last_name,
+        country: body.country,
+        state: body.state,
+        password: hashPassword,
+        phone_number: body.phone_number,
+        role: body.role,
+        level: userLevel,  // Use the validated level
+        isProfileComplete: true,
+      },
+    });
+
+    // Check if user has settings, if not create them (like signup)
+    let settings = existingUser.settings?.[0];
+    if (!settings) {
+      settings = await prisma.settings.create({
+        data: {
+          enable_push_notification: true,
+          course_updates: true,
+          event: true,
+          achievement: true,
+          daily_reminders: true,
+          darkMode: false,
+          email_notification: true,
+          updatedAt: new Date(),
+          userId: userId,
+          organizationId: null,
+        },
+      });
+      console.log(`Created settings for user ${userId}`);
+    }
+
+    // Check if user has progress, if not create it (like signup)
+    let progress = existingUser.progress?.[0];
+    if (!progress) {
+      // Create progress
+      progress = await prisma.progress.create({
+        data: {
+          userId: userId,
+          startedJourney: true,
+          progressBar: 0,
+        },
+      });
+
+      // Create achievement message for new user
+      await GrowthService.AchievementMessage({
+        message_title: "Christian Cadet",
+        message_content: `${updatedUser.first_name} you just joined the rest of the soldiers to join the army`,
+        point: 10,
+        progress_message: "",
+        userId: userId,
+        badge: "CADET_BADGE",
+        progressId: progress.id,
+      });
+
+      console.log(`Created progress and achievement for user ${userId}`);
+    }
+
+    // Check if user has a plan, if not create one (like signup)
+    let plan = existingUser.user_plan?.[0];
+    if (!plan) {
+      plan = await PricingService.GenerateNewPaymentForNewUser({
+        userId: userId,
+        type: "INDIVIDUAL",
+        orgId: null,
+      });
+      console.log(`Created plan for user ${userId}`);
+    }
+
+    // ✅ CRITICAL FIX: Generate NEW tokens with updated level
+    const deviceId = req.cookies?.deviceId || generateDeviceId();
+    const userAgent = req.headers["user-agent"] || "unknown";
+    const deviceType = getDeviceType(userAgent);
+    
+    const { accessToken, refreshToken } = generateTokens({
+      type: "USER",
+      id: updatedUser.id,
+      email: updatedUser.email_address,
+      role: updatedUser.role,
+      level: updatedUser.level,  // Now includes the updated level
+      progressId: progress?.id,
+      updateStatus: updatedUser.isOnline,
+      planId: plan?.id,
+      settingsId: settings?.id,
+      deviceId: deviceId,
+      deviceType: deviceType,
+      full_name: `${updatedUser.first_name} ${updatedUser.last_name}`,
+      user_pic: updatedUser.user_pic,
+      isProfileComplete: true,
+    });
+
+    // Update the session with new tokens
+    await prisma.userSession.updateMany({
+      where: { userId: userId },
+      data: {
+        refreshToken: refreshToken,
+        accessToken: accessToken,
+        lastActive: new Date(),
+      },
+    });
+
+    // Send welcome notification
+    await NotificationService.createNotification({
+      message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
+      title: "Welcome to GOYE",
+      type: "greeting",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: userId,
+    });
+    console.log(`Sent welcome notification to user ${userId}`);
+
+    // Update session cookies with new tokens and ids
+    if (req.res) {
+      // Set new tokens
+      req.res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
+        maxAge: 15 * 60 * 1000,
+      });
+
+      req.res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "none",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      if (progress?.id) {
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      if (plan?.id) {
+        req.res.cookie("plan_id", plan.id, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+    }
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Profile completed successfully! Welcome to GOYE!",
+      accessToken,  // Return new tokens to the client
+      refreshToken,
+      data: {
+        user: {
+          id: updatedUser.id,
+          first_name: updatedUser.first_name,
+          last_name: updatedUser.last_name,
+          email_address: updatedUser.email_address,
+          country: updatedUser.country,
+          state: updatedUser.state,
+          phone_number: updatedUser.phone_number,
+          role: updatedUser.role,
+          level: updatedUser.level,
+          isProfileComplete: updatedUser.isProfileComplete,
+        },
+        settings: {
+          id: settings.id,
+          darkMode: settings.darkMode,
+          email_notification: settings.email_notification,
+        },
+        progress: progress
+          ? {
+              id: progress.id,
+              progressBar: progress.progressBar,
+              startedJourney: progress.startedJourney,
+            }
+          : null,
+        plan: plan
+          ? {
+              id: plan.id,
+              type: plan.type,
+            }
+          : null,
+      },
+    };
+  } catch (error: any) {
+    console.error("Complete profile error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Failed to complete profile: ${error.message}`,
+    };
+  }
+}
 
   @Post("/sendOtp")
   public async SendOtp(@Body() body: { email: string }): Promise<any> {

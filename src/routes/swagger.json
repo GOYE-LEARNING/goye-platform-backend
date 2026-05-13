@@ -64,6 +64,14 @@
 				"$ref": "#/components/schemas/Pick_User.Exclude_keyofUser.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
+			"_36_Enums.MemberPlanType": {
+				"type": "string",
+				"enum": [
+					"ORGANIZATION",
+					"INDIVIDUAL",
+					"INVITED_INDIVIDUAL"
+				]
+			},
 			"_36_Enums.FormType": {
 				"type": "string",
 				"enum": [
@@ -183,14 +191,6 @@
 					"FREE_PLAN",
 					"MONTHLY_PLAN",
 					"YEARLY_PLAN"
-				]
-			},
-			"_36_Enums.MemberPlanType": {
-				"type": "string",
-				"enum": [
-					"ORGANIZATION",
-					"INDIVIDUAL",
-					"INVITED_INDIVIDUAL"
 				]
 			},
 			"_36_Enums.Plans": {
@@ -2106,6 +2106,233 @@
 				}
 			}
 		},
+		"/user/complete-profile": {
+			"post": {
+				"operationId": "CompleteProfile",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"refreshToken": {},
+												"accessToken": {},
+												"message": {
+													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"message",
+												"success"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"data": {
+													"properties": {
+														"plan": {
+															"properties": {
+																"type": {
+																	"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"type",
+																"id"
+															],
+															"type": "object"
+														},
+														"progress": {
+															"properties": {
+																"startedJourney": {
+																	"type": "boolean"
+																},
+																"progressBar": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"startedJourney",
+																"progressBar",
+																"id"
+															],
+															"type": "object"
+														},
+														"settings": {
+															"properties": {
+																"email_notification": {
+																	"type": "boolean"
+																},
+																"darkMode": {
+																	"type": "boolean"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"email_notification",
+																"darkMode",
+																"id"
+															],
+															"type": "object"
+														},
+														"user": {
+															"properties": {
+																"isProfileComplete": {
+																	"type": "boolean"
+																},
+																"level": {
+																	"type": "string"
+																},
+																"role": {
+																	"type": "string"
+																},
+																"phone_number": {
+																	"type": "string"
+																},
+																"state": {
+																	"type": "string"
+																},
+																"country": {
+																	"type": "string"
+																},
+																"email_address": {
+																	"type": "string"
+																},
+																"last_name": {
+																	"type": "string"
+																},
+																"first_name": {
+																	"type": "string"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"isProfileComplete",
+																"level",
+																"role",
+																"phone_number",
+																"state",
+																"country",
+																"email_address",
+																"last_name",
+																"first_name",
+																"id"
+															],
+															"type": "object"
+														}
+													},
+													"required": [
+														"plan",
+														"progress",
+														"settings",
+														"user"
+													],
+													"type": "object"
+												},
+												"refreshToken": {
+													"type": "string"
+												},
+												"accessToken": {
+													"type": "string"
+												},
+												"message": {
+													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"data",
+												"refreshToken",
+												"accessToken",
+												"message",
+												"success"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"level": {
+										"type": "string"
+									},
+									"role": {
+										"type": "string"
+									},
+									"phone_number": {
+										"type": "string"
+									},
+									"state": {
+										"type": "string"
+									},
+									"country": {
+										"type": "string"
+									},
+									"password": {
+										"type": "string"
+									},
+									"last_name": {
+										"type": "string"
+									},
+									"first_name": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"level",
+									"role",
+									"phone_number",
+									"state",
+									"country",
+									"password",
+									"last_name",
+									"first_name"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/user/sendOtp": {
 			"post": {
 				"operationId": "SendOtp",
@@ -2386,6 +2613,9 @@
 					"User control APIs"
 				],
 				"security": [
+					{
+						"bearerAuth": []
+					},
 					{
 						"bearerAuth": []
 					}
@@ -8087,9 +8317,6 @@
 																	"to": {
 																		"type": "string"
 																	},
-																	"type": {
-																		"type": "string"
-																	},
 																	"groupId": {
 																		"type": "string"
 																	},
@@ -8097,6 +8324,9 @@
 																		"type": "string"
 																	},
 																	"title": {
+																		"type": "string"
+																	},
+																	"type": {
 																		"type": "string"
 																	},
 																	"message": {
@@ -8131,10 +8361,10 @@
 																	"achievementId",
 																	"isRead",
 																	"to",
-																	"type",
 																	"groupId",
 																	"postId",
 																	"title",
+																	"type",
 																	"message",
 																	"role",
 																	"organizationId",
@@ -8284,9 +8514,6 @@
 																	"to": {
 																		"type": "string"
 																	},
-																	"type": {
-																		"type": "string"
-																	},
 																	"groupId": {
 																		"type": "string"
 																	},
@@ -8294,6 +8521,9 @@
 																		"type": "string"
 																	},
 																	"title": {
+																		"type": "string"
+																	},
+																	"type": {
 																		"type": "string"
 																	},
 																	"message": {
@@ -8328,10 +8558,10 @@
 																	"achievementId",
 																	"isRead",
 																	"to",
-																	"type",
 																	"groupId",
 																	"postId",
 																	"title",
+																	"type",
 																	"message",
 																	"role",
 																	"organizationId",
@@ -8538,9 +8768,6 @@
 														"to": {
 															"type": "string"
 														},
-														"type": {
-															"type": "string"
-														},
 														"groupId": {
 															"type": "string"
 														},
@@ -8548,6 +8775,9 @@
 															"type": "string"
 														},
 														"title": {
+															"type": "string"
+														},
+														"type": {
 															"type": "string"
 														},
 														"message": {
@@ -8582,10 +8812,10 @@
 														"achievementId",
 														"isRead",
 														"to",
-														"type",
 														"groupId",
 														"postId",
 														"title",
+														"type",
 														"message",
 														"role",
 														"organizationId",
@@ -8790,9 +9020,6 @@
 														"to": {
 															"type": "string"
 														},
-														"type": {
-															"type": "string"
-														},
 														"groupId": {
 															"type": "string"
 														},
@@ -8800,6 +9027,9 @@
 															"type": "string"
 														},
 														"title": {
+															"type": "string"
+														},
+														"type": {
 															"type": "string"
 														},
 														"message": {
@@ -8834,10 +9064,10 @@
 														"achievementId",
 														"isRead",
 														"to",
-														"type",
 														"groupId",
 														"postId",
 														"title",
+														"type",
 														"message",
 														"role",
 														"organizationId",
@@ -9010,9 +9240,6 @@
 																	"to": {
 																		"type": "string"
 																	},
-																	"type": {
-																		"type": "string"
-																	},
 																	"groupId": {
 																		"type": "string"
 																	},
@@ -9020,6 +9247,9 @@
 																		"type": "string"
 																	},
 																	"title": {
+																		"type": "string"
+																	},
+																	"type": {
 																		"type": "string"
 																	},
 																	"message": {
@@ -9054,10 +9284,10 @@
 																	"achievementId",
 																	"isRead",
 																	"to",
-																	"type",
 																	"groupId",
 																	"postId",
 																	"title",
+																	"type",
 																	"message",
 																	"role",
 																	"organizationId",
@@ -9269,9 +9499,6 @@
 														"to": {
 															"type": "string"
 														},
-														"type": {
-															"type": "string"
-														},
 														"groupId": {
 															"type": "string"
 														},
@@ -9279,6 +9506,9 @@
 															"type": "string"
 														},
 														"title": {
+															"type": "string"
+														},
+														"type": {
 															"type": "string"
 														},
 														"message": {
@@ -9313,10 +9543,10 @@
 														"achievementId",
 														"isRead",
 														"to",
-														"type",
 														"groupId",
 														"postId",
 														"title",
+														"type",
 														"message",
 														"role",
 														"organizationId",
@@ -9516,13 +9746,13 @@
 														"daily_reminders": {
 															"type": "boolean"
 														},
+														"event": {
+															"type": "boolean"
+														},
 														"course_updates": {
 															"type": "boolean"
 														},
 														"enable_push_notification": {
-															"type": "boolean"
-														},
-														"event": {
 															"type": "boolean"
 														},
 														"achievement": {
@@ -9551,9 +9781,9 @@
 														"email_notification",
 														"group_activity",
 														"daily_reminders",
+														"event",
 														"course_updates",
 														"enable_push_notification",
-														"event",
 														"achievement",
 														"organizationId",
 														"userId",
