@@ -632,7 +632,7 @@ public async GetAllCoursesByLevel(@Request() req: any): Promise<CourseResponse> 
     if (normalizedLevel === "beginner") {
       const getAllCourses = await prisma.course.findMany({
         where: {
-          course_level: "beginner",
+          course_level: "Beginner",
         },
         orderBy: {
           createdAt: "desc",
@@ -666,7 +666,7 @@ public async GetAllCoursesByLevel(@Request() req: any): Promise<CourseResponse> 
     else if (normalizedLevel === "intermediate") {
       const getAllCourses = await prisma.course.findMany({
         where: {
-          course_level: "intermediate",
+          course_level: "Intermediate",
         },
         orderBy: {
           createdAt: "desc",

@@ -44,7 +44,8 @@ export async function expressAuthentication(
           {
             id: user.id,
             email: user.email_address,
-            role: user.role
+            role: user.role,
+            level: user.level
           },
           process.env.ACCESS_SECRET!,
           { expiresIn: "15m" }
