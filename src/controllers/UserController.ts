@@ -730,9 +730,9 @@ export class UserController extends Controller {
 
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
-    // Create user
+    // Create user with default level if not provided
     const user = await prisma.user.create({
-      data: { ...body, password: hashedPassword },
+      data: { ...body, password: hashedPassword, level: body.level },
     });
 
     //After creating Users.

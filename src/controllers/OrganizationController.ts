@@ -868,6 +868,7 @@ export class OrganizationController extends Controller {
             password: hashedPassword,
             invited: true,
             form_type: "INVITED",
+            level: body.level || "Beginner",
           },
         });
 

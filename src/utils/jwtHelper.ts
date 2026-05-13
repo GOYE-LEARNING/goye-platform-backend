@@ -1,4 +1,4 @@
-// tokenUtils.ts
+// tokenUtils.ts / jwtHelper.ts
 import jwt from "jsonwebtoken";
 import prisma from "../db";
 import crypto from "crypto";
@@ -19,9 +19,13 @@ interface TokenPayload {
   organization_role?: string;
   userId?: string;
   full_name?: string;
-  level?: string;  // Optional in interface but required at runtime
+  level?: string;
   updateStatus?: boolean;
   adminRole?: string;
+  provider?: string;
+  firebase_uid?: string;
+  user_pic?: string;
+  isProfileComplete?: boolean;
   [key: string]: any;
 }
 
@@ -38,26 +42,51 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
       email: payload.email,
       role: payload.role,
       type: payload.type,
-      payload: JSON.stringify(payload, null, 2)
     });
-    throw new Error(`Cannot generate token: Level is undefined for user ${payload.id}. User must have a level (Beginners or Intermediate).`);
+    throw new Error(`Cannot generate token: Level is undefined for user ${payload.id}`);
   }
 
-  // Validate level is valid
+  // Normalize level to match expected format
+  let normalizedLevel = payload.level;
+  
+  // Convert 'beginner' to 'Beginners'
+  if (payload.level.toLowerCase() === 'beginner') {
+    normalizedLevel = 'Beginners';
+    console.log(`📝 Normalized level: "${payload.level}" -> "${normalizedLevel}"`);
+  }
+  // Convert 'intermediate' to 'Intermediate'  
+  else if (payload.level.toLowerCase() === 'intermediate') {
+    normalizedLevel = 'Intermediate';
+    console.log(`📝 Normalized level: "${payload.level}" -> "${normalizedLevel}"`);
+  }
+  // Convert 'organization' to 'ORGANIZATION'
+  else if (payload.level.toLowerCase() === 'organization') {
+    normalizedLevel = 'ORGANIZATION';
+    console.log(`📝 Normalized level: "${payload.level}" -> "${normalizedLevel}"`);
+  }
+  
+  // Validate level is valid after normalization
   const validLevels = ["Beginners", "Intermediate", "ORGANIZATION"];
-  if (!validLevels.includes(payload.level)) {
+  if (!validLevels.includes(normalizedLevel)) {
     console.error("ERROR: Invalid level value!", {
       userId: payload.id,
-      level: payload.level,
+      originalLevel: payload.level,
+      normalizedLevel,
       validLevels
     });
     throw new Error(`Cannot generate token: Invalid level "${payload.level}" for user ${payload.id}. Level must be one of: ${validLevels.join(", ")}`);
   }
 
-  console.log(`✅ Generating token with level: ${payload.level} for user: ${payload.id}`);
+  // Use normalized level in the payload
+  const enrichedPayload = {
+    ...payload,
+    level: normalizedLevel,
+  };
+  
+  console.log(`✅ Generating token with level: ${normalizedLevel} for user: ${payload.id}`);
   
   const accessToken = jwt.sign(
-    payload,
+    enrichedPayload,
     process.env.ACCESS_SECRET!,
     { expiresIn: "15m" }
   );
@@ -67,7 +96,7 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
       id: payload.id, 
       email: payload.email,
       deviceId: payload.deviceId,
-      level: payload.level,
+      level: normalizedLevel,
       deviceType: payload.deviceType
     },
     process.env.REFRESH_SECRET!,
@@ -94,6 +123,7 @@ export const verifyAccessToken = (token: string): any => {
     
     return decoded;
   } catch (error) {
+    console.error("Access token verification failed:", error);
     return null;
   }
 };
@@ -103,6 +133,7 @@ export const verifyRefreshToken = (token: string): any => {
     const decoded = jwt.verify(token, process.env.REFRESH_SECRET!);
     return decoded;
   } catch (error) {
+    console.error("Refresh token verification failed:", error);
     return null;
   }
 };
@@ -148,12 +179,22 @@ export const refreshAccessToken = async (refreshToken: string, deviceId: string)
     return null;
   }
 
+  // Normalize level for refresh token
+  let normalizedLevel = user.level;
+  if (user.level.toLowerCase() === 'beginner') {
+    normalizedLevel = 'Beginners';
+  } else if (user.level.toLowerCase() === 'intermediate') {
+    normalizedLevel = 'Intermediate';
+  } else if (user.level.toLowerCase() === 'organization') {
+    normalizedLevel = 'ORGANIZATION';
+  }
+
   let additionalData: any = { 
     id: user.id, 
     email: user.email_address, 
     role: user.role,
     deviceId: deviceId,
-    level: user.level,
+    level: normalizedLevel,
     deviceType: userSession.deviceType
   };
   

@@ -116,7 +116,7 @@ export class FirebaseAuthService {
           country: "",
           state: "",
           phone_number: "",
-          level: "1",
+          level: "Beginner",
           isProfileComplete: false,
           isOnline: true,
           lastActive: new Date()
