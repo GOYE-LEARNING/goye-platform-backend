@@ -611,88 +611,109 @@ export class CourseController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/get-all-courses-level")
-  public async GetAllCoursesByLevel(
-    @Request() req: any,
-  ): Promise<CourseResponse> {
-    const userLevel = req.user?.level;
-    try {
-      if (userLevel == "beginner" || userLevel == "Beginner") {
-        const getAllCourses = await prisma.course.findMany({
-          where: {
-            course_level: levels[userLevel],
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-
-          include: {
-            module: {
-              select: {
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
-                },
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-        this.setStatus(200);
-        return {
-          message: "Courses fetched successfully",
-          data: {
-            getAllCourses,
-          },
-        };
-      } else if (userLevel == "intermediate" || userLevel == "Intermediate") {
-        const getAllCourses = await prisma.course.findMany({
-          where: {
-            course_level: levels[userLevel],
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-
-          include: {
-            module: {
-              select: {
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
-                },
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-        this.setStatus(200);
-        return {
-          message: "Courses fetched successfully",
-          data: {
-            getAllCourses,
-          },
-        };
-      }
-    } catch (error: any) {
-      this.setStatus(500);
+ @Security("bearerAuth")
+@Get("/get-all-courses-level")
+public async GetAllCoursesByLevel(@Request() req: any): Promise<CourseResponse> {
+  const userLevel = req.user?.level;
+  
+  try {
+    // Validate user level
+    if (!userLevel) {
+      this.setStatus(400);
       return {
-        message: "Error fetching courses: " + error.message,
+        message: "User level not found",
         data: null,
       };
     }
+    
+    // Normalize level to proper case
+    const normalizedLevel = userLevel.toLowerCase();
+    
+    if (normalizedLevel === "beginner") {
+      const getAllCourses = await prisma.course.findMany({
+        where: {
+          course_level: "Beginner",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          module: {
+            select: {
+              _count: {
+                select: {
+                  lesson: true,
+                },
+              },
+              lesson: {
+                select: {
+                  duration: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      
+      this.setStatus(200);
+      return {
+        message: "Courses fetched successfully",
+        data: {
+          getAllCourses,
+        },
+      };
+    } 
+    else if (normalizedLevel === "intermediate") {
+      const getAllCourses = await prisma.course.findMany({
+        where: {
+          course_level: "Intermediate",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          module: {
+            select: {
+              _count: {
+                select: {
+                  lesson: true,
+                },
+              },
+              lesson: {
+                select: {
+                  duration: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      
+      this.setStatus(200);
+      return {
+        message: "Courses fetched successfully",
+        data: {
+          getAllCourses,
+        },
+      };
+    }
+    else {
+      // Handle any other level values
+      this.setStatus(400);
+      return {
+        message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
+        data: null,
+      };
+    }
+  } catch (error: any) {
+    console.error("Error fetching courses by level:", error);
+    this.setStatus(500);
+    return {
+      message: "Error fetching courses: " + error.message,
+      data: null,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Get("/get-courses-by-tutor")
