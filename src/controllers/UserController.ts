@@ -34,734 +34,55 @@ import { otpRateLimit } from "../utils/otp";
 @Route("user")
 @Tags("User control APIs")
 export class UserController extends Controller {
-  @Post("/auth/google")
-  public async GoogleAuth(
-    @Body() body: { idToken: string },
-    @Request() req: any,
-  ): Promise<any> {
-    try {
-      // Get device information
-      const userAgent = req.headers["user-agent"] || "unknown";
-      const deviceType = getDeviceType(userAgent);
-      const deviceId = generateDeviceId();
-      const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
-
-      // Verify Google token
-      const googleUser = await firebaseAuthService.verifyGoogleToken(
-        body.idToken,
-      );
-
-      if (!googleUser) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Invalid Google token",
-        };
-      }
-
-      // Find or create user with detailed status
-      const {
-        user,
-        isExistingUser,
-        isProfileComplete,
-        message: userStatusMessage,
-      } = await firebaseAuthService.findOrCreateGoogleUser(googleUser);
-
-      if (!user) {
-        this.setStatus(500);
-        return {
-          success: false,
-          message: "Failed to process user",
-        };
-      }
-
-      // Check if user is organization (has associated org)
-      let organization = await prisma.organization.findFirst({
-        where: { userId: user.id },
-        include: { user: true },
-      });
-
-      // Update user online status
-      const updateUser = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          isOnline: true,
-          lastActive: new Date(),
-        },
-      });
-
-      // Handle ORGANIZATION type
-      if (organization) {
-        const updatedOrganization = await prisma.organization.update({
-          where: { id: organization.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user: true,
-          },
-        });
-
-        // Get or create plan for organization
-        let plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: updateUser.id,
-          },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: null,
-            type: "ORGANIZATION",
-            orgId: updatedOrganization.id,
-          });
-        }
-
-        // Generate tokens for ORGANIZATION
-        const { accessToken, refreshToken } = generateTokens({
-          type: "ORGANIZATION",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          organizationId: updatedOrganization.id,
-          organization_name: updatedOrganization.organization_name,
-          organization_email: updatedOrganization.organization_email,
-          organization_role: updateUser.role,
-          userId: updateUser.id,
-          provider: "GOOGLE",
-          level: "ORGANIZATION",
-          firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        // Create or update session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ORGANIZATION",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ORGANIZATION",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            isRevoked: false,
-          },
-        });
-
-        // Set cookies
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Google authentication successful",
-          status: {
-            isExistingUser: true,
-            isProfileComplete: true,
-            requiresProfileCompletion: false,
-          },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "organization",
-            id: updatedOrganization.id,
-            organization_name: updatedOrganization.organization_name,
-            organization_email: updatedOrganization.organization_email,
-            organization_role: updateUser.role,
-            organization_isOnline: updatedOrganization.isOnline,
-          },
-        };
-      }
-
-      // Handle ADMIN user
-      if (user.role === "goye_admin") {
-        // Get admin profile
-        const adminProfile = await prisma.adminProfile.findUnique({
-          where: { userId: user.id },
-        });
-
-        // Get or create progress for admin
-        let progress = await prisma.progress.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
-          });
-        }
-
-        let plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: user.id,
-            type: "INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        // Generate tokens for ADMIN
-        const { accessToken, refreshToken } = generateTokens({
-          type: "ADMIN",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          adminRole: adminProfile?.role || "super_admin",
-          progressId: progress.id,
-          level: updateUser.level,
-          provider: "GOOGLE",
-          firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        // Create or update session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ADMIN",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ADMIN",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            isRevoked: false,
-          },
-        });
-
-        // Set cookies
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Google authentication successful",
-          status: {
-            isExistingUser: true,
-            isProfileComplete: true,
-            requiresProfileCompletion: false,
-          },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "ADMIN",
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            role: updateUser.role,
-            adminRole: adminProfile?.role || "super_admin",
-            progressId: progress.id,
-          },
-        };
-      }
-
-      // Handle INVITED user
-      if (user.form_type === "INVITED") {
-        const invitationOrg = await prisma.inviteUser.findFirst({
-          where: {
-            email: user.email_address,
-          },
-        });
-
-        // Get or create progress
-        let progress = await prisma.progress.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
-          });
-        }
-
-        let plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: user.id,
-            type: "INVITED_INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        // Generate tokens for INVITED_USER
-        const { accessToken, refreshToken } = generateTokens({
-          type: "INVITED_USER",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          progressId: progress.id,
-          level: updateUser.level,
-          updateStatus: updateUser.isOnline,
-          organizationId: invitationOrg?.organizationId || null,
-          provider: "GOOGLE",
-          firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        // Create or update session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            isRevoked: false,
-          },
-        });
-
-        // Set cookies
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Google authentication successful",
-          status: {
-            isExistingUser: true,
-            isProfileComplete: true,
-            requiresProfileCompletion: false,
-          },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "INVITED_USER",
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            role: updateUser.role,
-            progressId: progress.id,
-            form_type: user.form_type,
-            organizationId: invitationOrg?.organizationId || null,
-          },
-        };
-      }
-
-      // Handle REGULAR user (INDIVIDUAL)
-      if (user.form_type === "INDIVIDUAL") {
-        // Get or create progress (only if profile is complete)
-        let progress: any = null;
-        let plan: any = null;
-        let settings: any = null;
-
-        if (isProfileComplete) {
-          progress = await prisma.progress.findFirst({
-            where: { userId: user.id },
-          });
-
-          if (!progress) {
-            progress = await prisma.progress.create({
-              data: {
-                userId: user.id,
-                startedJourney: true,
-                progressBar: 0,
-              },
-            });
-          }
-
-          plan = await prisma.pricingHistory.findFirst({
-            where: { userId: user.id },
-          });
-
-          if (!plan) {
-            plan = await PricingService.GenerateNewPaymentForNewUser({
-              userId: user.id,
-              type: "INDIVIDUAL",
-              orgId: null,
-            });
-          }
-
-          settings = await prisma.settings.findFirst({
-            where: { userId: user.id },
-          });
-
-          if (!settings) {
-            settings = await prisma.settings.create({
-              data: {
-                enable_push_notification: true,
-                course_updates: true,
-                event: true,
-                achievement: true,
-                daily_reminders: true,
-                darkMode: false,
-                email_notification: true,
-                updatedAt: new Date(),
-                userId: user.id,
-                organizationId: null,
-              },
-            });
-          }
-        }
-
-        // Generate tokens for REGULAR USER
-        const { accessToken, refreshToken } = generateTokens({
-          type: "USER",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          level: updateUser.level,
-          progressId: progress?.id,
-          updateStatus: updateUser.isOnline,
-          planId: plan?.id,
-          settingsId: settings?.id,
-          provider: "GOOGLE",
-          firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-          user_pic: user.user_pic,
-          isProfileComplete: isProfileComplete,
-        });
-
-        // Create or update session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            isRevoked: false,
-          },
-        });
-
-        // Set cookies
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          if (progress?.id) {
-            req.res.cookie("progress_id", progress.id, {
-              httpOnly: true,
-              secure: true,
-              sameSite: "none",
-              path: "/",
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
-          }
-
-          if (plan?.id) {
-            req.res.cookie("plan_id", plan.id, {
-              httpOnly: true,
-              secure: true,
-              sameSite: "none",
-              path: "/",
-              maxAge: 7 * 24 * 60 * 60 * 1000,
-            });
-          }
-        }
-
-        // Determine response message based on user status
-        let responseMessage = "";
-        if (!isExistingUser) {
-          responseMessage = "New user created. Please complete your profile.";
-        } else if (isExistingUser && !isProfileComplete) {
-          responseMessage =
-            "Welcome back! Please complete your profile to continue.";
-        } else if (isExistingUser && isProfileComplete) {
-          responseMessage = "Welcome back! Your profile is complete.";
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: responseMessage,
-          status: {
-            isExistingUser: isExistingUser,
-            isProfileComplete: isProfileComplete,
-            requiresProfileCompletion: !isProfileComplete,
-            userStatusMessage: userStatusMessage,
-          },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "USER",
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            email_address: updateUser.email_address,
-            role: updateUser.role,
-            user_pic: user.user_pic,
-            provider: user.provider,
-            country: user.country,
-            state: user.state,
-            phone_number: user.phone_number,
-            isProfileComplete: isProfileComplete,
-            progressId: progress?.id,
-            planId: plan?.id,
-          },
-        };
-      }
-
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "User not found",
-      };
-    } catch (error: any) {
-      console.error("Google auth error:", error);
-      this.setStatus(500);
-      return {
-        success: false,
-        message: `Google authentication failed: ${error.message}`,
-      };
-    }
-  }
-  @Post("/signup")
-  public async CreateUser(
-    @Body() body: Omit<User, "id">,
-    @Request() req: any,
-  ): Promise<any> {
-    // Generate device information
+@Post("/auth/google")
+public async GoogleAuth(
+  @Body() body: { idToken: string },
+  @Request() req: any,
+): Promise<any> {
+  try {
+    // Get device information
     const userAgent = req.headers["user-agent"] || "unknown";
     const deviceType = getDeviceType(userAgent);
     const deviceId = generateDeviceId();
     const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
 
-    // First check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: {
-        email_address: body.email_address,
-      },
-    });
+    // Determine environment for cookie settings
+    const isProduction = process.env.NODE_ENV === "production";
 
-    if (existingUser) {
-      this.setStatus(400); // Conflict
+    // Verify Google token
+    const googleUser = await firebaseAuthService.verifyGoogleToken(body.idToken);
+
+    if (!googleUser) {
+      this.setStatus(401);
       return {
-        message: "User with this email already exists",
+        success: false,
+        message: "Invalid Google token",
       };
     }
 
-    if (body.password == "") {
-      this.setStatus(400);
+    // Find or create user with detailed status
+    const {
+      user,
+      isExistingUser,
+      isProfileComplete,
+      message: userStatusMessage,
+    } = await firebaseAuthService.findOrCreateGoogleUser(googleUser);
+
+    if (!user) {
+      this.setStatus(500);
       return {
-        message: "Password must be filled",
+        success: false,
+        message: "Failed to process user",
       };
     }
 
-    const hashedPassword = await bcrypt.hash(body.password, 10);
-
-    // Create user with default level if not provided
-    const user = await prisma.user.create({
-      data: { ...body, password: hashedPassword, level: body.level },
+    // Check if user is organization (has associated org)
+    let organization = await prisma.organization.findFirst({
+      where: { userId: user.id },
+      include: { user: true },
     });
 
-    //After creating Users.
-    //It is necessary to automatically create settings database for the users.
-    const createSettings = await prisma.settings.create({
-      data: {
-        enable_push_notification: true,
-        course_updates: true,
-        event: true,
-        achievement: true,
-        daily_reminders: true,
-        darkMode: false,
-        email_notification: true,
-        updatedAt: new Date(),
-        userId: user.id,
-        organizationId: null,
-      },
-    });
-
-    //Greeting user with notifications
-    await NotificationService.createNotification({
-      message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
-      title: "Welcome New User",
-      type: "greeting",
-      role: Role.STUDENT,
-      to: Role.STUDENT,
-      userId: user.id,
-    });
-
+    // Update user online status
     const updateUser = await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -770,220 +91,415 @@ export class UserController extends Controller {
       },
     });
 
-    const plan = await PricingService.GenerateNewPaymentForNewUser({
-      userId: updateUser.id,
-      type: "INDIVIDUAL",
-      orgId: null,
-    });
-
-    const startJourney = await prisma.progress.create({
-      data: {
-        userId: updateUser.id,
-        startedJourney: true,
-        progressBar: 0,
-      },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-          },
+    // Handle ORGANIZATION type
+    if (organization) {
+      const updatedOrganization = await prisma.organization.update({
+        where: { id: organization.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
         },
-      },
-    });
+        include: {
+          user: true,
+        },
+      });
 
-    // Create achievement message
-    const achievementResult = await GrowthService.AchievementMessage({
-      message_title: "Christian Cadet",
-      message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
-      point: 10,
-      progress_message: "",
-      userId: updateUser.id,
-      badge: "CADET_BADGE",
-      progressId: startJourney.id,
-    });
+      // Get or create plan for organization
+      let plan = await prisma.pricingHistory.findFirst({
+        where: {
+          userId: updateUser.id,
+        },
+      });
 
-    // Check if achievement was created successfully
-    if (achievementResult.error) {
-      console.error("Achievement creation failed:", achievementResult.error);
-      // Still return success for journey but with achievement error
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: null,
+          type: "ORGANIZATION",
+          orgId: updatedOrganization.id,
+        });
+      }
+
+      // Generate tokens for ORGANIZATION
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ORGANIZATION",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        organizationId: updatedOrganization.id,
+        organization_name: updatedOrganization.organization_name,
+        organization_email: updatedOrganization.organization_email,
+        organization_role: updateUser.role,
+        userId: updateUser.id,
+        provider: "GOOGLE",
+        level: "ORGANIZATION",
+        firebase_uid: user.firebase_uid,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      // Create or update session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          isRevoked: false,
+        },
+      });
+
+      // Set cookies - FIXED
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+      }
+
       this.setStatus(200);
       return {
-        message:
-          "Journey created successfully, but achievement creation failed",
-        data: startJourney,
-        achievementError: achievementResult.error,
+        success: true,
+        message: "Google authentication successful",
+        status: {
+          isExistingUser: true,
+          isProfileComplete: true,
+          requiresProfileCompletion: false,
+        },
+        accessToken,  // Return in body as fallback
+        refreshToken, // Return in body as fallback
+        user: {
+          type: "organization",
+          id: updatedOrganization.id,
+          organization_name: updatedOrganization.organization_name,
+          organization_email: updatedOrganization.organization_email,
+          organization_role: updateUser.role,
+          organization_isOnline: updatedOrganization.isOnline,
+        },
       };
     }
 
-    // Generate access and refresh tokens
-    const { accessToken, refreshToken } = generateTokens({
-      id: updateUser.id,
-      email: updateUser.email_address,
-      role: updateUser.role,
-      type: updateUser.form_type || "INDIVIDUAL",
-      settingsId: createSettings.id,
-      full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-      progressId: startJourney.id,
-      updateStatus: updateUser.isOnline,
-      planId: plan.id,
-      deviceId: deviceId,
-      deviceType: deviceType,
-      level: updateUser.level,
-    });
+    // Handle ADMIN user
+    if (user.role === "goye_admin") {
+      // Get admin profile
+      const adminProfile = await prisma.adminProfile.findUnique({
+        where: { userId: user.id },
+      });
 
-    // Create user session with all required fields
-    await prisma.userSession.create({
-      data: {
-        userId: updateUser.id,
+      // Get or create progress for admin
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
+            userId: user.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+        });
+      }
+
+      let plan = await prisma.pricingHistory.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: user.id,
+          type: "INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      // Generate tokens for ADMIN
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ADMIN",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        adminRole: adminProfile?.role || "super_admin",
+        progressId: progress.id,
+        level: updateUser.level,
+        provider: "GOOGLE",
+        firebase_uid: user.firebase_uid,
         deviceId: deviceId,
         deviceType: deviceType,
-        refreshToken: refreshToken,
-        accessToken: accessToken,
-        userType: "USER",
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        userAgent: userAgent,
-        ipAddress: ipAddress,
-        isRevoked: false,
-      },
-    });
-
-    if (req.res) {
-      // Set access token cookie (short-lived)
-      req.res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-        maxAge: 15 * 60 * 1000, // 15 minutes
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
       });
 
-      // Set refresh token cookie (long-lived)
-      req.res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      // Create or update session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ADMIN",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ADMIN",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          isRevoked: false,
+        },
       });
 
-      // Set device ID cookie
-      req.res.cookie("deviceId", deviceId, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-        maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
-      });
+      // Set cookies - FIXED
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
 
-      // Set the progressId cookie
-      req.res.cookie("progress_id", startJourney.id, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
 
-      // Set the plan_id cookie
-      req.res.cookie("plan_id", plan.id, {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Google authentication successful",
+        status: {
+          isExistingUser: true,
+          isProfileComplete: true,
+          requiresProfileCompletion: false,
+        },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "ADMIN",
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          role: updateUser.role,
+          adminRole: adminProfile?.role || "super_admin",
+          progressId: progress.id,
+        },
+      };
     }
 
-    this.setStatus(201);
-    return {
-      message: "Signup successful",
-      accessToken,
-      refreshToken,
-      deviceId,
-      user: {
-        id: updateUser.id,
-        first_name: updateUser.first_name,
-        last_name: updateUser.last_name,
-        email_address: updateUser.email_address,
-        planId: plan.id,
-        progressId: startJourney.id,
-      },
-    };
-  }
-
-  //login
-  @Post("/login")
-  public async Login(
-    @Body()
-    credentials: {
-      email: string;
-      password: string;
-      deviceType?: string;
-      deviceId?: string;
-    },
-    @Request() req: any,
-  ): Promise<any> {
-    const settingsId = req.org?.settingsId;
-    try {
-      // Get device information
-      const userAgent = req.headers["user-agent"] || "unknown";
-      const deviceType = credentials.deviceType || getDeviceType(userAgent);
-      const deviceId = credentials.deviceId || generateDeviceId();
-      const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
-
-      // Check if user exists
-      const user = await prisma.user.findUnique({
+    // Handle INVITED user
+    if (user.form_type === "INVITED") {
+      const invitationOrg = await prisma.inviteUser.findFirst({
         where: {
-          email_address: credentials.email,
-        },
-        include: {
-          adminProfile: true, // Include admin profile if exists
+          email: user.email_address,
         },
       });
 
-      // Check for admin user first (before invited or regular)
-      if (user && user.role === "goye_admin") {
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password,
-        );
+      // Get or create progress
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
 
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return { message: "Password is invalid" };
-        }
-
-        // Check if this device already has an active session
-        const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
-        });
-
-        // Revoke old session for this device if exists
-        if (existingSession) {
-          await prisma.userSession.update({
-            where: { id: existingSession.id },
-            data: { isRevoked: true },
-          });
-        }
-
-        const updateUser = await prisma.user.update({
-          where: { id: user.id },
+      if (!progress) {
+        progress = await prisma.progress.create({
           data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user_plan: {
-              select: {
-                id: true,
-              },
-            },
+            userId: user.id,
+            startedJourney: true,
+            progressBar: 0,
           },
         });
+      }
 
-        // Get or create progress for admin
-        let progress = await prisma.progress.findFirst({
+      let plan = await prisma.pricingHistory.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: user.id,
+          type: "INVITED_INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      // Generate tokens for INVITED_USER
+      const { accessToken, refreshToken } = generateTokens({
+        type: "INVITED_USER",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        progressId: progress.id,
+        level: updateUser.level,
+        updateStatus: updateUser.isOnline,
+        organizationId: invitationOrg?.organizationId || null,
+        provider: "GOOGLE",
+        firebase_uid: user.firebase_uid,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      // Create or update session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "INVITED_USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "INVITED_USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          isRevoked: false,
+        },
+      });
+
+      // Set cookies - FIXED
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Google authentication successful",
+        status: {
+          isExistingUser: true,
+          isProfileComplete: true,
+          requiresProfileCompletion: false,
+        },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "INVITED_USER",
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          role: updateUser.role,
+          progressId: progress.id,
+          form_type: user.form_type,
+          organizationId: invitationOrg?.organizationId || null,
+        },
+      };
+    }
+
+    // Handle REGULAR user (INDIVIDUAL)
+    if (user.form_type === "INDIVIDUAL") {
+      // Get or create progress (only if profile is complete)
+      let progress: any = null;
+      let plan: any = null;
+      let settings: any = null;
+
+      if (isProfileComplete) {
+        progress = await prisma.progress.findFirst({
           where: { userId: user.id },
         });
 
@@ -997,672 +513,1158 @@ export class UserController extends Controller {
           });
         }
 
-        const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
-        });
-
-        const planId = plan?.id ?? null;
-
-        if (!plan) {
-          await PricingService.GenerateNewPaymentForNewUser({
-            userId: updateUser.id,
-            type: "INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        // Generate access and refresh tokens
-        const { accessToken, refreshToken } = generateTokens({
-          type: "ADMIN",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          adminRole: user.adminProfile?.role || "super_admin",
-          progressId: progress.id,
-          level: updateUser.level,
-          planId,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        // Create or update user session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ADMIN",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ADMIN",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-          },
-        });
-
-        if (req.res) {
-          // Set access token cookie (short-lived)
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000, // 15 minutes
-          });
-
-          // Set refresh token cookie (long-lived)
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-          });
-
-          // Set device ID cookie
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful",
-            accessToken,
-            refreshToken,
-            deviceId,
-            user: {
-              type: "ADMIN",
-              id: updateUser.id,
-              first_name: updateUser.first_name,
-              last_name: updateUser.last_name,
-              role: updateUser.role,
-              adminRole: user.adminProfile?.role || "super_admin",
-              progressId: progress.id,
-            },
-          },
-        };
-      }
-
-      // Check for invited users
-      if (user && user.form_type === "INVITED") {
-        const invitationOrg = await prisma.inviteUser.findFirst({
-          where: {
-            email: credentials.email,
-          },
-        });
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password,
-        );
-
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return { message: "Password is invalid" };
-        }
-
-        // Check if this device already has an active session
-        const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
-        });
-
-        if (existingSession) {
-          await prisma.userSession.update({
-            where: { id: existingSession.id },
-            data: { isRevoked: true },
-          });
-        }
-
-        const updateUser = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            progress: {
-              include: { user: true },
-            },
-          },
-        });
-
-        let progress = updateUser.progress?.[0];
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: {
-              userId: updateUser.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
-            include: { user: true },
-          });
-
-          await GrowthService.AchievementMessage({
-            message_title: "Christian Cadet",
-            message_content: `${progress.user.first_name} you just joined the rest of the soldiers to join the army`,
-            point: 10,
-            progress_message: "",
-            userId: updateUser.id,
-            badge: "CADET_BADGE",
-            progressId: progress.id,
-          });
-        }
-
-        const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
-        });
-
-        const planId = plan?.id ?? null;
-
-        if (!plan) {
-          await PricingService.GenerateNewPaymentForNewUser({
-            userId: updateUser.id,
-            type: "INVITED_INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        // Generate access and refresh tokens
-        const { accessToken, refreshToken } = generateTokens({
-          type: "INVITED_USER",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          progressId: progress.id,
-          level: updateUser.level,
-          updateStatus: updateUser.isOnline,
-          organizationId: invitationOrg?.organizationId || null,
-          planId,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        // Create or update user session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful",
-            accessToken,
-            refreshToken,
-            deviceId,
-            user: {
-              type: "INVITED_USER",
-              id: updateUser.id,
-              first_name: updateUser.first_name,
-              last_name: updateUser.last_name,
-              role: updateUser.role,
-              progressId: progress.id,
-              form_type: updateUser.form_type,
-              organizationId: invitationOrg?.organizationId || null,
-            },
-          },
-        };
-      }
-
-      // Check for regular users
-      if (user && user.form_type === "INDIVIDUAL") {
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          user.password,
-        );
-
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return { message: "Password is invalid" };
-        }
-
-        // Check if this device already has an active session
-        const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
-        });
-
-        if (existingSession) {
-          await prisma.userSession.update({
-            where: { id: existingSession.id },
-            data: { isRevoked: true },
-          });
-        }
-
-        const updateUser = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            progress: {
-              include: { user: true },
-            },
-          },
-        });
-
-        let progress = updateUser.progress?.[0];
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: {
-              userId: updateUser.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
-            include: { user: true },
-          });
-
-          await GrowthService.AchievementMessage({
-            message_title: "Christian Cadet",
-            message_content: `${progress.user.first_name} you just joined the rest of the soldiers to join the army`,
-            point: 10,
-            progress_message: "",
-            userId: updateUser.id,
-            badge: "CADET_BADGE",
-            progressId: progress.id,
-          });
-        }
-
-        const organizationData = await prisma.organization.findFirst({
+        plan = await prisma.pricingHistory.findFirst({
           where: { userId: user.id },
         });
 
-        const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
-        });
-
-        const planId = plan?.id ?? null;
-
         if (!plan) {
-          await PricingService.GenerateNewPaymentForNewUser({
-            userId: updateUser.id,
+          plan = await PricingService.GenerateNewPaymentForNewUser({
+            userId: user.id,
             type: "INDIVIDUAL",
-            orgId: organizationData?.id || null,
+            orgId: null,
           });
         }
 
-        // Generate access and refresh tokens
-        const { accessToken, refreshToken } = generateTokens({
-          type: "USER",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          level: updateUser.level,
-          progressId: progress.id,
-          updateStatus: updateUser.isOnline,
-          organizationId: organizationData?.id || null,
-          planId,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+        settings = await prisma.settings.findFirst({
+          where: { userId: user.id },
         });
 
-        // Create or update user session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful",
-            accessToken,
-            refreshToken,
-            deviceId,
-            user: {
-              type: "USER",
-              id: updateUser.id,
-              first_name: updateUser.first_name,
-              last_name: updateUser.last_name,
-              role: updateUser.role,
-              progressId: progress.id,
-              form_type: updateUser.form_type,
+        if (!settings) {
+          settings = await prisma.settings.create({
+            data: {
+              enable_push_notification: true,
+              course_updates: true,
+              event: true,
+              achievement: true,
+              daily_reminders: true,
+              darkMode: false,
+              email_notification: true,
+              updatedAt: new Date(),
+              userId: user.id,
+              organizationId: null,
             },
-          },
-        };
+          });
+        }
       }
 
-      // Check for organization
-      // Check for organization
-      const organization = await prisma.organization.findUnique({
+      // Generate tokens for REGULAR USER
+      const { accessToken, refreshToken } = generateTokens({
+        type: "USER",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        level: updateUser.level,
+        progressId: progress?.id,
+        updateStatus: updateUser.isOnline,
+        planId: plan?.id,
+        settingsId: settings?.id,
+        provider: "GOOGLE",
+        firebase_uid: user.firebase_uid,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+        user_pic: user.user_pic,
+        isProfileComplete: isProfileComplete,
+      });
+
+      // Create or update session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          isRevoked: false,
+        },
+      });
+
+      // Set cookies - FIXED
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        if (progress?.id) {
+          req.res.cookie("progress_id", progress.id, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        if (plan?.id) {
+          req.res.cookie("plan_id", plan.id, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+      }
+
+      // Determine response message based on user status
+      let responseMessage = "";
+      if (!isExistingUser) {
+        responseMessage = "New user created. Please complete your profile.";
+      } else if (isExistingUser && !isProfileComplete) {
+        responseMessage = "Welcome back! Please complete your profile to continue.";
+      } else if (isExistingUser && isProfileComplete) {
+        responseMessage = "Welcome back! Your profile is complete.";
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: responseMessage,
+        status: {
+          isExistingUser: isExistingUser,
+          isProfileComplete: isProfileComplete,
+          requiresProfileCompletion: !isProfileComplete,
+          userStatusMessage: userStatusMessage,
+        },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "USER",
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          email_address: updateUser.email_address,
+          role: updateUser.role,
+          user_pic: user.user_pic,
+          provider: user.provider,
+          country: user.country,
+          state: user.state,
+          phone_number: user.phone_number,
+          isProfileComplete: isProfileComplete,
+          progressId: progress?.id,
+          planId: plan?.id,
+        },
+      };
+    }
+
+    this.setStatus(404);
+    return {
+      success: false,
+      message: "User not found",
+    };
+  } catch (error: any) {
+    console.error("Google auth error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Google authentication failed: ${error.message}`,
+    };
+  }
+}
+@Post("/signup")
+public async CreateUser(
+  @Body() body: Omit<User, "id">,
+  @Request() req: any,
+): Promise<any> {
+  // Generate device information
+  const userAgent = req.headers["user-agent"] || "unknown";
+  const deviceType = getDeviceType(userAgent);
+  const deviceId = generateDeviceId();
+  const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
+  
+  // Determine environment for cookie settings
+  const isProduction = process.env.NODE_ENV === "production";
+
+  // First check if user already exists
+  const existingUser = await prisma.user.findUnique({
+    where: {
+      email_address: body.email_address,
+    },
+  });
+
+  if (existingUser) {
+    this.setStatus(400); // Conflict
+    return {
+      message: "User with this email already exists",
+    };
+  }
+
+  if (body.password == "") {
+    this.setStatus(400);
+    return {
+      message: "Password must be filled",
+    };
+  }
+
+  const hashedPassword = await bcrypt.hash(body.password, 10);
+
+  // Create user with default level if not provided
+  const user = await prisma.user.create({
+    data: { ...body, password: hashedPassword, level: body.level },
+  });
+
+  //After creating Users.
+  //It is necessary to automatically create settings database for the users.
+  const createSettings = await prisma.settings.create({
+    data: {
+      enable_push_notification: true,
+      course_updates: true,
+      event: true,
+      achievement: true,
+      daily_reminders: true,
+      darkMode: false,
+      email_notification: true,
+      updatedAt: new Date(),
+      userId: user.id,
+      organizationId: null,
+    },
+  });
+
+  //Greeting user with notifications
+  await NotificationService.createNotification({
+    message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
+    title: "Welcome New User",
+    type: "greeting",
+    role: Role.STUDENT,
+    to: Role.STUDENT,
+    userId: user.id,
+  });
+
+  const updateUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      isOnline: true,
+      lastActive: new Date(),
+    },
+  });
+
+  const plan = await PricingService.GenerateNewPaymentForNewUser({
+    userId: updateUser.id,
+    type: "INDIVIDUAL",
+    orgId: null,
+  });
+
+  const startJourney = await prisma.progress.create({
+    data: {
+      userId: updateUser.id,
+      startedJourney: true,
+      progressBar: 0,
+    },
+    include: {
+      user: {
+        select: {
+          first_name: true,
+          last_name: true,
+        },
+      },
+    },
+  });
+
+  // Create achievement message
+  const achievementResult = await GrowthService.AchievementMessage({
+    message_title: "Christian Cadet",
+    message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
+    point: 10,
+    progress_message: "",
+    userId: updateUser.id,
+    badge: "CADET_BADGE",
+    progressId: startJourney.id,
+  });
+
+  // Check if achievement was created successfully
+  if (achievementResult.error) {
+    console.error("Achievement creation failed:", achievementResult.error);
+    // Still return success for journey but with achievement error
+    this.setStatus(200);
+    return {
+      message: "Journey created successfully, but achievement creation failed",
+      data: startJourney,
+      achievementError: achievementResult.error,
+    };
+  }
+
+  // Generate access and refresh tokens
+  const { accessToken, refreshToken } = generateTokens({
+    id: updateUser.id,
+    email: updateUser.email_address,
+    role: updateUser.role,
+    type: updateUser.form_type || "INDIVIDUAL",
+    settingsId: createSettings.id,
+    full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+    progressId: startJourney.id,
+    updateStatus: updateUser.isOnline,
+    planId: plan.id,
+    deviceId: deviceId,
+    deviceType: deviceType,
+    level: updateUser.level,
+  });
+
+  // Create user session with all required fields
+  await prisma.userSession.create({
+    data: {
+      userId: updateUser.id,
+      deviceId: deviceId,
+      deviceType: deviceType,
+      refreshToken: refreshToken,
+      accessToken: accessToken,
+      userType: "USER",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      userAgent: userAgent,
+      ipAddress: ipAddress,
+      isRevoked: false,
+    },
+  });
+
+  if (req.res) {
+    // Set cookies - FIXED
+    req.res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    req.res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    req.res.cookie("deviceId", deviceId, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+    });
+
+    req.res.cookie("progress_id", startJourney.id, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    req.res.cookie("plan_id", plan.id, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  }
+
+  this.setStatus(201);
+  return {
+    message: "Signup successful",
+    accessToken,  // Return in body as fallback
+    refreshToken, // Return in body as fallback
+    deviceId,
+    user: {
+      id: updateUser.id,
+      first_name: updateUser.first_name,
+      last_name: updateUser.last_name,
+      email_address: updateUser.email_address,
+      planId: plan.id,
+      progressId: startJourney.id,
+    },
+  };
+}
+
+  //login
+@Post("/login")
+public async Login(
+  @Body()
+  credentials: {
+    email: string;
+    password: string;
+    deviceType?: string;
+    deviceId?: string;
+  },
+  @Request() req: any,
+): Promise<any> {
+  const settingsId = req.org?.settingsId;
+  
+  // Determine environment for cookie settings
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  try {
+    // Get device information
+    const userAgent = req.headers["user-agent"] || "unknown";
+    const deviceType = credentials.deviceType || getDeviceType(userAgent);
+    const deviceId = credentials.deviceId || generateDeviceId();
+    const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: {
+        email_address: credentials.email,
+      },
+      include: {
+        adminProfile: true, // Include admin profile if exists
+      },
+    });
+
+    // Check for admin user first (before invited or regular)
+    if (user && user.role === "goye_admin") {
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      // Check if this device already has an active session
+      const existingSession = await prisma.userSession.findUnique({
+        where: { deviceId: deviceId },
+      });
+
+      // Revoke old session for this device if exists
+      if (existingSession) {
+        await prisma.userSession.update({
+          where: { id: existingSession.id },
+          data: { isRevoked: true },
+        });
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+        include: {
+          user_plan: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      // Get or create progress for admin
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
+            userId: user.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+        });
+      }
+
+      const plan = await prisma.pricingHistory.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      const planId = plan?.id ?? null;
+
+      if (!plan) {
+        await PricingService.GenerateNewPaymentForNewUser({
+          userId: updateUser.id,
+          type: "INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      // Generate access and refresh tokens
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ADMIN",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        adminRole: user.adminProfile?.role || "super_admin",
+        progressId: progress.id,
+        level: updateUser.level,
+        planId,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      // Create or update user session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ADMIN",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ADMIN",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+        },
+      });
+
+      if (req.res) {
+        // Set cookies - FIXED
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("plan_id", planId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful",
+          accessToken,  // Return in body as fallback
+          refreshToken, // Return in body as fallback
+          deviceId,
+          user: {
+            type: "ADMIN",
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            role: updateUser.role,
+            adminRole: user.adminProfile?.role || "super_admin",
+            progressId: progress.id,
+          },
+        },
+      };
+    }
+
+    // Check for invited users
+    if (user && user.form_type === "INVITED") {
+      const invitationOrg = await prisma.inviteUser.findFirst({
+        where: {
+          email: credentials.email,
+        },
+      });
+
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      // Check if this device already has an active session
+      const existingSession = await prisma.userSession.findUnique({
+        where: { deviceId: deviceId },
+      });
+
+      if (existingSession) {
+        await prisma.userSession.update({
+          where: { id: existingSession.id },
+          data: { isRevoked: true },
+        });
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+        include: {
+          progress: {
+            include: { user: true },
+          },
+        },
+      });
+
+      let progress = updateUser.progress?.[0];
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
+            userId: updateUser.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+          include: { user: true },
+        });
+
+        await GrowthService.AchievementMessage({
+          message_title: "Christian Cadet",
+          message_content: `${progress.user.first_name} you just joined the rest of the soldiers to join the army`,
+          point: 10,
+          progress_message: "",
+          userId: updateUser.id,
+          badge: "CADET_BADGE",
+          progressId: progress.id,
+        });
+      }
+
+      const plan = await prisma.pricingHistory.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      const planId = plan?.id ?? null;
+
+      if (!plan) {
+        await PricingService.GenerateNewPaymentForNewUser({
+          userId: updateUser.id,
+          type: "INVITED_INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      // Generate access and refresh tokens
+      const { accessToken, refreshToken } = generateTokens({
+        type: "INVITED_USER",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        progressId: progress.id,
+        level: updateUser.level,
+        updateStatus: updateUser.isOnline,
+        organizationId: invitationOrg?.organizationId || null,
+        planId,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      // Create or update user session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "INVITED_USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "INVITED_USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+        },
+      });
+
+      if (req.res) {
+        // Set cookies - FIXED
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("plan_id", planId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful",
+          accessToken,  // Return in body as fallback
+          refreshToken, // Return in body as fallback
+          deviceId,
+          user: {
+            type: "INVITED_USER",
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            role: updateUser.role,
+            progressId: progress.id,
+            form_type: updateUser.form_type,
+            organizationId: invitationOrg?.organizationId || null,
+          },
+        },
+      };
+    }
+
+    // Check for regular users
+    if (user && user.form_type === "INDIVIDUAL") {
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      // Check if this device already has an active session
+      const existingSession = await prisma.userSession.findUnique({
+        where: { deviceId: deviceId },
+      });
+
+      if (existingSession) {
+        await prisma.userSession.update({
+          where: { id: existingSession.id },
+          data: { isRevoked: true },
+        });
+      }
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
+        },
+        include: {
+          progress: {
+            include: { user: true },
+          },
+        },
+      });
+
+      let progress = updateUser.progress?.[0];
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
+            userId: updateUser.id,
+            startedJourney: true,
+            progressBar: 0,
+          },
+          include: { user: true },
+        });
+
+        await GrowthService.AchievementMessage({
+          message_title: "Christian Cadet",
+          message_content: `${progress.user.first_name} you just joined the rest of the soldiers to join the army`,
+          point: 10,
+          progress_message: "",
+          userId: updateUser.id,
+          badge: "CADET_BADGE",
+          progressId: progress.id,
+        });
+      }
+
+      const organizationData = await prisma.organization.findFirst({
+        where: { userId: user.id },
+      });
+
+      const plan = await prisma.pricingHistory.findFirst({
+        where: {
+          userId: user.id,
+        },
+      });
+
+      const planId = plan?.id ?? null;
+
+      if (!plan) {
+        await PricingService.GenerateNewPaymentForNewUser({
+          userId: updateUser.id,
+          type: "INDIVIDUAL",
+          orgId: organizationData?.id || null,
+        });
+      }
+
+      // Generate access and refresh tokens
+      const { accessToken, refreshToken } = generateTokens({
+        type: "USER",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        level: updateUser.level,
+        progressId: progress.id,
+        updateStatus: updateUser.isOnline,
+        organizationId: organizationData?.id || null,
+        planId,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      // Create or update user session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+        },
+      });
+
+      if (req.res) {
+        // Set cookies - FIXED
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("plan_id", planId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        data: {
+          message: "Login successful",
+          accessToken,  // Return in body as fallback
+          refreshToken, // Return in body as fallback
+          deviceId,
+          user: {
+            type: "USER",
+            id: updateUser.id,
+            first_name: updateUser.first_name,
+            last_name: updateUser.last_name,
+            role: updateUser.role,
+            progressId: progress.id,
+            form_type: updateUser.form_type,
+          },
+        },
+      };
+    }
+
+    // Check for organization
+    const organization = await prisma.organization.findUnique({
+      where: {
+        organization_email: credentials.email,
+      },
+      include: {
+        user: true,
+      },
+    });
+
+    if (organization) {
+      const isPasswordValid = await bcrypt.compare(
+        credentials.password,
+        organization.organization_password,
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return { message: "Password is invalid" };
+      }
+
+      // Check if this device already has an active session
+      const existingSession = await prisma.userSession.findUnique({
+        where: { deviceId: deviceId },
+      });
+
+      if (existingSession) {
+        await prisma.userSession.update({
+          where: { id: existingSession.id },
+          data: { isRevoked: true },
+        });
+      }
+
+      const updatedOrganization = await prisma.organization.update({
         where: {
           organization_email: credentials.email,
+        },
+        data: {
+          isOnline: true,
+          lastActive: new Date(),
         },
         include: {
           user: true,
         },
       });
 
-      if (organization) {
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          organization.organization_password,
-        );
-
-        if (!isPasswordValid) {
-          this.setStatus(401);
-          return { message: "Password is invalid" };
-        }
-
-        // Check if this device already has an active session
-        const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
-        });
-
-        if (existingSession) {
-          await prisma.userSession.update({
-            where: { id: existingSession.id },
-            data: { isRevoked: true },
-          });
-        }
-
-        const updatedOrganization = await prisma.organization.update({
-          where: {
-            organization_email: credentials.email,
-          },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user: true,
-          },
-        });
-
-        const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: updatedOrganization.user.id,
-          },
-        });
-
-        const planId = plan?.id ?? null;
-
-        if (!plan) {
-          await PricingService.GenerateNewPaymentForNewUser({
-            userId: null,
-            type: "ORGANIZATION",
-            orgId: updatedOrganization.id,
-          });
-        }
-
-        // Generate access and refresh tokens with complete payload
-        const { accessToken, refreshToken } = generateTokens({
-          type: "ORGANIZATION",
-          id: updatedOrganization.user.id,
-          email: updatedOrganization.user.email_address,
-          role: updatedOrganization.user.role, // Add required role field
-          settingsId: settingsId,
-          organizationId: updatedOrganization.id,
-          organization_name: updatedOrganization.organization_name,
-          organization_email: updatedOrganization.organization_email,
-          organization_role: updatedOrganization.user.role,
+      const plan = await prisma.pricingHistory.findFirst({
+        where: {
           userId: updatedOrganization.user.id,
-          planId: planId,
-          deviceId: deviceId,
-          level: "ORGANIZATION",
-          deviceType: deviceType,
-          full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
-          progressId: null, // Add if needed
+        },
+      });
+
+      const planId = plan?.id ?? null;
+
+      if (!plan) {
+        await PricingService.GenerateNewPaymentForNewUser({
+          userId: null,
+          type: "ORGANIZATION",
+          orgId: updatedOrganization.id,
         });
-
-        // Create or update user session
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ORGANIZATION",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updatedOrganization.user.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ORGANIZATION",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          data: {
-            message: "Login successful",
-            accessToken,
-            refreshToken,
-            deviceId,
-            organization: {
-              type: "organization",
-              id: updatedOrganization.id,
-              organization_name: updatedOrganization.organization_name,
-              organization_email: updatedOrganization.organization_email,
-              organization_role: updatedOrganization.user.role,
-              organization_isOnline: updatedOrganization.isOnline,
-            },
-          },
-        };
       }
-      this.setStatus(404);
-      return { message: "User or Login not found" };
-    } catch (error: any) {
-      console.error("Login error:", error);
-      this.setStatus(500);
+
+      // Generate access and refresh tokens with complete payload
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ORGANIZATION",
+        id: updatedOrganization.user.id,
+        email: updatedOrganization.user.email_address,
+        role: updatedOrganization.user.role,
+        settingsId: settingsId,
+        organizationId: updatedOrganization.id,
+        organization_name: updatedOrganization.organization_name,
+        organization_email: updatedOrganization.organization_email,
+        organization_role: updatedOrganization.user.role,
+        userId: updatedOrganization.user.id,
+        planId: planId,
+        deviceId: deviceId,
+        level: "ORGANIZATION",
+        deviceType: deviceType,
+        full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
+        progressId: null,
+      });
+
+      // Create or update user session
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updatedOrganization.user.id,
+          deviceId: deviceId,
+          deviceType: deviceType,
+          refreshToken: refreshToken,
+          accessToken: accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent: userAgent,
+          ipAddress: ipAddress,
+        },
+      });
+
+      if (req.res) {
+        // Set cookies - FIXED
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+
+        req.res.cookie("plan_id", planId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
       return {
-        message: `An error occurred: ${error.message}`,
+        data: {
+          message: "Login successful",
+          accessToken,  // Return in body as fallback
+          refreshToken, // Return in body as fallback
+          deviceId,
+          organization: {
+            type: "organization",
+            id: updatedOrganization.id,
+            organization_name: updatedOrganization.organization_name,
+            organization_email: updatedOrganization.organization_email,
+            organization_role: updatedOrganization.user.role,
+            organization_isOnline: updatedOrganization.isOnline,
+          },
+        },
       };
     }
+    this.setStatus(404);
+    return { message: "User or Login not found" };
+  } catch (error: any) {
+    console.error("Login error:", error);
+    this.setStatus(500);
+    return {
+      message: `An error occurred: ${error.message}`,
+    };
   }
+}
 
- @Security("bearerAuth")
+@Security("bearerAuth")
 @Post("/complete-profile")
 public async CompleteProfile(
   @Request() req: any,
@@ -1679,6 +1681,9 @@ public async CompleteProfile(
   },
 ) {
   const userId = req.user?.id;
+  
+  // Determine environment for cookie settings
+  const isProduction = process.env.NODE_ENV === "production";
 
   if (!userId) {
     this.setStatus(401);
@@ -1732,7 +1737,7 @@ public async CompleteProfile(
         password: hashPassword,
         phone_number: body.phone_number,
         role: body.role,
-        level: userLevel,  // Use the validated level
+        level: userLevel,
         isProfileComplete: true,
       },
     });
@@ -1804,7 +1809,7 @@ public async CompleteProfile(
       id: updatedUser.id,
       email: updatedUser.email_address,
       role: updatedUser.role,
-      level: updatedUser.level,  // Now includes the updated level
+      level: updatedUser.level,
       progressId: progress?.id,
       updateStatus: updatedUser.isOnline,
       planId: plan?.id,
@@ -1837,21 +1842,20 @@ public async CompleteProfile(
     });
     console.log(`Sent welcome notification to user ${userId}`);
 
-    // Update session cookies with new tokens and ids
+    // Update session cookies with new tokens and ids - FIXED
     if (req.res) {
-      // Set new tokens
       req.res.cookie("accessToken", accessToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
         maxAge: 15 * 60 * 1000,
       });
 
       req.res.cookie("refreshToken", refreshToken, {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
         path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
@@ -1859,8 +1863,8 @@ public async CompleteProfile(
       if (progress?.id) {
         req.res.cookie("progress_id", progress.id, {
           httpOnly: true,
-          secure: true,
-          sameSite: "none",
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
           path: "/",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -1869,8 +1873,8 @@ public async CompleteProfile(
       if (plan?.id) {
         req.res.cookie("plan_id", plan.id, {
           httpOnly: true,
-          secure: true,
-          sameSite: "none",
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
           path: "/",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
@@ -1881,7 +1885,7 @@ public async CompleteProfile(
     return {
       success: true,
       message: "Profile completed successfully! Welcome to GOYE!",
-      accessToken,  // Return new tokens to the client
+      accessToken,  // Return new tokens in body as fallback
       refreshToken,
       data: {
         user: {
@@ -1925,7 +1929,6 @@ public async CompleteProfile(
     };
   }
 }
-
   @Post("/sendOtp")
   public async SendOtp(@Body() body: { email: string }): Promise<any> {
     try {
