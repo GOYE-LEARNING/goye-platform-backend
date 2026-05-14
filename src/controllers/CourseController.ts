@@ -629,7 +629,7 @@ public async GetAllCoursesByLevel(@Request() req: any): Promise<CourseResponse> 
     // Normalize level to proper case
     const normalizedLevel = userLevel.toLowerCase();
     
-    if (normalizedLevel === "beginner") {
+    if (normalizedLevel === "beginners") {
       const getAllCourses = await prisma.course.findMany({
         where: {
           course_level: "Beginner",
