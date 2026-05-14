@@ -20,6 +20,19 @@ const normalizeLevel = (level: string): string => {
   return 'Beginners';
 };
 
+// Helper function to set secure cookies based on environment
+const setSecureCookie = (res: any, name: string, value: string, maxAge: number) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  
+  res.cookie(name, value, {
+    httpOnly: true,
+    secure: isProduction,      // false in development, true in production
+    sameSite: isProduction ? "none" : "lax",
+    path: "/",
+    maxAge: maxAge
+  });
+};
+
 export async function expressAuthentication(
   request: Request,
   securityName: string,
@@ -73,13 +86,7 @@ export async function expressAuthentication(
 
         // Set new access token in cookie if response object is available
         if (request.res) {
-          request.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000
-          });
+          setSecureCookie(request.res, "accessToken", accessToken, 15 * 60 * 1000);
         }
       } catch (error) {
         throw new Error("Failed to refresh token");
@@ -131,13 +138,7 @@ export async function expressAuthentication(
         
         // Update the cookie with new token
         if (request.res) {
-          request.res.cookie("accessToken", newAccessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000
-          });
+          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
         }
         
         // Also update the session in database
@@ -171,13 +172,7 @@ export async function expressAuthentication(
         );
         
         if (request.res) {
-          request.res.cookie("accessToken", newAccessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000
-          });
+          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
         }
         
         decoded = updatedDecoded;
@@ -198,13 +193,7 @@ export async function expressAuthentication(
         );
         
         if (request.res) {
-          request.res.cookie("accessToken", newAccessToken, {
-            httpOnly: true,
-            secure: true,
-            sameSite: "none",
-            path: "/",
-            maxAge: 15 * 60 * 1000
-          });
+          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
         }
       }
     }
@@ -258,6 +247,12 @@ export async function expressAuthentication(
         });
       }
     }
+
+    console.log("✅ Authentication successful for user:", {
+      id: decoded.id,
+      role: decoded.role,
+      level: decoded.level
+    });
 
     return decoded;
   }
