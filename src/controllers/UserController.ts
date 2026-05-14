@@ -34,6 +34,7 @@ import { otpRateLimit } from "../utils/otp";
 @Route("user")
 @Tags("User control APIs")
 export class UserController extends Controller {
+  
 @Post("/auth/google")
 public async GoogleAuth(
   @Body() body: { idToken: string },

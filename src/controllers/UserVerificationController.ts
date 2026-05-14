@@ -2,16 +2,27 @@ import jwt from "jsonwebtoken";
 import prisma from "../db";
 import { verifyRefreshToken } from "../utils/jwtHelper";
 import { Controller, Post, Request, Route, Tags } from "tsoa";
+
 @Tags("User Verification")
 @Route("verify")
 export class UserVerificationController extends Controller {
   @Post("/refresh-token")
   public async RefreshToken(@Request() req: any): Promise<any> {
     try {
+      // Determine environment for cookie settings
+      const isProduction = process.env.NODE_ENV === "production";
+      
       // Get refresh token from cookie or header
       const refreshToken =
         req.cookies?.refreshToken || req.headers["x-refresh-token"];
       const deviceId = req.cookies?.deviceId || req.headers["x-device-id"];
+
+      console.log("Refresh token request:", { 
+        hasRefreshToken: !!refreshToken, 
+        hasDeviceId: !!deviceId,
+        cookies: req.cookies,
+        isProduction 
+      });
 
       if (!refreshToken || !deviceId) {
         this.setStatus(401);
@@ -64,6 +75,7 @@ export class UserVerificationController extends Controller {
         id: userSession.user.id,
         email: userSession.user.email_address,
         role: userSession.user.role,
+        level: userSession.user.level,
         deviceId: deviceId,
         deviceType: userSession.deviceType,
         type: userSession.userType,
@@ -113,12 +125,12 @@ export class UserVerificationController extends Controller {
         },
       });
 
-      // Set new access token cookie
+      // ✅ FIX: Set new access token cookie with environment-aware settings
       if (req.res) {
         req.res.cookie("accessToken", newAccessToken, {
           httpOnly: true,
-          secure: true,
-          sameSite: "none",
+          secure: isProduction,      // false in development, true in production
+          sameSite: isProduction ? "none" : "lax",
           path: "/",
           maxAge: 15 * 60 * 1000, // 15 minutes
         });
@@ -127,8 +139,8 @@ export class UserVerificationController extends Controller {
         if (progress?.id) {
           req.res.cookie("progress_id", progress.id, {
             httpOnly: true,
-            secure: true,
-            sameSite: "none",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
@@ -137,8 +149,8 @@ export class UserVerificationController extends Controller {
         if (plan?.id) {
           req.res.cookie("plan_id", plan.id, {
             httpOnly: true,
-            secure: true,
-            sameSite: "none",
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
@@ -149,7 +161,7 @@ export class UserVerificationController extends Controller {
       return {
         success: true,
         message: "Token refreshed successfully",
-        accessToken: newAccessToken,
+        accessToken: newAccessToken,  // Return token in body as fallback
         user: {
           id: userSession.user.id,
           email: userSession.user.email_address,
