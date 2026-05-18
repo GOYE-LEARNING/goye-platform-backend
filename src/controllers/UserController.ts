@@ -2178,84 +2178,78 @@ public async CompleteProfile(
   }
 
   @Security("bearerAuth")
-  @Put("/update-password")
-  public async UpdatePassword(
-    @Request() req: any,
-    @Body() body: { newPassword: string },
-  ): Promise<any> {
-    const userId = req.user?.id;
-    const orgId = req.org?.id;
-    const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+@Put("/update-password")
+public async UpdatePassword(
+  @Request() req: any,
+  @Body() body: { newPassword: string },
+): Promise<any> {
+  const userId = req.user?.id;
+  const orgId = req.org?.id;
+  const hashedPassword = await bcrypt.hash(body.newPassword, 10);
 
-    try {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user) {
-        const checkPassword = await bcrypt.compare(
-          body.newPassword,
-          user.password,
-        );
-        if (checkPassword) {
-          this.setStatus(400);
-          return {
-            message: "This password must be different from the old one",
-          };
-        }
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            password: hashedPassword,
-            updatedAt: new Date(),
-          },
-        });
-      }
+  try {
+    // First, check if this is an individual user
+    const user = await prisma.user.findUnique({ 
+      where: { id: userId },
+      include: { organization: true } // Include related organization if any
+    });
+    
+    if (!user) {
+      this.setStatus(404);
+      return { message: "User not found" };
+    }
 
+    // Check if password is different from old one
+    const checkPassword = await bcrypt.compare(body.newPassword, user.password);
+    if (checkPassword) {
+      this.setStatus(400);
+      return { message: "This password must be different from the old one" };
+    }
+
+    // Update user password
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedPassword,
+        updatedAt: new Date(),
+      },
+    });
+
+    // If user belongs to an organization, also update organization password
+    if (orgId) {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: orgId,
-        },
+        where: { id: orgId },
       });
 
       if (organization) {
-        const checkPassword = await bcrypt.compare(
+        const checkOrgPassword = await bcrypt.compare(
           body.newPassword,
           organization.organization_password,
         );
-        if (checkPassword) {
-          this.setStatus(400);
-          return {
-            message: "This password must be different from the old one",
-          };
+        
+        if (!checkOrgPassword) {
+          await prisma.organization.update({
+            where: { id: orgId },
+            data: {
+              organization_password: hashedPassword,
+              updatedAt: new Date(),
+            },
+          });
         }
-
-        await prisma.organization.update({
-          where: { id: orgId },
-          data: {
-            organization_password: hashedPassword,
-            updatedAt: new Date(),
-          },
-        });
-
-        await prisma.user.update({
-          where: {
-            id: organization.userId,
-          },
-          data: {
-            password: hashedPassword,
-          },
-        });
       }
-
-      this.setStatus(200);
-      return {
-        message: "Password updated successfully",
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: `An error occured while updating password  ${error.message}`,
-      };
     }
+
+    this.setStatus(200);
+    return { message: "Password updated successfully" };
+    
+  } catch (error: any) {
+    console.error("Error updating password:", error);
+    this.setStatus(500);
+    return { 
+      message: `An error occurred while updating password: ${error.message}` 
+    };
   }
+}
 
   @Get("/get-user/{id}")
   public async GetUser(@Path() id: string): Promise<any> {
