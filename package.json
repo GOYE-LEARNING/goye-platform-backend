@@ -2,19 +2,14 @@
   "name": "goye-backend",
   "version": "1.0.0",
   "description": "GOYE Education Platform API",
-  "main": "dist/app.js",
+  "main": "dist/server.js",
   "scripts": {
     "postinstall": "npx prisma generate",
-    "build": "npx tsoa routes && npx tsoa spec && npx tsc --skipLibCheck --noEmitOnError false",
+    "build": "npx tsoa routes && npx tsoa spec && tsc",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "tsoa:routes": "tsoa routes",
-    "tsoa:spec": "tsoa spec",
-    "prisma:generate": "npx prisma generate",
-    "prisma:push": "npx prisma db push",
-    "admin:create": "ts-node prisma/create-admin.ts",
-    "admin:create:standalone": "ts-node prisma/create-admin-standalone.ts",
-    "render-build": "npm install && npm run build"
+    "prisma:migrate": "npx prisma migrate deploy",
+    "render-build": "npm install && npm run build && npm run prisma:migrate"
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",
@@ -35,6 +30,7 @@
     "firebase": "^12.12.1",
     "firebase-admin": "^13.10.0",
     "flutterwave-node-v3": "^1.3.2",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "nodemailer": "^8.0.7",
@@ -63,6 +59,12 @@
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.20.6",
     "typescript": "^5.3.0"
+  },
+  "overrides": {
+    "axios": "^1.15.2",
+    "@hono/node-server": "^1.19.13",
+    "brace-expansion": "^2.0.1",
+    "@tootallnate/once": "^3.0.1"
   },
   "engines": {
     "node": ">=18.0.0"

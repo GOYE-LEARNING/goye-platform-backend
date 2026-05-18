@@ -6,6 +6,7 @@ import { setupSwagger } from "./config/swagger";
 import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/logger";
 import { corsOptions } from "./config/cors";
+import helmet from 'helmet'
 import rateLimit from "express-rate-limit";
 import prisma from "./db";
 import dotenv from "dotenv";
@@ -80,6 +81,7 @@ export const createApp = async () => {
 
   // Request logging
   app.use(requestLogger);
+  app.use(helmet())
 
   // ✅ Apply rate limiters AFTER body parsers but BEFORE routes
   app.use(generalLimiter);
