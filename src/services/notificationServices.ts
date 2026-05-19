@@ -9,7 +9,6 @@ export enum Role {
 }
 
 type Types =  "course" | "group" | "message" | "post"
-type RolesTypes = "ADMIN" | "STUDENT" | "INSTRUCTOR" | "INVITED_USER"
 export class NotificationService {
   /**
    * Create a single notification
@@ -539,4 +538,43 @@ export class NotificationService {
       throw error;
     }
   }
+
+  static async getNotificationFilter(userId: string, userRole: string) {
+  // Get user's settings
+  const userSettings = await prisma.settings.findFirst({
+    where: { userId: userId }
+  });
+  
+  const disableCourseNotifications = userSettings?.course_updates === false;
+  const disableGroupNotifications = userSettings?.group_activity === false;
+  
+  const baseWhere: any = {
+    OR: [{ to: userRole }, { userId: userId }]
+  };
+  
+  // Build exclusion conditions
+  const excludeConditions = [];
+  
+  if (disableCourseNotifications) {
+    excludeConditions.push({ courseId: { not: null } });
+  }
+  
+  if (disableGroupNotifications) {
+    excludeConditions.push({ groupId: { not: null } });
+  }
+  
+  // Apply the NOT conditions if any exclusions exist
+  if (excludeConditions.length > 0) {
+    baseWhere.NOT = excludeConditions;
+  }
+  
+  return {
+    where: baseWhere,
+    settings: { 
+      disableCourseNotifications, 
+      disableGroupNotifications 
+    }
+  };
+}
+  
 }

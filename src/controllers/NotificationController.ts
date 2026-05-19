@@ -1,4 +1,4 @@
-// controllers/NotificationController.ts - COMPLETE FIXED VERSION
+// controllers/NotificationController.ts - COMPLETE WITH FILTER APPLIED
 import {
   Controller,
   Get,
@@ -33,12 +33,13 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Convert role to uppercase to match Prisma enum
-      userRole = userRole.toUpperCase()
+      userRole = userRole.toUpperCase();
+      
+      // ✅ USE THE FILTER
+      const { where, settings } = await NotificationService.getNotificationFilter(userId, userRole);
+
       const notifications = await prisma.notification.findMany({
-        where: {
-          OR: [{ to: userRole }, { userId: userId }],
-        },
+        where: where,  // ✅ FILTERED WHERE CLAUSE
         orderBy: {
           createdAt: "desc",
         },
@@ -73,6 +74,10 @@ export class NotificationController extends Controller {
         message: "Notifications fetched successfully",
         data: notifications,
         count: notifications.length,
+        settings: {
+          courseNotificationsDisabled: settings.disableCourseNotifications,
+          groupNotificationsDisabled: settings.disableGroupNotifications
+        }
       };
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
@@ -100,10 +105,14 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Convert role to uppercase
+      userRole = userRole.toUpperCase();
+      
+      // ✅ USE THE FILTER
+      const { where, settings } = await NotificationService.getNotificationFilter(userId, userRole);
+
       const notifications = await prisma.notification.findMany({
         where: {
-          OR: [{ to: userRole }, { userId: userId }],
+          ...where,  // ✅ FILTERED WHERE CLAUSE
           isRead: false,
         },
         orderBy: {
@@ -119,6 +128,18 @@ export class NotificationController extends Controller {
               user_pic: true,
             },
           },
+          course: {
+            select: {
+              id: true,
+              course_title: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              group_title: true,
+            },
+          },
         },
       });
 
@@ -127,6 +148,10 @@ export class NotificationController extends Controller {
         message: "Unread notifications fetched successfully",
         data: notifications,
         unreadCount: notifications.length,
+        settings: {
+          courseNotificationsDisabled: settings.disableCourseNotifications,
+          groupNotificationsDisabled: settings.disableGroupNotifications
+        }
       };
     } catch (error: any) {
       console.error("Error fetching unread notifications:", error);
@@ -154,18 +179,18 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Convert role to uppercase
-  
+      userRole = userRole.toUpperCase();
+      
+      // ✅ USE THE FILTER
+      const { where, settings } = await NotificationService.getNotificationFilter(userId, userRole);
 
       const [total, unread] = await Promise.all([
         prisma.notification.count({
-          where: {
-            OR: [{ to: userRole }, { userId: userId }],
-          },
+          where: where,  // ✅ FILTERED WHERE CLAUSE
         }),
         prisma.notification.count({
           where: {
-            OR: [{ to: userRole }, { userId: userId }],
+            ...where,  // ✅ FILTERED WHERE CLAUSE
             isRead: false,
           },
         }),
@@ -177,6 +202,10 @@ export class NotificationController extends Controller {
         data: {
           total,
           unread,
+          settings: {
+            courseNotificationsDisabled: settings.disableCourseNotifications,
+            groupNotificationsDisabled: settings.disableGroupNotifications
+          }
         },
       };
     } catch (error: any) {
@@ -243,11 +272,14 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Convert role to uppercase
-  
+      userRole = userRole.toUpperCase();
+      
+      // ✅ USE THE FILTER
+      const { where } = await NotificationService.getNotificationFilter(userId, userRole);
+
       const result = await prisma.notification.updateMany({
         where: {
-          OR: [{ to: userRole }, { userId: userId }],
+          ...where,  // ✅ FILTERED WHERE CLAUSE
           isRead: false,
         },
         data: {
@@ -361,8 +393,7 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Convert role to uppercase
-  
+      userRole = userRole.toUpperCase();
 
       const [roleUnread, userUnread] = await Promise.all([
         NotificationService.getUnreadCount(userRole as Role),
@@ -442,14 +473,14 @@ export class NotificationController extends Controller {
     }
 
     try {
-      // Convert role to uppercase
-  
+      userRole = userRole.toUpperCase();
+      
+      // ✅ USE THE FILTER
+      const { where } = await NotificationService.getNotificationFilter(userId, userRole);
 
-      // Get all notification IDs for this user/role
+      // Get all notification IDs for this user based on settings
       const notifications = await prisma.notification.findMany({
-        where: {
-          OR: [{ to: userRole }, { userId: userId }],
-        },
+        where: where,  // ✅ FILTERED WHERE CLAUSE
         select: { id: true },
       });
 
@@ -516,10 +547,6 @@ export class NotificationController extends Controller {
       });
 
       if (user) {
-        // It should first create a settings database
-        // After creating the settings database.
-        // Check if the settigns actually exist.
-
         const checkSettingsExists = await prisma.settings.findUnique({
           where: {
             id: settingsUserId,
@@ -538,7 +565,6 @@ export class NotificationController extends Controller {
           where: {
             id: settingsUserId,
           },
-
           data: {
             enable_push_notification: body.enable_push_notification,
             course_updates: body.course_updates,
@@ -547,6 +573,7 @@ export class NotificationController extends Controller {
             daily_reminders: body.daily_reminders,
             darkMode: body.darkMode,
             email_notification: body.email_notification,
+            group_activity: body.group_activity,  // ✅ Added this
             updatedAt: new Date(),
             userId,
             organizationId: null,
@@ -568,10 +595,6 @@ export class NotificationController extends Controller {
       });
 
       if (organization) {
-        // It should first create a settings database
-        // After creating the settings database.
-        // Check if the settigns actually exist.
-
         const checkSettingsExists = await prisma.settings.findUnique({
           where: {
             id: settingsOrganizationId,
@@ -590,7 +613,6 @@ export class NotificationController extends Controller {
           where: {
             id: settingsId,
           },
-
           data: {
             enable_push_notification: body.enable_push_notification,
             course_updates: body.course_updates,
@@ -599,6 +621,7 @@ export class NotificationController extends Controller {
             daily_reminders: body.daily_reminders,
             darkMode: body.darkMode,
             email_notification: body.email_notification,
+            group_activity: body.group_activity,  // ✅ Added this
             updatedAt: new Date(),
             userId: null,
             organizationId: organization.id,
@@ -614,6 +637,12 @@ export class NotificationController extends Controller {
       }
     } catch (error: any) {
       console.log(`An error occured ${error.message}`);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to update settings",
+        error: error.message,
+      };
     }
   }
 }

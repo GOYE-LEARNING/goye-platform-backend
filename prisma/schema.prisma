@@ -310,7 +310,7 @@ model Settings {
   darkMode                 Boolean?      @default(true)
   user                     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization             Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId                   String?
+  userId                   String? 
   organizationId           String?
   updatedAt                DateTime
   createdAt                DateTime      @default(now())
