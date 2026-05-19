@@ -245,7 +245,6 @@ export class NotificationController extends Controller {
     try {
       // Convert role to uppercase
   
-
       const result = await prisma.notification.updateMany({
         where: {
           OR: [{ to: userRole }, { userId: userId }],

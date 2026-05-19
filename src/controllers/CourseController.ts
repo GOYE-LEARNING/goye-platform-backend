@@ -24,6 +24,7 @@ import {
   GamificationService,
 } from "../services/gamificationService";
 import { Limitations } from "../utils/functionLimitations";
+import { NotificationService, Role } from "../services/notificationServices";
 
 //To determine levels
 const levels: Record<string, string> = {
@@ -45,13 +46,13 @@ export class CourseController extends Controller {
     @Request() req: any,
   ): Promise<CourseResponse> {
     const tutorName = req.user?.full_name;
-    const planId = req.user?.planId
+    const planId = req.user?.planId;
     const tutorId = req.user?.id;
     const orgId = req.org?.id;
     const orgName = req.org?.organization_name;
     try {
       // Use organizationId if exists, otherwise use createdUserId
-      Limitations(planId, tutorId, orgId,)
+      Limitations(planId, tutorId, orgId);
       const course = await prisma.course.create({
         data: {
           organizationId: orgId ?? null,
@@ -157,7 +158,12 @@ export class CourseController extends Controller {
           },
         },
       });
-
+      await NotificationService.createSystemAnnouncement(
+        `${course.course_title} `,
+        "Course Update",
+        Role.STUDENT,
+        "course",
+      );
       this.setStatus(201);
       return {
         message: "Course created successfully",
@@ -611,109 +617,109 @@ export class CourseController extends Controller {
     }
   }
 
- @Security("bearerAuth")
-@Get("/get-all-courses-level")
-public async GetAllCoursesByLevel(@Request() req: any): Promise<CourseResponse> {
-  const userLevel = req.user?.level;
-  
-  try {
-    // Validate user level
-    if (!userLevel) {
-      this.setStatus(400);
-      return {
-        message: "User level not found",
-        data: null,
-      };
-    }
-    
-    // Normalize level to proper case
-    const normalizedLevel = userLevel.toLowerCase();
-    
-    if (normalizedLevel === "beginners") {
-      const getAllCourses = await prisma.course.findMany({
-        where: {
-          course_level: "Beginner",
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          module: {
-            select: {
-              _count: {
-                select: {
-                  lesson: true,
+  @Security("bearerAuth")
+  @Get("/get-all-courses-level")
+  public async GetAllCoursesByLevel(
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const userLevel = req.user?.level;
+
+    try {
+      // Validate user level
+      if (!userLevel) {
+        this.setStatus(400);
+        return {
+          message: "User level not found",
+          data: null,
+        };
+      }
+
+      // Normalize level to proper case
+      const normalizedLevel = userLevel.toLowerCase();
+
+      if (normalizedLevel === "beginners") {
+        const getAllCourses = await prisma.course.findMany({
+          where: {
+            course_level: "Beginner",
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          include: {
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
                 },
-              },
-              lesson: {
-                select: {
-                  duration: true,
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
-      
-      this.setStatus(200);
-      return {
-        message: "Courses fetched successfully",
-        data: {
-          getAllCourses,
-        },
-      };
-    } 
-    else if (normalizedLevel === "intermediate") {
-      const getAllCourses = await prisma.course.findMany({
-        where: {
-          course_level: "Intermediate",
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          module: {
-            select: {
-              _count: {
-                select: {
-                  lesson: true,
+        });
+
+        this.setStatus(200);
+        return {
+          message: "Courses fetched successfully",
+          data: {
+            getAllCourses,
+          },
+        };
+      } else if (normalizedLevel === "intermediate") {
+        const getAllCourses = await prisma.course.findMany({
+          where: {
+            course_level: "Intermediate",
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          include: {
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
                 },
-              },
-              lesson: {
-                select: {
-                  duration: true,
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
                 },
               },
             },
           },
-        },
-      });
-      
-      this.setStatus(200);
+        });
+
+        this.setStatus(200);
+        return {
+          message: "Courses fetched successfully",
+          data: {
+            getAllCourses,
+          },
+        };
+      } else {
+        // Handle any other level values
+        this.setStatus(400);
+        return {
+          message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
+          data: null,
+        };
+      }
+    } catch (error: any) {
+      console.error("Error fetching courses by level:", error);
+      this.setStatus(500);
       return {
-        message: "Courses fetched successfully",
-        data: {
-          getAllCourses,
-        },
-      };
-    }
-    else {
-      // Handle any other level values
-      this.setStatus(400);
-      return {
-        message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
+        message: "Error fetching courses: " + error.message,
         data: null,
       };
     }
-  } catch (error: any) {
-    console.error("Error fetching courses by level:", error);
-    this.setStatus(500);
-    return {
-      message: "Error fetching courses: " + error.message,
-      data: null,
-    };
   }
-}
 
   @Security("bearerAuth")
   @Get("/get-courses-by-tutor")

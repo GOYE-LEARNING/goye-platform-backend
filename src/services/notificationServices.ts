@@ -8,6 +8,8 @@ export enum Role {
   INSTRUCTOR = "INSTRUCTOR",
 }
 
+type Types =  "course" | "group" | "message" | "post"
+type RolesTypes = "ADMIN" | "STUDENT" | "INSTRUCTOR" | "INVITED_USER"
 export class NotificationService {
   /**
    * Create a single notification
@@ -24,6 +26,7 @@ export class NotificationService {
     postId?: string;
     replyId?: string;
     groupId?: string;
+    allUsers?: string
   }) {
     try {
       // First verify the user exists
@@ -315,7 +318,7 @@ export class NotificationService {
   /**
    * System announcement to all users of a specific role
    */
-  static async createSystemAnnouncement(message: string, title: string, to: Role) {
+  static async createSystemAnnouncement(message: string, title: string, to: Role, type: Types) {
     try {
       // 1. Get all users of the target role
       const users = await prisma.user.findMany({
@@ -337,7 +340,7 @@ export class NotificationService {
       const notificationData = users.map((user) => ({
         title: title,
         message: message,
-        type: "SYSTEM_ANNOUNCEMENT",
+        type: type,
         role: Role.ADMIN,
         to: to,
         userId: user.id,
