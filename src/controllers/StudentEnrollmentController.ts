@@ -890,6 +890,13 @@ public async ExitCourse(@Path() courseId: string, @Request() req: any) {
         where: {
           courseId: courseId,
           userId: userId,
+          status: {
+            in: [
+              'COMPLETED',
+              'ENROLLED',
+              'IN_PROGRESS'
+            ]
+          }
         },
       });
 
