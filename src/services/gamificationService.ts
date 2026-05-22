@@ -61,7 +61,7 @@ enum BadgeType {
 }
 
 // ==================== XP CONFIGURATION ====================
-const XP_CONFIG: Record<ActionType, number> = {
+export const XP_CONFIG: Record<ActionType, number> = {
   [ActionType.LESSON_COMPLETE]: 10,
   [ActionType.QUIZ_PASS]: 20,
   [ActionType.COURSE_COMPLETE]: 100,

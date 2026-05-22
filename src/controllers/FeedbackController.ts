@@ -9,6 +9,7 @@ import {
   Tags,
 } from "tsoa";
 import prisma from "../db";
+import { FeedbackType } from "@prisma/client";
 
 @Tags("Feed back Controller")
 @Route("feedback")
@@ -16,7 +17,7 @@ export class FeedbackController extends Controller {
   @Security("bearerAuth")
   @Post("/feedback")
   public async Feedback(
-    @Body() body: { message: string },
+    @Body() body: { message: string, type: FeedbackType},
     @Request() req: any,
   ) {
     const userId = req.user?.id;
@@ -31,6 +32,7 @@ export class FeedbackController extends Controller {
       await prisma.feedback.create({
         data: {
           message: body.message,
+          type: body.type,
           ...(userId && { userId }),
           ...(orgId && { organizationId: orgId }),
         },
@@ -75,4 +77,5 @@ export class FeedbackController extends Controller {
       console.error(error.message);
     }
   }
+
 }

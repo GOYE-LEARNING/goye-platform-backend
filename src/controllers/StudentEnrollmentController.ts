@@ -13,6 +13,7 @@ import { NotificationService, Role } from "../services/notificationServices";
 import {
   ActionType,
   GamificationService,
+  XP_CONFIG,
 } from "../services/gamificationService";
 import { Limitations } from "../utils/functionLimitations";
 
@@ -72,8 +73,32 @@ export class StudentEnrollmentController extends Controller {
           userId,
           courseId,
         },
+        status: {
+          in: ["COMPLETED", "ENROLLED", "IN_PROGRESS"],
+        },
       },
     });
+
+    const checkIfDropped = await prisma.enrollment.findUnique({
+      where: {
+        userId_courseId: {
+          userId,
+          courseId,
+        },
+        status: {
+          in: ["DROPPED"],
+        },
+      },
+    });
+
+    if (checkIfDropped) {
+      this.setStatus(400);
+      return {
+        message:
+          "You have dropped this course, To continue you have to please report to us, before we grant you access. It will take about 24hrs.",
+        status: 400,
+      };
+    }
 
     if (existingEnrollment) {
       this.setStatus(400);
@@ -169,7 +194,7 @@ export class StudentEnrollmentController extends Controller {
       where: {
         userId,
         status: {
-          in: ["ENROLLED", "IN_PROGRESS", "COMPLETED",],
+          in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
         },
       },
       select: {
@@ -326,130 +351,146 @@ export class StudentEnrollmentController extends Controller {
     };
   }
 
-@Security("bearerAuth")
-@Post("/exit-course/{courseId}")
-public async ExitCourse(@Path() courseId: string, @Request() req: any) {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Post("/exit-course/{courseId}")
+  public async ExitCourse(@Path() courseId: string, @Request() req: any) {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return {
-      message: "User not authenticated",
-    };
-  }
-
-  try {
-    // Check if course exists
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      select: { id: true, course_title: true },
-    });
-
-    if (!course) {
-      this.setStatus(404);
+    if (!userId) {
+      this.setStatus(401);
       return {
-        message: "Course not found",
+        message: "User not authenticated",
       };
     }
 
-    // Check if user is enrolled in the course
-    const enrollment = await prisma.enrollment.findFirst({
-      where: {
-        userId,
-        courseId,
-      },
-    });
+    try {
+      // Check if course exists
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { id: true, course_title: true },
+      });
 
-    if (!enrollment) {
-      this.setStatus(404);
-      return {
-        message: "You are not enrolled in this course",
-      };
-    }
+      if (!course) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+        };
+      }
 
-    // Check if course is already completed
-    if (enrollment.status === "COMPLETED") {
-      this.setStatus(400);
-      return {
-        message: "Cannot exit a completed course. The course has already been finished.",
-      };
-    }
-
-    // Check if already dropped
-    if (enrollment.status === "DROPPED") {
-      this.setStatus(400);
-      return {
-        message: "You have already exited this course",
-      };
-    }
-
-    // Calculate current progress before exiting
-    const allLessons = await prisma.lesson.findMany({
-      where: {
-        module: {
-          courseId: courseId,
+      // Check if user is enrolled in the course
+      const enrollment = await prisma.enrollment.findFirst({
+        where: {
+          userId,
+          courseId,
         },
-      },
-      select: { id: true },
-    });
+      });
 
-    const completedLessons = await prisma.progress.findMany({
-      where: {
-        userId,
-        lessonId: { in: allLessons.map(l => l.id) },
-        progressBar: { gte: 100 },
-      },
-      select: { lessonId: true },
-    });
+      if (!enrollment) {
+        this.setStatus(404);
+        return {
+          message: "You are not enrolled in this course",
+        };
+      }
 
-    const totalLessons = allLessons.length;
-    const completedCount = completedLessons.length;
-    const progressPercentage = totalLessons > 0 ? (completedCount / totalLessons) * 100 : 0;
+      // Check if course is already completed
+      if (enrollment.status === "COMPLETED") {
+        this.setStatus(400);
+        return {
+          message:
+            "Cannot exit a completed course. The course has already been finished.",
+        };
+      }
 
-    // Update enrollment status to DROPPED
-    const updatedEnrollment = await prisma.enrollment.update({
-      where: { id: enrollment.id },
-      data: {
-        status: "DROPPED",
-      },
-    });
+      // Check if already dropped
+      if (enrollment.status === "DROPPED") {
+        this.setStatus(400);
+        return {
+          message: "You have already exited this course",
+        };
+      }
 
-    // Optional: Keep progress records for re-enrollment analytics
-    // Comment this out if you want to keep progress data
-    // const lessonIds = allLessons.map(l => l.id);
-    // await prisma.progress.deleteMany({
-    //   where: {
-    //     userId,
-    //     lessonId: { in: lessonIds },
-    //   },
-    // });
-
-    this.setStatus(200);
-    return {
-      message: `Successfully exited from course: ${course.course_title}`,
-      data: {
-        enrollment_id: enrollment.id,
-        course_id: courseId,
-        course_title: course.course_title,
-        status: "DROPPED",
-        exited_at: new Date().toISOString(),
-        enrolled_at: enrollment.enrolledAt,
-        progress_at_exit: {
-          percentage: Math.round(progressPercentage),
-          completed_lessons: completedCount,
-          total_lessons: totalLessons,
+      // Calculate current progress before exiting
+      const allLessons = await prisma.lesson.findMany({
+        where: {
+          module: {
+            courseId: courseId,
+          },
         },
-      },
-    };
-  } catch (error: any) {
-    console.error("Error exiting course:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to exit course",
-      error: error.message,
-    };
+        select: { id: true },
+      });
+
+      const completedLessons = await prisma.progress.findMany({
+        where: {
+          userId,
+          lessonId: { in: allLessons.map((l) => l.id) },
+          progressBar: { gte: 100 },
+        },
+        select: { lessonId: true },
+      });
+
+      const totalLessons = allLessons.length;
+      const completedCount = completedLessons.length;
+      const progressPercentage =
+        totalLessons > 0 ? (completedCount / totalLessons) * 100 : 0;
+
+      // Update enrollment status to DROPPED
+      const updatedEnrollment = await prisma.enrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          status: "DROPPED",
+        },
+        include: {
+          user: {
+            select: {
+              first_name: true,
+              last_name: true,
+            },
+          },
+        },
+      });
+
+      // Optional: Keep progress records for re-enrollment analytics
+      // Comment this out if you want to keep progress data
+      // const lessonIds = allLessons.map(l => l.id);
+      // await prisma.progress.deleteMany({
+      //   where: {
+      //     userId,
+      //     lessonId: { in: lessonIds },
+      //   },
+      // });
+
+      await GamificationService.DeductPoints(
+        userId,
+        XP_CONFIG.COURSE_ENROLLMENT,
+        `Points was deducted from ${updatedEnrollment.user.first_name} ${updatedEnrollment.user.last_name} because he exited a course enrollent.`,
+      );
+
+      this.setStatus(200);
+      return {
+        message: `Successfully exited from course: ${course.course_title}`,
+        data: {
+          enrollment_id: enrollment.id,
+          course_id: courseId,
+          course_title: course.course_title,
+          status: "DROPPED",
+          exited_at: new Date().toISOString(),
+          enrolled_at: enrollment.enrolledAt,
+          progress_at_exit: {
+            percentage: Math.round(progressPercentage),
+            completed_lessons: completedCount,
+            total_lessons: totalLessons,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error exiting course:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to exit course",
+        error: error.message,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Get("/fetch-all-students")
@@ -890,12 +931,8 @@ public async ExitCourse(@Path() courseId: string, @Request() req: any) {
           courseId: courseId,
           userId: userId,
           status: {
-            in: [
-              'COMPLETED',
-              'ENROLLED',
-              'IN_PROGRESS'
-            ]
-          }
+            in: ["COMPLETED", "ENROLLED", "IN_PROGRESS"],
+          },
         },
       });
 
