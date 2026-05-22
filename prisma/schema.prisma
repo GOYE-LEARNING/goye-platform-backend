@@ -58,6 +58,7 @@ model User {
   discussionLikes   DiscussionLike[]
   sentMessages      PrivateMessage[]       @relation("SentMessages")
   receivedMessages  PrivateMessage[]       @relation("ReceivedMessages")
+  feedBack          Feedback[]
   adminProfile      AdminProfile?
 }
 
@@ -199,6 +200,7 @@ model Organization {
   inviteUser                InviteUser[]
   notification              Notification[]
   enrollment                Enrollment[]
+  feedBacks                 Feedback[]
   userId                    String
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
@@ -310,7 +312,7 @@ model Settings {
   darkMode                 Boolean?      @default(true)
   user                     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization             Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId                   String? 
+  userId                   String?
   organizationId           String?
   updatedAt                DateTime
   createdAt                DateTime      @default(now())
@@ -724,24 +726,24 @@ model Question {
 }
 
 model QuizAttempt {
-  id           String         @id @default(cuid())
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId       String
-  quiz         Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  quizId       String
-  questions    Question[]
-  timeFinished Int
-  score        Int
-  answers      Json
-  completed    Boolean        @default(false)
-  startedAt    DateTime       @default(now())
-  completedAt  DateTime?
-  course       Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  courseId     String?
-  progress     Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  progressId   String?
-  pointHistory PointHistory[]
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id             String         @id @default(cuid())
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+  quiz           Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quizId         String
+  questions      Question[]
+  timeFinished   Int
+  score          Int
+  answers        Json
+  completed      Boolean        @default(false)
+  startedAt      DateTime       @default(now())
+  completedAt    DateTime?
+  course         Course?        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId       String?
+  progress       Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  progressId     String?
+  pointHistory   PointHistory[]
+  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String?
 
   @@unique([userId, quizId, courseId, organizationId])
@@ -818,4 +820,15 @@ model PrivateMessage {
   @@index([replyToId])
   @@index([createdAt])
   @@index([readAt])
+}
+
+model Feedback {
+  id             String        @id @default(ulid())
+  message        String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  user           User?         @relation(fields: [userId], references: [id])
+  userId         String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  organizationId String?
 }
