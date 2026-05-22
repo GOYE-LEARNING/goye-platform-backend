@@ -1604,6 +1604,14 @@ export class CourseController extends Controller {
         select: { passingScore: true },
       });
 
+      // FIX: Check if quizData exists
+      if (!quizData) {
+        this.setStatus(404);
+        return {
+          message: "Quiz not found",
+        };
+      }
+
       let sumOfPoint = 0;
       const quizPoint = quiz.answers.map((q) => q.point);
       for (const point of quizPoint) {
@@ -1641,8 +1649,13 @@ export class CourseController extends Controller {
         },
       });
 
+      // FIX: Use quiz.passingScore from the request body instead of quizData
+      // Or use quizData.passingScore - both should be the same
+      const passingScoreToUse =
+        quiz.passingScore || quizData.passingScore || 70;
+
       // Award XP for passing quiz if score >= passingScore
-      if (quizScorePercentage >= quizData.passingScore) {
+      if (quizScorePercentage >= passingScoreToUse) {
         await GamificationService.AddPointsWithGamification(
           userId,
           ActionType.QUIZ_PASS,
@@ -1683,8 +1696,6 @@ export class CourseController extends Controller {
           0,
         );
 
-        // You'll need to track completed lessons separately
-        // For now, we can check if all quizzes are done to trigger course completion
         const existingEnrollment = await prisma.enrollment.findFirst({
           where: { userId, courseId },
         });
@@ -1716,6 +1727,10 @@ export class CourseController extends Controller {
     } catch (error) {
       this.setStatus(500);
       console.error(error);
+      return {
+        message: "Error submitting quiz",
+        error: error.message,
+      };
     }
   }
 
