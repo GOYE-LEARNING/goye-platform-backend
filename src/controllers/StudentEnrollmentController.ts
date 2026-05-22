@@ -411,7 +411,6 @@ public async ExitCourse(@Path() courseId: string, @Request() req: any) {
       where: { id: enrollment.id },
       data: {
         status: "DROPPED",
-        droppedAt: new Date(),
       },
     });
 
