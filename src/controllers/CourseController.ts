@@ -1458,26 +1458,24 @@ export class CourseController extends Controller {
   public async SaveCourse(@Request() req: any, @Path() courseId: string) {
     const userId = req.user?.id;
     if (!userId) {
+      this.setStatus(400);
       return {
         message: "User is unauthorized",
       };
     }
 
     try {
-      const course = await prisma.course.update({
-        where: {
-          id: courseId,
-        },
-
+      const saveCourse = await prisma.savedCourses.create({
         data: {
-          saved: true,
+          userId,
+          courseId,
         },
       });
 
       this.setStatus(200);
       return {
         message: "Course saved successfully",
-        data: course,
+        data: saveCourse,
       };
     } catch (error) {
       this.setStatus(500);
@@ -1488,7 +1486,7 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Post("/unsave-course/{courseId}")
+  @Delete("/unsave-course/{courseId}")
   public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
     const userId = req.user?.id;
     if (!userId) {
@@ -1498,20 +1496,17 @@ export class CourseController extends Controller {
     }
 
     try {
-      const course = await prisma.course.update({
-        where: {
-          id: courseId,
-        },
 
-        data: {
-          saved: false,
+      const unsaveCourse = await prisma.savedCourses.delete({
+        where: {
+          courseId,
         },
       });
 
       this.setStatus(200);
       return {
         message: "Course unsaved successfully",
-        data: course,
+        data: unsaveCourse,
       };
     } catch (error) {
       this.setStatus(500);
@@ -1522,7 +1517,7 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Post("/check-saved-course/{courseId}")
+  @Get("/check-saved-course/{courseId}")
   public async CheckedSaveCourse(
     @Request() req: any,
     @Path() courseId: string,
@@ -1535,17 +1530,16 @@ export class CourseController extends Controller {
     }
 
     try {
-      const course = await prisma.course.findUnique({
+      const savedCourses = await prisma.savedCourses.count({
         where: {
-          id: courseId,
+          courseId,
         },
       });
 
       this.setStatus(200);
       return {
         message: "Check if it saved successfully",
-        data: course,
-        isSaved: course.saved,
+        isSaved: savedCourses > 0,
       };
     } catch (error) {
       this.setStatus(500);
@@ -1555,174 +1549,174 @@ export class CourseController extends Controller {
     }
   }
 
- @Security("bearerAuth")
-@Post("/submit-quiz/{courseId}/{quizId}")
-public async SubmitQuiz(
-  @Path() courseId: string,
-  @Path() quizId: string,
-  @Request() req: any,
-  @Body()
-  quiz: {
-    totalPoint: number;
-    completed: boolean;
-    passingScore: number;
-    timeFinished: number;
-    answers: {
-      questionId: string;
-      answer: string;
-      correct: boolean;
-      point: number;
-    }[];
-  },
-) {
-  const userId = req.user?.id;
-  const progressId = req.progressId;
+  @Security("bearerAuth")
+  @Post("/submit-quiz/{courseId}/{quizId}")
+  public async SubmitQuiz(
+    @Path() courseId: string,
+    @Path() quizId: string,
+    @Request() req: any,
+    @Body()
+    quiz: {
+      totalPoint: number;
+      completed: boolean;
+      passingScore: number;
+      timeFinished: number;
+      answers: {
+        questionId: string;
+        answer: string;
+        correct: boolean;
+        point: number;
+      }[];
+    },
+  ) {
+    const userId = req.user?.id;
+    const progressId = req.progressId;
 
-  try {
-    const course = await prisma.course.findUnique({
-      where: {
-        id: courseId,
-      },
-      include: {
-        quiz: {
-          select: {
-            passingScore: true,
-          },
-        },
-      },
-    });
-
-    if (!course) {
-      this.setStatus(404);
-      return {
-        message: "Course not found",
-      };
-    }
-
-    const quizData = await prisma.quiz.findUnique({
-      where: { id: quizId },
-      select: { passingScore: true },
-    });
-
-    if (!quizData) {
-      this.setStatus(404);
-      return {
-        message: "Quiz not found",
-      };
-    }
-
-    let sumOfPoint = 0;
-    const quizPoint = quiz.answers.map((q) => q.point);
-    for (const point of quizPoint) {
-      sumOfPoint += point;
-    }
-
-    const quizScorePercentage = (sumOfPoint / quiz.totalPoint) * 100;
-
-    // FIX: Make progress optional - only connect if progressId exists
-    const quizAttemptData: any = {
-      user: {
-        connect: {
-          id: userId,
-        },
-      },
-      course: {
-        connect: {
+    try {
+      const course = await prisma.course.findUnique({
+        where: {
           id: courseId,
         },
-      },
-      quiz: {
-        connect: {
-          id: quizId,
+        include: {
+          quiz: {
+            select: {
+              passingScore: true,
+            },
+          },
         },
-      },
-      score: quizScorePercentage,
-      answers: quiz.answers,
-      completed: quiz.completed,
-      timeFinished: quiz.timeFinished,
-    };
-
-    // Only add progress connection if progressId exists
-    if (progressId) {
-      quizAttemptData.progress = {
-        connect: {
-          id: progressId,
-        },
-      };
-    }
-
-    const startQuiz = await prisma.quizAttempt.create({
-      data: quizAttemptData,
-    });
-
-    // Award XP for passing quiz if score >= passingScore
-    if (quizScorePercentage >= quizData.passingScore) {
-      await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.QUIZ_PASS,
-        {
-          courseId,
-          quizScore: quizScorePercentage,
-          quizAttemptId: startQuiz.id,
-        },
-      );
-    }
-
-    // Check if this is the last quiz and if user has completed all quizzes in course
-    const allQuizzes = await prisma.quiz.findMany({
-      where: { courseId },
-      select: { id: true },
-    });
-
-    const completedQuizzes = await prisma.quizAttempt.findMany({
-      where: {
-        userId,
-        courseId,
-        completed: true,
-        quizId: { in: allQuizzes.map((q) => q.id) },
-      },
-      select: { quizId: true },
-    });
-
-    // If all quizzes are completed, check if user has completed the course
-    if (completedQuizzes.length === allQuizzes.length) {
-      const existingEnrollment = await prisma.enrollment.findFirst({
-        where: { userId, courseId },
       });
 
-      if (existingEnrollment && existingEnrollment.status !== "COMPLETED") {
-        // Award course completion XP
+      if (!course) {
+        this.setStatus(404);
+        return {
+          message: "Course not found",
+        };
+      }
+
+      const quizData = await prisma.quiz.findUnique({
+        where: { id: quizId },
+        select: { passingScore: true },
+      });
+
+      if (!quizData) {
+        this.setStatus(404);
+        return {
+          message: "Quiz not found",
+        };
+      }
+
+      let sumOfPoint = 0;
+      const quizPoint = quiz.answers.map((q) => q.point);
+      for (const point of quizPoint) {
+        sumOfPoint += point;
+      }
+
+      const quizScorePercentage = (sumOfPoint / quiz.totalPoint) * 100;
+
+      // FIX: Make progress optional - only connect if progressId exists
+      const quizAttemptData: any = {
+        user: {
+          connect: {
+            id: userId,
+          },
+        },
+        course: {
+          connect: {
+            id: courseId,
+          },
+        },
+        quiz: {
+          connect: {
+            id: quizId,
+          },
+        },
+        score: quizScorePercentage,
+        answers: quiz.answers,
+        completed: quiz.completed,
+        timeFinished: quiz.timeFinished,
+      };
+
+      // Only add progress connection if progressId exists
+      if (progressId) {
+        quizAttemptData.progress = {
+          connect: {
+            id: progressId,
+          },
+        };
+      }
+
+      const startQuiz = await prisma.quizAttempt.create({
+        data: quizAttemptData,
+      });
+
+      // Award XP for passing quiz if score >= passingScore
+      if (quizScorePercentage >= quizData.passingScore) {
         await GamificationService.AddPointsWithGamification(
           userId,
-          ActionType.COURSE_COMPLETE,
-          { courseId },
-        );
-
-        // Update enrollment status
-        await prisma.enrollment.update({
-          where: { id: existingEnrollment.id },
-          data: {
-            status: "COMPLETED",
-            completedAt: new Date(),
+          ActionType.QUIZ_PASS,
+          {
+            courseId,
+            quizScore: quizScorePercentage,
+            quizAttemptId: startQuiz.id,
           },
-        });
+        );
       }
-    }
 
-    this.setStatus(200);
-    return {
-      message: "You have submitted your score.",
-      data: startQuiz,
-    };
-  } catch (error: any) {
-    console.error("Error submitting quiz:", error);
-    this.setStatus(500);
-    return {
-      message: "Error submitting quiz",
-      error: error.message,
-    };
+      // Check if this is the last quiz and if user has completed all quizzes in course
+      const allQuizzes = await prisma.quiz.findMany({
+        where: { courseId },
+        select: { id: true },
+      });
+
+      const completedQuizzes = await prisma.quizAttempt.findMany({
+        where: {
+          userId,
+          courseId,
+          completed: true,
+          quizId: { in: allQuizzes.map((q) => q.id) },
+        },
+        select: { quizId: true },
+      });
+
+      // If all quizzes are completed, check if user has completed the course
+      if (completedQuizzes.length === allQuizzes.length) {
+        const existingEnrollment = await prisma.enrollment.findFirst({
+          where: { userId, courseId },
+        });
+
+        if (existingEnrollment && existingEnrollment.status !== "COMPLETED") {
+          // Award course completion XP
+          await GamificationService.AddPointsWithGamification(
+            userId,
+            ActionType.COURSE_COMPLETE,
+            { courseId },
+          );
+
+          // Update enrollment status
+          await prisma.enrollment.update({
+            where: { id: existingEnrollment.id },
+            data: {
+              status: "COMPLETED",
+              completedAt: new Date(),
+            },
+          });
+        }
+      }
+
+      this.setStatus(200);
+      return {
+        message: "You have submitted your score.",
+        data: startQuiz,
+      };
+    } catch (error: any) {
+      console.error("Error submitting quiz:", error);
+      this.setStatus(500);
+      return {
+        message: "Error submitting quiz",
+        error: error.message,
+      };
+    }
   }
-}
 
   @Get("/fetch-quiz-answers/{quizId}")
   public async FetchQuizAnswers(@Path() quizId: string) {
@@ -2201,10 +2195,13 @@ public async SubmitQuiz(
     }
 
     try {
-      const course = await prisma.course.findMany({
+      const course = await prisma.savedCourses.findMany({
         where: {
-          saved: true,
+          userId,
         },
+        include: {
+          courses: true
+        }
       });
 
       this.setStatus(200);

@@ -24,6 +24,8 @@ import { LevelSystem } from './../controllers/LevelSystemController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { LeaderBoardAndGamificationController } from './../controllers/LeaderBoardAndGamificationController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { FeedbackController } from './../controllers/FeedbackController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { DiscussionController } from './../controllers/DiscussionController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { CourseController } from './../controllers/CourseController';
@@ -62,6 +64,16 @@ const models: TsoaRoute.Models = {
     "_36_Enums.FormType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ORGANIZATION"]},{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["INVITED"]},{"dataType":"enum","enums":["ADMIN"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.Levels": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["LEVEL1_SEEKER"]},{"dataType":"enum","enums":["LEVEL2_LEARNER"]},{"dataType":"enum","enums":["LEVEL3_DISCIPLE"]},{"dataType":"enum","enums":["LEVEL4_AMBASSADOR"]},{"dataType":"enum","enums":["LEVEL5_MENTOR"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.BadgesEnum": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CADET_BADGE"]},{"dataType":"enum","enums":["COURSE_COMPLETION_BADGE"]},{"dataType":"enum","enums":["CONSISTENCY_BADGE"]},{"dataType":"enum","enums":["MASTERY_BADGE"]},{"dataType":"enum","enums":["MILESTONES_BADGES"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "_36_Enums.EnrollmentStatus": {
@@ -194,6 +206,16 @@ const models: TsoaRoute.Models = {
     "_36_Enums.OrgType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.FeedbackType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["OTHER"]},{"dataType":"enum","enums":["COURSE"]},{"dataType":"enum","enums":["GROUP"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "FeedbackType": {
+        "dataType": "refAlias",
+        "type": {"ref":"_36_Enums.FeedbackType","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "MediaItem": {
@@ -1333,6 +1355,38 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'GetCoursesEnrolledByStudent',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsStudentEnrollmentController_ExitCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/enroll/exit-course/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(StudentEnrollmentController)),
+            ...(fetchMiddlewares<RequestHandler>(StudentEnrollmentController.prototype.ExitCourse)),
+
+            async function StudentEnrollmentController_ExitCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsStudentEnrollmentController_ExitCourse, request, response });
+
+                const controller = new StudentEnrollmentController();
+
+              await templateService.apiHandler({
+                methodName: 'ExitCourse',
                 controller,
                 response,
                 next,
@@ -4071,6 +4125,69 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsFeedbackController_Feedback: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"type":{"ref":"FeedbackType","required":true},"message":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/feedback/feedback',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(FeedbackController)),
+            ...(fetchMiddlewares<RequestHandler>(FeedbackController.prototype.Feedback)),
+
+            async function FeedbackController_Feedback(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsFeedbackController_Feedback, request, response });
+
+                const controller = new FeedbackController();
+
+              await templateService.apiHandler({
+                methodName: 'Feedback',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsFeedbackController_FetchFeedback: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/feedback/fetch-feedbacks',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(FeedbackController)),
+            ...(fetchMiddlewares<RequestHandler>(FeedbackController.prototype.FetchFeedback)),
+
+            async function FeedbackController_FetchFeedback(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsFeedbackController_FetchFeedback, request, response });
+
+                const controller = new FeedbackController();
+
+              await templateService.apiHandler({
+                methodName: 'FetchFeedback',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsDiscussionController_UploadPublicImage: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"mimeType":{"dataType":"string","required":true},"fileName":{"dataType":"string","required":true},"file":{"dataType":"string","required":true}}},
@@ -5485,7 +5602,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
         };
-        app.post('/api/course/unsave-course/:courseId',
+        app.delete('/api/course/unsave-course/:courseId',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(CourseController)),
             ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.UnSaveCourse)),
@@ -5517,7 +5634,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
         };
-        app.post('/api/course/check-saved-course/:courseId',
+        app.get('/api/course/check-saved-course/:courseId',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(CourseController)),
             ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.CheckedSaveCourse)),

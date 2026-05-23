@@ -59,6 +59,7 @@ model User {
   sentMessages      PrivateMessage[]       @relation("SentMessages")
   receivedMessages  PrivateMessage[]       @relation("ReceivedMessages")
   feedBack          Feedback[]
+  savedCourses      SavedCourses[]
   adminProfile      AdminProfile?
 }
 
@@ -340,7 +341,6 @@ model Course {
   organizationName         String?
   organization             Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId           String?
-  saved                    Boolean                @default(false)
   point                    Int?                   @default(0)
   achivement               Achievement[]
   notification             Notification[]
@@ -350,6 +350,8 @@ model Course {
   pointHistory             PointHistory[]
   progress                 Progress?              @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId               String?
+  savedCourses             SavedCourses[]
+  savedCoursesId           String?
 }
 
 model Achievement {
@@ -641,6 +643,16 @@ enum EnrollmentStatus {
   COMPLETED
   DROPPED
   NOT_ENROLLED
+}
+
+model SavedCourses {
+  id        String   @id @default(cuid())
+  courses   Course?  @relation(fields: [courseId], references: [id])
+  user      User?    @relation(fields: [userId], references: [id])
+  userId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courseId  String? @unique
 }
 
 model Module {
