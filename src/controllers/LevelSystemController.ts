@@ -126,13 +126,10 @@ export class LevelSystem extends Controller {
   }
 
   @Security("bearerAuth")
-  @Get("/check-journey-status/{progressId}")
-  public async CheckJourneyStatus(
-    @Request() req: any,
-    @Path() progressId: string,
-  ): Promise<any> {
+  @Get("/check-journey-status")
+  public async CheckJourneyStatus(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-
+    const progressId = req.progressId;
     try {
       if (!userId) {
         this.setStatus(401);
@@ -297,12 +294,12 @@ export class LevelSystem extends Controller {
   }
 
   @Security("bearerAuth")
-  @Get("/fetch-growth-user/{progressId}")
+  @Get("/fetch-growth-user")
   public async FetchGrowth(
     @Request() req: any,
-    @Path() progressId: string,
   ): Promise<any> {
     const userId = req.user?.id;
+    const progressId = req.progressId
     try {
       if (!userId) {
         this.setStatus(401);
