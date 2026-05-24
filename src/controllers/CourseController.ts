@@ -1550,173 +1550,181 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-  @Post("/submit-quiz/{courseId}/{quizId}")
-  public async SubmitQuiz(
-    @Path() courseId: string,
-    @Path() quizId: string,
-    @Request() req: any,
-    @Body()
-    quiz: {
-      totalPoint: number;
-      completed: boolean;
-      passingScore: number;
-      timeFinished: number;
-      answers: {
-        questionId: string;
-        answer: string;
-        correct: boolean;
-        point: number;
-      }[];
-    },
-  ) {
-    const userId = req.user?.id;
-    const progressId = req.progressId;
+@Post("/submit-quiz/{courseId}/{quizId}")
+public async SubmitQuiz(
+  @Path() courseId: string,
+  @Path() quizId: string,
+  @Request() req: any,
+  @Body()
+  quiz: {
+    totalPoint: number;
+    completed: boolean;
+    passingScore: number;
+    timeFinished: number;
+    answers: {
+      questionId: string;
+      answer: string;
+      correct: boolean;
+      point: number;
+    }[];
+  },
+) {
+  const userId = req.user?.id;
 
-    try {
-      const course = await prisma.course.findUnique({
-        where: {
-          id: courseId,
-        },
-        include: {
-          quiz: {
-            select: {
-              passingScore: true,
-            },
-          },
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
+  }
+
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      include: { quiz: { select: { passingScore: true } } },
+    });
+
+    if (!course) {
+      this.setStatus(404);
+      return { message: "Course not found" };
+    }
+
+    const quizData = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { passingScore: true },
+    });
+
+    if (!quizData) {
+      this.setStatus(404);
+      return { message: "Quiz not found" };
+    }
+
+    // ✅ FIX: Get or create progress first
+    let userProgress = await prisma.progress.findFirst({
+      where: { userId },
+    });
+
+    if (!userProgress) {
+      userProgress = await prisma.progress.create({
+        data: {
+          userId,
+          startedJourney: true,
+          progressBar: 0,
         },
       });
+    }
 
-      if (!course) {
-        this.setStatus(404);
-        return {
-          message: "Course not found",
-        };
-      }
+    let sumOfPoint = 0;
+    const quizPoint = quiz.answers.map((q) => q.point);
+    for (const point of quizPoint) {
+      sumOfPoint += point;
+    }
 
-      const quizData = await prisma.quiz.findUnique({
-        where: { id: quizId },
-        select: { passingScore: true },
+    const quizScorePercentage = (sumOfPoint / quiz.totalPoint) * 100;
+
+    // ✅ FIX: Always connect progress
+    const quizAttemptData: any = {
+      user: { connect: { id: userId } },
+      course: { connect: { id: courseId } },
+      quiz: { connect: { id: quizId } },
+      progress: { connect: { id: userProgress.id } }, // Always connect
+      score: quizScorePercentage,
+      answers: quiz.answers,
+      completed: quiz.completed,
+      timeFinished: quiz.timeFinished,
+    };
+
+    const startQuiz = await prisma.quizAttempt.create({
+      data: quizAttemptData,
+    });
+
+    // Award XP for passing quiz if score >= passingScore
+    if (quizScorePercentage >= quizData.passingScore) {
+      await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.QUIZ_PASS,
+        {
+          courseId,
+          quizScore: quizScorePercentage,
+          quizAttemptId: startQuiz.id,
+        },
+      );
+    }
+
+    // Check if all quizzes are completed
+    const allQuizzes = await prisma.quiz.findMany({
+      where: { courseId },
+      select: { id: true },
+    });
+
+    const completedQuizzes = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        courseId,
+        completed: true,
+        quizId: { in: allQuizzes.map((q) => q.id) },
+      },
+      select: { quizId: true },
+    });
+
+    const allQuizzesCompleted = completedQuizzes.length === allQuizzes.length;
+
+    // ✅ FIX: Check if all lessons are also completed
+    const courseModules = await prisma.module.findMany({
+      where: { courseId },
+      include: { lesson: { select: { id: true } } },
+    });
+
+    const allLessons = courseModules.flatMap((m) => m.lesson);
+    const allLessonIds = allLessons.map((l) => l.id);
+
+    const completedLessons = await prisma.progress.findMany({
+      where: {
+        userId,
+        lessonId: { in: allLessonIds },
+        progressBar: { gte: 100 },
+      },
+      select: { lessonId: true },
+    });
+
+    const allLessonsCompleted = completedLessons.length === allLessons.length;
+
+    // If all quizzes AND all lessons are completed, mark course as complete
+    if (allQuizzesCompleted && allLessonsCompleted) {
+      const existingEnrollment = await prisma.enrollment.findFirst({
+        where: { userId, courseId },
       });
 
-      if (!quizData) {
-        this.setStatus(404);
-        return {
-          message: "Quiz not found",
-        };
-      }
-
-      let sumOfPoint = 0;
-      const quizPoint = quiz.answers.map((q) => q.point);
-      for (const point of quizPoint) {
-        sumOfPoint += point;
-      }
-
-      const quizScorePercentage = (sumOfPoint / quiz.totalPoint) * 100;
-
-      // FIX: Make progress optional - only connect if progressId exists
-      const quizAttemptData: any = {
-        user: {
-          connect: {
-            id: userId,
-          },
-        },
-        course: {
-          connect: {
-            id: courseId,
-          },
-        },
-        quiz: {
-          connect: {
-            id: quizId,
-          },
-        },
-        score: quizScorePercentage,
-        answers: quiz.answers,
-        completed: quiz.completed,
-        timeFinished: quiz.timeFinished,
-      };
-
-      // Only add progress connection if progressId exists
-      if (progressId) {
-        quizAttemptData.progress = {
-          connect: {
-            id: progressId,
-          },
-        };
-      }
-
-      const startQuiz = await prisma.quizAttempt.create({
-        data: quizAttemptData,
-      });
-
-      // Award XP for passing quiz if score >= passingScore
-      if (quizScorePercentage >= quizData.passingScore) {
+      if (existingEnrollment && existingEnrollment.status !== "COMPLETED") {
         await GamificationService.AddPointsWithGamification(
           userId,
-          ActionType.QUIZ_PASS,
-          {
-            courseId,
-            quizScore: quizScorePercentage,
-            quizAttemptId: startQuiz.id,
-          },
+          ActionType.COURSE_COMPLETE,
+          { courseId },
         );
-      }
 
-      // Check if this is the last quiz and if user has completed all quizzes in course
-      const allQuizzes = await prisma.quiz.findMany({
-        where: { courseId },
-        select: { id: true },
-      });
-
-      const completedQuizzes = await prisma.quizAttempt.findMany({
-        where: {
-          userId,
-          courseId,
-          completed: true,
-          quizId: { in: allQuizzes.map((q) => q.id) },
-        },
-        select: { quizId: true },
-      });
-
-      // If all quizzes are completed, check if user has completed the course
-      if (completedQuizzes.length === allQuizzes.length) {
-        const existingEnrollment = await prisma.enrollment.findFirst({
-          where: { userId, courseId },
+        await prisma.enrollment.update({
+          where: { id: existingEnrollment.id },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+          },
         });
-
-        if (existingEnrollment && existingEnrollment.status !== "COMPLETED") {
-          // Award course completion XP
-          await GamificationService.AddPointsWithGamification(
-            userId,
-            ActionType.COURSE_COMPLETE,
-            { courseId },
-          );
-
-          // Update enrollment status
-          await prisma.enrollment.update({
-            where: { id: existingEnrollment.id },
-            data: {
-              status: "COMPLETED",
-              completedAt: new Date(),
-            },
-          });
-        }
       }
-
-      this.setStatus(200);
-      return {
-        message: "You have submitted your score.",
-        data: startQuiz,
-      };
-    } catch (error: any) {
-      console.error("Error submitting quiz:", error);
-      this.setStatus(500);
-      return {
-        message: "Error submitting quiz",
-        error: error.message,
-      };
     }
+
+    this.setStatus(200);
+    return {
+      message: "You have submitted your score.",
+      data: startQuiz,
+      courseCompleted: allQuizzesCompleted && allLessonsCompleted,
+    };
+  } catch (error: any) {
+    console.error("Error submitting quiz:", error);
+    this.setStatus(500);
+    return {
+      message: "Error submitting quiz",
+      error: error.message,
+    };
   }
+}
 
   @Get("/fetch-quiz-answers/{quizId}")
   public async FetchQuizAnswers(@Path() quizId: string) {
@@ -1755,143 +1763,194 @@ export class CourseController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Post("/complete-lesson/{courseId}/{lessonId}")
-  public async CompleteLesson(
-    @Path() courseId: string,
-    @Path() lessonId: string,
-    @Request() req: any,
-  ): Promise<any> {
-    const userId = req.user?.id;
-    const progressId = req.progressId;
+ @Security("bearerAuth")
+@Post("/complete-lesson/{courseId}/{lessonId}")
+public async CompleteLesson(
+  @Path() courseId: string,
+  @Path() lessonId: string,
+  @Request() req: any,
+): Promise<any> {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authorized" };
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
+  }
+
+  try {
+    // Check if lesson exists
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { module: true },
+    });
+
+    if (!lesson) {
+      this.setStatus(404);
+      return { message: "Lesson not found" };
     }
 
-    try {
-      // Check if lesson exists
-      const lesson = await prisma.lesson.findUnique({
-        where: { id: lessonId },
-        include: { module: true },
+    // Check if user is enrolled in the course
+    const enrollment = await prisma.enrollment.findFirst({
+      where: {
+        userId,
+        courseId,
+      },
+    });
+
+    if (!enrollment) {
+      this.setStatus(403);
+      return {
+        message: "You must be enrolled in this course to complete lessons",
+      };
+    }
+
+    // ✅ FIX 1: Check if lesson is already completed
+    const existingLessonCompletion = await prisma.progress.findFirst({
+      where: {
+        userId,
+        lessonId,
+        progressBar: { gte: 100 },
+      },
+    });
+
+    if (existingLessonCompletion) {
+      return { 
+        message: "Lesson already completed",
+        alreadyCompleted: true 
+      };
+    }
+
+    // ✅ FIX 2: Get or create progress record for this user (don't rely on progressId from token)
+    let userProgress = await prisma.progress.findFirst({
+      where: { userId },
+    });
+
+    if (!userProgress) {
+      // Create progress if it doesn't exist
+      userProgress = await prisma.progress.create({
+        data: {
+          userId,
+          startedJourney: true,
+          progressBar: 0,
+        },
       });
+    }
 
-      if (!lesson) {
-        this.setStatus(404);
-        return { message: "Lesson not found" };
-      }
+    // ✅ FIX 3: Create or update lesson-specific progress
+    const lessonProgress = await prisma.progress.upsert({
+      where: {
+        // Use a composite key or find by userId + lessonId
+        id: existingLessonCompletion?.id || "", // Fallback
+      },
+      update: {
+        progressBar: 100,
+        updatedAt: new Date(),
+      },
+      create: {
+        userId,
+        lessonId,
+        courses: {
+          connect: {
+            id: courseId,
+          },
+        },
+        progressBar: 100,
+        startedJourney: true,
+      },
+    });
 
-      // Check if user is enrolled in the course
-      const enrollment = await prisma.enrollment.findFirst({
+    // Award XP for completing lesson
+    const gamificationResult = await GamificationService.AddPointsWithGamification(
+      userId,
+      ActionType.LESSON_COMPLETE,
+      { courseId, lessonId },
+    );
+
+    // ✅ FIX 4: Check if all lessons in the course are completed
+    const courseModules = await prisma.module.findMany({
+      where: { courseId },
+      include: { 
+        lesson: {
+          select: { id: true }
+        } 
+      },
+    });
+
+    const allLessons = courseModules.flatMap((m) => m.lesson);
+    const allLessonIds = allLessons.map((l) => l.id);
+
+    const completedLessons = await prisma.progress.findMany({
+      where: {
+        userId,
+        lessonId: { in: allLessonIds },
+        progressBar: { gte: 100 },
+      },
+      select: { lessonId: true },
+    });
+
+    const allLessonsCompleted = completedLessons.length === allLessons.length;
+
+    // ✅ FIX 5: Also check if all quizzes are completed before marking course complete
+    const allQuizzes = await prisma.quiz.findMany({
+      where: { courseId },
+      select: { id: true },
+    });
+
+    let allQuizzesCompleted = true;
+    if (allQuizzes.length > 0) {
+      const completedQuizzes = await prisma.quizAttempt.findMany({
         where: {
           userId,
           courseId,
+          completed: true,
+          quizId: { in: allQuizzes.map(q => q.id) },
         },
+        select: { quizId: true },
       });
-
-      if (!enrollment) {
-        this.setStatus(403);
-        return {
-          message: "You must be enrolled in this course to complete lessons",
-        };
-      }
-
-      // Check if lesson is already completed
-      const existingProgress = await prisma.progress.findFirst({
-        where: {
-          userId,
-          lessonId,
-        },
-      });
-
-      if (existingProgress && existingProgress.progressBar >= 100) {
-        return { message: "Lesson already completed" };
-      }
-
-      // Update or create progress for this lesson
-      const progress = await prisma.progress.upsert({
-        where: {
-          id: progressId || "",
-        },
-        update: {
-          progressBar: { increment: 100 },
-          updatedAt: new Date(),
-        },
-        create: {
-          userId,
-          lessonId,
-          courses: {
-            connect: {
-              id: courseId,
-            },
-          },
-          progressBar: 100,
-          startedJourney: true,
-        },
-      });
-
-      // Award XP for completing lesson
-      const gamificationResult =
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.LESSON_COMPLETE,
-          { courseId, lessonId },
-        );
-
-      // Check if all lessons in the course are completed
-      const courseModules = await prisma.module.findMany({
-        where: { courseId },
-        include: { lesson: true },
-      });
-
-      const allLessons = courseModules.flatMap((m) => m.lesson);
-      const completedLessons = await prisma.progress.findMany({
-        where: {
-          userId,
-          lessonId: { in: allLessons.map((l) => l.id) },
-          progressBar: { gte: 100 },
-        },
-        select: { lessonId: true },
-      });
-
-      // If all lessons are completed and user hasn't completed course yet
-      if (
-        completedLessons.length === allLessons.length &&
-        enrollment.status !== "COMPLETED"
-      ) {
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.COURSE_COMPLETE,
-          { courseId },
-        );
-
-        await prisma.enrollment.update({
-          where: { id: enrollment.id },
-          data: {
-            status: "COMPLETED",
-            completedAt: new Date(),
-          },
-        });
-      }
-
-      this.setStatus(200);
-      return {
-        message: "Lesson completed successfully",
-        data: { progress },
-        gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
-          badgesEarned: gamificationResult.data?.badgesEarned,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error completing lesson:", error);
-      this.setStatus(500);
-      return { message: "Failed to complete lesson", error: error.message };
+      allQuizzesCompleted = completedQuizzes.length === allQuizzes.length;
     }
+
+    // If all lessons AND all quizzes are completed, mark course as complete
+    if (allLessonsCompleted && allQuizzesCompleted && enrollment.status !== "COMPLETED") {
+      await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.COURSE_COMPLETE,
+        { courseId },
+      );
+
+      await prisma.enrollment.update({
+        where: { id: enrollment.id },
+        data: {
+          status: "COMPLETED",
+          completedAt: new Date(),
+        },
+      });
+    }
+
+    this.setStatus(200);
+    return {
+      message: "Lesson completed successfully",
+      data: { 
+        progress: lessonProgress,
+        courseCompleted: allLessonsCompleted && allQuizzesCompleted,
+        lessonsCompleted: completedLessons.length,
+        totalLessons: allLessons.length,
+        quizzesCompleted: allQuizzesCompleted ? allQuizzes.length : 0,
+        totalQuizzes: allQuizzes.length,
+      },
+      gamification: {
+        pointsEarned: gamificationResult.data?.pointsAdded,
+        leveledUp: gamificationResult.data?.leveledUp,
+        newLevel: gamificationResult.data?.newLevel,
+        badgesEarned: gamificationResult.data?.badgesEarned,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error completing lesson:", error);
+    this.setStatus(500);
+    return { message: "Failed to complete lesson", error: error.message };
   }
+}
 
   @Security("bearerAuth")
   @Post("/enroll-course/{courseId}")
