@@ -2908,6 +2908,7 @@
 											"properties": {
 												"error": {},
 												"role": {},
+												"progressId": {},
 												"level": {},
 												"user": {},
 												"status": {
@@ -2928,6 +2929,7 @@
 											"properties": {
 												"error": {},
 												"role": {},
+												"progressId": {},
 												"level": {},
 												"status": {},
 												"user": {
@@ -3063,6 +3065,7 @@
 												"error": {},
 												"role": {},
 												"status": {},
+												"progressId": {},
 												"level": {},
 												"user": {
 													"allOf": [
@@ -3404,6 +3407,7 @@
 												}
 											},
 											"required": [
+												"progressId",
 												"level",
 												"user",
 												"message"
@@ -3413,6 +3417,7 @@
 										{
 											"properties": {
 												"error": {},
+												"progressId": {},
 												"level": {},
 												"user": {},
 												"role": {},
@@ -3434,6 +3439,7 @@
 										{
 											"properties": {
 												"role": {},
+												"progressId": {},
 												"level": {},
 												"user": {},
 												"error": {},
@@ -10538,7 +10544,7 @@
 				"parameters": []
 			}
 		},
-		"/growth/check-journey-status/{progressId}": {
+		"/growth/check-journey-status": {
 			"get": {
 				"operationId": "CheckJourneyStatus",
 				"responses": {
@@ -10559,16 +10565,7 @@
 						"bearerAuth": []
 					}
 				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "progressId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
+				"parameters": []
 			}
 		},
 		"/growth/fetch-achievement": {
@@ -10595,7 +10592,7 @@
 				"parameters": []
 			}
 		},
-		"/growth/fetch-growth-user/{progressId}": {
+		"/growth/fetch-growth-user": {
 			"get": {
 				"operationId": "FetchGrowth",
 				"responses": {
@@ -10616,16 +10613,7 @@
 						"bearerAuth": []
 					}
 				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "progressId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
+				"parameters": []
 			}
 		},
 		"/growth/leaderboard": {

@@ -166,7 +166,7 @@ public async GoogleAuth(
         },
       });
 
-      // Set cookies - FIXED
+      // Set cookies
       if (req.res) {
         req.res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -202,8 +202,8 @@ public async GoogleAuth(
           isProfileComplete: true,
           requiresProfileCompletion: false,
         },
-        accessToken,  // Return in body as fallback
-        refreshToken, // Return in body as fallback
+        accessToken,
+        refreshToken,
         user: {
           type: "organization",
           id: updatedOrganization.id,
@@ -222,7 +222,7 @@ public async GoogleAuth(
         where: { userId: user.id },
       });
 
-      // Get or create progress for admin
+      // ALWAYS get or create progress for admin
       let progress = await prisma.progress.findFirst({
         where: { userId: user.id },
       });
@@ -294,7 +294,7 @@ public async GoogleAuth(
         },
       });
 
-      // Set cookies - FIXED
+      // Set cookies
       if (req.res) {
         req.res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -360,7 +360,7 @@ public async GoogleAuth(
         },
       });
 
-      // Get or create progress
+      // ALWAYS get or create progress for invited user
       let progress = await prisma.progress.findFirst({
         where: { userId: user.id },
       });
@@ -433,7 +433,7 @@ public async GoogleAuth(
         },
       });
 
-      // Set cookies - FIXED
+      // Set cookies
       if (req.res) {
         req.res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -492,73 +492,69 @@ public async GoogleAuth(
       };
     }
 
-    // Handle REGULAR user (INDIVIDUAL)
+    // Handle REGULAR user (INDIVIDUAL) - FIXED SECTION
     if (user.form_type === "INDIVIDUAL") {
-      // Get or create progress (only if profile is complete)
-      let progress: any = null;
-      let plan: any = null;
-      let settings: any = null;
+      // ALWAYS get or create progress for regular user (even if profile not complete)
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
 
-      if (isProfileComplete) {
-        progress = await prisma.progress.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
-          });
-        }
-
-        plan = await prisma.pricingHistory.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
             userId: user.id,
-            type: "INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        settings = await prisma.settings.findFirst({
-          where: { userId: user.id },
+            startedJourney: true,
+            progressBar: 0,
+          },
         });
-
-        if (!settings) {
-          settings = await prisma.settings.create({
-            data: {
-              enable_push_notification: true,
-              course_updates: true,
-              event: true,
-              achievement: true,
-              daily_reminders: true,
-              darkMode: false,
-              email_notification: true,
-              updatedAt: new Date(),
-              userId: user.id,
-              organizationId: null,
-            },
-          });
-        }
       }
 
-      // Generate tokens for REGULAR USER
+      // Get or create plan
+      let plan = await prisma.pricingHistory.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: user.id,
+          type: "INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      // Get or create settings
+      let settings = await prisma.settings.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!settings) {
+        settings = await prisma.settings.create({
+          data: {
+            enable_push_notification: true,
+            course_updates: true,
+            event: true,
+            achievement: true,
+            daily_reminders: true,
+            darkMode: false,
+            email_notification: true,
+            updatedAt: new Date(),
+            userId: user.id,
+            organizationId: null,
+          },
+        });
+      }
+
+      // Generate tokens for REGULAR USER - progress is guaranteed to exist
       const { accessToken, refreshToken } = generateTokens({
         type: "USER",
         id: updateUser.id,
         email: updateUser.email_address,
         role: updateUser.role,
         level: updateUser.level,
-        progressId: progress?.id,
+        progressId: progress.id,
         updateStatus: updateUser.isOnline,
-        planId: plan?.id,
-        settingsId: settings?.id,
+        planId: plan.id,
+        settingsId: settings.id,
         provider: "GOOGLE",
         firebase_uid: user.firebase_uid,
         deviceId: deviceId,
@@ -595,7 +591,7 @@ public async GoogleAuth(
         },
       });
 
-      // Set cookies - FIXED
+      // Set cookies - progress_id is always set now
       if (req.res) {
         req.res.cookie("accessToken", accessToken, {
           httpOnly: true,
@@ -621,25 +617,22 @@ public async GoogleAuth(
           maxAge: 365 * 24 * 60 * 60 * 1000,
         });
 
-        if (progress?.id) {
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
+        // Always set progress_id (no conditional check needed anymore)
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
 
-        if (plan?.id) {
-          req.res.cookie("plan_id", plan.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
+        req.res.cookie("plan_id", plan.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
       }
 
       // Determine response message based on user status
@@ -677,8 +670,8 @@ public async GoogleAuth(
           state: user.state,
           phone_number: user.phone_number,
           isProfileComplete: isProfileComplete,
-          progressId: progress?.id,
-          planId: plan?.id,
+          progressId: progress.id,
+          planId: plan.id,
         },
       };
     }
@@ -2586,6 +2579,7 @@ public async UpdatePassword(
       const userId = req.user?.id;
       const userRole = req.user?.role;
       const userLevel = req.user?.level
+      const progressId = req.progressId
 
       // Check if user exists
       if (!userId) {
@@ -2638,7 +2632,8 @@ public async UpdatePassword(
         return {
           message: "Profile fetched successfully",
           user,
-          level: userLevel ?? null
+          level: userLevel ?? null,
+          progressId: progressId
         };
       }
 

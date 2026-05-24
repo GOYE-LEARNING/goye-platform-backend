@@ -3654,9 +3654,8 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsLevelSystem_CheckJourneyStatus: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
-                progressId: {"in":"path","name":"progressId","required":true,"dataType":"string"},
         };
-        app.get('/api/growth/check-journey-status/:progressId',
+        app.get('/api/growth/check-journey-status',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(LevelSystem)),
             ...(fetchMiddlewares<RequestHandler>(LevelSystem.prototype.CheckJourneyStatus)),
@@ -3717,9 +3716,8 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsLevelSystem_FetchGrowth: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
-                progressId: {"in":"path","name":"progressId","required":true,"dataType":"string"},
         };
-        app.get('/api/growth/fetch-growth-user/:progressId',
+        app.get('/api/growth/fetch-growth-user',
             authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(LevelSystem)),
             ...(fetchMiddlewares<RequestHandler>(LevelSystem.prototype.FetchGrowth)),
