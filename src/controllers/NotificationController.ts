@@ -685,6 +685,9 @@ export class NotificationController extends Controller {
             role: "ADMIN",
             to: "STUDENT",
           },
+          orderBy: {
+            createdAt: "desc",
+          },
         });
         return {
           message: "Annoucement Fetched successfully",
@@ -695,6 +698,9 @@ export class NotificationController extends Controller {
           where: {
             role: "ADMIN",
             to: "TUTOR",
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         });
         return {
