@@ -1673,8 +1673,8 @@ export class SocialController extends Controller {
   @Post("/join-group/{groupId}")
   public async JoinGroup(@Request() req: any, @Path() groupId: string) {
     const userId = req.user?.id;
-    const planId = req.user?.id;
-    const progressId = req.progressId;
+    const planId = req.cookies?.plan_id
+    const progressId = req.cookies?.progress_id;
 
     if (!userId) {
       this.setStatus(401);

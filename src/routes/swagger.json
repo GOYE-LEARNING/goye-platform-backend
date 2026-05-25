@@ -10567,6 +10567,117 @@
 				"parameters": []
 			}
 		},
+		"/notifications/fetch-annocucment-by-admin": {
+			"get": {
+				"operationId": "FetchAnnouncementByAdmin",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"items": {
+												"properties": {
+													"replyId": {
+														"type": "string"
+													},
+													"isRead": {
+														"type": "boolean"
+													},
+													"to": {
+														"type": "string"
+													},
+													"postId": {
+														"type": "string"
+													},
+													"achievementId": {
+														"type": "string"
+													},
+													"groupId": {
+														"type": "string"
+													},
+													"title": {
+														"type": "string"
+													},
+													"type": {
+														"type": "string"
+													},
+													"message": {
+														"type": "string"
+													},
+													"role": {
+														"type": "string"
+													},
+													"organizationId": {
+														"type": "string"
+													},
+													"userId": {
+														"type": "string"
+													},
+													"updatedAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"createdAt": {
+														"type": "string",
+														"format": "date-time"
+													},
+													"courseId": {
+														"type": "string"
+													},
+													"id": {
+														"type": "string"
+													}
+												},
+												"required": [
+													"replyId",
+													"isRead",
+													"to",
+													"postId",
+													"achievementId",
+													"groupId",
+													"title",
+													"type",
+													"message",
+													"role",
+													"organizationId",
+													"userId",
+													"updatedAt",
+													"createdAt",
+													"courseId",
+													"id"
+												],
+												"type": "object"
+											},
+											"type": "array"
+										},
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"data",
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Notification Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/growth/start-journey": {
 			"post": {
 				"operationId": "StartJourney",
