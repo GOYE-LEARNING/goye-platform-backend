@@ -19,27 +19,20 @@ import {
 @Tags("Levels and Badges Controller")
 @Route("growth")
 export class LevelSystem extends Controller {
+  
   @Security("bearerAuth")
   @Post("/start-journey")
   public async StartJourney(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-
     try {
       if (!userId) {
         this.setStatus(401);
-        return {
-          message: "User Not authorized.",
-        };
+        return { message: "User Not authorized." };
       }
 
-      // Check if user already has a progress record
       const existingProgress = await prisma.progress.findFirst({
-        where: {
-          userId,
-          startedJourney: true,
-        },
+        where: { userId, startedJourney: true },
       });
-
       if (existingProgress) {
         this.setStatus(400);
         return {
@@ -48,32 +41,18 @@ export class LevelSystem extends Controller {
         };
       }
 
-      // Now let the user start his journey
       const startJourney = await prisma.progress.create({
-        data: {
-          userId,
-          startedJourney: true,
-          progressBar: 0,
-        },
+        data: { userId, startedJourney: true, progressBar: 0 },
         include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-            },
-          },
+          user: { select: { id: true, first_name: true, last_name: true } },
         },
       });
 
-      // Award XP for starting the journey (bonus points)
-      const gamificationResult =
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.COURSE_ENROLLMENT, // Using enrollment as starting journey bonus
-        );
+      const gamificationResult = await GamificationService.AddPointsWithGamification(
+        userId,
+        ActionType.COURSE_ENROLLMENT
+      );
 
-      // Create achievement message
       const achievementResult = await GrowthService.AchievementMessage({
         message_title: "Christian Cadet",
         message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
@@ -84,14 +63,11 @@ export class LevelSystem extends Controller {
         progressId: startJourney.id,
       });
 
-      // Check if achievement was created successfully
       if (achievementResult.error) {
         console.error("Achievement creation failed:", achievementResult.error);
-        // Still return success for journey but with achievement error
         this.setStatus(200);
         return {
-          message:
-            "Journey created successfully, but achievement creation failed",
+          message: "Journey created successfully, but achievement creation failed",
           data: startJourney,
           achievementError: achievementResult.error,
           gamification: {
@@ -104,8 +80,7 @@ export class LevelSystem extends Controller {
 
       this.setStatus(200);
       return {
-        message:
-          "Journey created successfully! Welcome to your spiritual growth path! 🎉",
+        message: "Journey created successfully! Welcome to your spiritual growth path! 🎉",
         data: startJourney,
         achievementMessage: achievementResult.data || achievementResult,
         gamification: {
@@ -129,51 +104,47 @@ export class LevelSystem extends Controller {
   @Get("/check-journey-status")
   public async CheckJourneyStatus(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-    const progressId = req.progressId;
+    // ✅ FIX: read progress_id from cookies, not req.progressId
+    let progressId = req.cookies?.progress_id;
+
     try {
       if (!userId) {
         this.setStatus(401);
-        return {
-          message: "User Not authorized.",
-        };
+        return { message: "User Not authorized." };
       }
 
-      const checkJourney = await prisma.progress.findUnique({
-        where: {
-          id: progressId,
-          userId,
-        },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              point: true,
-              level: true,
-            },
+      let checkJourney = null;
+
+      if (progressId) {
+        checkJourney = await prisma.progress.findUnique({
+          where: { id: progressId, userId },
+          include: {
+            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            badges_and_levels: { include: { badges: true, achievement: true } },
+            achivement: true,
+            pointHistory: { take: 10, orderBy: { createdAt: "desc" } },
           },
-          badges_and_levels: {
-            include: {
-              badges: true,
-              achievement: true,
-            },
+        });
+      }
+
+      // Fallback to userId if not found by cookie ID
+      if (!checkJourney) {
+        checkJourney = await prisma.progress.findFirst({
+          where: { userId },
+          include: {
+            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            badges_and_levels: { include: { badges: true, achievement: true } },
+            achivement: true,
+            pointHistory: { take: 10, orderBy: { createdAt: "desc" } },
           },
-          achivement: true,
-          pointHistory: {
-            take: 10,
-            orderBy: { createdAt: "desc" },
-          },
-        },
-      });
+        });
+      }
 
       if (!checkJourney) {
         this.setStatus(404);
-        return {
-          message: "Journey not found. Please start your journey first.",
-        };
+        return { message: "Journey not found. Please start your journey first." };
       }
 
-      // Calculate total XP
       const totalXP = checkJourney.user?.point || 0;
       const levelInfo = GamificationService.calculateLevel(totalXP);
 
@@ -219,49 +190,25 @@ export class LevelSystem extends Controller {
     try {
       if (!userId) {
         this.setStatus(401);
-        return {
-          message: "User is unauthorized",
-        };
+        return { message: "User is unauthorized" };
       }
 
       const achievements = await prisma.achievement.findMany({
-        where: {
-          userId,
-        },
+        where: { userId },
         include: {
-          badge: {
-            include: {
-              achievement: true,
-            },
-          },
-          badges_and_levels: {
-            include: {
-              badges: true,
-            },
-          },
+          badge: { include: { achievement: true } },
+          badges_and_levels: { include: { badges: true } },
           progress: true,
-          course: {
-            select: {
-              course_title: true,
-            },
-          },
-          group: {
-            select: {
-              group_title: true,
-            },
-          },
+          course: { select: { course_title: true } },
+          group: { select: { group_title: true } },
         },
-        orderBy: {
-          createdAt: "desc",
-        },
+        orderBy: { createdAt: "desc" },
       });
 
-      // Get user's current level
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: { point: true, level: true },
       });
-
       const levelInfo = GamificationService.calculateLevel(user?.point || 0);
 
       this.setStatus(200);
@@ -271,10 +218,7 @@ export class LevelSystem extends Controller {
           achievements,
           summary: {
             totalAchievements: achievements.length,
-            totalBadges: achievements.reduce(
-              (sum, a) => sum + (a.badge?.length || 0),
-              0,
-            ),
+            totalBadges: achievements.reduce((sum, a) => sum + (a.badge?.length || 0), 0),
             currentLevel: levelInfo.level,
             currentLevelName: levelInfo.name,
             totalXP: user?.point || 0,
@@ -295,95 +239,75 @@ export class LevelSystem extends Controller {
 
   @Security("bearerAuth")
   @Get("/fetch-growth-user")
-  public async FetchGrowth(
-    @Request() req: any,
-  ): Promise<any> {
+  public async FetchGrowth(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-    const progressId = req.progressId
+    // ✅ FIX: read progress_id from cookies, not req.progressId
+    let progressId = req.cookies?.progress_id;
+
     try {
       if (!userId) {
         this.setStatus(401);
-        return {
-          message: "User Not authorized.",
-        };
+        return { message: "User Not authorized." };
       }
 
-      const fetchGrowth = await prisma.progress.findUnique({
-        where: {
-          id: progressId,
-          userId,
-        },
-        include: {
-          badges_and_levels: {
-            include: {
-              badges: {
-                include: {
-                  achievement: true,
-                },
-              },
-              achievement: true,
-            },
-          },
-          achivement: {
-            include: {
-              badge: true,
-            },
-          },
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              point: true,
-              level: true,
-            },
-          },
-          courses: {
-            select: {
-              course_title: true,
-              point: true,
-            },
-          },
-          pointHistory: {
-            take: 20,
-            orderBy: { createdAt: "desc" },
-          },
-        },
-      });
+      let fetchGrowth = null;
 
+      if (progressId) {
+        fetchGrowth = await prisma.progress.findFirst({
+          where: { id: progressId, userId },
+          include: {
+            badges_and_levels: {
+              include: { badges: { include: { achievement: true } }, achievement: true },
+            },
+            achivement: { include: { badge: true } },
+            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            courses: { select: { course_title: true, point: true } },
+            pointHistory: { take: 20, orderBy: { createdAt: "desc" } },
+          },
+        });
+      }
+
+      // Fallback to userId if not found by cookie ID
       if (!fetchGrowth) {
-        this.setStatus(404);
-        return {
-          message: "Growth record not found. Please start your journey.",
-        };
+        fetchGrowth = await prisma.progress.findFirst({
+          where: { userId },
+          include: {
+            badges_and_levels: {
+              include: { badges: { include: { achievement: true } }, achievement: true },
+            },
+            achivement: { include: { badge: true } },
+            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            courses: { select: { course_title: true, point: true } },
+            pointHistory: { take: 20, orderBy: { createdAt: "desc" } },
+          },
+        });
       }
 
-      // Calculate total badges
+      // If still not found, create one (auto-repair)
+      if (!fetchGrowth) {
+        fetchGrowth = await prisma.progress.create({
+          data: { userId, startedJourney: true, progressBar: 0 },
+          include: {
+            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+          },
+        });
+        // Set the cookie so future requests have it
+        const isProduction = process.env.NODE_ENV === "production";
+        req.res.cookie("progress_id", fetchGrowth.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
       const totalBadges = fetchGrowth.badges_and_levels.reduce(
         (sum, bl) => sum + bl.badges.length,
-        0,
+        0
       );
-
-      // Calculate completed courses
-      const completedCourses = fetchGrowth.courses.filter(
-        (c) => c.point && c.point > 0,
-      ).length;
-
-      // Get level info
-      const levelInfo = GamificationService.calculateLevel(
-        fetchGrowth.user?.point || 0,
-      );
-
-      // Group achievements by type
-      const achievements = {
-        courseCompletions: fetchGrowth.achivement.filter(
-          (a) => a.courseId !== null,
-        ),
-        groupAchievements: fetchGrowth.achivement.filter(
-          (a) => a.groupId !== null,
-        ),
-        badges: fetchGrowth.badges_and_levels.flatMap((bl) => bl.badges),
-        levelProgress: levelInfo,
-      };
+      const completedCourses = fetchGrowth.courses.filter((c) => c.point && c.point > 0).length;
+      const levelInfo = GamificationService.calculateLevel(fetchGrowth.user?.point || 0);
 
       this.setStatus(200);
       return {
@@ -409,7 +333,12 @@ export class LevelSystem extends Controller {
             totalPoints: fetchGrowth.user?.point || 0,
             badgesAndLevels: fetchGrowth.badges_and_levels.length,
           },
-          achievements,
+          achievements: {
+            courseCompletions: fetchGrowth.achivement.filter((a) => a.courseId !== null),
+            groupAchievements: fetchGrowth.achivement.filter((a) => a.groupId !== null),
+            badges: fetchGrowth.badges_and_levels.flatMap((bl) => bl.badges),
+            levelProgress: levelInfo,
+          },
           recentActivity: fetchGrowth.pointHistory.map((h) => ({
             action: h.reason,
             points: h.point,
@@ -436,22 +365,16 @@ export class LevelSystem extends Controller {
     @Query() limit: number = 10,
   ): Promise<any> {
     const userId = req.user?.id;
-
     try {
       let leaderboard;
 
       if (type === "course" && id) {
-        // Course leaderboard
         leaderboard = await GamificationService.GetCourseLeaderboard(id, 20);
       } else if (type === "group" && id) {
-        // Group leaderboard
         leaderboard = await GamificationService.GetGroupLeaderboard(id, 20);
       } else {
-        // Global leaderboard
         const topUsers = await prisma.user.findMany({
-          where: {
-            point: { gt: 0 },
-          },
+          where: { point: { gt: 0 } },
           select: {
             id: true,
             first_name: true,
@@ -463,7 +386,6 @@ export class LevelSystem extends Controller {
           orderBy: { point: "desc" },
           take: 50,
         });
-
         leaderboard = {
           success: true,
           data: topUsers.map((user, index) => ({
@@ -477,7 +399,6 @@ export class LevelSystem extends Controller {
         };
       }
 
-      // Get current user's rank
       let userRank = null;
       if (userId) {
         const allUsers = await prisma.user.findMany({
@@ -485,14 +406,9 @@ export class LevelSystem extends Controller {
           orderBy: { point: "desc" },
           select: { id: true, point: true },
         });
-
         const rank = allUsers.findIndex((u) => u.id === userId) + 1;
         const userPoints = allUsers.find((u) => u.id === userId)?.point || 0;
-
-        userRank = {
-          rank: rank > 0 ? rank : null,
-          totalXP: userPoints,
-        };
+        userRank = { rank: rank > 0 ? rank : null, totalXP: userPoints };
       }
 
       this.setStatus(200);
@@ -515,16 +431,13 @@ export class LevelSystem extends Controller {
   @Get("/user-summary")
   public async GetUserSummary(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-
     try {
       if (!userId) {
         this.setStatus(401);
         return { message: "User not authorized" };
       }
-
       const summary = await GamificationService.GetUserPointsSummary(userId);
       const dashboard = await GamificationService.getUserDashboard(userId);
-
       this.setStatus(200);
       return {
         message: "User summary fetched successfully",

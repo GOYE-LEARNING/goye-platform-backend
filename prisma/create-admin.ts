@@ -1,7 +1,7 @@
 // prisma/create-admin.ts
 import dotenv from "dotenv";
 dotenv.config();
-import prisma from "../src/db";
+import prisma from "../src/db.ts";
 import bcrypt from "bcryptjs";
 import readline from "readline";
 
@@ -17,14 +17,20 @@ function question(query: string): Promise<string> {
 async function createAdmin() {
   try {
     console.log("\n===== VALIDATE PASSWORD =====\n");
-    
+    if (
+      process.env.PROTECTION_PASSWORD == undefined ||
+      process.env.PROTECTION_PASSWORD == ""
+    ) {
+      console.log("Protection Password not found");
+      return;
+    }
     const checkPass = await question("Admin Password: ");
     if (checkPass !== process.env.PROTECTION_PASSWORD) {
       console.log("\n[ERROR] Incorrect password. Exiting...\n");
       rl.close();
       return;
     }
-    
+
     console.log("\n[OK] Password verified!\n");
     console.log("===== CREATE NEW ADMIN =====\n");
 
@@ -36,13 +42,13 @@ async function createAdmin() {
         console.log("[ERROR] Email is required\n");
         continue;
       }
-      
+
       if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
         console.log("[ERROR] Invalid email format\n");
         email = "";
         continue;
       }
-      
+
       const existingUser = await prisma.user.findUnique({
         where: { email_address: email },
       });
@@ -54,13 +60,13 @@ async function createAdmin() {
 
     const firstName = await question("First Name: ");
     const lastName = await question("Last Name: ");
-    
+
     let country = await question("Country: ");
     if (!country) country = "N/A";
-    
+
     let state = await question("State/Province: ");
     if (!state) state = "N/A";
-    
+
     let phoneNumber = await question("Phone Number: ");
     if (!phoneNumber) phoneNumber = "0000000000";
 
@@ -71,8 +77,10 @@ async function createAdmin() {
     console.log("  super_admin - Full access to everything");
     console.log("  content_admin - Manage courses, groups, content");
     console.log("  user_admin - Manage users only");
-    
-    let adminRole = await question(`Choose role (1-3) or press Enter for super_admin: `);
+
+    let adminRole = await question(
+      `Choose role (1-3) or press Enter for super_admin: `,
+    );
     const roleNum = parseInt(adminRole);
     if (!isNaN(roleNum) && roleNum >= 1 && roleNum <= 3) {
       adminRole = roleOptions[roleNum - 1];
@@ -81,11 +89,20 @@ async function createAdmin() {
     }
 
     // Level
-    const levelOptions = ["Seeker", "Learner", "Disciple", "Ambassador", "Mentor", "Administrator"];
+    const levelOptions = [
+      "Seeker",
+      "Learner",
+      "Disciple",
+      "Ambassador",
+      "Mentor",
+      "Administrator",
+    ];
     console.log("\nAvailable Levels:");
     levelOptions.forEach((l, i) => console.log(`  ${i + 1}. ${l}`));
-    
-    let level = await question(`Choose level (1-6) or press Enter for Administrator: `);
+
+    let level = await question(
+      `Choose level (1-6) or press Enter for Administrator: `,
+    );
     const levelNum = parseInt(level);
     if (!isNaN(levelNum) && levelNum >= 1 && levelNum <= 6) {
       level = levelOptions[levelNum - 1];
@@ -102,7 +119,7 @@ async function createAdmin() {
         password = "";
       }
     }
-    
+
     const hashedPassword = await bcrypt.hash(password, 12);
 
     // Create the admin user
@@ -118,7 +135,7 @@ async function createAdmin() {
         phone_number: phoneNumber,
         level: level,
         point: 0,
-        form_type: 'ADMIN'
+        form_type: "ADMIN",
       },
     });
 
@@ -126,7 +143,7 @@ async function createAdmin() {
 
     // Set permissions based on role
     let permissions = {};
-    
+
     switch (adminRole) {
       case "super_admin":
         permissions = {
@@ -172,9 +189,11 @@ async function createAdmin() {
       });
       console.log("[OK] Admin profile created");
     } catch (error: any) {
-      if (error.code === 'P2021') {
+      if (error.code === "P2021") {
         console.log("\n[WARNING] AdminProfile table does not exist");
-        console.log("Run migration first: npx prisma migrate dev --name add_admin_profile");
+        console.log(
+          "Run migration first: npx prisma migrate dev --name add_admin_profile",
+        );
       } else {
         throw error;
       }
@@ -182,14 +201,15 @@ async function createAdmin() {
 
     console.log("\n===== ADMIN CREATED SUCCESSFULLY =====\n");
     console.log(`Email: ${email}`);
-    console.log(`Name: ${firstName || "System"} ${lastName || "Administrator"}`);
+    console.log(
+      `Name: ${firstName || "System"} ${lastName || "Administrator"}`,
+    );
     console.log(`Password: ${password}`);
     console.log(`Admin Role: ${adminRole}`);
     console.log(`Level: ${level}`);
     console.log(`Location: ${country}, ${state}`);
     console.log(`Phone: ${phoneNumber}`);
     console.log(`ID: ${admin.id}\n`);
-
   } catch (error) {
     console.error("\n[ERROR] Failed to create admin:", error);
   } finally {
