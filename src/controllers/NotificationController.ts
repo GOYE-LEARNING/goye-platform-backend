@@ -645,4 +645,35 @@ export class NotificationController extends Controller {
       };
     }
   }
+
+  @Post("/make-system-announcement")
+  public async MakeSystemAnnouncement() {
+   try {
+    const makeAnnoucement = await NotificationService.createSystemAnnouncement("Greetings", "Welcome to Goye", Role.STUDENT, "message")
+    return {
+      message: "Annoucement changes successfully",
+      data: makeAnnoucement
+    }
+   } catch (error) {
+    console.error(error)
+   }
+  }
+
+  @Security("bearerAuth")
+  @Get("/fetch-annocucment-by-admin")
+  public async FetchAnnouncementByAdmin() {
+   try {
+    const annocumentAdmin = await prisma.notification.findMany({
+      where: {
+        role: "ADMIN"
+      }
+    })
+     return {
+      message: "Annoucement Fetched successfully",
+      data: annocumentAdmin
+    }
+   } catch (error) {
+    console.error(error)
+   }
+  }
 }

@@ -317,7 +317,7 @@ export class NotificationService {
   /**
    * System announcement to all users of a specific role
    */
-  static async createSystemAnnouncement(message: string, title: string, to: Role, type: Types) {
+  static async createSystemAnnouncement(title: string, message: string, to: Role, type: Types) {
     try {
       // 1. Get all users of the target role
       const users = await prisma.user.findMany({

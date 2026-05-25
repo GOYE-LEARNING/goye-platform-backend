@@ -208,6 +208,11 @@ const models: TsoaRoute.Models = {
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "Prisma.BatchPayload": {
+        "dataType": "refAlias",
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"count":{"dataType":"double","required":true}},"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "_36_Enums.FeedbackType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["OTHER"]},{"dataType":"enum","enums":["COURSE"]},{"dataType":"enum","enums":["GROUP"]}],"validators":{}},
@@ -3610,6 +3615,35 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'ChangeNotificationsSettings',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsNotificationController_MakeSystemAnnouncement: Record<string, TsoaRoute.ParameterSchema> = {
+        };
+        app.post('/api/notifications/make-system-announcement',
+            ...(fetchMiddlewares<RequestHandler>(NotificationController)),
+            ...(fetchMiddlewares<RequestHandler>(NotificationController.prototype.MakeSystemAnnouncement)),
+
+            async function NotificationController_MakeSystemAnnouncement(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsNotificationController_MakeSystemAnnouncement, request, response });
+
+                const controller = new NotificationController();
+
+              await templateService.apiHandler({
+                methodName: 'MakeSystemAnnouncement',
                 controller,
                 response,
                 next,

@@ -1,7 +1,7 @@
 // prisma/create-admin.ts
 import dotenv from "dotenv";
 dotenv.config();
-import prisma from "../src/db.ts";
+import prisma from "../src/db";
 import bcrypt from "bcryptjs";
 import readline from "readline";
 

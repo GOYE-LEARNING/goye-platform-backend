@@ -435,6 +435,19 @@
 					"OTHER"
 				]
 			},
+			"Prisma.BatchPayload": {
+				"properties": {
+					"count": {
+						"type": "number",
+						"format": "double"
+					}
+				},
+				"required": [
+					"count"
+				],
+				"type": "object",
+				"description": "Batch Payload for updateMany & deleteMany & createMany"
+			},
 			"_36_Enums.FeedbackType": {
 				"type": "string",
 				"enum": [
@@ -10520,6 +10533,40 @@
 				}
 			}
 		},
+		"/notifications/make-system-announcement": {
+			"post": {
+				"operationId": "MakeSystemAnnouncement",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Prisma.BatchPayload"
+										},
+										"message": {
+											"type": "string"
+										}
+									},
+									"required": [
+										"data",
+										"message"
+									],
+									"type": "object"
+								}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Notification Controller"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
 		"/growth/start-journey": {
 			"post": {
 				"operationId": "StartJourney",
@@ -14213,6 +14260,7 @@
 										{
 											"properties": {
 												"error": {},
+												"courseCompleted": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -14226,6 +14274,9 @@
 										{
 											"properties": {
 												"error": {},
+												"courseCompleted": {
+													"type": "boolean"
+												},
 												"data": {
 													"properties": {
 														"answers": {
@@ -14290,6 +14341,7 @@
 												}
 											},
 											"required": [
+												"courseCompleted",
 												"data",
 												"message"
 											],
@@ -14297,6 +14349,7 @@
 										},
 										{
 											"properties": {
+												"courseCompleted": {},
 												"data": {},
 												"error": {},
 												"message": {
