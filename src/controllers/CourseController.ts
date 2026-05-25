@@ -39,144 +39,163 @@ const levels: Record<string, string> = {
 export class CourseController extends Controller {
   //create Course
 
-  @Security("bearerAuth")
-  @Post("/create-course")
-  public async CreateCourse(
-    @Body() body: CreateCourseDTO,
-    @Request() req: any,
-  ): Promise<CourseResponse> {
-    const tutorName = req.user?.full_name;
-    const planId = req.user?.planId;
-    const tutorId = req.user?.id;
-    const orgId = req.org?.id;
-    const orgName = req.org?.organization_name;
-    try {
-      // Use organizationId if exists, otherwise use createdUserId
-      Limitations(planId, tutorId, orgId);
-      const course = await prisma.course.create({
-        data: {
-          organizationId: orgId ?? null,
-          organizationName: orgId ? orgName : null,
-          createdBy: tutorName,
-          createdUserId: tutorId,
-          course_title: body.course_title,
-          course_short_description: body.course_short_description,
-          course_description: body.course_description,
-          course_level: levels[body.course_level],
-          course_image: body.course_image,
+ @Security("bearerAuth")
+@Post("/create-course")
+public async CreateCourse(
+  @Body() body: CreateCourseDTO,
+  @Request() req: any,
+): Promise<CourseResponse> {
+  const tutorName = req.user?.full_name;
+  const planId = req.user?.planId;
+  const tutorId = req.user?.id;
+  const orgId = req.org?.id;
+  const orgName = req.org?.organization_name;
+  
+  // Debug logging
+  console.log("📝 Creating course with:", {
+    tutorName,
+    tutorId,
+    orgId,
+    orgName,
+    course_title: body.course_title
+  });
+  
+  try {
+    // Use organizationId if exists, otherwise use createdUserId
+    Limitations(planId, tutorId, orgId);
+    
+    // Ensure tutorName has a fallback value
+    const creatorName = tutorName || req.user?.email || req.user?.first_name || "Unknown Instructor";
+    
+    const courseData: any = {
+      organizationId: orgId ?? null,
+      organizationName: orgId ? orgName : null,
+      createdBy: creatorName,  // Use the fallback value
+      createdUserId: tutorId,
+      course_title: body.course_title,
+      course_short_description: body.course_short_description,
+      course_description: body.course_description,
+      course_level: levels[body.course_level],
+      course_image: body.course_image || "",
+    };
 
-          // Handle modules with lessons
-          ...(body.module && {
-            module: {
-              create: body.module.map((module, index) => ({
-                module_title: module.module_title,
-                module_description: module.module_description,
-                module_duration: module.module_duration,
-                order: module.order || index,
-                ...(module.lessons && {
-                  lesson: {
-                    create: module.lessons.map((lesson, lessonIndex) => ({
-                      lesson_title: lesson.lesson_title,
-                      lesson_video: lesson.lesson_video,
-                      order: lesson.order || lessonIndex,
-                      duration: lesson.duration,
-                    })),
-                  },
-                }),
+    // Handle modules with lessons
+    if (body.module && body.module.length > 0) {
+      courseData.module = {
+        create: body.module.map((module, index) => ({
+          module_title: module.module_title,
+          module_description: module.module_description,
+          module_duration: module.module_duration,
+          order: module.order || index,
+          ...(module.lessons && module.lessons.length > 0 && {
+            lesson: {
+              create: module.lessons.map((lesson, lessonIndex) => ({
+                lesson_title: lesson.lesson_title,
+                lesson_video: lesson.lesson_video || "",
+                order: lesson.order || lessonIndex,
+                duration: lesson.duration || 0,
               })),
             },
           }),
+        })),
+      };
+    }
 
-          // Handle materials
-          ...(body.material && {
-            material: {
-              create: body.material.map((material) => ({
-                material_title: material.material_title,
-                material_description: material.material_description,
-                material_pages: material.material_pages,
-                material_document: material.material_document,
+    // Handle materials
+    if (body.material && body.material.length > 0) {
+      courseData.material = {
+        create: body.material.map((material) => ({
+          material_title: material.material_title,
+          material_description: material.material_description,
+          material_pages: material.material_pages,
+          material_document: material.material_document || "",
+        })),
+      };
+    }
+
+    // Handle objectives
+    if (body.objectives && body.objectives.length > 0) {
+      courseData.objectives = {
+        create: body.objectives.map((objective) => ({
+          objective_title1: objective.objective_title1 || "",
+          objective_title2: objective.objective_title2 || "",
+          objective_title3: objective.objective_title3 || "",
+          objective_title4: objective.objective_title4 || "",
+          objective_title5: objective.objective_title5 || "",
+        })),
+      };
+    }
+
+    // Handle quizzes with questions
+    if (body.quiz && body.quiz.length > 0) {
+      courseData.quiz = {
+        create: body.quiz.map((quiz) => ({
+          title: quiz.title,
+          description: quiz.description || "",
+          duration: quiz.duration || 30,
+          passingScore: quiz.passingScore || 70,
+          maxAttempts: quiz.maxAttempts || 3,
+          ...(quiz.questions && quiz.questions.length > 0 && {
+            questions: {
+              create: quiz.questions.map((question, qIndex) => ({
+                question: question.question,
+                options: question.options || [],
+                correctAnswer: question.correctAnswer || "",
+                explanation: question.explanation || "",
+                order: question.order || qIndex,
               })),
             },
           }),
+        })),
+      };
+    }
 
-          // Handle objectives
-          ...(body.objectives && {
-            objectives: {
-              create: body.objectives.map((objective) => ({
-                objective_title1: objective.objective_title1,
-                objective_title2: objective.objective_title2,
-                objective_title3: objective.objective_title3,
-                objective_title4: objective.objective_title4,
-                objective_title5: objective.objective_title5,
-              })),
-            },
-          }),
-
-          // Handle quizzes with questions
-          ...(body.quiz && {
-            quiz: {
-              create: body.quiz.map((quiz) => ({
-                title: quiz.title,
-                description: quiz.description,
-                duration: quiz.duration,
-                passingScore: quiz.passingScore,
-                maxAttempts: quiz.maxAttempts,
-                ...(quiz.questions && {
-                  questions: {
-                    create: quiz.questions.map((question, qIndex) => ({
-                      question: question.question,
-                      options: question.options,
-                      correctAnswer: question.correctAnswer,
-                      explanation: question.explanation,
-                      order: question.order || qIndex,
-                    })),
-                  },
-                }),
-              })),
-            },
-          }),
-        },
-        include: {
-          module: {
-            include: {
-              lesson: true,
-            },
-            orderBy: {
-              order: "asc",
-            },
+    const course = await prisma.course.create({
+      data: courseData,
+      include: {
+        module: {
+          include: {
+            lesson: true,
           },
-          material: true,
-          objectives: true,
-          quiz: {
-            include: {
-              questions: {
-                orderBy: {
-                  order: "asc",
-                },
+          orderBy: {
+            order: "asc",
+          },
+        },
+        material: true,
+        objectives: true,
+        quiz: {
+          include: {
+            questions: {
+              orderBy: {
+                order: "asc",
               },
             },
           },
         },
-      });
-      await NotificationService.createSystemAnnouncement(
-        `${course.course_title} `,
-        "Course Update",
-        Role.STUDENT,
-        "course",
-      );
-      this.setStatus(201);
-      return {
-        message: "Course created successfully",
-        data: course,
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: "Error creating course: " + error.message,
-        data: null,
-      };
-    }
+      },
+    });
+    
+    await NotificationService.createSystemAnnouncement(
+      `${course.course_title}`,
+      "Course Update",
+      Role.STUDENT,
+      "course",
+    );
+    
+    this.setStatus(201);
+    return {
+      message: "Course created successfully",
+      data: course,
+    };
+  } catch (error: any) {
+    console.error("❌ Error creating course:", error);
+    this.setStatus(500);
+    return {
+      message: "Error creating course: " + error.message,
+      data: null,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Put("/update-course/{courseId}")
