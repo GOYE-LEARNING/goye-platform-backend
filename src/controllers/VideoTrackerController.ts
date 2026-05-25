@@ -32,39 +32,28 @@ export class VideoTrackerController extends Controller {
     },
     @Request() req: any
   ) {
-    const progressId = req.progressId;
     const userId = req.user?.id;
     
     try {
       // Check if course exists
       const course = await prisma.course.findUnique({
-        where: {
-          id: body.courseId,
-        },
+        where: { id: body.courseId },
       });
 
       if (!course) {
         this.setStatus(404);
-        return {
-          message: "This course cannot be found.",
-        };
+        return { message: "This course cannot be found." };
       }
 
       // Check if lesson exists
       const lesson = await prisma.lesson.findUnique({
-        where: {
-          id: body.lessonId,
-        },
-        include: {
-          module: true,
-        },
+        where: { id: body.lessonId },
+        include: { module: true },
       });
 
       if (!lesson) {
         this.setStatus(404);
-        return {
-          message: "This lesson cannot be found.",
-        };
+        return { message: "This lesson cannot be found." };
       }
 
       // Check if user is enrolled
@@ -77,16 +66,29 @@ export class VideoTrackerController extends Controller {
 
       if (!enrollment) {
         this.setStatus(403);
-        return {
-          message: "You must be enrolled in this course to track videos.",
-        };
+        return { message: "You must be enrolled in this course to track videos." };
+      }
+
+      // Get or create progress record
+      let progress = await prisma.progress.findFirst({
+        where: { userId },
+      });
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: {
+            userId,
+            startedJourney: true,
+            progressBar: 0,
+          },
+        });
       }
 
       // Check if video is already completed
       const existingTracker = await prisma.videoTracker.findFirst({
         where: {
           lessonId: body.lessonId,
-          progressId: progressId,
+          progressId: progress.id,
           videoFinished: true,
         },
       });
@@ -106,7 +108,7 @@ export class VideoTrackerController extends Controller {
           basedTimeTracking: "FIRST_TIME_TRACKING",
           progress: {
             connect: {
-              id: progressId,
+              id: progress.id,
             },
           },
           course: {
@@ -136,25 +138,38 @@ export class VideoTrackerController extends Controller {
         });
 
         if (!existingProgress) {
-          // Create or update progress for this lesson
-          const progress = await prisma.progress.upsert({
+          // Update progress for this lesson
+          await prisma.progress.update({
             where: {
-              id: progressId || "",
+              id: progress.id,
             },
-            update: {
+            data: {
               progressBar: { increment: 100 },
               updatedAt: new Date(),
             },
-            create: {
+          });
+
+          // Also create lesson-specific progress record if needed
+          const lessonProgress = await prisma.progress.findFirst({
+            where: {
               userId,
               lessonId: body.lessonId,
-              courses: {
-                connect: { id: body.courseId },
-              },
-              progressBar: 100,
-              startedJourney: true,
             },
           });
+
+          if (!lessonProgress) {
+            await prisma.progress.create({
+              data: {
+                userId,
+                lessonId: body.lessonId,
+                courses: {
+                  connect: { id: body.courseId },
+                },
+                progressBar: 100,
+                startedJourney: true,
+              },
+            });
+          }
 
           // Award XP for completing the lesson
           gamificationResult = await GamificationService.AddPointsWithGamification(
@@ -217,6 +232,7 @@ export class VideoTrackerController extends Controller {
       this.setStatus(500);
       return {
         message: "An error occurred with tracking of the video",
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -233,7 +249,6 @@ export class VideoTrackerController extends Controller {
     @Request() req: any
   ) {
     const userId = req.user?.id;
-    const progressId = req.progressId;
 
     try {
       // Check if the video tracker exists
@@ -249,9 +264,7 @@ export class VideoTrackerController extends Controller {
 
       if (!existingVideo) {
         this.setStatus(404);
-        return {
-          message: "This video cannot be found.",
-        };
+        return { message: "This video cannot be found." };
       }
 
       // Check if video is already finished
@@ -278,6 +291,21 @@ export class VideoTrackerController extends Controller {
 
       // If video is now finished, award XP for lesson completion
       if (body.videoFinished && !existingVideo.videoFinished) {
+        // Get or create progress record
+        let progress = await prisma.progress.findFirst({
+          where: { userId },
+        });
+
+        if (!progress) {
+          progress = await prisma.progress.create({
+            data: {
+              userId,
+              startedJourney: true,
+              progressBar: 0,
+            },
+          });
+        }
+
         // Check if lesson is already completed in progress
         const existingProgress = await prisma.progress.findFirst({
           where: {
@@ -288,25 +316,38 @@ export class VideoTrackerController extends Controller {
         });
 
         if (!existingProgress) {
-          // Create or update progress for this lesson
-          const progress = await prisma.progress.upsert({
+          // Update main progress bar
+          await prisma.progress.update({
             where: {
-              id: progressId || "",
+              id: progress.id,
             },
-            update: {
+            data: {
               progressBar: { increment: 100 },
               updatedAt: new Date(),
             },
-            create: {
+          });
+
+          // Create lesson-specific progress record
+          const lessonProgress = await prisma.progress.findFirst({
+            where: {
               userId,
               lessonId: existingVideo.lessonId,
-              courses: {
-                connect: { id: existingVideo.courseId },
-              },
-              progressBar: 100,
-              startedJourney: true,
             },
           });
+
+          if (!lessonProgress) {
+            await prisma.progress.create({
+              data: {
+                userId,
+                lessonId: existingVideo.lessonId,
+                courses: {
+                  connect: { id: existingVideo.courseId },
+                },
+                progressBar: 100,
+                startedJourney: true,
+              },
+            });
+          }
 
           // Award XP for completing the lesson
           gamificationResult = await GamificationService.AddPointsWithGamification(
@@ -383,6 +424,7 @@ export class VideoTrackerController extends Controller {
       this.setStatus(500);
       return {
         message: "An error occurred with tracking of the video",
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -421,13 +463,25 @@ export class VideoTrackerController extends Controller {
     @Path() lessonId: string,
     @Request() req: any
   ) {
-    const progressId = req.progressId;
+    const userId = req.user?.id;
     
     try {
+      // Find progress by userId
+      const progress = await prisma.progress.findFirst({
+        where: { userId },
+      });
+
+      if (!progress) {
+        return {
+          message: "No progress found for user",
+          data: null
+        };
+      }
+
       const tracker = await prisma.videoTracker.findFirst({
         where: {
           lessonId: lessonId,
-          progressId: progressId,
+          progressId: progress.id,
         },
         orderBy: {
           updatedAt: 'desc'
