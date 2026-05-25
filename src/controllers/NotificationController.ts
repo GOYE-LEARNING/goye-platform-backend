@@ -34,12 +34,13 @@ export class NotificationController extends Controller {
 
     try {
       userRole = userRole.toUpperCase();
-      
+
       // ✅ USE THE FILTER
-      const { where, settings } = await NotificationService.getNotificationFilter(userId, userRole);
+      const { where, settings } =
+        await NotificationService.getNotificationFilter(userId, userRole);
 
       const notifications = await prisma.notification.findMany({
-        where: where,  // ✅ FILTERED WHERE CLAUSE
+        where: where, // ✅ FILTERED WHERE CLAUSE
         orderBy: {
           createdAt: "desc",
         },
@@ -76,8 +77,8 @@ export class NotificationController extends Controller {
         count: notifications.length,
         settings: {
           courseNotificationsDisabled: settings.disableCourseNotifications,
-          groupNotificationsDisabled: settings.disableGroupNotifications
-        }
+          groupNotificationsDisabled: settings.disableGroupNotifications,
+        },
       };
     } catch (error: any) {
       console.error("Error fetching notifications:", error);
@@ -106,13 +107,14 @@ export class NotificationController extends Controller {
 
     try {
       userRole = userRole.toUpperCase();
-      
+
       // ✅ USE THE FILTER
-      const { where, settings } = await NotificationService.getNotificationFilter(userId, userRole);
+      const { where, settings } =
+        await NotificationService.getNotificationFilter(userId, userRole);
 
       const notifications = await prisma.notification.findMany({
         where: {
-          ...where,  // ✅ FILTERED WHERE CLAUSE
+          ...where, // ✅ FILTERED WHERE CLAUSE
           isRead: false,
         },
         orderBy: {
@@ -150,8 +152,8 @@ export class NotificationController extends Controller {
         unreadCount: notifications.length,
         settings: {
           courseNotificationsDisabled: settings.disableCourseNotifications,
-          groupNotificationsDisabled: settings.disableGroupNotifications
-        }
+          groupNotificationsDisabled: settings.disableGroupNotifications,
+        },
       };
     } catch (error: any) {
       console.error("Error fetching unread notifications:", error);
@@ -180,17 +182,18 @@ export class NotificationController extends Controller {
 
     try {
       userRole = userRole.toUpperCase();
-      
+
       // ✅ USE THE FILTER
-      const { where, settings } = await NotificationService.getNotificationFilter(userId, userRole);
+      const { where, settings } =
+        await NotificationService.getNotificationFilter(userId, userRole);
 
       const [total, unread] = await Promise.all([
         prisma.notification.count({
-          where: where,  // ✅ FILTERED WHERE CLAUSE
+          where: where, // ✅ FILTERED WHERE CLAUSE
         }),
         prisma.notification.count({
           where: {
-            ...where,  // ✅ FILTERED WHERE CLAUSE
+            ...where, // ✅ FILTERED WHERE CLAUSE
             isRead: false,
           },
         }),
@@ -204,8 +207,8 @@ export class NotificationController extends Controller {
           unread,
           settings: {
             courseNotificationsDisabled: settings.disableCourseNotifications,
-            groupNotificationsDisabled: settings.disableGroupNotifications
-          }
+            groupNotificationsDisabled: settings.disableGroupNotifications,
+          },
         },
       };
     } catch (error: any) {
@@ -273,13 +276,16 @@ export class NotificationController extends Controller {
 
     try {
       userRole = userRole.toUpperCase();
-      
+
       // ✅ USE THE FILTER
-      const { where } = await NotificationService.getNotificationFilter(userId, userRole);
+      const { where } = await NotificationService.getNotificationFilter(
+        userId,
+        userRole,
+      );
 
       const result = await prisma.notification.updateMany({
         where: {
-          ...where,  // ✅ FILTERED WHERE CLAUSE
+          ...where, // ✅ FILTERED WHERE CLAUSE
           isRead: false,
         },
         data: {
@@ -474,13 +480,16 @@ export class NotificationController extends Controller {
 
     try {
       userRole = userRole.toUpperCase();
-      
+
       // ✅ USE THE FILTER
-      const { where } = await NotificationService.getNotificationFilter(userId, userRole);
+      const { where } = await NotificationService.getNotificationFilter(
+        userId,
+        userRole,
+      );
 
       // Get all notification IDs for this user based on settings
       const notifications = await prisma.notification.findMany({
-        where: where,  // ✅ FILTERED WHERE CLAUSE
+        where: where, // ✅ FILTERED WHERE CLAUSE
         select: { id: true },
       });
 
@@ -532,7 +541,7 @@ export class NotificationController extends Controller {
       darkMode: boolean;
     },
     @Request() req: any,
-    @Path() settingsId: string
+    @Path() settingsId: string,
   ) {
     const userId = req.user?.id;
     const orgId = req.org?.id;
@@ -573,7 +582,7 @@ export class NotificationController extends Controller {
             daily_reminders: body.daily_reminders,
             darkMode: body.darkMode,
             email_notification: body.email_notification,
-            group_activity: body.group_activity,  // ✅ Added this
+            group_activity: body.group_activity, // ✅ Added this
             updatedAt: new Date(),
             userId,
             organizationId: null,
@@ -621,7 +630,7 @@ export class NotificationController extends Controller {
             daily_reminders: body.daily_reminders,
             darkMode: body.darkMode,
             email_notification: body.email_notification,
-            group_activity: body.group_activity,  // ✅ Added this
+            group_activity: body.group_activity, // ✅ Added this
             updatedAt: new Date(),
             userId: null,
             organizationId: organization.id,
@@ -648,32 +657,53 @@ export class NotificationController extends Controller {
 
   @Post("/make-system-announcement")
   public async MakeSystemAnnouncement() {
-   try {
-    const makeAnnoucement = await NotificationService.createSystemAnnouncement("Greetings", "Welcome to Goye", Role.STUDENT, "message")
-    return {
-      message: "Annoucement changes successfully",
-      data: makeAnnoucement
+    try {
+      const makeAnnoucement =
+        await NotificationService.createSystemAnnouncement(
+          "Greetings",
+          "Welcome to Goye",
+          Role.STUDENT,
+          "message",
+        );
+      return {
+        message: "Annoucement changes successfully",
+        data: makeAnnoucement,
+      };
+    } catch (error) {
+      console.error(error);
     }
-   } catch (error) {
-    console.error(error)
-   }
   }
 
   @Security("bearerAuth")
   @Get("/fetch-annocucment-by-admin")
-  public async FetchAnnouncementByAdmin() {
-   try {
-    const annocumentAdmin = await prisma.notification.findMany({
-      where: {
-        role: "ADMIN"
+  public async FetchAnnouncementByAdmin(@Request() req: any) {
+    const role = req.user?.role;
+    try {
+      if (role == "student") {
+        const annocumentForStudent = await prisma.notification.findMany({
+          where: {
+            role: "ADMIN",
+            to: "STUDENT",
+          },
+        });
+        return {
+          message: "Annoucement Fetched successfully",
+          data: annocumentForStudent,
+        };
+      } else if (role == "tutor" || role == "instructor") {
+        const annocumentForTutors = await prisma.notification.findMany({
+          where: {
+            role: "ADMIN",
+            to: "TUTOR",
+          },
+        });
+        return {
+          message: "Annoucement Fetched successfully",
+          data: annocumentForTutors,
+        };
       }
-    })
-     return {
-      message: "Annoucement Fetched successfully",
-      data: annocumentAdmin
+    } catch (error) {
+      console.error(error);
     }
-   } catch (error) {
-    console.error(error)
-   }
   }
 }
