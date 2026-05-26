@@ -394,6 +394,26 @@ model Progress {
   updatedAt         DateTime?
   lesson            Lesson?                @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId          String?
+
+  @@unique([userId, lessonId])  // ✅ Prevents duplicate lesson progress
+}
+
+model VideoTracker {
+  id                String         @id @default(uuid())
+  videoFinished     Boolean        @default(false)
+  videoTrackTime    Int
+  basedTimeTracking Tracking
+  course            Course?        @relation(references: [id], fields: [courseId], onDelete: Cascade)
+  lesson            Lesson?        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  progress          Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
+  progressId        String?
+  lessonId          String?
+  courseId          String?
+  pointHistory      PointHistory[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime?
+
+  @@unique([lessonId, progressId])  // ✅ Prevents duplicate video trackers
 }
 
 model PointHistory {
@@ -421,22 +441,6 @@ model PointHistory {
   quizAttemptId  String?
   progress       Progress?     @relation(fields: [progressId], references: [id], onDelete: Cascade)
   progressId     String?
-}
-
-model VideoTracker {
-  id                String         @id @default(uuid())
-  videoFinished     Boolean        @default(false)
-  videoTrackTime    Int
-  basedTimeTracking Tracking
-  course            Course?        @relation(references: [id], fields: [courseId], onDelete: Cascade)
-  lesson            Lesson?        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  progress          Progress?      @relation(fields: [progressId], references: [id], onDelete: Cascade)
-  progressId        String?
-  lessonId          String?
-  courseId          String?
-  pointHistory      PointHistory[]
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime?
 }
 
 enum Tracking {

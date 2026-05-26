@@ -84,43 +84,27 @@ export class VideoTrackerController extends Controller {
         });
       }
 
-      // Check if video is already completed
-      const existingTracker = await prisma.videoTracker.findFirst({
+      // ✅ Use upsert to prevent duplicate video trackers
+      const setVideoTracker = await prisma.videoTracker.upsert({
         where: {
-          lessonId: body.lessonId,
-          progressId: progress.id,
-          videoFinished: true,
+          lessonId_progressId: {
+            lessonId: body.lessonId,
+            progressId: progress.id,
+          },
         },
-      });
-
-      if (existingTracker) {
-        return {
-          message: "Video already completed",
-          data: existingTracker,
-        };
-      }
-
-      // Create video tracker
-      const setVideoTracker = await prisma.videoTracker.create({
-        data: {
+        update: {
+          videoTrackTime: body.videoTrackTime,
+          videoFinished: body.videoFinished,
+          basedTimeTracking: "SECOND_TIME_TRACKING",
+          updatedAt: new Date(),
+        },
+        create: {
           videoFinished: body.videoFinished,
           videoTrackTime: body.videoTrackTime,
           basedTimeTracking: "FIRST_TIME_TRACKING",
-          progress: {
-            connect: {
-              id: progress.id,
-            },
-          },
-          course: {
-            connect: {
-              id: body.courseId,
-            },
-          },
-          lesson: {
-            connect: {
-              id: body.lessonId,
-            },
-          },
+          progress: { connect: { id: progress.id } },
+          course: { connect: { id: body.courseId } },
+          lesson: { connect: { id: body.lessonId } },
         },
       });
 
@@ -128,8 +112,8 @@ export class VideoTrackerController extends Controller {
 
       // If video is finished, award XP for lesson completion
       if (body.videoFinished) {
-        // Check if lesson is already completed in progress
-        const existingProgress = await prisma.progress.findFirst({
+        // ✅ Check if lesson is already completed using unique constraint
+        const existingLessonProgress = await prisma.progress.findFirst({
           where: {
             userId,
             lessonId: body.lessonId,
@@ -137,39 +121,27 @@ export class VideoTrackerController extends Controller {
           },
         });
 
-        if (!existingProgress) {
-          // Update progress for this lesson
-          await prisma.progress.update({
+        if (!existingLessonProgress) {
+          // ✅ Use upsert for lesson progress to prevent duplicates
+          await prisma.progress.upsert({
             where: {
-              id: progress.id,
+              userId_lessonId: {
+                userId: userId,
+                lessonId: body.lessonId,
+              },
             },
-            data: {
-              progressBar: { increment: 100 },
+            update: {
+              progressBar: 100,
               updatedAt: new Date(),
             },
-          });
-
-          // Also create lesson-specific progress record if needed
-          const lessonProgress = await prisma.progress.findFirst({
-            where: {
+            create: {
               userId,
               lessonId: body.lessonId,
+              courses: { connect: { id: body.courseId } },
+              progressBar: 100,
+              startedJourney: true,
             },
           });
-
-          if (!lessonProgress) {
-            await prisma.progress.create({
-              data: {
-                userId,
-                lessonId: body.lessonId,
-                courses: {
-                  connect: { id: body.courseId },
-                },
-                progressBar: 100,
-                startedJourney: true,
-              },
-            });
-          }
 
           // Award XP for completing the lesson
           gamificationResult = await GamificationService.AddPointsWithGamification(
@@ -178,25 +150,23 @@ export class VideoTrackerController extends Controller {
             { courseId: body.courseId, lessonId: body.lessonId }
           );
 
-          // Check if all lessons in the course are completed
-          const courseModules = await prisma.module.findMany({
-            where: { courseId: body.courseId },
-            include: { lesson: true },
-          });
-
-          const allLessons = courseModules.flatMap((m) => m.lesson);
-          const completedLessons = await prisma.progress.findMany({
+          // ✅ Use distinct count for completed lessons
+          const completedLessonsCount = await prisma.progress.groupBy({
+            by: ['lessonId'],
             where: {
               userId,
-              lessonId: { in: allLessons.map((l) => l.id) },
+              lesson: { module: { courseId: body.courseId } },
               progressBar: { gte: 100 },
             },
-            select: { lessonId: true },
+          });
+
+          const totalLessonsCount = await prisma.lesson.count({
+            where: { module: { courseId: body.courseId } },
           });
 
           // If all lessons are completed and user hasn't completed course yet
           if (
-            completedLessons.length === allLessons.length &&
+            completedLessonsCount.length === totalLessonsCount &&
             enrollment.status !== "COMPLETED"
           ) {
             await GamificationService.AddPointsWithGamification(
@@ -306,8 +276,8 @@ export class VideoTrackerController extends Controller {
           });
         }
 
-        // Check if lesson is already completed in progress
-        const existingProgress = await prisma.progress.findFirst({
+        // ✅ Check if lesson is already completed using unique constraint
+        const existingLessonProgress = await prisma.progress.findFirst({
           where: {
             userId,
             lessonId: existingVideo.lessonId,
@@ -315,39 +285,27 @@ export class VideoTrackerController extends Controller {
           },
         });
 
-        if (!existingProgress) {
-          // Update main progress bar
-          await prisma.progress.update({
+        if (!existingLessonProgress) {
+          // ✅ Use upsert for lesson progress
+          await prisma.progress.upsert({
             where: {
-              id: progress.id,
+              userId_lessonId: {
+                userId: userId,
+                lessonId: existingVideo.lessonId,
+              },
             },
-            data: {
-              progressBar: { increment: 100 },
+            update: {
+              progressBar: 100,
               updatedAt: new Date(),
             },
-          });
-
-          // Create lesson-specific progress record
-          const lessonProgress = await prisma.progress.findFirst({
-            where: {
+            create: {
               userId,
               lessonId: existingVideo.lessonId,
+              courses: { connect: { id: existingVideo.courseId } },
+              progressBar: 100,
+              startedJourney: true,
             },
           });
-
-          if (!lessonProgress) {
-            await prisma.progress.create({
-              data: {
-                userId,
-                lessonId: existingVideo.lessonId,
-                courses: {
-                  connect: { id: existingVideo.courseId },
-                },
-                progressBar: 100,
-                startedJourney: true,
-              },
-            });
-          }
 
           // Award XP for completing the lesson
           gamificationResult = await GamificationService.AddPointsWithGamification(
@@ -367,25 +325,23 @@ export class VideoTrackerController extends Controller {
             },
           });
 
-          // Check if all lessons in the course are completed
-          const courseModules = await prisma.module.findMany({
-            where: { courseId: existingVideo.courseId },
-            include: { lesson: true },
-          });
-
-          const allLessons = courseModules.flatMap((m) => m.lesson);
-          const completedLessons = await prisma.progress.findMany({
+          // ✅ Use distinct count for completed lessons
+          const completedLessonsCount = await prisma.progress.groupBy({
+            by: ['lessonId'],
             where: {
               userId,
-              lessonId: { in: allLessons.map((l) => l.id) },
+              lesson: { module: { courseId: existingVideo.courseId } },
               progressBar: { gte: 100 },
             },
-            select: { lessonId: true },
+          });
+
+          const totalLessonsCount = await prisma.lesson.count({
+            where: { module: { courseId: existingVideo.courseId } },
           });
 
           // If all lessons are completed and user hasn't completed course yet
           if (
-            completedLessons.length === allLessons.length &&
+            completedLessonsCount.length === totalLessonsCount &&
             enrollment &&
             enrollment.status !== "COMPLETED"
           ) {
