@@ -1044,6 +1044,29 @@
 			"Omit_Module.id_": {
 				"$ref": "#/components/schemas/Pick_Module.Exclude_keyofModule.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
+			},
+			"GenerateCertificateBody": {
+				"properties": {
+					"enrollmentId": {
+						"type": "string"
+					},
+					"courseId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"enrollmentId",
+					"courseId"
+				],
+				"type": "object",
+				"additionalProperties": false
+			},
+			"_36_Enums.CertificateType": {
+				"type": "string",
+				"enum": [
+					"OTHER",
+					"COURSE"
+				]
 			}
 		},
 		"securitySchemes": {
@@ -1072,6 +1095,7 @@
 									"anyOf": [
 										{
 											"properties": {
+												"error": {},
 												"gamification": {},
 												"data": {},
 												"message": {
@@ -1085,65 +1109,7 @@
 										},
 										{
 											"properties": {
-												"gamification": {},
-												"data": {
-													"properties": {
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"lessonId": {
-															"type": "string"
-														},
-														"progressId": {
-															"type": "string"
-														},
-														"basedTimeTracking": {
-															"$ref": "#/components/schemas/_36_Enums.Tracking"
-														},
-														"videoTrackTime": {
-															"type": "number",
-															"format": "double"
-														},
-														"videoFinished": {
-															"type": "boolean"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"updatedAt",
-														"createdAt",
-														"courseId",
-														"lessonId",
-														"progressId",
-														"basedTimeTracking",
-														"videoTrackTime",
-														"videoFinished",
-														"id"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"data",
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
+												"error": {},
 												"gamification": {
 													"properties": {
 														"badgesEarned": {},
@@ -1215,6 +1181,23 @@
 												"message"
 											],
 											"type": "object"
+										},
+										{
+											"properties": {
+												"gamification": {},
+												"data": {},
+												"error": {
+													"type": "string"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error",
+												"message"
+											],
+											"type": "object"
 										}
 									]
 								}
@@ -1276,6 +1259,7 @@
 									"anyOf": [
 										{
 											"properties": {
+												"error": {},
 												"gamification": {},
 												"data": {},
 												"message": {
@@ -1289,6 +1273,7 @@
 										},
 										{
 											"properties": {
+												"error": {},
 												"gamification": {},
 												"data": {
 													"allOf": [
@@ -1484,6 +1469,7 @@
 										},
 										{
 											"properties": {
+												"error": {},
 												"gamification": {
 													"properties": {
 														"badgesEarned": {},
@@ -1552,6 +1538,23 @@
 											"required": [
 												"gamification",
 												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"gamification": {},
+												"data": {},
+												"error": {
+													"type": "string"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error",
 												"message"
 											],
 											"type": "object"
@@ -4986,6 +4989,18 @@
 																				"content": {
 																					"type": "string"
 																				},
+																				"_count": {
+																					"properties": {
+																						"children": {
+																							"type": "number",
+																							"format": "double"
+																						}
+																					},
+																					"required": [
+																						"children"
+																					],
+																					"type": "object"
+																				},
 																				"user": {
 																					"properties": {
 																						"user_pic": {
@@ -5009,18 +5024,6 @@
 																					],
 																					"type": "object"
 																				},
-																				"_count": {
-																					"properties": {
-																						"children": {
-																							"type": "number",
-																							"format": "double"
-																						}
-																					},
-																					"required": [
-																						"children"
-																					],
-																					"type": "object"
-																				},
 																				"createdAt": {
 																					"type": "string",
 																					"format": "date-time"
@@ -5031,14 +5034,31 @@
 																			},
 																			"required": [
 																				"content",
-																				"user",
 																				"_count",
+																				"user",
 																				"createdAt",
 																				"id"
 																			],
 																			"type": "object"
 																		},
 																		"type": "array"
+																	},
+																	"_count": {
+																		"properties": {
+																			"replies": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"likes": {
+																				"type": "number",
+																				"format": "double"
+																			}
+																		},
+																		"required": [
+																			"replies",
+																			"likes"
+																		],
+																		"type": "object"
 																	},
 																	"user": {
 																		"properties": {
@@ -5062,29 +5082,12 @@
 																			"id"
 																		],
 																		"type": "object"
-																	},
-																	"_count": {
-																		"properties": {
-																			"replies": {
-																				"type": "number",
-																				"format": "double"
-																			},
-																			"likes": {
-																				"type": "number",
-																				"format": "double"
-																			}
-																		},
-																		"required": [
-																			"replies",
-																			"likes"
-																		],
-																		"type": "object"
 																	}
 																},
 																"required": [
 																	"replies",
-																	"user",
-																	"_count"
+																	"_count",
+																	"user"
 																],
 																"type": "object"
 															},
@@ -14371,7 +14374,12 @@
 										{
 											"properties": {
 												"error": {},
+												"progress": {},
 												"courseCompleted": {},
+												"passingScore": {},
+												"score": {},
+												"passed": {},
+												"alreadyCompleted": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -14385,7 +14393,12 @@
 										{
 											"properties": {
 												"error": {},
-												"courseCompleted": {
+												"progress": {},
+												"courseCompleted": {},
+												"passingScore": {},
+												"score": {},
+												"passed": {},
+												"alreadyCompleted": {
 													"type": "boolean"
 												},
 												"data": {
@@ -14452,7 +14465,7 @@
 												}
 											},
 											"required": [
-												"courseCompleted",
+												"alreadyCompleted",
 												"data",
 												"message"
 											],
@@ -14460,7 +14473,139 @@
 										},
 										{
 											"properties": {
+												"error": {},
+												"alreadyCompleted": {},
+												"progress": {
+													"properties": {
+														"allQuizzesDone": {
+															"type": "boolean"
+														},
+														"allLessonsDone": {
+															"type": "boolean"
+														},
+														"totalQuizzes": {
+															"type": "number",
+															"format": "double"
+														},
+														"quizzesCompleted": {
+															"type": "number",
+															"format": "double"
+														},
+														"totalLessons": {
+															"type": "number",
+															"format": "double"
+														},
+														"lessonsCompleted": {
+															"type": "number",
+															"format": "double"
+														}
+													},
+													"required": [
+														"allQuizzesDone",
+														"allLessonsDone",
+														"totalQuizzes",
+														"quizzesCompleted",
+														"totalLessons",
+														"lessonsCompleted"
+													],
+													"type": "object"
+												},
+												"courseCompleted": {
+													"type": "boolean"
+												},
+												"passingScore": {
+													"type": "number",
+													"format": "double"
+												},
+												"score": {
+													"type": "number",
+													"format": "double"
+												},
+												"passed": {
+													"type": "boolean"
+												},
+												"data": {
+													"properties": {
+														"answers": {
+															"$ref": "#/components/schemas/JsonValue"
+														},
+														"timeFinished": {
+															"type": "number",
+															"format": "double"
+														},
+														"quizId": {
+															"type": "string"
+														},
+														"startedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"completedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"score": {
+															"type": "number",
+															"format": "double"
+														},
+														"completed": {
+															"type": "boolean"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"courseId": {
+															"type": "string"
+														},
+														"progressId": {
+															"type": "string"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"answers",
+														"timeFinished",
+														"quizId",
+														"startedAt",
+														"completedAt",
+														"score",
+														"completed",
+														"organizationId",
+														"userId",
+														"courseId",
+														"progressId",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"progress",
+												"courseCompleted",
+												"passingScore",
+												"score",
+												"passed",
+												"data",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"progress": {},
 												"courseCompleted": {},
+												"passingScore": {},
+												"score": {},
+												"passed": {},
+												"alreadyCompleted": {},
 												"data": {},
 												"error": {},
 												"message": {
@@ -15172,6 +15317,524 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/course/debug-course-state/{courseId}": {
+			"get": {
+				"operationId": "DebugCourseState",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Course Control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/certificate/generate": {
+			"post": {
+				"operationId": "GenerateCertificate",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"details": {},
+												"message": {},
+												"certificateId": {},
+												"certificateUrl": {},
+												"success": {},
+												"error": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"details": {},
+												"error": {},
+												"message": {
+													"type": "string"
+												},
+												"certificateId": {
+													"type": "string"
+												},
+												"certificateUrl": {
+													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"message",
+												"certificateId",
+												"certificateUrl",
+												"success"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"message": {},
+												"certificateId": {},
+												"certificateUrl": {},
+												"success": {},
+												"details": {
+													"type": "string"
+												},
+												"error": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"details",
+												"error"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"description": "Generate a certificate for a completed course",
+				"tags": [
+					"Certificate"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/GenerateCertificateBody"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/certificate/fetch-certificate-by-id/{certificateId}": {
+			"get": {
+				"operationId": "GetCertificate",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"data": {},
+												"success": {},
+												"error": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"error": {},
+												"data": {
+													"allOf": [
+														{
+															"properties": {
+																"course": {
+																	"properties": {
+																		"course_title": {
+																			"type": "string"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"course_title",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"course"
+															],
+															"type": "object"
+														},
+														{
+															"properties": {
+																"enrollmentId": {
+																	"type": "string"
+																},
+																"certificateImageURL": {
+																	"type": "string"
+																},
+																"certificateType": {
+																	"$ref": "#/components/schemas/_36_Enums.CertificateType"
+																},
+																"organizationId": {
+																	"type": "string"
+																},
+																"userId": {
+																	"type": "string"
+																},
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"courseId": {
+																	"type": "string"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"enrollmentId",
+																"certificateImageURL",
+																"certificateType",
+																"organizationId",
+																"userId",
+																"updatedAt",
+																"createdAt",
+																"courseId",
+																"id"
+															],
+															"type": "object"
+														}
+													]
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"data",
+												"success"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"description": "Get certificate by ID",
+				"tags": [
+					"Certificate"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "certificateId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/certificate/user/certificates": {
+			"get": {
+				"operationId": "GetUserCertificates",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"count": {},
+												"data": {},
+												"success": {},
+												"error": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"error": {},
+												"count": {
+													"type": "number",
+													"format": "double"
+												},
+												"data": {
+													"items": {
+														"allOf": [
+															{
+																"properties": {
+																	"course": {
+																		"properties": {
+																			"course_image": {
+																				"type": "string"
+																			},
+																			"course_title": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"course_image",
+																			"course_title",
+																			"id"
+																		],
+																		"type": "object"
+																	}
+																},
+																"required": [
+																	"course"
+																],
+																"type": "object"
+															},
+															{
+																"properties": {
+																	"enrollmentId": {
+																		"type": "string"
+																	},
+																	"certificateImageURL": {
+																		"type": "string"
+																	},
+																	"certificateType": {
+																		"$ref": "#/components/schemas/_36_Enums.CertificateType"
+																	},
+																	"organizationId": {
+																		"type": "string"
+																	},
+																	"userId": {
+																		"type": "string"
+																	},
+																	"updatedAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"createdAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"courseId": {
+																		"type": "string"
+																	},
+																	"id": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"enrollmentId",
+																	"certificateImageURL",
+																	"certificateType",
+																	"organizationId",
+																	"userId",
+																	"updatedAt",
+																	"createdAt",
+																	"courseId",
+																	"id"
+																],
+																"type": "object"
+															}
+														]
+													},
+													"type": "array"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"count",
+												"data",
+												"success"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"description": "Get all certificates for the current user",
+				"tags": [
+					"Certificate"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/certificate/check/{courseId}": {
+			"get": {
+				"operationId": "CheckCertificate",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"certificate": {},
+												"hasCertificate": {},
+												"success": {},
+												"error": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"error": {},
+												"certificate": {
+													"properties": {
+														"enrollmentId": {
+															"type": "string"
+														},
+														"certificateImageURL": {
+															"type": "string"
+														},
+														"certificateType": {
+															"$ref": "#/components/schemas/_36_Enums.CertificateType"
+														},
+														"organizationId": {
+															"type": "string"
+														},
+														"userId": {
+															"type": "string"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"courseId": {
+															"type": "string"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"enrollmentId",
+														"certificateImageURL",
+														"certificateType",
+														"organizationId",
+														"userId",
+														"updatedAt",
+														"createdAt",
+														"courseId",
+														"id"
+													],
+													"type": "object"
+												},
+												"hasCertificate": {
+													"type": "boolean"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"certificate",
+												"hasCertificate",
+												"success"
+											],
+											"type": "object"
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"description": "Check if a certificate exists for a specific course",
+				"tags": [
+					"Certificate"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		}
 	},
