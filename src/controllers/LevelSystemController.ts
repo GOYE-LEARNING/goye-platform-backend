@@ -19,7 +19,6 @@ import {
 @Tags("Levels and Badges Controller")
 @Route("growth")
 export class LevelSystem extends Controller {
-  
   @Security("bearerAuth")
   @Post("/start-journey")
   public async StartJourney(@Request() req: any): Promise<any> {
@@ -48,10 +47,11 @@ export class LevelSystem extends Controller {
         },
       });
 
-      const gamificationResult = await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.COURSE_ENROLLMENT
-      );
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.COURSE_ENROLLMENT,
+        );
 
       const achievementResult = await GrowthService.AchievementMessage({
         message_title: "Christian Cadet",
@@ -67,7 +67,8 @@ export class LevelSystem extends Controller {
         console.error("Achievement creation failed:", achievementResult.error);
         this.setStatus(200);
         return {
-          message: "Journey created successfully, but achievement creation failed",
+          message:
+            "Journey created successfully, but achievement creation failed",
           data: startJourney,
           achievementError: achievementResult.error,
           gamification: {
@@ -80,7 +81,8 @@ export class LevelSystem extends Controller {
 
       this.setStatus(200);
       return {
-        message: "Journey created successfully! Welcome to your spiritual growth path! 🎉",
+        message:
+          "Journey created successfully! Welcome to your spiritual growth path! 🎉",
         data: startJourney,
         achievementMessage: achievementResult.data || achievementResult,
         gamification: {
@@ -119,7 +121,14 @@ export class LevelSystem extends Controller {
         checkJourney = await prisma.progress.findUnique({
           where: { id: progressId, userId },
           include: {
-            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+                point: true,
+                level: true,
+              },
+            },
             badges_and_levels: { include: { badges: true, achievement: true } },
             achivement: true,
             pointHistory: { take: 10, orderBy: { createdAt: "desc" } },
@@ -132,7 +141,14 @@ export class LevelSystem extends Controller {
         checkJourney = await prisma.progress.findFirst({
           where: { userId },
           include: {
-            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+                point: true,
+                level: true,
+              },
+            },
             badges_and_levels: { include: { badges: true, achievement: true } },
             achivement: true,
             pointHistory: { take: 10, orderBy: { createdAt: "desc" } },
@@ -142,7 +158,9 @@ export class LevelSystem extends Controller {
 
       if (!checkJourney) {
         this.setStatus(404);
-        return { message: "Journey not found. Please start your journey first." };
+        return {
+          message: "Journey not found. Please start your journey first.",
+        };
       }
 
       const totalXP = checkJourney.user?.point || 0;
@@ -218,7 +236,10 @@ export class LevelSystem extends Controller {
           achievements,
           summary: {
             totalAchievements: achievements.length,
-            totalBadges: achievements.reduce((sum, a) => sum + (a.badge?.length || 0), 0),
+            totalBadges: achievements.reduce(
+              (sum, a) => sum + (a.badge?.length || 0),
+              0,
+            ),
             currentLevel: levelInfo.level,
             currentLevelName: levelInfo.name,
             totalXP: user?.point || 0,
@@ -257,11 +278,27 @@ export class LevelSystem extends Controller {
           where: { id: progressId, userId },
           include: {
             badges_and_levels: {
-              include: { badges: { include: { achievement: true } }, achievement: true },
+              include: {
+                badges: { include: { achievement: true } },
+                achievement: true,
+              },
             },
             achivement: { include: { badge: true } },
-            user: { select: { first_name: true, last_name: true, point: true, level: true } },
-            courses: { select: { course_title: true, point: true } },
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+                point: true,
+                level: true,
+              },
+            },
+            courses: {
+              select: {
+                course_title: true,
+                point: true,
+                id: true,
+              },
+            },
             pointHistory: { take: 20, orderBy: { createdAt: "desc" } },
           },
         });
@@ -273,11 +310,27 @@ export class LevelSystem extends Controller {
           where: { userId },
           include: {
             badges_and_levels: {
-              include: { badges: { include: { achievement: true } }, achievement: true },
+              include: {
+                badges: { include: { achievement: true } },
+                achievement: true,
+              },
             },
             achivement: { include: { badge: true } },
-            user: { select: { first_name: true, last_name: true, point: true, level: true } },
-            courses: { select: { course_title: true, point: true } },
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+                point: true,
+                level: true,
+              },
+            },
+            courses: {
+              select: {
+                course_title: true,
+                point: true,
+                id: true,
+              },
+            },
             pointHistory: { take: 20, orderBy: { createdAt: "desc" } },
           },
         });
@@ -288,7 +341,14 @@ export class LevelSystem extends Controller {
         fetchGrowth = await prisma.progress.create({
           data: { userId, startedJourney: true, progressBar: 0 },
           include: {
-            user: { select: { first_name: true, last_name: true, point: true, level: true } },
+            user: {
+              select: {
+                first_name: true,
+                last_name: true,
+                point: true,
+                level: true,
+              },
+            },
           },
         });
         // Set the cookie so future requests have it
@@ -302,12 +362,54 @@ export class LevelSystem extends Controller {
         });
       }
 
+      // ✅ FIX: Get completed courses count using enrollment.status
+      const completedEnrollments = await prisma.enrollment.findMany({
+        where: {
+          userId,
+          status: "COMPLETED",
+        },
+        select: {
+          courseId: true,
+          course: {
+            select: {
+              course_title: true,
+              point: true,
+            },
+          },
+        },
+      });
+
+      const completedCourses = completedEnrollments.length;
+      const completedCoursesList = completedEnrollments.map((e) => ({
+        courseId: e.courseId,
+        course_title: e.course.course_title,
+        points: e.course.point,
+      }));
+
+      // Get in-progress courses count
+      const inProgressCourses = await prisma.enrollment.count({
+        where: {
+          userId,
+          status: "IN_PROGRESS",
+        },
+      });
+
+      // Get enrolled courses count
+      const enrolledCourses = await prisma.enrollment.count({
+        where: {
+          userId,
+          status: { in: ["ENROLLED", "IN_PROGRESS"] },
+        },
+      });
+
       const totalBadges = fetchGrowth.badges_and_levels.reduce(
         (sum, bl) => sum + bl.badges.length,
-        0
+        0,
       );
-      const completedCourses = fetchGrowth.courses.filter((c) => c.point && c.point > 0).length;
-      const levelInfo = GamificationService.calculateLevel(fetchGrowth.user?.point || 0);
+
+      const levelInfo = GamificationService.calculateLevel(
+        fetchGrowth.user?.point || 0,
+      );
 
       this.setStatus(200);
       return {
@@ -329,13 +431,27 @@ export class LevelSystem extends Controller {
           stats: {
             totalBadges,
             totalAchievements: fetchGrowth.achivement.length,
-            completedCourses,
+            completedCourses, // ✅ Now using enrollment.status
+            inProgressCourses, // ✅ Added
+            enrolledCourses, // ✅ Added
             totalPoints: fetchGrowth.user?.point || 0,
             badgesAndLevels: fetchGrowth.badges_and_levels.length,
           },
+          courses: {
+            completed: completedCoursesList,
+            summary: {
+              totalCompleted: completedCourses,
+              totalInProgress: inProgressCourses,
+              totalEnrolled: enrolledCourses,
+            },
+          },
           achievements: {
-            courseCompletions: fetchGrowth.achivement.filter((a) => a.courseId !== null),
-            groupAchievements: fetchGrowth.achivement.filter((a) => a.groupId !== null),
+            courseCompletions: fetchGrowth.achivement.filter(
+              (a) => a.courseId !== null,
+            ),
+            groupAchievements: fetchGrowth.achivement.filter(
+              (a) => a.groupId !== null,
+            ),
             badges: fetchGrowth.badges_and_levels.flatMap((bl) => bl.badges),
             levelProgress: levelInfo,
           },

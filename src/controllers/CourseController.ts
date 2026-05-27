@@ -2081,115 +2081,119 @@ public async CompleteLesson(
   }
 
   @Security("bearerAuth")
-  @Get("/get-user-course-progress/{courseId}")
-  public async GetUserCourseProgress(
-    @Path() courseId: string,
-    @Request() req: any,
-  ): Promise<any> {
-    const userId = req.user?.id;
+@Get("/get-user-course-progress/{courseId}")
+public async GetUserCourseProgress(
+  @Path() courseId: string,
+  @Request() req: any,
+): Promise<any> {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authorized" };
-    }
-
-    try {
-      const course = await prisma.course.findUnique({
-        where: { id: courseId },
-        select: { course_title: true },
-      });
-      // Get enrollment status
-      const enrollment = await prisma.enrollment.findFirst({
-        where: { userId, courseId },
-      });
-
-      if (!enrollment) {
-        this.setStatus(404);
-        return { message: "User not enrolled in this course" };
-      }
-
-      // Get all lessons in the course
-      const courseModules = await prisma.module.findMany({
-        where: { courseId },
-        include: {
-          course: {
-            select: {
-              course_title: true,
-            },
-          },
-          lesson: {
-            orderBy: { order: "asc" },
-          },
-        },
-        orderBy: { order: "asc" },
-      });
-
-      const allLessons = courseModules.flatMap((m) => m.lesson);
-      const totalLessons = allLessons.length;
-
-      // Get completed lessons
-      const completedProgress = await prisma.progress.findMany({
-        where: {
-          userId,
-          lessonId: { in: allLessons.map((l) => l.id) },
-          progressBar: { gte: 100 },
-        },
-        select: { lessonId: true },
-      });
-
-      const completedLessons = completedProgress.length;
-      const progressPercentage =
-        totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
-
-      // Get user's gamification data
-      const gamificationData =
-        await GamificationService.getUserDashboard(userId);
-
-      this.setStatus(200);
-      return {
-        message: "Course progress fetched successfully",
-        data: {
-          courseId,
-          courseTitle: course.course_title,
-          enrollment: {
-            status: enrollment.status,
-            startedAt: enrollment.startedAt,
-            completedAt: enrollment.completedAt,
-            score: enrollment.score,
-          },
-          progress: {
-            completedLessons,
-            totalLessons,
-            percentage: progressPercentage,
-          },
-          modules: courseModules.map((module) => ({
-            id: module.id,
-            title: module.module_title,
-            totalLessons: module.lesson.length,
-            completedLessons: module.lesson.filter((l) =>
-              completedProgress.some((p) => p.lessonId === l.id),
-            ).length,
-            lessons: module.lesson.map((lesson) => ({
-              id: lesson.id,
-              title: lesson.lesson_title,
-              duration: lesson.duration,
-              completed: completedProgress.some(
-                (p) => p.lessonId === lesson.id,
-              ),
-            })),
-          })),
-          gamification: gamificationData.data?.gamification,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error fetching course progress:", error);
-      this.setStatus(500);
-      return {
-        message: "Failed to fetch course progress",
-        error: error.message,
-      };
-    }
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
   }
+
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { course_title: true },
+    });
+    
+    // Get enrollment status
+    const enrollment = await prisma.enrollment.findFirst({
+      where: { userId, courseId },
+    });
+
+    if (!enrollment) {
+      this.setStatus(404);
+      return { message: "User not enrolled in this course" };
+    }
+
+    // ✅ Check if course is completed via enrollment.status
+    const isCompleted = enrollment.status === "COMPLETED";
+
+    // Get all lessons in the course
+    const courseModules = await prisma.module.findMany({
+      where: { courseId },
+      include: {
+        course: {
+          select: {
+            course_title: true,
+          },
+        },
+        lesson: {
+          orderBy: { order: "asc" },
+        },
+      },
+      orderBy: { order: "asc" },
+    });
+
+    const allLessons = courseModules.flatMap((m) => m.lesson);
+    const totalLessons = allLessons.length;
+
+    // Get completed lessons
+    const completedProgress = await prisma.progress.findMany({
+      where: {
+        userId,
+        lessonId: { in: allLessons.map((l) => l.id) },
+        progressBar: { gte: 100 },
+      },
+      select: { lessonId: true },
+    });
+
+    const completedLessons = completedProgress.length;
+    const progressPercentage =
+      totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+
+    // Get user's gamification data
+    const gamificationData = await GamificationService.getUserDashboard(userId);
+
+    this.setStatus(200);
+    return {
+      message: "Course progress fetched successfully",
+      data: {
+        courseId,
+        courseTitle: course.course_title,
+        isCompleted, // ✅ Now using enrollment.status
+        enrollment: {
+          status: enrollment.status,
+          startedAt: enrollment.startedAt,
+          completedAt: enrollment.completedAt,
+          score: enrollment.score,
+        },
+        progress: {
+          completedLessons,
+          totalLessons,
+          percentage: progressPercentage,
+        },
+        modules: courseModules.map((module) => ({
+          id: module.id,
+          title: module.module_title,
+          totalLessons: module.lesson.length,
+          completedLessons: module.lesson.filter((l) =>
+            completedProgress.some((p) => p.lessonId === l.id),
+          ).length,
+          lessons: module.lesson.map((lesson) => ({
+            id: lesson.id,
+            title: lesson.lesson_title,
+            duration: lesson.duration,
+            completed: completedProgress.some(
+              (p) => p.lessonId === lesson.id,
+            ),
+          })),
+        })),
+        gamification: gamificationData.data?.gamification,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching course progress:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to fetch course progress",
+      error: error.message,
+    };
+  }
+}
 
   @Security("bearerAuth")
   @Get("/fetch-activities/{courseId}")

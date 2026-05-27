@@ -3,7 +3,7 @@ import prisma from "../src/db";
 
 async function checkCourseCompletion() {
   const userId = "cmp4lrdfx000a2a63klpnlly6";
-  const courseId = "cmpn05vgd000d1s8qpsk8l7jm";
+  const courseId = "cmpn1iqft00002acmbhbo1sv0";
   
   console.log("🎯 COURSE COMPLETION CHECKER\n");
   console.log("═".repeat(50));
