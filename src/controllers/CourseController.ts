@@ -39,176 +39,177 @@ const levels: Record<string, string> = {
 export class CourseController extends Controller {
   //create Course
 
-@Security("bearerAuth")
-@Post("/create-course")
-public async CreateCourse(
-  @Body() body: CreateCourseDTO,
-  @Request() req: any,
-): Promise<CourseResponse> {
-  const tutorId = req.user?.id;
-  const planId = req.user?.planId;
-  const orgId = req.org?.id;
-  const orgName = req.org?.organization_name;
-  
-  try {
-    // Use organizationId if exists, otherwise use createdUserId
-    Limitations(planId, tutorId, orgId);
-    
-    // Fetch the tutor's name from the database using their ID
-    const tutor = await prisma.user.findUnique({
-      where: { id: tutorId },
-      select: { 
-        first_name: true, 
-        last_name: true,
-        email_address: true 
-      }
-    });
-    
-    if (!tutor) {
-      this.setStatus(404);
-      return {
-        message: "Tutor not found",
-        data: null,
-      };
-    }
-    
-    // Construct the full name from first_name and last_name
-    const tutorFullName = `${tutor.first_name} ${tutor.last_name}`.trim();
-    const tutorName = tutorFullName || tutor.email_address || "Unknown Instructor";
-    
-    console.log("📝 Creating course with tutor:", {
-      id: tutorId,
-      name: tutorName,
-      email: tutor.email_address
-    });
-    
-    const course = await prisma.course.create({
-      data: {
-        organizationId: orgId ?? null,
-        organizationName: orgId ? orgName : null,
-        createdBy: tutorName,
-        createdUserId: tutorId,
-        course_title: body.course_title,
-        course_short_description: body.course_short_description,
-        course_description: body.course_description,
-        course_level: levels[body.course_level],
-        course_image: body.course_image,
+  @Security("bearerAuth")
+  @Post("/create-course")
+  public async CreateCourse(
+    @Body() body: CreateCourseDTO,
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const tutorId = req.user?.id;
+    const planId = req.user?.planId;
+    const orgId = req.org?.id;
+    const orgName = req.org?.organization_name;
 
-        // Handle modules with lessons
-        ...(body.module && {
-          module: {
-            create: body.module.map((module, index) => ({
-              module_title: module.module_title,
-              module_description: module.module_description,
-              module_duration: module.module_duration,
-              order: module.order || index,
-              ...(module.lessons && {
-                lesson: {
-                  create: module.lessons.map((lesson, lessonIndex) => ({
-                    lesson_title: lesson.lesson_title,
-                    lesson_video: lesson.lesson_video,
-                    order: lesson.order || lessonIndex,
-                    duration: lesson.duration,
-                  })),
-                },
-              }),
-            })),
-          },
-        }),
+    try {
+      // Use organizationId if exists, otherwise use createdUserId
+      Limitations(planId, tutorId, orgId);
 
-        // Handle materials
-        ...(body.material && {
-          material: {
-            create: body.material.map((material) => ({
-              material_title: material.material_title,
-              material_description: material.material_description,
-              material_pages: material.material_pages,
-              material_document: material.material_document,
-            })),
-          },
-        }),
-
-        // Handle objectives
-        ...(body.objectives && {
-          objectives: {
-            create: body.objectives.map((objective) => ({
-              objective_title1: objective.objective_title1,
-              objective_title2: objective.objective_title2,
-              objective_title3: objective.objective_title3,
-              objective_title4: objective.objective_title4,
-              objective_title5: objective.objective_title5,
-            })),
-          },
-        }),
-
-        // Handle quizzes with questions
-        ...(body.quiz && {
-          quiz: {
-            create: body.quiz.map((quiz) => ({
-              title: quiz.title,
-              description: quiz.description,
-              duration: quiz.duration,
-              passingScore: quiz.passingScore,
-              maxAttempts: quiz.maxAttempts,
-              ...(quiz.questions && {
-                questions: {
-                  create: quiz.questions.map((question, qIndex) => ({
-                    question: question.question,
-                    options: question.options,
-                    correctAnswer: question.correctAnswer,
-                    explanation: question.explanation,
-                    order: question.order || qIndex,
-                  })),
-                },
-              }),
-            })),
-          },
-        }),
-      },
-      include: {
-        module: {
-          include: {
-            lesson: true,
-          },
-          orderBy: {
-            order: "asc",
-          },
+      // Fetch the tutor's name from the database using their ID
+      const tutor = await prisma.user.findUnique({
+        where: { id: tutorId },
+        select: {
+          first_name: true,
+          last_name: true,
+          email_address: true,
         },
-        material: true,
-        objectives: true,
-        quiz: {
-          include: {
-            questions: {
-              orderBy: {
-                order: "asc",
+      });
+
+      if (!tutor) {
+        this.setStatus(404);
+        return {
+          message: "Tutor not found",
+          data: null,
+        };
+      }
+
+      // Construct the full name from first_name and last_name
+      const tutorFullName = `${tutor.first_name} ${tutor.last_name}`.trim();
+      const tutorName =
+        tutorFullName || tutor.email_address || "Unknown Instructor";
+
+      console.log("📝 Creating course with tutor:", {
+        id: tutorId,
+        name: tutorName,
+        email: tutor.email_address,
+      });
+
+      const course = await prisma.course.create({
+        data: {
+          organizationId: orgId ?? null,
+          organizationName: orgId ? orgName : null,
+          createdBy: tutorName,
+          createdUserId: tutorId,
+          course_title: body.course_title,
+          course_short_description: body.course_short_description,
+          course_description: body.course_description,
+          course_level: levels[body.course_level],
+          course_image: body.course_image,
+
+          // Handle modules with lessons
+          ...(body.module && {
+            module: {
+              create: body.module.map((module, index) => ({
+                module_title: module.module_title,
+                module_description: module.module_description,
+                module_duration: module.module_duration,
+                order: module.order || index,
+                ...(module.lessons && {
+                  lesson: {
+                    create: module.lessons.map((lesson, lessonIndex) => ({
+                      lesson_title: lesson.lesson_title,
+                      lesson_video: lesson.lesson_video,
+                      order: lesson.order || lessonIndex,
+                      duration: lesson.duration,
+                    })),
+                  },
+                }),
+              })),
+            },
+          }),
+
+          // Handle materials
+          ...(body.material && {
+            material: {
+              create: body.material.map((material) => ({
+                material_title: material.material_title,
+                material_description: material.material_description,
+                material_pages: material.material_pages,
+                material_document: material.material_document,
+              })),
+            },
+          }),
+
+          // Handle objectives
+          ...(body.objectives && {
+            objectives: {
+              create: body.objectives.map((objective) => ({
+                objective_title1: objective.objective_title1,
+                objective_title2: objective.objective_title2,
+                objective_title3: objective.objective_title3,
+                objective_title4: objective.objective_title4,
+                objective_title5: objective.objective_title5,
+              })),
+            },
+          }),
+
+          // Handle quizzes with questions
+          ...(body.quiz && {
+            quiz: {
+              create: body.quiz.map((quiz) => ({
+                title: quiz.title,
+                description: quiz.description,
+                duration: quiz.duration,
+                passingScore: quiz.passingScore,
+                maxAttempts: quiz.maxAttempts,
+                ...(quiz.questions && {
+                  questions: {
+                    create: quiz.questions.map((question, qIndex) => ({
+                      question: question.question,
+                      options: question.options,
+                      correctAnswer: question.correctAnswer,
+                      explanation: question.explanation,
+                      order: question.order || qIndex,
+                    })),
+                  },
+                }),
+              })),
+            },
+          }),
+        },
+        include: {
+          module: {
+            include: {
+              lesson: true,
+            },
+            orderBy: {
+              order: "asc",
+            },
+          },
+          material: true,
+          objectives: true,
+          quiz: {
+            include: {
+              questions: {
+                orderBy: {
+                  order: "asc",
+                },
               },
             },
           },
         },
-      },
-    });
-    
-    await NotificationService.createSystemAnnouncement(
-      `${course.course_title}`,
-      "Course Update",
-      Role.STUDENT,
-      "course",
-    );
-    
-    this.setStatus(201);
-    return {
-      message: "Course created successfully",
-      data: course,
-    };
-  } catch (error: any) {
-    console.error("❌ Error creating course:", error);
-    this.setStatus(500);
-    return {
-      message: "Error creating course: " + error.message,
-      data: null,
-    };
+      });
+
+      await NotificationService.createSystemAnnouncement(
+        `${course.course_title}`,
+        "Course Update",
+        Role.STUDENT,
+        "course",
+      );
+
+      this.setStatus(201);
+      return {
+        message: "Course created successfully",
+        data: course,
+      };
+    } catch (error: any) {
+      console.error("❌ Error creating course:", error);
+      this.setStatus(500);
+      return {
+        message: "Error creating course: " + error.message,
+        data: null,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Put("/update-course/{courseId}")
@@ -1518,34 +1519,44 @@ public async CreateCourse(
   }
 
   @Security("bearerAuth")
-  @Delete("/unsave-course/{courseId}")
-  public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return {
-        message: "User is unauthorized",
-      };
-    }
-
-    try {
-      const unsaveCourse = await prisma.savedCourses.delete({
-        where: {
-          courseId,
-        },
-      });
-
-      this.setStatus(200);
-      return {
-        message: "Course unsaved successfully",
-        data: unsaveCourse,
-      };
-    } catch (error) {
-      this.setStatus(500);
-      return {
-        message: "Error saving course",
-      };
-    }
+@Delete("/unsave-course/{courseId}")
+public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
+  const userId = req.user?.id;
+  if (!userId) {
+    return {
+      message: "User is unauthorized",
+    };
   }
+
+  try {
+    // ✅ FIX: Delete using both userId and courseId, not just courseId
+    const unsaveCourse = await prisma.savedCourses.deleteMany({
+      where: {
+        userId: userId,
+        courseId: courseId,
+      },
+    });
+
+    if (unsaveCourse.count === 0) {
+      this.setStatus(404);
+      return {
+        message: "Saved course not found",
+      };
+    }
+
+    this.setStatus(200);
+    return {
+      message: "Course unsaved successfully",
+      data: unsaveCourse,
+    };
+  } catch (error) {
+    console.error("Error unsaving course:", error);
+    this.setStatus(500);
+    return {
+      message: "Error unsaving course",
+    };
+  }
+}
 
   @Security("bearerAuth")
   @Get("/check-saved-course/{courseId}")
@@ -1817,194 +1828,204 @@ public async CreateCourse(
       console.error(error);
     }
   }
-@Security("bearerAuth")
-@Post("/complete-lesson/{courseId}/{lessonId}")
-public async CompleteLesson(
-  @Path() courseId: string,
-  @Path() lessonId: string,
-  @Request() req: any,
-): Promise<any> {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Post("/complete-lesson/{courseId}/{lessonId}")
+  public async CompleteLesson(
+    @Path() courseId: string,
+    @Path() lessonId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    // Check if lesson exists
-    const lesson = await prisma.lesson.findUnique({
-      where: { id: lessonId },
-      include: { module: true },
-    });
-
-    if (!lesson) {
-      this.setStatus(404);
-      return { message: "Lesson not found" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    // Check if user is enrolled
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { userId, courseId },
-    });
+    try {
+      // Check if lesson exists
+      const lesson = await prisma.lesson.findUnique({
+        where: { id: lessonId },
+        include: { module: true },
+      });
 
-    if (!enrollment) {
-      this.setStatus(403);
-      return { message: "You must be enrolled in this course" };
-    }
+      if (!lesson) {
+        this.setStatus(404);
+        return { message: "Lesson not found" };
+      }
 
-    // Get or create user progress
-    let userProgress = await prisma.progress.findFirst({
-      where: { userId },
-    });
+      // Check if user is enrolled
+      const enrollment = await prisma.enrollment.findFirst({
+        where: { userId, courseId },
+      });
 
-    if (!userProgress) {
-      userProgress = await prisma.progress.create({
-        data: {
-          userId,
-          startedJourney: true,
-          progressBar: 0,
+      if (!enrollment) {
+        this.setStatus(403);
+        return { message: "You must be enrolled in this course" };
+      }
+
+      // Get or create user progress
+      let userProgress = await prisma.progress.findFirst({
+        where: { userId },
+      });
+
+      if (!userProgress) {
+        userProgress = await prisma.progress.create({
+          data: {
+            userId,
+            startedJourney: true,
+            progressBar: 0,
+          },
+        });
+      }
+
+      // ✅ FIX: Check VideoTracker first to see if video was watched enough
+      const videoTracker = await prisma.videoTracker.findFirst({
+        where: {
+          lessonId: lessonId,
+          progressId: userProgress.id,
+          videoFinished: true,
         },
       });
-    }
 
-    // ✅ FIX: Check VideoTracker first to see if video was watched enough
-    const videoTracker = await prisma.videoTracker.findFirst({
-      where: {
-        lessonId: lessonId,
-        progressId: userProgress.id,
-        videoFinished: true,
-      },
-    });
+      // If video wasn't watched enough (95%+), don't mark as complete
+      if (!videoTracker) {
+        return {
+          message:
+            "Video not completed yet. Please watch at least 95% of the video.",
+          completed: false,
+          requiresMoreWatching: true,
+        };
+      }
 
-    // If video wasn't watched enough (95%+), don't mark as complete
-    if (!videoTracker) {
-      return {
-        message: "Video not completed yet. Please watch at least 95% of the video.",
-        completed: false,
-        requiresMoreWatching: true,
-      };
-    }
-
-    // ✅ FIX: Check if lesson is already completed (using unique constraint)
-    const existingProgress = await prisma.progress.findFirst({
-      where: {
-        userId,
-        lessonId: lessonId,
-        progressBar: { gte: 100 },
-      },
-    });
-
-    if (existingProgress) {
-      return {
-        message: "Lesson already completed",
-        alreadyCompleted: true,
-        data: { lessonId, completed: true },
-      };
-    }
-
-    // ✅ FIX: Create lesson progress record (prevent duplicates by checking first)
-    const lessonProgress = await prisma.progress.create({
-      data: {
-        userId,
-        lessonId: lessonId,
-        progressBar: 100,
-        startedJourney: true,
-        courses: {
-          connect: { id: courseId },
-        },
-      },
-    });
-
-    // Award XP for lesson completion
-    const gamificationResult = await GamificationService.AddPointsWithGamification(
-      userId,
-      ActionType.LESSON_COMPLETE,
-      { courseId, lessonId },
-    );
-
-    // Count unique completed lessons (using DISTINCT)
-    const completedLessons = await prisma.progress.groupBy({
-      by: ['lessonId'],
-      where: {
-        userId,
-        lessonId: { in: (await prisma.lesson.findMany({
-          where: { module: { courseId } },
-          select: { id: true }
-        })).map(l => l.id) },
-        progressBar: { gte: 100 },
-      },
-    });
-
-    const allLessons = await prisma.lesson.count({
-      where: { module: { courseId } }
-    });
-
-    const allLessonsCompleted = completedLessons.length === allLessons;
-
-    // Check all quizzes completion
-    const allQuizzes = await prisma.quiz.findMany({
-      where: { courseId },
-      select: { id: true },
-    });
-
-    let allQuizzesCompleted = true;
-    if (allQuizzes.length > 0) {
-      const completedQuizzes = await prisma.quizAttempt.groupBy({
-        by: ['quizId'],
+      // ✅ FIX: Check if lesson is already completed (using unique constraint)
+      const existingProgress = await prisma.progress.findFirst({
         where: {
           userId,
-          courseId,
-          completed: true,
-          quizId: { in: allQuizzes.map(q => q.id) },
+          lessonId: lessonId,
+          progressBar: { gte: 100 },
         },
       });
-      allQuizzesCompleted = completedQuizzes.length === allQuizzes.length;
-    }
 
-    // Mark course as completed if both conditions are met
-    let courseCompleted = false;
-    if (allLessonsCompleted && allQuizzesCompleted && enrollment.status !== "COMPLETED") {
-      await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.COURSE_COMPLETE,
-        { courseId },
-      );
+      if (existingProgress) {
+        return {
+          message: "Lesson already completed",
+          alreadyCompleted: true,
+          data: { lessonId, completed: true },
+        };
+      }
 
-      await prisma.enrollment.update({
-        where: { id: enrollment.id },
+      // ✅ FIX: Create lesson progress record (prevent duplicates by checking first)
+      const lessonProgress = await prisma.progress.create({
         data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
+          userId,
+          lessonId: lessonId,
+          progressBar: 100,
+          startedJourney: true,
+          courses: {
+            connect: { id: courseId },
+          },
         },
       });
-      courseCompleted = true;
-    }
 
-    this.setStatus(200);
-    return {
-      message: "Lesson completed successfully",
-      data: {
-        lessonProgress,
-        courseCompleted,
-        lessonsCompleted: completedLessons.length,
-        totalLessons: allLessons,
-        quizzesCompleted: allQuizzesCompleted ? allQuizzes.length : 0,
-        totalQuizzes: allQuizzes.length,
-      },
-      gamification: {
-        pointsEarned: gamificationResult.data?.pointsAdded,
-        leveledUp: gamificationResult.data?.leveledUp,
-        newLevel: gamificationResult.data?.newLevel,
-        badgesEarned: gamificationResult.data?.badgesEarned,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error completing lesson:", error);
-    this.setStatus(500);
-    return { message: "Failed to complete lesson", error: error.message };
+      // Award XP for lesson completion
+      const gamificationResult =
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.LESSON_COMPLETE,
+          { courseId, lessonId },
+        );
+
+      // Count unique completed lessons (using DISTINCT)
+      const completedLessons = await prisma.progress.groupBy({
+        by: ["lessonId"],
+        where: {
+          userId,
+          lessonId: {
+            in: (
+              await prisma.lesson.findMany({
+                where: { module: { courseId } },
+                select: { id: true },
+              })
+            ).map((l) => l.id),
+          },
+          progressBar: { gte: 100 },
+        },
+      });
+
+      const allLessons = await prisma.lesson.count({
+        where: { module: { courseId } },
+      });
+
+      const allLessonsCompleted = completedLessons.length === allLessons;
+
+      // Check all quizzes completion
+      const allQuizzes = await prisma.quiz.findMany({
+        where: { courseId },
+        select: { id: true },
+      });
+
+      let allQuizzesCompleted = true;
+      if (allQuizzes.length > 0) {
+        const completedQuizzes = await prisma.quizAttempt.groupBy({
+          by: ["quizId"],
+          where: {
+            userId,
+            courseId,
+            completed: true,
+            quizId: { in: allQuizzes.map((q) => q.id) },
+          },
+        });
+        allQuizzesCompleted = completedQuizzes.length === allQuizzes.length;
+      }
+
+      // Mark course as completed if both conditions are met
+      let courseCompleted = false;
+      if (
+        allLessonsCompleted &&
+        allQuizzesCompleted &&
+        enrollment.status !== "COMPLETED"
+      ) {
+        await GamificationService.AddPointsWithGamification(
+          userId,
+          ActionType.COURSE_COMPLETE,
+          { courseId },
+        );
+
+        await prisma.enrollment.update({
+          where: { id: enrollment.id },
+          data: {
+            status: "COMPLETED",
+            completedAt: new Date(),
+          },
+        });
+        courseCompleted = true;
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Lesson completed successfully",
+        data: {
+          lessonProgress,
+          courseCompleted,
+          lessonsCompleted: completedLessons.length,
+          totalLessons: allLessons,
+          quizzesCompleted: allQuizzesCompleted ? allQuizzes.length : 0,
+          totalQuizzes: allQuizzes.length,
+        },
+        gamification: {
+          pointsEarned: gamificationResult.data?.pointsAdded,
+          leveledUp: gamificationResult.data?.leveledUp,
+          newLevel: gamificationResult.data?.newLevel,
+          badgesEarned: gamificationResult.data?.badgesEarned,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error completing lesson:", error);
+      this.setStatus(500);
+      return { message: "Failed to complete lesson", error: error.message };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Post("/enroll-course/{courseId}")
@@ -2081,119 +2102,120 @@ public async CompleteLesson(
   }
 
   @Security("bearerAuth")
-@Get("/get-user-course-progress/{courseId}")
-public async GetUserCourseProgress(
-  @Path() courseId: string,
-  @Request() req: any,
-): Promise<any> {
-  const userId = req.user?.id;
+  @Get("/get-user-course-progress/{courseId}")
+  public async GetUserCourseProgress(
+    @Path() courseId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-      select: { course_title: true },
-    });
-    
-    // Get enrollment status
-    const enrollment = await prisma.enrollment.findFirst({
-      where: { userId, courseId },
-    });
-
-    if (!enrollment) {
-      this.setStatus(404);
-      return { message: "User not enrolled in this course" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    // ✅ Check if course is completed via enrollment.status
-    const isCompleted = enrollment.status === "COMPLETED";
+    try {
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { course_title: true },
+      });
 
-    // Get all lessons in the course
-    const courseModules = await prisma.module.findMany({
-      where: { courseId },
-      include: {
-        course: {
-          select: {
-            course_title: true,
+      // Get enrollment status
+      const enrollment = await prisma.enrollment.findFirst({
+        where: { userId, courseId },
+      });
+
+      if (!enrollment) {
+        this.setStatus(404);
+        return { message: "User not enrolled in this course" };
+      }
+
+      // ✅ Check if course is completed via enrollment.status
+      const isCompleted = enrollment.status === "COMPLETED";
+
+      // Get all lessons in the course
+      const courseModules = await prisma.module.findMany({
+        where: { courseId },
+        include: {
+          course: {
+            select: {
+              course_title: true,
+            },
+          },
+          lesson: {
+            orderBy: { order: "asc" },
           },
         },
-        lesson: {
-          orderBy: { order: "asc" },
+        orderBy: { order: "asc" },
+      });
+
+      const allLessons = courseModules.flatMap((m) => m.lesson);
+      const totalLessons = allLessons.length;
+
+      // Get completed lessons
+      const completedProgress = await prisma.progress.findMany({
+        where: {
+          userId,
+          lessonId: { in: allLessons.map((l) => l.id) },
+          progressBar: { gte: 100 },
         },
-      },
-      orderBy: { order: "asc" },
-    });
+        select: { lessonId: true },
+      });
 
-    const allLessons = courseModules.flatMap((m) => m.lesson);
-    const totalLessons = allLessons.length;
+      const completedLessons = completedProgress.length;
+      const progressPercentage =
+        totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
 
-    // Get completed lessons
-    const completedProgress = await prisma.progress.findMany({
-      where: {
-        userId,
-        lessonId: { in: allLessons.map((l) => l.id) },
-        progressBar: { gte: 100 },
-      },
-      select: { lessonId: true },
-    });
+      // Get user's gamification data
+      const gamificationData =
+        await GamificationService.getUserDashboard(userId);
 
-    const completedLessons = completedProgress.length;
-    const progressPercentage =
-      totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
-
-    // Get user's gamification data
-    const gamificationData = await GamificationService.getUserDashboard(userId);
-
-    this.setStatus(200);
-    return {
-      message: "Course progress fetched successfully",
-      data: {
-        courseId,
-        courseTitle: course.course_title,
-        isCompleted, // ✅ Now using enrollment.status
-        enrollment: {
-          status: enrollment.status,
-          startedAt: enrollment.startedAt,
-          completedAt: enrollment.completedAt,
-          score: enrollment.score,
-        },
-        progress: {
-          completedLessons,
-          totalLessons,
-          percentage: progressPercentage,
-        },
-        modules: courseModules.map((module) => ({
-          id: module.id,
-          title: module.module_title,
-          totalLessons: module.lesson.length,
-          completedLessons: module.lesson.filter((l) =>
-            completedProgress.some((p) => p.lessonId === l.id),
-          ).length,
-          lessons: module.lesson.map((lesson) => ({
-            id: lesson.id,
-            title: lesson.lesson_title,
-            duration: lesson.duration,
-            completed: completedProgress.some(
-              (p) => p.lessonId === lesson.id,
-            ),
+      this.setStatus(200);
+      return {
+        message: "Course progress fetched successfully",
+        data: {
+          courseId,
+          courseTitle: course.course_title,
+          isCompleted, // ✅ Now using enrollment.status
+          enrollment: {
+            status: enrollment.status,
+            startedAt: enrollment.startedAt,
+            completedAt: enrollment.completedAt,
+            score: enrollment.score,
+          },
+          progress: {
+            completedLessons,
+            totalLessons,
+            percentage: progressPercentage,
+          },
+          modules: courseModules.map((module) => ({
+            id: module.id,
+            title: module.module_title,
+            totalLessons: module.lesson.length,
+            completedLessons: module.lesson.filter((l) =>
+              completedProgress.some((p) => p.lessonId === l.id),
+            ).length,
+            lessons: module.lesson.map((lesson) => ({
+              id: lesson.id,
+              title: lesson.lesson_title,
+              duration: lesson.duration,
+              completed: completedProgress.some(
+                (p) => p.lessonId === lesson.id,
+              ),
+            })),
           })),
-        })),
-        gamification: gamificationData.data?.gamification,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error fetching course progress:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to fetch course progress",
-      error: error.message,
-    };
+          gamification: gamificationData.data?.gamification,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching course progress:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to fetch course progress",
+        error: error.message,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Get("/fetch-activities/{courseId}")
@@ -2301,6 +2323,7 @@ public async GetUserCourseProgress(
     }
   }
 
+  // In your CourseController.ts, update the fetch-saved-courses endpoint
   @Security("bearerAuth")
   @Get("/fetch-saved-courses")
   public async FetchSavedCourse(@Request() req: any) {
@@ -2312,28 +2335,37 @@ public async GetUserCourseProgress(
     }
 
     try {
-      const course = await prisma.savedCourses.findMany({
+      const savedCourses = await prisma.savedCourses.findMany({
         where: {
           userId,
+          courses: {
+            isNot: null, // ✅ Only get saved courses that still exist
+          },
         },
         include: {
           courses: true,
         },
       });
 
+      // Filter out any records where courses is null (just in case)
+      const validSavedCourses = savedCourses.filter(
+        (item) => item.courses !== null,
+      );
+
       this.setStatus(200);
       return {
         message: "Saved courses fetched successfully",
-        data: course,
+        data: validSavedCourses,
       };
     } catch (error) {
+      console.error("Error fetching saved courses:", error);
       this.setStatus(500);
       return {
-        message: "Error fetching course",
+        message: "Error fetching saved courses",
+        data: [],
       };
     }
   }
-
   @Security("bearerAuth")
   @Get("/tutor-overview")
   public async GetTutorOverview(@Request() req: any): Promise<any> {

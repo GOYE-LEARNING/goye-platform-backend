@@ -2117,7 +2117,9 @@ export class SocialController extends Controller {
         },
         select: {
           groupId: true,
+        
         },
+
       });
 
       const groupIds = joinedGroups.map((jg) => jg.groupId);
@@ -2144,8 +2146,10 @@ export class SocialController extends Controller {
               id: true,
               group_title: true,
               createdAt: true,
+
             },
           },
+          
         },
       });
 
