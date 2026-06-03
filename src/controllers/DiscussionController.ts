@@ -52,6 +52,9 @@ interface NestedReplyDTO {
   mediaUrls?: MediaItem[];
 }
 
+// Valid category enum values
+const VALID_CATEGORIES = ["DISCUSSION", "PRAYER", "DEVOTION", "BLESSING", "TESTIMONY", "QUESTION"];
+
 @Route("discussion")
 @Tags("Discussion & Messaging APIs")
 export class DiscussionController extends Controller {
@@ -151,12 +154,19 @@ export class DiscussionController extends Controller {
         return { message: "Content or media is required" };
       }
 
+      // Validate category
+      const normalizedCategory = body.category.toUpperCase();
+      if (!VALID_CATEGORIES.includes(normalizedCategory)) {
+        this.setStatus(400);
+        return { message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` };
+      }
+
       // ENCRYPT the public discussion content
       const encryptedContent = EncryptionUtil.encrypt(body.content);
       const discussion = await prisma.discussion.create({
         data: {
           content: encryptedContent,
-          category: body.category as any,
+          category: normalizedCategory as any,
           mediaUrls: (body.mediaUrls as any) || [],
           isPublic: true,
           authorId: userId,
@@ -946,13 +956,20 @@ export class DiscussionController extends Controller {
         return { message: "You can only edit your own posts" };
       }
 
+      // Validate category
+      const normalizedCategory = body.category.toUpperCase();
+      if (!VALID_CATEGORIES.includes(normalizedCategory)) {
+        this.setStatus(400);
+        return { message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` };
+      }
+
       const encryptedContent = EncryptionUtil.encrypt(body.content);
 
       const updated = await prisma.discussion.update({
         where: { id: discussionId },
         data: {
           content: encryptedContent,
-          category: body.category as any,
+          category: normalizedCategory as any,
           mediaUrls: (body.mediaUrls as any) || discussion.mediaUrls,
         },
         include: {
