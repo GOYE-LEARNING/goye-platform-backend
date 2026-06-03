@@ -21,14 +21,7 @@ import {
 import { EncryptionUtil } from "../utils/encryption";
 import { MediaService } from "../services/mediaServices";
 // ==================== INTERFACES ====================
-const category: Record<string, string> = {
-  discussion: "DISCUSSION",
-  prayer: "PRAYER",
-  devotion: "DEVOTION",
-  blessing: "BLESSING",
-  testimony: "TESTIMONY",
-  question: "QUESTION",
-};
+
 interface MediaItem {
   type: "image" | "video";
   url: string;
@@ -38,7 +31,7 @@ interface MediaItem {
 
 interface CreateDiscussionDTO {
   content: string;
-  category: typeof category;
+  category: string;
   isPublic: boolean;
   mediaUrls?: MediaItem[];
 }
