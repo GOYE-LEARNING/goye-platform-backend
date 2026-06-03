@@ -20,9 +20,15 @@ import {
 } from "../services/gamificationService";
 import { EncryptionUtil } from "../utils/encryption";
 import { MediaService } from "../services/mediaServices";
-
 // ==================== INTERFACES ====================
-
+const category: Record<string, string> = {
+  discussion: "DISCUSSION",
+  prayer: "PRAYER",
+  devotion: "DEVOTION",
+  blessing: "BLESSING",
+  testimony: "TESTIMONY",
+  question: "QUESTION",
+};
 interface MediaItem {
   type: "image" | "video";
   url: string;
@@ -32,6 +38,7 @@ interface MediaItem {
 
 interface CreateDiscussionDTO {
   content: string;
+  category: typeof category;
   isPublic: boolean;
   mediaUrls?: MediaItem[];
 }
@@ -153,10 +160,10 @@ export class DiscussionController extends Controller {
 
       // ENCRYPT the public discussion content
       const encryptedContent = EncryptionUtil.encrypt(body.content);
-
       const discussion = await prisma.discussion.create({
         data: {
           content: encryptedContent,
+          category: body.category as any,
           mediaUrls: (body.mediaUrls as any) || [],
           isPublic: true,
           authorId: userId,
@@ -921,7 +928,7 @@ export class DiscussionController extends Controller {
   public async UpdateDiscussion(
     @Request() req: any,
     @Path() discussionId: string,
-    @Body() body: { content: string; mediaUrls?: MediaItem[] },
+    @Body() body: { content: string; category: string; mediaUrls?: MediaItem[] },
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -952,6 +959,7 @@ export class DiscussionController extends Controller {
         where: { id: discussionId },
         data: {
           content: encryptedContent,
+          category: body.category as any,
           mediaUrls: (body.mediaUrls as any) || discussion.mediaUrls,
         },
         include: {
