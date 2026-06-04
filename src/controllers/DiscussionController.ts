@@ -53,7 +53,14 @@ interface NestedReplyDTO {
 }
 
 // Valid category enum values
-const VALID_CATEGORIES = ["DISCUSSION", "PRAYER", "DEVOTION", "BLESSING", "TESTIMONY", "QUESTION"];
+const VALID_CATEGORIES = [
+  "DISCUSSION",
+  "PRAYER",
+  "DEVOTION",
+  "BLESSING",
+  "TESTIMONY",
+  "QUESTION",
+];
 
 @Route("discussion")
 @Tags("Discussion & Messaging APIs")
@@ -158,7 +165,9 @@ export class DiscussionController extends Controller {
       const normalizedCategory = body.category.toUpperCase();
       if (!VALID_CATEGORIES.includes(normalizedCategory)) {
         this.setStatus(400);
-        return { message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` };
+        return {
+          message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}`,
+        };
       }
 
       // ENCRYPT the public discussion content
@@ -931,7 +940,8 @@ export class DiscussionController extends Controller {
   public async UpdateDiscussion(
     @Request() req: any,
     @Path() discussionId: string,
-    @Body() body: { content: string; category: string; mediaUrls?: MediaItem[] },
+    @Body()
+    body: { content: string; category: string; mediaUrls?: MediaItem[] },
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -960,7 +970,9 @@ export class DiscussionController extends Controller {
       const normalizedCategory = body.category.toUpperCase();
       if (!VALID_CATEGORIES.includes(normalizedCategory)) {
         this.setStatus(400);
-        return { message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}` };
+        return {
+          message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}`,
+        };
       }
 
       const encryptedContent = EncryptionUtil.encrypt(body.content);
@@ -1290,6 +1302,44 @@ export class DiscussionController extends Controller {
       this.setStatus(500);
       return {
         message: "Failed to fetch conversations",
+        error: error.message,
+      };
+    }
+  }
+
+  // Add this to your DiscussionController class
+  @Security("bearerAuth")
+  @Post("/private-messages/mark-read/{userId}")
+  public async MarkMessagesAsRead(
+    @Request() req: any,
+    @Path() userId: string,
+  ): Promise<any> {
+    const currentUserId = req.user?.id;
+
+    if (!currentUserId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
+    }
+
+    try {
+      await prisma.privateMessage.updateMany({
+        where: {
+          senderId: userId,
+          receiverId: currentUserId,
+          readAt: null,
+        },
+        data: {
+          readAt: new Date(),
+        },
+      });
+
+      this.setStatus(200);
+      return { message: "Messages marked as read successfully" };
+    } catch (error: any) {
+      console.error("Error marking messages as read:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to mark messages as read",
         error: error.message,
       };
     }
