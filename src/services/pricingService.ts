@@ -24,171 +24,222 @@ interface PricingOffers {
 
 export class PricingService {
   //Fetch pricing details
-  public static async FetchPricingDetails(): Promise<PricingData[]> {
-    try {
-      const data: PricingData[] = [
-        // Student plans
-        {
-          id: "student-1",
-          pricing_title: "Free",
-          monthly_price: "$0",
-          annually_price: "",
-          pricing_description: "Explore your faith. Learn and connect.",
-          pricing_offers: {
-            list: [
-              "Enroll in up to 5 courses",
-              "Join up to 4 groups",
-              "Standard search and discovery",
-            ],
-          },
-          section_roles: "student",
+public static async FetchPricingDetails(): Promise<PricingData[]> {
+  try {
+    const data: PricingData[] = [
+      // ==========================
+      // STUDENT PLANS
+      // ==========================
+      {
+        id: "student-1",
+        pricing_title: "Free",
+        monthly_price: "$0",
+        annually_price: "",
+        pricing_description:
+          "Explore your faith, learn, connect, and grow at your own pace.",
+        pricing_offers: {
+          list: [
+            "Enroll in up to 5 courses",
+            "Join up to 4 groups",
+            "Standard search and discovery",
+            "Basic progress tracking",
+            "Community discussions",
+            "Course certificates",
+          ],
         },
-        {
-          id: "student-2",
-          pricing_title: "Student Plus",
-          monthly_price: "$10",
-          annually_price: "$110",
-          pricing_description: "For the committed disciple who wants more.",
-          pricing_offers: {
-            list: [
-              "Enroll in up to 30 courses",
-              "Join up to 20 groups",
-              "Priority access to new courses",
-              "Downloadable course materials (where enabled)",
-            ],
-          },
-          section_roles: "student",
+        section_roles: "student",
+      },
+      {
+        id: "student-2",
+        pricing_title: "Student Plus",
+        monthly_price: "$10",
+        annually_price: "$96",
+        pricing_description:
+          "For students who want personalized discipleship guidance and enhanced learning tools.",
+        pricing_offers: {
+          list: [
+            "Enroll in up to 30 courses",
+            "Join up to 20 groups",
+            "AI-powered course recommendations",
+            "Reflection journal",
+            "Saved notes and bookmarks",
+            "Downloadable course materials",
+            "Priority access to new courses",
+            "Enhanced progress tracking",
+          ],
         },
-        {
-          id: "student-3",
-          pricing_title: "Student Unlimited",
-          monthly_price: "$18",
-          annually_price: "$200",
-          pricing_description:
-            "For the dedicated student with an insatiable hunger to grow.",
-          pricing_offers: {
-            list: [
-              "Unlimited course enrollments",
-              "Unlimited group memberships",
-              "Early enrollment in new courses",
-              "Full course history and portfolio",
-              "Certificate display on profile",
-            ],
-          },
-          section_roles: "student",
+        section_roles: "student",
+      },
+      {
+        id: "student-3",
+        pricing_title: "Student Unlimited",
+        monthly_price: "$18",
+        annually_price: "$180",
+        pricing_description:
+          "For dedicated disciples committed to continuous spiritual growth.",
+        pricing_offers: {
+          list: [
+            "Unlimited course enrollments",
+            "Unlimited group memberships",
+            "AI lesson summaries and notes generation",
+            "AI tutor matching",
+            "Personalized learning pathways",
+            "Certificate portfolio",
+            "Full course history",
+            "Early access to new courses",
+            "Advanced learning insights",
+          ],
         },
-        // Tutor plans
-        {
-          id: "tutor-1",
-          pricing_title: "Free",
-          monthly_price: "$0",
-          annually_price: "$0",
-          pricing_description: "Start teaching. Build your presence.",
-          pricing_offers: {
-            list: [
-              "Create up to 5 courses",
-              "Create up to 10 groups",
-              "Basic profile page",
-              "Course analytics (basic)",
-            ],
-          },
-          section_roles: "tutor",
-        },
-        {
-          id: "tutor-2",
-          pricing_title: "Tutor Pro",
-          monthly_price: "$20",
-          annually_price: "$210",
-          pricing_description: "For tutors ready to scale their ministry.",
-          pricing_offers: {
-            list: [
-              "Up to 25 courses",
-              "Up to 50 groups",
-              "Up to 200 students per course",
-              "•	Advanced analytics dashboard",
-            ],
-          },
-          section_roles: "tutor",
-        },
-        {
-          id: "tutor-3",
-          pricing_title: "Tutor Elite",
-          monthly_price: "$40",
-          annually_price: "$400",
-          pricing_description:
-            "For full-time Christian educators and ministry leaders.",
-          pricing_offers: {
-            list: [
-              "Unlimited courses",
-              "Unlimited groups",
-              "Unlimited students per course",
-              "Course completion certificates (for students)",
-            ],
-          },
-          section_roles: "tutor",
-        },
-        // Organization plans
-        {
-          id: "org-1",
-          pricing_title: "Church Starter/Growth/Enterprise",
-          monthly_price: "",
-          annually_price: "",
-          pricing_description:
-            "For churches, denominations, and national ministries.",
-          pricing_offers: {
-            list: [
-              "Unlimited members",
-              "Unlimited courses and groups",
-              "Custom onboarding and training",
-              "API access for CMS integrations",
-              "Quarterly strategy reviews",
-            ],
-          },
-          section_roles: "organization",
-        },
-        {
-          id: "org-2",
-          pricing_title: "School Starter/Growth/Enterprise",
-          monthly_price: "",
-          annually_price: "",
-          pricing_description:
-            "For large Christian schools, universities, and seminary institutions.",
-          pricing_offers: {
-            list: [
-              "Unlimited students",
-              "Unlimited courses and groups",
-              "Custom onboarding and staff training",
-              "API access for SIS integrations",
-              "SLA-backed uptime guarantee",
-            ],
-          },
-          section_roles: "organization",
-        },
-        {
-          id: "org-3",
-          pricing_title: "Clubs Starter/Growth/Enterprise",
-          monthly_price: "",
-          annually_price: "",
-          pricing_description:
-            "For clubs, Christian organizations, national clubs, and federations",
-          pricing_offers: {
-            list: [
-              "Unlimited members",
-              "Unlimited courses and groups",
-              "Custom onboarding and training",
-              "API access for CMS integrations",
-              "Quarterly strategy reviews",
-            ],
-          },
-          section_roles: "organization",
-        },
-      ];
+        section_roles: "student",
+      },
 
-      return data;
-    } catch (error: any) {
-      console.error(error.message);
-    }
+      // ==========================
+      // TUTOR PLANS
+      // ==========================
+      {
+        id: "tutor-1",
+        pricing_title: "Free",
+        monthly_price: "$0",
+        annually_price: "$0",
+        pricing_description:
+          "Start teaching and building your ministry presence.",
+        pricing_offers: {
+          list: [
+            "Create up to 5 courses",
+            "Create up to 10 groups",
+            "Basic tutor profile",
+            "Basic course analytics",
+            "Student management tools",
+          ],
+        },
+        section_roles: "tutor",
+      },
+      {
+        id: "tutor-2",
+        pricing_title: "Tutor Pro",
+        monthly_price: "$20",
+        annually_price: "$192",
+        pricing_description:
+          "For tutors ready to scale their impact and disciple more students.",
+        pricing_offers: {
+          list: [
+            "Up to 25 courses",
+            "Up to 50 groups",
+            "Up to 200 students per course",
+            "Advanced analytics dashboard",
+            "AI course performance insights",
+            "AI student engagement suggestions",
+            "Priority course publishing",
+          ],
+        },
+        section_roles: "tutor",
+      },
+      {
+        id: "tutor-3",
+        pricing_title: "Tutor Elite",
+        monthly_price: "$40",
+        annually_price: "$384",
+        pricing_description:
+          "For full-time Christian educators and ministry leaders.",
+        pricing_offers: {
+          list: [
+            "Unlimited courses",
+            "Unlimited groups",
+            "Unlimited students",
+            "AI lesson summaries",
+            "AI tutor performance insights",
+            "Advanced student analytics",
+            "Course completion certificates",
+            "Priority support",
+          ],
+        },
+        section_roles: "tutor",
+      },
+
+      // ==========================
+      // ORGANIZATION PLANS
+      // ==========================
+      {
+        id: "org-1",
+        pricing_title: "GOYE Pro",
+        monthly_price: "$49",
+        annually_price: "$490",
+        pricing_description:
+          "For growing churches, schools, ministries, and Christian organizations.",
+        pricing_offers: {
+          list: [
+            "21-Day Free Trial",
+            "Unlimited courses",
+            "Unlimited groups",
+            "Up to 500 members",
+            "Advanced analytics",
+            "Custom organization branding",
+            "AI-powered course recommendations",
+            "Certificate management",
+            "Priority support",
+            "Organization dashboard",
+          ],
+        },
+        section_roles: "organization",
+      },
+      {
+        id: "org-2",
+        pricing_title: "GOYE Elite",
+        monthly_price: "$149",
+        annually_price: "$1490",
+        pricing_description:
+          "For large ministries, schools, and organizations operating at scale.",
+        pricing_offers: {
+          list: [
+            "Everything in GOYE Pro",
+            "Unlimited members",
+            "AI tutor matching",
+            "AI lesson summaries and notes generation",
+            "Organization intelligence dashboard",
+            "Advanced moderation tools",
+            "Multiple administrators",
+            "Advanced reporting",
+            "Early access to new features",
+            "WhatsApp AI Integration (Coming Soon)",
+          ],
+        },
+        section_roles: "organization",
+      },
+
+      // ==========================
+      // ENTERPRISE
+      // ==========================
+      {
+        id: "org-3",
+        pricing_title: "Enterprise",
+        monthly_price: "Custom",
+        annually_price: "Custom",
+        pricing_description:
+          "For denominations, national ministries, universities, and large Christian networks.",
+        pricing_offers: {
+          list: [
+            "Everything in GOYE Elite",
+            "Dedicated account manager",
+            "Custom onboarding",
+            "Custom integrations",
+            "API access",
+            "Advanced security controls",
+            "Priority infrastructure",
+            "Custom AI solutions",
+            "Training and implementation support",
+            "Service Level Agreement (SLA)",
+          ],
+        },
+        section_roles: "organization",
+      },
+    ];
+
+    return data;
+  } catch (error: any) {
+    console.error(error.message);
+    return [];
   }
+}
   // To generate code
   public static async GenerateNewPaymentForNewUser(data: {
     userId: string;
