@@ -15,6 +15,7 @@ interface SocketUser {
 export class SocketService {
   private io: Server;
   private onlineUsers: Map<string, SocketUser> = new Map();
+  private pendingAuthSockets: Map<string, NodeJS.Timeout> = new Map(); // Track unauthenticated sockets
 
   constructor(server: any) {
     this.io = new Server(server, {
@@ -23,95 +24,160 @@ export class SocketService {
         methods: ["GET", "POST"],
         credentials: true,
       },
+      // Allow initial connection without auth
+      allowEIO3: true,
+      transports: ['websocket', 'polling']
     });
     this.setupMiddleware();
     this.setupEventHandlers();
   }
 
-  // backend/socketService.ts - Update the setupMiddleware function
-
-  // backend/socketService.ts - Update the setupMiddleware function
-
-  // backend socketService.ts - setupMiddleware
+  // SIMPLE MIDDLEWARE - Just log, don't reject
   private setupMiddleware() {
     this.io.use((socket, next) => {
-      try {
-        const cookieHeader = socket.handshake.headers.cookie;
-        const parsedCookies = cookie.parse(cookieHeader || "");
-
-        // Try cookie first, then handshake auth, then query param
-        const token =
-          parsedCookies.accessToken ||
-          parsedCookies.token ||
-          socket.handshake.auth?.token || // ← auth object
-          (socket.handshake.query?.token as string) ; // ← query fallback
-
-        console.log("🔑 Token source:", {
-          fromCookie: !!(parsedCookies.accessToken || parsedCookies.token),
-          fromAuth: !!socket.handshake.auth?.token,
-          fromQuery: !!socket.handshake.query?.token,
-          allCookies: Object.keys(parsedCookies),
-        });
-
-        if (!token) {
-          return next(new Error("Authentication error: No token found"));
-        }
-
-        const decoded = jwt.verify(
-          token,
-          process.env.BEARERAUTH_SECRET as string,
-        ) as { id: string };
-
-        if (!decoded?.id) {
-          return next(new Error("Authentication error: Invalid token payload"));
-        }
-
-        socket.data.userId = decoded.id;
-        console.log(`✅ User ${decoded.id} authenticated`);
-        next();
-      } catch (err) {
-        console.error("❌ JWT verify failed:", err);
-        next(new Error("Authentication error"));
-      }
+      // Log connection attempt
+      console.log("🔌 New socket connection attempt from:", socket.handshake.address);
+      
+      // Mark as unauthenticated initially
+      socket.data.authenticated = false;
+      
+      // Always allow connection - we'll authenticate later
+      next();
     });
   }
+
   private setupEventHandlers() {
     this.io.on(SOCKET_EVENTS.CONNECTION, (socket: Socket) => {
-      this.handleConnection(socket);
+      console.log(`📡 Socket connected: ${socket.id}`);
+      
+      // Set timeout to disconnect unauthenticated sockets after 10 seconds
+      const authTimeout = setTimeout(() => {
+        if (!socket.data.authenticated) {
+          console.log(`⏰ Socket ${socket.id} timed out without authentication, disconnecting`);
+          socket.emit("auth_timeout", { message: "Authentication timeout" });
+          socket.disconnect();
+        }
+      }, 10000);
+      
+      this.pendingAuthSockets.set(socket.id, authTimeout);
+      
+      this.setupAuthentication(socket);
       this.setupSocketEvents(socket);
     });
   }
 
-  private handleConnection(socket: Socket) {
-    const userId = socket.data.userId;
-    console.log(`🔌 User ${userId} connected with socket ${socket.id}`);
+  // Separate authentication handler
+  private setupAuthentication(socket: Socket) {
+    socket.on("authenticate", async (data: { token: string }) => {
+      try {
+        console.log(`🔐 Authentication attempt for socket ${socket.id}`);
+        
+        if (!data || !data.token) {
+          socket.emit("authenticated", { 
+            success: false, 
+            error: "No token provided" 
+          });
+          return;
+        }
 
-    // Store user online status
-    this.onlineUsers.set(userId, {
-      userId,
-      socketId: socket.id,
-      online: true,
-      lastSeen: new Date(),
+        // Verify JWT
+        const decoded = jwt.verify(
+          data.token,
+          process.env.BEARERAUTH_SECRET as string
+        ) as { id: string };
+
+        if (!decoded || !decoded.id) {
+          socket.emit("authenticated", { 
+            success: false, 
+            error: "Invalid token payload" 
+          });
+          return;
+        }
+
+        // Clear timeout since they authenticated
+        const timeout = this.pendingAuthSockets.get(socket.id);
+        if (timeout) {
+          clearTimeout(timeout);
+          this.pendingAuthSockets.delete(socket.id);
+        }
+
+        // Set authenticated data
+        socket.data.userId = decoded.id;
+        socket.data.authenticated = true;
+        
+        // Join user's personal room for private messages
+        socket.join(`user:${decoded.id}`);
+        
+        // Check if user was already online (possible reconnection)
+        const existingUser = this.onlineUsers.get(decoded.id);
+        if (existingUser) {
+          // Update socket ID for existing user
+          existingUser.socketId = socket.id;
+          existingUser.online = true;
+          existingUser.lastSeen = new Date();
+          this.onlineUsers.set(decoded.id, existingUser);
+        } else {
+          // Add new online user
+          this.onlineUsers.set(decoded.id, {
+            userId: decoded.id,
+            socketId: socket.id,
+            online: true,
+            lastSeen: new Date(),
+          });
+        }
+        
+        // Emit success
+        socket.emit("authenticated", { 
+          success: true, 
+          userId: decoded.id 
+        });
+        
+        // Broadcast user online to all connected users
+        this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
+          userId: decoded.id,
+          online: true,
+          lastSeen: new Date(),
+        });
+        
+        console.log(`✅ User ${decoded.id} authenticated successfully on socket ${socket.id}`);
+        
+        // Send current online users list to this user
+        const onlineUsersList = Array.from(this.onlineUsers.values())
+          .filter(u => u.online && u.userId !== decoded.id)
+          .map(u => u.userId);
+        
+        socket.emit(SOCKET_EVENTS.USERS_ONLINE_LIST, onlineUsersList);
+        
+      } catch (err) {
+        console.error("❌ Authentication error:", err);
+        socket.emit("authenticated", { 
+          success: false, 
+          error: "Authentication failed" 
+        });
+      }
     });
-
-    // Broadcast online status
-    this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
-      userId,
-      online: true,
-      lastSeen: new Date(),
-    });
-
-    // Join user's personal room
-    socket.join(`user:${userId}`);
   }
 
   private setupSocketEvents(socket: Socket) {
-    const userId = socket.data.userId;
+    // Helper to check authentication
+    const isAuthenticated = () => {
+      if (!socket.data.authenticated || !socket.data.userId) {
+        socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
+          message: "Not authenticated. Please authenticate first."
+        });
+        return false;
+      }
+      return true;
+    };
 
     // Handle private message with reply
     socket.on(SOCKET_EVENTS.PRIVATE_MESSAGE, async (data) => {
+      if (!isAuthenticated()) return;
+      
+      const userId = socket.data.userId;
+      
       try {
-        const { receiverId, content, replyToId } = data;
+        const { receiverId, content, replyToId, mediaUrls } = data;
         const senderId = userId;
 
         if (!receiverId || !content) {
@@ -155,6 +221,7 @@ export class SocketService {
             senderId,
             receiverId,
             replyToId: replyToId || undefined,
+            mediaUrls: mediaUrls || [],
           },
           include: {
             sender: {
@@ -204,8 +271,11 @@ export class SocketService {
       }
     });
 
-    // Handle message update (edit) - STORE isEdited flag
+    // Handle message update (edit)
     socket.on("private:message:updated", async (data) => {
+      if (!isAuthenticated()) return;
+      
+      const userId = socket.data.userId;
       const { messageId, content } = data;
 
       try {
@@ -229,7 +299,6 @@ export class SocketService {
 
         const encryptedContent = EncryptionUtil.encrypt(content);
 
-        // Update with isEdited flag
         await prisma.privateMessage.update({
           where: { id: messageId },
           data: {
@@ -264,6 +333,9 @@ export class SocketService {
 
     // Handle message delete
     socket.on("private:message:delete", async (data) => {
+      if (!isAuthenticated()) return;
+      
+      const userId = socket.data.userId;
       const { messageId } = data;
 
       try {
@@ -287,7 +359,6 @@ export class SocketService {
           return;
         }
 
-        // Soft delete - update content and set isDeleted flag
         await prisma.privateMessage.update({
           where: { id: messageId },
           data: {
@@ -322,10 +393,12 @@ export class SocketService {
 
     // Handle clear chat
     socket.on("private:clear", async (data) => {
+      if (!isAuthenticated()) return;
+      
+      const userId = socket.data.userId;
       const { receiverId } = data;
 
       try {
-        // Soft delete all messages between these two users
         await prisma.privateMessage.updateMany({
           where: {
             OR: [
@@ -344,7 +417,6 @@ export class SocketService {
           clearedAt: new Date(),
         };
 
-        // Send to both users
         this.io
           .to(`user:${userId}`)
           .emit("private:chat:cleared", clearEventData);
@@ -361,7 +433,11 @@ export class SocketService {
 
     // Handle typing indicator
     socket.on(SOCKET_EVENTS.PRIVATE_TYPING, (data) => {
+      if (!isAuthenticated()) return;
+      
+      const userId = socket.data.userId;
       const { receiverId, isTyping } = data;
+      
       const receiverSocket = this.onlineUsers.get(receiverId);
       if (receiverSocket?.online) {
         this.io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.PRIVATE_TYPING, {
@@ -373,6 +449,9 @@ export class SocketService {
 
     // Handle read receipts
     socket.on(SOCKET_EVENTS.PRIVATE_READ, async (data) => {
+      if (!isAuthenticated()) return;
+      
+      const userId = socket.data.userId;
       const { messageIds, senderId } = data;
 
       try {
@@ -401,22 +480,38 @@ export class SocketService {
 
     // Handle disconnect
     socket.on(SOCKET_EVENTS.DISCONNECT, () => {
-      console.log(`🔌 User ${userId} disconnected`);
-      const user = this.onlineUsers.get(userId);
-      if (user) {
-        user.online = false;
-        user.lastSeen = new Date();
-        this.onlineUsers.set(userId, user);
-        this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
-          userId,
-          online: false,
-          lastSeen: new Date(),
-        });
+      const userId = socket.data.userId;
+      
+      // Clear pending auth timeout if exists
+      const timeout = this.pendingAuthSockets.get(socket.id);
+      if (timeout) {
+        clearTimeout(timeout);
+        this.pendingAuthSockets.delete(socket.id);
+      }
+      
+      if (userId) {
+        console.log(`🔌 User ${userId} disconnected from socket ${socket.id}`);
+        const user = this.onlineUsers.get(userId);
+        if (user && user.socketId === socket.id) {
+          user.online = false;
+          user.lastSeen = new Date();
+          this.onlineUsers.set(userId, user);
+          
+          this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
+            userId,
+            online: false,
+            lastSeen: new Date(),
+          });
+        }
+      } else {
+        console.log(`🔌 Unauthenticated socket ${socket.id} disconnected`);
       }
     });
 
     // Get online users
     socket.on("users:online", () => {
+      if (!isAuthenticated()) return;
+      
       const online = Array.from(this.onlineUsers.values())
         .filter((u) => u.online)
         .map((u) => u.userId);
