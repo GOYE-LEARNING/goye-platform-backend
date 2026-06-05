@@ -28,6 +28,10 @@ export class SocketService {
     this.setupEventHandlers();
   }
 
+  // backend/socketService.ts - Update the setupMiddleware function
+
+  // backend/socketService.ts - Update the setupMiddleware function
+
   private setupMiddleware() {
     this.io.use((socket, next) => {
       try {
@@ -35,25 +39,35 @@ export class SocketService {
         console.log("🍪 Cookie header:", cookieHeader);
 
         const parsedCookies = cookie.parse(cookieHeader || "");
-        const token = parsedCookies.token;
+
+        // IMPORTANT FIX: Look for accessToken (not token)
+        const token = parsedCookies.accessToken || parsedCookies.token;
         console.log("🔑 Token found:", !!token);
-        if (!token) return next(new Error(`Authentication error: ${token}`));
+        console.log("Available cookies:", Object.keys(parsedCookies));
+
+        if (!token) {
+          console.error("❌ No token found in cookies");
+          return next(new Error("Authentication error: No token found"));
+        }
 
         const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
           id: string;
         };
-        if (!decoded.id)
-          return next(new Error("Authentication error: Invalid token"));
+
+        if (!decoded.id) {
+          return next(new Error("Authentication error: Invalid token payload"));
+        }
+
         socket.data.userId = decoded.id;
+        console.log(`✅ User ${decoded.id} authenticated via socket`);
 
         next();
       } catch (err) {
-        console.error(" JWT verify failed:", err);
+        console.error("❌ JWT verify failed:", err);
         next(new Error("Authentication error"));
       }
     });
   }
-
   private setupEventHandlers() {
     this.io.on(SOCKET_EVENTS.CONNECTION, (socket: Socket) => {
       this.handleConnection(socket);
@@ -101,7 +115,7 @@ export class SocketService {
         }
 
         const encryptedContent = EncryptionUtil.encrypt(content);
-        
+
         // Get reply message data if replying
         let replyData = null;
         if (replyToId) {
@@ -117,7 +131,7 @@ export class SocketService {
               },
             },
           });
-          
+
           if (originalMessage) {
             replyData = {
               id: originalMessage.id,
@@ -127,7 +141,7 @@ export class SocketService {
             };
           }
         }
-        
+
         const message = await prisma.privateMessage.create({
           data: {
             content: encryptedContent,
@@ -211,7 +225,7 @@ export class SocketService {
         // Update with isEdited flag
         await prisma.privateMessage.update({
           where: { id: messageId },
-          data: { 
+          data: {
             content: encryptedContent,
             isEdited: true,
           },
@@ -227,9 +241,12 @@ export class SocketService {
         };
 
         // Send to both users
-        this.io.to(`user:${message.senderId}`).emit("private:message:updated", updateEventData);
-        this.io.to(`user:${message.receiverId}`).emit("private:message:updated", updateEventData);
-
+        this.io
+          .to(`user:${message.senderId}`)
+          .emit("private:message:updated", updateEventData);
+        this.io
+          .to(`user:${message.receiverId}`)
+          .emit("private:message:updated", updateEventData);
       } catch (error) {
         console.error("Error updating message:", error);
         socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
@@ -266,7 +283,7 @@ export class SocketService {
         // Soft delete - update content and set isDeleted flag
         await prisma.privateMessage.update({
           where: { id: messageId },
-          data: { 
+          data: {
             isDeleted: true,
             content: "This message was deleted",
           },
@@ -282,9 +299,12 @@ export class SocketService {
         };
 
         // Send to both sender and receiver
-        this.io.to(`user:${message.senderId}`).emit("private:message:deleted", deleteEventData);
-        this.io.to(`user:${message.receiverId}`).emit("private:message:deleted", deleteEventData);
-
+        this.io
+          .to(`user:${message.senderId}`)
+          .emit("private:message:deleted", deleteEventData);
+        this.io
+          .to(`user:${message.receiverId}`)
+          .emit("private:message:deleted", deleteEventData);
       } catch (error) {
         console.error("Error deleting message:", error);
         socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
@@ -318,9 +338,12 @@ export class SocketService {
         };
 
         // Send to both users
-        this.io.to(`user:${userId}`).emit("private:chat:cleared", clearEventData);
-        this.io.to(`user:${receiverId}`).emit("private:chat:cleared", clearEventData);
-
+        this.io
+          .to(`user:${userId}`)
+          .emit("private:chat:cleared", clearEventData);
+        this.io
+          .to(`user:${receiverId}`)
+          .emit("private:chat:cleared", clearEventData);
       } catch (error) {
         console.error("Error clearing chat:", error);
         socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
