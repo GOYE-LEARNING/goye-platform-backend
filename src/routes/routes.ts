@@ -240,6 +240,7 @@ const models: TsoaRoute.Models = {
         "dataType": "refObject",
         "properties": {
             "content": {"dataType":"string","required":true},
+            "category": {"dataType":"string","required":true},
             "isPublic": {"dataType":"boolean","required":true},
             "mediaUrls": {"dataType":"array","array":{"dataType":"refObject","ref":"MediaItem"}},
         },
@@ -4560,7 +4561,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         const argsDiscussionController_UpdateDiscussion: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 discussionId: {"in":"path","name":"discussionId","required":true,"dataType":"string"},
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"mediaUrls":{"dataType":"array","array":{"dataType":"refObject","ref":"MediaItem"}},"content":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"mediaUrls":{"dataType":"array","array":{"dataType":"refObject","ref":"MediaItem"}},"category":{"dataType":"string","required":true},"content":{"dataType":"string","required":true}}},
         };
         app.put('/api/discussion/:discussionId',
             authenticateMiddleware([{"bearerAuth":[]}]),
@@ -4706,6 +4707,38 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'GetPrivateConversations',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsDiscussionController_MarkMessagesAsRead: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
+        };
+        app.post('/api/discussion/private-messages/mark-read/:userId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController)),
+            ...(fetchMiddlewares<RequestHandler>(DiscussionController.prototype.MarkMessagesAsRead)),
+
+            async function DiscussionController_MarkMessagesAsRead(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsDiscussionController_MarkMessagesAsRead, request, response });
+
+                const controller = new DiscussionController();
+
+              await templateService.apiHandler({
+                methodName: 'MarkMessagesAsRead',
                 controller,
                 response,
                 next,

@@ -15,7 +15,7 @@ interface SocketUser {
 export class SocketService {
   private io: Server;
   private onlineUsers: Map<string, SocketUser> = new Map();
-  private pendingAuthSockets: Map<string, NodeJS.Timeout> = new Map(); // Track unauthenticated sockets
+  private pendingAuthSockets: Map<string, NodeJS.Timeout> = new Map();
 
   constructor(server: any) {
     this.io = new Server(server, {
@@ -24,7 +24,6 @@ export class SocketService {
         methods: ["GET", "POST"],
         credentials: true,
       },
-      // Allow initial connection without auth
       allowEIO3: true,
       transports: ['websocket', 'polling']
     });
@@ -32,16 +31,10 @@ export class SocketService {
     this.setupEventHandlers();
   }
 
-  // SIMPLE MIDDLEWARE - Just log, don't reject
   private setupMiddleware() {
     this.io.use((socket, next) => {
-      // Log connection attempt
       console.log("🔌 New socket connection attempt from:", socket.handshake.address);
-      
-      // Mark as unauthenticated initially
       socket.data.authenticated = false;
-      
-      // Always allow connection - we'll authenticate later
       next();
     });
   }
@@ -50,7 +43,6 @@ export class SocketService {
     this.io.on(SOCKET_EVENTS.CONNECTION, (socket: Socket) => {
       console.log(`📡 Socket connected: ${socket.id}`);
       
-      // Set timeout to disconnect unauthenticated sockets after 10 seconds
       const authTimeout = setTimeout(() => {
         if (!socket.data.authenticated) {
           console.log(`⏰ Socket ${socket.id} timed out without authentication, disconnecting`);
@@ -66,7 +58,6 @@ export class SocketService {
     });
   }
 
-  // Separate authentication handler
   private setupAuthentication(socket: Socket) {
     socket.on("authenticate", async (data: { token: string }) => {
       try {
@@ -80,7 +71,6 @@ export class SocketService {
           return;
         }
 
-        // Verify JWT
         const decoded = jwt.verify(
           data.token,
           process.env.BEARERAUTH_SECRET as string
@@ -94,30 +84,24 @@ export class SocketService {
           return;
         }
 
-        // Clear timeout since they authenticated
         const timeout = this.pendingAuthSockets.get(socket.id);
         if (timeout) {
           clearTimeout(timeout);
           this.pendingAuthSockets.delete(socket.id);
         }
 
-        // Set authenticated data
         socket.data.userId = decoded.id;
         socket.data.authenticated = true;
         
-        // Join user's personal room for private messages
         socket.join(`user:${decoded.id}`);
         
-        // Check if user was already online (possible reconnection)
         const existingUser = this.onlineUsers.get(decoded.id);
         if (existingUser) {
-          // Update socket ID for existing user
           existingUser.socketId = socket.id;
           existingUser.online = true;
           existingUser.lastSeen = new Date();
           this.onlineUsers.set(decoded.id, existingUser);
         } else {
-          // Add new online user
           this.onlineUsers.set(decoded.id, {
             userId: decoded.id,
             socketId: socket.id,
@@ -126,13 +110,11 @@ export class SocketService {
           });
         }
         
-        // Emit success
         socket.emit("authenticated", { 
           success: true, 
           userId: decoded.id 
         });
         
-        // Broadcast user online to all connected users
         this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
           userId: decoded.id,
           online: true,
@@ -141,7 +123,6 @@ export class SocketService {
         
         console.log(`✅ User ${decoded.id} authenticated successfully on socket ${socket.id}`);
         
-        // Send current online users list to this user
         const onlineUsersList = Array.from(this.onlineUsers.values())
           .filter(u => u.online && u.userId !== decoded.id)
           .map(u => u.userId);
@@ -159,7 +140,6 @@ export class SocketService {
   }
 
   private setupSocketEvents(socket: Socket) {
-    // Helper to check authentication
     const isAuthenticated = () => {
       if (!socket.data.authenticated || !socket.data.userId) {
         socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
@@ -177,7 +157,7 @@ export class SocketService {
       const userId = socket.data.userId;
       
       try {
-        const { receiverId, content, replyToId, mediaUrls } = data;
+        const { receiverId, content, replyToId } = data;
         const senderId = userId;
 
         if (!receiverId || !content) {
@@ -221,7 +201,6 @@ export class SocketService {
             senderId,
             receiverId,
             replyToId: replyToId || undefined,
-            mediaUrls: mediaUrls || [],
           },
           include: {
             sender: {
@@ -359,6 +338,7 @@ export class SocketService {
           return;
         }
 
+        // Soft delete - update content and set isDeleted flag
         await prisma.privateMessage.update({
           where: { id: messageId },
           data: {
@@ -399,6 +379,7 @@ export class SocketService {
       const { receiverId } = data;
 
       try {
+        // Soft delete all messages between these two users
         await prisma.privateMessage.updateMany({
           where: {
             OR: [
@@ -417,6 +398,7 @@ export class SocketService {
           clearedAt: new Date(),
         };
 
+        // Send to both users
         this.io
           .to(`user:${userId}`)
           .emit("private:chat:cleared", clearEventData);
@@ -482,7 +464,6 @@ export class SocketService {
     socket.on(SOCKET_EVENTS.DISCONNECT, () => {
       const userId = socket.data.userId;
       
-      // Clear pending auth timeout if exists
       const timeout = this.pendingAuthSockets.get(socket.id);
       if (timeout) {
         clearTimeout(timeout);

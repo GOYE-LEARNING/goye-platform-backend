@@ -491,6 +491,9 @@
 					"content": {
 						"type": "string"
 					},
+					"category": {
+						"type": "string"
+					},
 					"isPublic": {
 						"type": "boolean"
 					},
@@ -503,6 +506,7 @@
 				},
 				"required": [
 					"content",
+					"category",
 					"isPublic"
 				],
 				"type": "object",
@@ -11974,11 +11978,15 @@
 										},
 										"type": "array"
 									},
+									"category": {
+										"type": "string"
+									},
 									"content": {
 										"type": "string"
 									}
 								},
 								"required": [
+									"category",
 									"content"
 								],
 								"type": "object"
@@ -12109,6 +12117,39 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/discussion/private-messages/mark-read/{userId}": {
+			"post": {
+				"operationId": "MarkMessagesAsRead",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Discussion & Messaging APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/discussion/public/{discussionId}/comments": {
@@ -14234,33 +14275,7 @@
 										{
 											"properties": {
 												"data": {
-													"properties": {
-														"userId": {
-															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"userId",
-														"updatedAt",
-														"createdAt",
-														"courseId",
-														"id"
-													],
-													"type": "object"
+													"$ref": "#/components/schemas/Prisma.BatchPayload"
 												},
 												"message": {
 													"type": "string"
