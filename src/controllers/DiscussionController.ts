@@ -45,6 +45,7 @@ interface ReplyToDiscussionDTO {
 interface SendPrivateMessageDTO {
   receiverId: string;
   content: string;
+  replyToId?: string; 
 }
 
 interface NestedReplyDTO {
@@ -1141,6 +1142,7 @@ export class DiscussionController extends Controller {
           content: encryptedContent,
           senderId: userId,
           receiverId: body.receiverId,
+          replyToId: body.replyToId || undefined,
         },
         include: {
           sender: {
@@ -2346,8 +2348,13 @@ export class DiscussionController extends Controller {
 
       // Soft delete - mark as deleted (you may want to add a deletedAt field)
       // For now, we'll actually delete it
-      await prisma.privateMessage.delete({
+      await prisma.privateMessage.update({
+        // ← update, not delete
         where: { id: messageId },
+        data: {
+          isDeleted: true,
+          content: "This message was deleted",
+        },
       });
 
       this.setStatus(200);
