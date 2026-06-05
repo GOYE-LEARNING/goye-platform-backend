@@ -2989,4 +2989,26 @@ public async UpdatePassword(
       cookies: req.cookies,
     };
   }
+
+  // UserController.ts - add this endpoint
+@Security("bearerAuth")
+@Get("/socket-token")
+public async GetSocketToken(@Request() req: any): Promise<any> {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "Unauthorized" };
+  }
+
+  // Sign with ACCESS_SECRET so socket can verify it
+  const socketToken = jwt.sign(
+    { id: userId },
+    process.env.ACCESS_SECRET!,
+    { expiresIn: "1h" }
+  );
+
+  this.setStatus(200);
+  return { token: socketToken };
+}
 }

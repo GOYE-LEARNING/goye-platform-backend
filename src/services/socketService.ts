@@ -73,7 +73,7 @@ export class SocketService {
 
         const decoded = jwt.verify(
           data.token,
-          process.env.BEARERAUTH_SECRET as string
+          process.env.ACCESS_SECRET as string
         ) as { id: string };
 
         if (!decoded || !decoded.id) {
