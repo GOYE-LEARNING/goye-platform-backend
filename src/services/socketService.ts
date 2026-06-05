@@ -32,35 +32,42 @@ export class SocketService {
 
   // backend/socketService.ts - Update the setupMiddleware function
 
+  // backend socketService.ts - setupMiddleware
   private setupMiddleware() {
     this.io.use((socket, next) => {
       try {
         const cookieHeader = socket.handshake.headers.cookie;
-        console.log("🍪 Cookie header:", cookieHeader);
-
         const parsedCookies = cookie.parse(cookieHeader || "");
 
-        // IMPORTANT FIX: Look for accessToken (not token)
-        const token = parsedCookies.accessToken || parsedCookies.token;
-        console.log("🔑 Token found:", !!token);
-        console.log("Available cookies:", Object.keys(parsedCookies));
+        // Try cookie first, then handshake auth, then query param
+        const token =
+          parsedCookies.accessToken ||
+          parsedCookies.token ||
+          socket.handshake.auth?.token || // ← auth object
+          (socket.handshake.query?.token as string) ; // ← query fallback
+
+        console.log("🔑 Token source:", {
+          fromCookie: !!(parsedCookies.accessToken || parsedCookies.token),
+          fromAuth: !!socket.handshake.auth?.token,
+          fromQuery: !!socket.handshake.query?.token,
+          allCookies: Object.keys(parsedCookies),
+        });
 
         if (!token) {
-          console.error("❌ No token found in cookies");
           return next(new Error("Authentication error: No token found"));
         }
 
-        const decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET) as {
-          id: string;
-        };
+        const decoded = jwt.verify(
+          token,
+          process.env.BEARERAUTH_SECRET as string,
+        ) as { id: string };
 
-        if (!decoded.id) {
+        if (!decoded?.id) {
           return next(new Error("Authentication error: Invalid token payload"));
         }
 
         socket.data.userId = decoded.id;
-        console.log(`✅ User ${decoded.id} authenticated via socket`);
-
+        console.log(`✅ User ${decoded.id} authenticated`);
         next();
       } catch (err) {
         console.error("❌ JWT verify failed:", err);
