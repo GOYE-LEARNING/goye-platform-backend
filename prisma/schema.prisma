@@ -873,10 +873,11 @@ model PrivateMessage {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  sender   User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver User             @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  replyTo  PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: Cascade)
-  replies  PrivateMessage[] @relation("ReplyTo")
+  sender    User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User             @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  replyTo   PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: Cascade)
+  replies   PrivateMessage[] @relation("ReplyTo")
+  hiddenFor String[]         @default([])
 
   @@index([senderId])
   @@index([receiverId])

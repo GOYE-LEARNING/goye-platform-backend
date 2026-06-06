@@ -45,7 +45,7 @@ interface ReplyToDiscussionDTO {
 interface SendPrivateMessageDTO {
   receiverId: string;
   content: string;
-  replyToId?: string; 
+  replyToId?: string;
 }
 
 interface NestedReplyDTO {
@@ -1163,8 +1163,25 @@ export class DiscussionController extends Controller {
               role: true,
             },
           },
+          // ← ADD THIS
+          replyTo: {
+            include: {
+              sender: {
+                select: { id: true, first_name: true, last_name: true },
+              },
+            },
+          },
         },
       });
+
+      const replyToFormatted = message.replyTo
+        ? {
+            id: message.replyTo.id,
+            text: EncryptionUtil.decrypt(message.replyTo.content),
+            senderName: message.replyTo.sender.first_name,
+            senderId: message.replyTo.sender.id,
+          }
+        : null;
 
       await NotificationService.createNotification({
         message: `${req.user?.first_name} ${req.user?.last_name} sent you a private message`,
@@ -1187,6 +1204,7 @@ export class DiscussionController extends Controller {
         data: {
           ...message,
           content: body.content,
+          replyTo: replyToFormatted,
         },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
@@ -1491,12 +1509,20 @@ export class DiscussionController extends Controller {
     try {
       const skip = (page - 1) * limit;
 
+      // DiscussionController.ts - GetPrivateMessages
+      // Add replyTo include to the findMany query
       const messages = await prisma.privateMessage.findMany({
         where: {
           OR: [
             { senderId: currentUserId, receiverId: userId },
             { senderId: userId, receiverId: currentUserId },
           ],
+          // ← ADD THIS - filter out messages hidden for current user
+          NOT: {
+            hiddenFor: {
+              has: currentUserId,
+            },
+          },
         },
         include: {
           sender: {
@@ -1516,15 +1542,33 @@ export class DiscussionController extends Controller {
               user_pic: true,
             },
           },
+          // ← ADD THIS
+          replyTo: {
+            include: {
+              sender: {
+                select: { id: true, first_name: true, last_name: true },
+              },
+            },
+          },
         },
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
       });
 
+      // Then update the decrypt map to include replyTo
       const decryptedMessages = messages.map((message) => ({
         ...message,
         content: EncryptionUtil.decrypt(message.content),
+        // ← ADD THIS - normalize replyTo shape to match frontend interface
+        replyTo: message.replyTo
+          ? {
+              id: message.replyTo.id,
+              text: EncryptionUtil.decrypt(message.replyTo.content),
+              senderName: message.replyTo.sender.first_name,
+              senderId: message.replyTo.sender.id,
+            }
+          : null,
       }));
 
       await prisma.privateMessage.updateMany({
@@ -2320,11 +2364,13 @@ export class DiscussionController extends Controller {
   /**
    * Delete a private message (soft delete)
    */
+  // DiscussionController.ts - replace DeletePrivateMessage
   @Security("bearerAuth")
   @Delete("/private/message/{messageId}")
   public async DeletePrivateMessage(
     @Request() req: any,
     @Path() messageId: string,
+    @Query() deleteType: "me" | "everyone" = "everyone",
   ): Promise<any> {
     const userId = req.user?.id;
 
@@ -2335,21 +2381,36 @@ export class DiscussionController extends Controller {
 
     try {
       const message = await prisma.privateMessage.findFirst({
-        where: {
-          id: messageId,
-          senderId: userId,
-        },
+        where: { id: messageId },
       });
 
       if (!message) {
         this.setStatus(404);
-        return { message: "Message not found or you don't have permission" };
+        return { message: "Message not found" };
       }
 
-      // Soft delete - mark as deleted (you may want to add a deletedAt field)
-      // For now, we'll actually delete it
+      if (deleteType === "me") {
+        // Hide only for this user — push userId into hiddenFor array
+        await prisma.privateMessage.update({
+          where: { id: messageId },
+          data: {
+            hiddenFor: {
+              push: userId,
+            },
+          },
+        });
+
+        this.setStatus(200);
+        return { message: "Message hidden for you" };
+      }
+
+      // Delete for everyone — only sender can do this
+      if (message.senderId !== userId) {
+        this.setStatus(403);
+        return { message: "Only the sender can delete for everyone" };
+      }
+
       await prisma.privateMessage.update({
-        // ← update, not delete
         where: { id: messageId },
         data: {
           isDeleted: true,
@@ -2358,9 +2419,8 @@ export class DiscussionController extends Controller {
       });
 
       this.setStatus(200);
-      return { message: "Message deleted successfully" };
+      return { message: "Message deleted for everyone" };
     } catch (error: any) {
-      console.error("Error deleting message:", error);
       this.setStatus(500);
       return { message: "Failed to delete message", error: error.message };
     }
