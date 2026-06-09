@@ -21,7 +21,6 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
-import { Limitations } from "../utils/functionLimitations";
 
 @Route("socials")
 @Tags("Social controllers")
@@ -1686,16 +1685,6 @@ export class SocialController extends Controller {
       return { message: "Group not found" };
     }
 
-    const limitations = await Limitations(planId, null, groupId, userId, null); //Limitations On Enrollment
-    if (!limitations || limitations.status !== "OK") {
-      this.setStatus(400);
-      return (
-        limitations || {
-          message: "Something went wrong with plan validation",
-          status: "ERROR",
-        }
-      );
-    }
 
     const isJoined = await prisma.joinedGroup.findUnique({
       where: {

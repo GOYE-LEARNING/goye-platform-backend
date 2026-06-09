@@ -15,7 +15,6 @@ import {
   GamificationService,
   XP_CONFIG,
 } from "../services/gamificationService";
-import { Limitations } from "../utils/functionLimitations";
 
 @Route("enroll")
 @Tags("Student Enrollment Course APIs")
@@ -35,17 +34,7 @@ export class StudentEnrollmentController extends Controller {
       };
     }
     // Check userId FIRST before checking enrollment
-    const limitations = await Limitations(planId, courseId, null, userId, null); //Limitations On Enrollment
-    if (!limitations || limitations.status !== "OK") {
-      this.setStatus(400);
-      return (
-        limitations || {
-          message: "Something went wrong with plan validation",
-          status: "ERROR",
-        }
-      );
-    }
-
+  
     // Check if course exists
     const course = await prisma.course.findUnique({
       where: { id: courseId },

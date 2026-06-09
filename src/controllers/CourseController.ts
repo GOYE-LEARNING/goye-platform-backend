@@ -23,7 +23,6 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
-import { Limitations } from "../utils/functionLimitations";
 import { NotificationService, Role } from "../services/notificationServices";
 
 //To determine levels
@@ -52,7 +51,6 @@ export class CourseController extends Controller {
 
     try {
       // Use organizationId if exists, otherwise use createdUserId
-      Limitations(planId, tutorId, orgId);
 
       // Fetch the tutor's name from the database using their ID
       const tutor = await prisma.user.findUnique({
