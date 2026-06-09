@@ -1,7 +1,7 @@
 import { Request } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../db";
-import { verifyAccessToken, verifyRefreshToken } from "../utils/jwtHelper";
+import { verifyAccessToken, refreshTokens } from "../utils/jwtHelper";
 
 // Helper function to normalize level
 const normalizeLevel = (level: string): string => {
@@ -33,6 +33,8 @@ const setSecureCookie = (res: any, name: string, value: string, maxAge: number) 
   });
 };
 
+// In your auth.ts file - updated expressAuthentication
+
 export async function expressAuthentication(
   request: Request,
   securityName: string,
@@ -47,6 +49,9 @@ export async function expressAuthentication(
       accessToken = tokenFromHeader;
     }
 
+    // Get deviceId from cookie
+    const deviceId = request.cookies?.deviceId;
+    
     // If no access token, try to refresh using refresh token
     if (!accessToken) {
       const refreshToken = request.cookies?.refreshToken;
@@ -56,39 +61,36 @@ export async function expressAuthentication(
       }
 
       try {
-        const decoded = verifyRefreshToken(refreshToken);
-        if (!decoded) {
-          throw new Error("Invalid refresh token");
+        // Use refreshTokens function instead of refreshAccessToken
+        const tokens = await refreshTokens(refreshToken, deviceId);
+        
+        if (!tokens) {
+          throw new Error("Failed to refresh token");
         }
 
-        const user = await prisma.user.findUnique({
-          where: { id: decoded.id }
-        });
-
-        if (!user) {
-          throw new Error("User not found");
-        }
-
-        // Normalize level from database
-        const normalizedLevel = normalizeLevel(user.level);
-
-        // Generate new access token
-        accessToken = jwt.sign(
-          {
-            id: user.id,
-            email: user.email_address,
-            role: user.role,
-            level: normalizedLevel
-          },
-          process.env.ACCESS_SECRET!,
-          { expiresIn: "15m" }
-        );
-
-        // Set new access token in cookie if response object is available
+        // Set new tokens in cookies
         if (request.res) {
-          setSecureCookie(request.res, "accessToken", accessToken, 15 * 60 * 1000);
+          const isProduction = process.env.NODE_ENV === "production";
+          request.res.cookie("accessToken", tokens.accessToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 15 * 60 * 1000,
+          });
+
+          request.res.cookie("refreshToken", tokens.refreshToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
         }
+
+        accessToken = tokens.accessToken;
       } catch (error) {
+        console.error("Refresh token error:", error);
         throw new Error("Failed to refresh token");
       }
     }
@@ -104,6 +106,26 @@ export async function expressAuthentication(
       throw new Error("Invalid or expired access token");
     }
 
+    // Validate session exists in database
+    const session = await prisma.userSession.findFirst({
+      where: {
+        userId: decoded.id,
+        deviceId: deviceId,
+        isRevoked: false,
+        expiresAt: { gt: new Date() }
+      }
+    });
+
+    if (!session) {
+      throw new Error("Session not found or expired");
+    }
+
+    // Update session last active time
+    await prisma.userSession.update({
+      where: { id: session.id },
+      data: { lastActive: new Date() }
+    });
+
     // ✅ FIX: If level is missing from token, fetch from database and regenerate token
     if (!decoded.level) {
       console.log("⚠️ Warning: Decoded token has no level field! Fetching from database...", {
@@ -114,16 +136,19 @@ export async function expressAuthentication(
       
       const userFromDb = await prisma.user.findUnique({
         where: { id: decoded.id },
-        select: { level: true, email_address: true, role: true }
+        select: { level: true }
       });
       
       if (userFromDb?.level) {
-        // Normalize the level from database
-        const normalizedLevel = normalizeLevel(userFromDb.level);
+        // Normalize the level
+        let normalizedLevel = userFromDb.level;
+        if (normalizedLevel.toLowerCase() === 'beginner') normalizedLevel = 'Beginners';
+        else if (normalizedLevel.toLowerCase() === 'intermediate') normalizedLevel = 'Intermediate';
+        else if (normalizedLevel.toLowerCase() === 'organization') normalizedLevel = 'ORGANIZATION';
         
         console.log(`✅ Found level in database: ${userFromDb.level} -> normalized: ${normalizedLevel}`);
         
-        // Create new decoded object with level
+        // Create updated decoded object with level
         const updatedDecoded = {
           ...decoded,
           level: normalizedLevel
@@ -138,18 +163,21 @@ export async function expressAuthentication(
         
         // Update the cookie with new token
         if (request.res) {
-          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
+          const isProduction = process.env.NODE_ENV === "production";
+          request.res.cookie("accessToken", newAccessToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 15 * 60 * 1000,
+          });
         }
         
-        // Also update the session in database
-        try {
-          await prisma.userSession.updateMany({
-            where: { userId: decoded.id },
-            data: { accessToken: newAccessToken }
-          });
-        } catch (sessionError) {
-          console.log("Could not update session, but continuing...");
-        }
+        // Update the session in database
+        await prisma.userSession.update({
+          where: { id: session.id },
+          data: { accessToken: newAccessToken }
+        });
         
         // Update the decoded variable for this request
         decoded = updatedDecoded;
@@ -158,13 +186,11 @@ export async function expressAuthentication(
       } else {
         console.warn(`⚠️ User ${decoded.id} has no level in database! Setting default level.`);
         
-        // Set a default level
         const updatedDecoded = {
           ...decoded,
           level: "Beginners"
         };
         
-        // Generate new token with default level
         const newAccessToken = jwt.sign(
           updatedDecoded,
           process.env.ACCESS_SECRET!,
@@ -172,15 +198,25 @@ export async function expressAuthentication(
         );
         
         if (request.res) {
-          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
+          const isProduction = process.env.NODE_ENV === "production";
+          request.res.cookie("accessToken", newAccessToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 15 * 60 * 1000,
+          });
         }
         
         decoded = updatedDecoded;
-        console.log(`✅ Token updated with default level: Beginners for user ${decoded.id}`);
       }
     } else {
       // Level exists, but ensure it's normalized
-      const normalizedLevel = normalizeLevel(decoded.level);
+      let normalizedLevel = decoded.level;
+      if (normalizedLevel.toLowerCase() === 'beginner') normalizedLevel = 'Beginners';
+      else if (normalizedLevel.toLowerCase() === 'intermediate') normalizedLevel = 'Intermediate';
+      else if (normalizedLevel.toLowerCase() === 'organization') normalizedLevel = 'ORGANIZATION';
+      
       if (normalizedLevel !== decoded.level) {
         console.log(`📝 Normalizing level in token: "${decoded.level}" -> "${normalizedLevel}"`);
         decoded.level = normalizedLevel;
@@ -193,8 +229,21 @@ export async function expressAuthentication(
         );
         
         if (request.res) {
-          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
+          const isProduction = process.env.NODE_ENV === "production";
+          request.res.cookie("accessToken", newAccessToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? "none" : "lax",
+            path: "/",
+            maxAge: 15 * 60 * 1000,
+          });
         }
+        
+        // Update session
+        await prisma.userSession.update({
+          where: { id: session.id },
+          data: { accessToken: newAccessToken }
+        });
       }
     }
 
@@ -208,15 +257,16 @@ export async function expressAuthentication(
     }
 
     (request as any).user = user;
+    (request as any).deviceId = deviceId;
 
     if (decoded.progressId) {
       (request as any).progressId = decoded.progressId;
-      console.log("📋 Progress ID attached to request in expressAuthentication:", decoded.progressId);
+      console.log("📋 Progress ID attached to request:", decoded.progressId);
     }
 
-    if(decoded.planId) {
+    if (decoded.planId) {
       (request as any).planId = decoded.planId;
-      console.log("📋 Plan ID attached to request in expressAuthentication:", decoded.planId);
+      console.log("📋 Plan ID attached to request:", decoded.planId);
     }
     
     // Update user online status
@@ -228,22 +278,15 @@ export async function expressAuthentication(
     // ✅ Attach ORGANIZATION if organizationId exists in token
     if (decoded.organizationId) {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: decoded.organizationId,
-        },
+        where: { id: decoded.organizationId },
       });
 
       if (organization) {
         (request as any).org = organization;
 
         await prisma.organization.update({
-          where: {
-            id: decoded.organizationId,
-          },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
+          where: { id: decoded.organizationId },
+          data: { isOnline: true, lastActive: new Date() },
         });
       }
     }
@@ -251,7 +294,8 @@ export async function expressAuthentication(
     console.log("✅ Authentication successful for user:", {
       id: decoded.id,
       role: decoded.role,
-      level: decoded.level
+      level: decoded.level,
+      type: decoded.type
     });
 
     return decoded;

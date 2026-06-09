@@ -558,6 +558,9 @@
 					},
 					"content": {
 						"type": "string"
+					},
+					"replyToId": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -3785,6 +3788,50 @@
 						"bearerAuth": []
 					}
 				],
+				"parameters": []
+			}
+		},
+		"/user/socket-token": {
+			"get": {
+				"operationId": "GetSocketToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/user/refresh": {
+			"post": {
+				"operationId": "RefreshToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [],
 				"parameters": []
 			}
 		},
@@ -12506,6 +12553,19 @@
 						"required": true,
 						"schema": {
 							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "deleteType",
+						"required": false,
+						"schema": {
+							"default": "everyone",
+							"type": "string",
+							"enum": [
+								"me",
+								"everyone"
+							]
 						}
 					}
 				]

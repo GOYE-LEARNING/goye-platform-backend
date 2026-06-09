@@ -26,6 +26,7 @@ import {
   generateDeviceId,
   generateTokens,
   getDeviceType,
+  refreshTokens
 } from "../utils/jwtHelper";
 import { firebaseAuthService } from "../services/firebaseService";
 import { otpRateLimit } from "../utils/otp";
@@ -3010,5 +3011,60 @@ public async GetSocketToken(@Request() req: any): Promise<any> {
 
   this.setStatus(200);
   return { token: socketToken };
+}
+
+@Post("/refresh")
+public async RefreshToken(@Request() req: any): Promise<any> {
+  const refreshToken = req.cookies?.refreshToken;
+  const deviceId = req.cookies?.deviceId;
+  
+  if (!refreshToken) {
+    this.setStatus(401);
+    return { message: "No refresh token provided" };
+  }
+
+  if (!deviceId) {
+    this.setStatus(401);
+    return { message: "No device ID provided" };
+  }
+
+  try {
+    // Use your existing refreshTokens helper
+    const tokens = await refreshTokens(refreshToken, deviceId);
+    
+    if (!tokens) {
+      this.setStatus(401);
+      return { message: "Failed to refresh token - invalid or expired session" };
+    }
+
+    // Set new cookies
+    const isProduction = process.env.NODE_ENV === "production";
+    
+    req.res.cookie("accessToken", tokens.accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 15 * 60 * 1000,
+    });
+
+    req.res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    this.setStatus(200);
+    return { 
+      message: "Token refreshed successfully",
+      accessToken: tokens.accessToken // Return in body as fallback
+    };
+  } catch (error: any) {
+    console.error("Refresh token error:", error);
+    this.setStatus(401);
+    return { message: "Invalid refresh token" };
+  }
 }
 }
