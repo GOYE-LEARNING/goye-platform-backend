@@ -24,7 +24,7 @@ export class SocketService {
         credentials: true,
       },
       allowEIO3: true,
-      transports: ['websocket', 'polling']
+      transports: ["websocket", "polling"],
     });
     this.setupMiddleware();
     this.setupEventHandlers();
@@ -32,7 +32,10 @@ export class SocketService {
 
   private setupMiddleware() {
     this.io.use((socket, next) => {
-      console.log("🔌 New socket connection attempt from:", socket.handshake.address);
+      console.log(
+        "🔌 New socket connection attempt from:",
+        socket.handshake.address,
+      );
       socket.data.authenticated = false;
       next();
     });
@@ -41,17 +44,19 @@ export class SocketService {
   private setupEventHandlers() {
     this.io.on(SOCKET_EVENTS.CONNECTION, (socket: Socket) => {
       console.log(`📡 Socket connected: ${socket.id}`);
-      
+
       const authTimeout = setTimeout(() => {
         if (!socket.data.authenticated) {
-          console.log(`⏰ Socket ${socket.id} timed out without authentication, disconnecting`);
+          console.log(
+            `⏰ Socket ${socket.id} timed out without authentication, disconnecting`,
+          );
           socket.emit("auth_timeout", { message: "Authentication timeout" });
           socket.disconnect();
         }
       }, 10000);
-      
+
       this.pendingAuthSockets.set(socket.id, authTimeout);
-      
+
       this.setupAuthentication(socket);
       this.setupSocketEvents(socket);
     });
@@ -61,24 +66,24 @@ export class SocketService {
     socket.on("authenticate", async (data: { token: string }) => {
       try {
         console.log(`🔐 Authentication attempt for socket ${socket.id}`);
-        
+
         if (!data || !data.token) {
-          socket.emit("authenticated", { 
-            success: false, 
-            error: "No token provided" 
+          socket.emit("authenticated", {
+            success: false,
+            error: "No token provided",
           });
           return;
         }
 
         const decoded = jwt.verify(
           data.token,
-          process.env.ACCESS_SECRET as string
+          process.env.ACCESS_SECRET as string,
         ) as { id: string };
 
         if (!decoded || !decoded.id) {
-          socket.emit("authenticated", { 
-            success: false, 
-            error: "Invalid token payload" 
+          socket.emit("authenticated", {
+            success: false,
+            error: "Invalid token payload",
           });
           return;
         }
@@ -91,9 +96,9 @@ export class SocketService {
 
         socket.data.userId = decoded.id;
         socket.data.authenticated = true;
-        
+
         socket.join(`user:${decoded.id}`);
-        
+
         const existingUser = this.onlineUsers.get(decoded.id);
         if (existingUser) {
           existingUser.socketId = socket.id;
@@ -108,31 +113,32 @@ export class SocketService {
             lastSeen: new Date(),
           });
         }
-        
-        socket.emit("authenticated", { 
-          success: true, 
-          userId: decoded.id 
+
+        socket.emit("authenticated", {
+          success: true,
+          userId: decoded.id,
         });
-        
+
         this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
           userId: decoded.id,
           online: true,
           lastSeen: new Date(),
         });
-        
-        console.log(`✅ User ${decoded.id} authenticated successfully on socket ${socket.id}`);
-        
+
+        console.log(
+          `✅ User ${decoded.id} authenticated successfully on socket ${socket.id}`,
+        );
+
         const onlineUsersList = Array.from(this.onlineUsers.values())
-          .filter(u => u.online && u.userId !== decoded.id)
-          .map(u => u.userId);
-        
+          .filter((u) => u.online && u.userId !== decoded.id)
+          .map((u) => u.userId);
+
         socket.emit(SOCKET_EVENTS.USERS_ONLINE_LIST, onlineUsersList);
-        
       } catch (err) {
         console.error("❌ Authentication error:", err);
-        socket.emit("authenticated", { 
-          success: false, 
-          error: "Authentication failed" 
+        socket.emit("authenticated", {
+          success: false,
+          error: "Authentication failed",
         });
       }
     });
@@ -142,7 +148,7 @@ export class SocketService {
     const isAuthenticated = () => {
       if (!socket.data.authenticated || !socket.data.userId) {
         socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
-          message: "Not authenticated. Please authenticate first."
+          message: "Not authenticated. Please authenticate first.",
         });
         return false;
       }
@@ -152,9 +158,9 @@ export class SocketService {
     // Handle private message with reply
     socket.on(SOCKET_EVENTS.PRIVATE_MESSAGE, async (data) => {
       if (!isAuthenticated()) return;
-      
+
       const userId = socket.data.userId;
-      
+
       try {
         const { receiverId, content, replyToId } = data;
         const senderId = userId;
@@ -252,7 +258,7 @@ export class SocketService {
     // Handle message update (edit)
     socket.on("private:message:updated", async (data) => {
       if (!isAuthenticated()) return;
-      
+
       const userId = socket.data.userId;
       const { messageId, content } = data;
 
@@ -310,34 +316,50 @@ export class SocketService {
     });
 
     // Handle message delete
+    // backend socketService.ts - private:message:delete handler
+    // Replace the existing handler with this
     socket.on("private:message:delete", async (data) => {
       if (!isAuthenticated()) return;
-      
+
       const userId = socket.data.userId;
       const { messageId } = data;
 
       try {
+        // Find message regardless of who sent it (for "delete for me")
+        // or only sender (for "delete for everyone") — determined by isDeleted flag
         const message = await prisma.privateMessage.findFirst({
-          where: {
-            id: messageId,
-            senderId: userId,
-          },
+          where: { id: messageId, senderId: userId }, // only sender
           select: {
             id: true,
             senderId: true,
             receiverId: true,
             createdAt: true,
+            isDeleted: true,
           },
         });
 
         if (!message) {
           socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
-            message: "Message not found or not authorized to delete",
+            message: "Message not found",
           });
           return;
         }
 
-        // Soft delete - update content and set isDeleted flag
+        // Only sender can delete for everyone
+        if (message.senderId !== userId) {
+          socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
+            message: "Only the sender can delete for everyone",
+          });
+          return;
+        }
+
+        if (!message.isDeleted) {
+          await prisma.privateMessage.update({
+            where: { id: messageId },
+            data: { isDeleted: true, content: "This message was deleted" },
+          });
+        }
+
         await prisma.privateMessage.update({
           where: { id: messageId },
           data: {
@@ -355,7 +377,7 @@ export class SocketService {
           time: message.createdAt,
         };
 
-        // Send to both sender and receiver
+        // Emit to BOTH sender and receiver
         this.io
           .to(`user:${message.senderId}`)
           .emit("private:message:deleted", deleteEventData);
@@ -369,11 +391,10 @@ export class SocketService {
         });
       }
     });
-
     // Handle clear chat
     socket.on("private:clear", async (data) => {
       if (!isAuthenticated()) return;
-      
+
       const userId = socket.data.userId;
       const { receiverId } = data;
 
@@ -415,10 +436,10 @@ export class SocketService {
     // Handle typing indicator
     socket.on(SOCKET_EVENTS.PRIVATE_TYPING, (data) => {
       if (!isAuthenticated()) return;
-      
+
       const userId = socket.data.userId;
       const { receiverId, isTyping } = data;
-      
+
       const receiverSocket = this.onlineUsers.get(receiverId);
       if (receiverSocket?.online) {
         this.io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.PRIVATE_TYPING, {
@@ -431,7 +452,7 @@ export class SocketService {
     // Handle read receipts
     socket.on(SOCKET_EVENTS.PRIVATE_READ, async (data) => {
       if (!isAuthenticated()) return;
-      
+
       const userId = socket.data.userId;
       const { messageIds, senderId } = data;
 
@@ -462,13 +483,13 @@ export class SocketService {
     // Handle disconnect
     socket.on(SOCKET_EVENTS.DISCONNECT, () => {
       const userId = socket.data.userId;
-      
+
       const timeout = this.pendingAuthSockets.get(socket.id);
       if (timeout) {
         clearTimeout(timeout);
         this.pendingAuthSockets.delete(socket.id);
       }
-      
+
       if (userId) {
         console.log(`🔌 User ${userId} disconnected from socket ${socket.id}`);
         const user = this.onlineUsers.get(userId);
@@ -476,7 +497,7 @@ export class SocketService {
           user.online = false;
           user.lastSeen = new Date();
           this.onlineUsers.set(userId, user);
-          
+
           this.io.emit(SOCKET_EVENTS.USER_ONLINE, {
             userId,
             online: false,
@@ -491,7 +512,7 @@ export class SocketService {
     // Get online users
     socket.on("users:online", () => {
       if (!isAuthenticated()) return;
-      
+
       const online = Array.from(this.onlineUsers.values())
         .filter((u) => u.online)
         .map((u) => u.userId);
