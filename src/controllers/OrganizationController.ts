@@ -1105,6 +1105,209 @@ export class OrganizationController extends Controller {
       };
     }
   }
+@Get("/fetch-specific-invited-user-by-token/{token}")
+public async FetchInvitedUserByToken(
+  @Path() token: string
+): Promise<any> {
+  try {
+    // Validate token presence
+    if (!token || token.trim() === "") {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Token is required",
+      };
+    }
+
+    console.log(`🔍 Fetching invited user by token: ${token.substring(0, 50)}...`);
+    console.log(`📋 Token length: ${token.length}`);
+
+    // Step 1: Verify and decode the JWT token
+    let decodedToken: any;
+    try {
+      decodedToken = jwt.verify(token, process.env.BEARERAUTH_SECRET || "secret-key");
+      console.log("✅ Token verified successfully:", {
+        organizationId: decodedToken.organizationId,
+        email: decodedToken.email,
+        userId: decodedToken.userId,
+      });
+    } catch (jwtError: any) {
+      console.error("❌ JWT Verification failed:", jwtError.message);
+      
+      // Check if it's an expiration error
+      if (jwtError.name === "TokenExpiredError") {
+        this.setStatus(410);
+        return {
+          success: false,
+          message: "Invitation token has expired",
+          error: "TokenExpiredError",
+          expiredAt: jwtError.expiredAt,
+        };
+      }
+      
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "Invalid invitation token",
+        error: jwtError.message,
+      };
+    }
+
+    // Step 2: Find the invitation in the database
+    const invitation = await prisma.inviteUser.findFirst({
+      where: {
+        code: token,
+      },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            organization_name: true,
+            organization_email: true,
+            organization_image: true,
+            organization_type: true,
+            organization_description: true,
+          },
+        },
+      },
+    });
+
+    if (!invitation) {
+      console.log("❌ Invitation not found in database for token");
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Invitation not found. The invitation may have been revoked or never existed.",
+      };
+    }
+
+    // Step 3: Verify the decoded data matches the database record
+    if (invitation.email !== decodedToken.email) {
+      console.log("❌ Email mismatch:", {
+        dbEmail: invitation.email,
+        tokenEmail: decodedToken.email,
+      });
+      this.setStatus(403);
+      return {
+        success: false,
+        message: "Token data does not match invitation record",
+      };
+    }
+
+    if (invitation.organizationId !== decodedToken.organizationId) {
+      console.log("❌ Organization mismatch:", {
+        dbOrgId: invitation.organizationId,
+        tokenOrgId: decodedToken.organizationId,
+      });
+      this.setStatus(403);
+      return {
+        success: false,
+        message: "Organization mismatch",
+      };
+    }
+
+    // Step 4: Check if invitation has expired
+    const now = new Date();
+    const isExpired = invitation.expiresIn < now;
+
+    if (isExpired) {
+      console.log("⚠️ Invitation has expired:", {
+        expiresIn: invitation.expiresIn,
+        now: now,
+        daysAgo: Math.floor((now.getTime() - invitation.expiresIn.getTime()) / (1000 * 60 * 60 * 24)),
+      });
+      this.setStatus(410);
+      return {
+        success: false,
+        message: "This invitation has expired. Please request a new one from the organization administrator.",
+        data: {
+          expiredAt: invitation.expiresIn,
+          email: invitation.email,
+          organizationName: invitation.organization?.organization_name,
+          canResend: true,
+        },
+      };
+    }
+
+    // Step 5: Check if user has already accepted
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email_address: invitation.email,
+        invited: true,
+      },
+      select: {
+        id: true,
+        first_name: true,
+        last_name: true,
+        email_address: true,
+        role: true,
+        user_pic: true,
+        createdAt: true,
+      },
+    });
+
+    if (existingUser) {
+      console.log("⚠️ User has already accepted this invitation:", existingUser.email_address);
+      this.setStatus(409);
+      return {
+        success: false,
+        message: "This invitation has already been accepted. Please login to continue.",
+        data: {
+          user: existingUser,
+          redirectTo: "/login",
+        },
+      };
+    }
+
+    // Step 6: Calculate remaining time
+    const remainingTime = invitation.expiresIn.getTime() - now.getTime();
+    const remainingHours = Math.floor(remainingTime / (1000 * 60 * 60));
+    const remainingMinutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+
+    // Step 7: Return success response with invitation details
+    console.log("✅ Invitation found and is valid");
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Invitation found successfully",
+      data: {
+        invitation: {
+          id: invitation.id,
+          email: invitation.email,
+          role: invitation.role,
+          createdAt: invitation.createdAt,
+          expiresIn: invitation.expiresIn,
+          remainingTime: {
+            hours: remainingHours,
+            minutes: remainingMinutes,
+            totalMs: remainingTime,
+          },
+        },
+        organization: {
+          id: invitation.organization?.id,
+          name: invitation.organization?.organization_name,
+          email: invitation.organization?.organization_email,
+          image: invitation.organization?.organization_image,
+          type: invitation.organization?.organization_type,
+          description: invitation.organization?.organization_description,
+        },
+        token: {
+          isValid: true,
+          isExpired: false,
+        },
+      },
+    };
+    
+  } catch (error: any) {
+    console.error("❌ Error fetching invited user by token:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "An internal error occurred while fetching the invitation",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    };
+  }
+}
 
   // In your OrganizationController
   // In your OrganizationController - Updated GenerateNewTokenForInvitedUser
