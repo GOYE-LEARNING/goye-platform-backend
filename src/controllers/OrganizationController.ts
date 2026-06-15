@@ -1104,13 +1104,11 @@ export class OrganizationController extends Controller {
   // Update your invitations/check endpoint to also verify the token
 @Post("/invitations/check")
 public async CheckInvitation(
-  @Body() body: { email: string; organizationId: string; token?: string }
+  @Body() body: {  token?: string }
 ): Promise<any> {
   try {
     const invitation = await prisma.inviteUser.findFirst({
       where: {
-        email: body.email,
-        organizationId: body.organizationId,
         code: body.token, // Also check the token matches
         expiresIn: { gt: new Date() }, // Not expired
       },
