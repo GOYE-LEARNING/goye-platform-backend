@@ -19,28 +19,6 @@ interface DecodedToken {
   [key: string]: any;
 }
 
-// Define types for Prisma relations
-interface OrganizationRelation {
-  id: string;
-  organization_name: string;
-  [key: string]: any;
-}
-
-interface ProgressRelation {
-  id: string;
-  [key: string]: any;
-}
-
-interface SettingsRelation {
-  id: string;
-  [key: string]: any;
-}
-
-interface PricingHistoryRelation {
-  id: string;
-  [key: string]: any;
-}
-
 // Helper function to set secure cookies
 const setSecureCookie = (res: any, name: string, value: string, maxAge: number) => {
   const isProduction = process.env.NODE_ENV === "production";
@@ -51,23 +29,6 @@ const setSecureCookie = (res: any, name: string, value: string, maxAge: number) 
     path: "/",
     maxAge: maxAge
   });
-};
-
-// Helper function to safely get first item from array or null with proper typing
-const getFirstOrganization = (arr: any[] | undefined | null): OrganizationRelation | null => {
-  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-};
-
-const getFirstProgress = (arr: any[] | undefined | null): ProgressRelation | null => {
-  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-};
-
-const getFirstSetting = (arr: any[] | undefined | null): SettingsRelation | null => {
-  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-};
-
-const getFirstPricingHistory = (arr: any[] | undefined | null): PricingHistoryRelation | null => {
-  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
 };
 
 // Helper function to generate new tokens and session from refresh token
@@ -82,17 +43,9 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
 
     console.log(`🔄 Found refresh token for user: ${decodedRefresh.id}`);
 
-    // Get user from database with proper relations
+    // Get user from database (without include since relations might not exist)
     const user = await prisma.user.findUnique({
       where: { id: decodedRefresh.id },
-      include: {
-        organization: true,
-        progress: true,
-        settings: true,
-        pricingHistory: {
-          orderBy: { createdAt: 'desc' },
-        }
-      }
     });
 
     if (!user) {
@@ -102,14 +55,55 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
 
     console.log(`✅ User found: ${user.email_address}`);
 
+    // Fetch related data separately
+    let userOrganization = null;
+    let userProgress = null;
+    let userSetting = null;
+    let userPricingHistory = null;
+
+    try {
+      // Try to get organization if it exists
+      const organization = await prisma.organization.findFirst({
+        where: { userId: user.id }
+      });
+      if (organization) userOrganization = organization;
+    } catch (error) {
+      console.log("No organization relation found");
+    }
+
+    try {
+      // Try to get progress if it exists
+      const progress = await prisma.progress.findFirst({
+        where: { userId: user.id }
+      });
+      if (progress) userProgress = progress;
+    } catch (error) {
+      console.log("No progress relation found");
+    }
+
+    try {
+      // Try to get settings if it exists
+      const settings = await prisma.settings.findFirst({
+        where: { userId: user.id }
+      });
+      if (settings) userSetting = settings;
+    } catch (error) {
+      console.log("No settings relation found");
+    }
+
+    try {
+      // Try to get pricing history if it exists
+      const pricingHistory = await prisma.pricingHistory.findFirst({
+        where: { userId: user.id },
+        orderBy: { planActivatedAt: 'desc' }
+      });
+      if (pricingHistory) userPricingHistory = pricingHistory;
+    } catch (error) {
+      console.log("No pricingHistory relation found");
+    }
+
     // Get or create device info
     const deviceType = request.headers["user-agent"] ? "web" : "unknown";
-    
-    // Safely get the first item from each relation using type-safe functions
-    const userOrganization = getFirstOrganization(user.organization as any);
-    const userProgress = getFirstProgress(user.progress as any);
-    const userSetting = getFirstSetting(user.settings as any);
-    const userPricingHistory = getFirstPricingHistory(user.pricingHistory as any);
     
     // Determine user type
     const userType = decodedRefresh.type || 
