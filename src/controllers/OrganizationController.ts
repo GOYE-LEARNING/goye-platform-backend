@@ -1115,7 +1115,7 @@ export class OrganizationController extends Controller {
   ): Promise<any> {
     try {
       // Get the organization admin/user who is sending the invitation
-      const userIdFromOrganization = req.org?.userId || req.user?.id;
+      const userIdFromOrganization = req.org?.userId
 
       console.log(`🔄 Generating new token for invited user: ${invitedUserId}`);
       console.log(`📋 Organization ID: ${organizationId}`);
@@ -1476,6 +1476,7 @@ export class OrganizationController extends Controller {
         },
 
         select: {
+          id: true,
           email: true,
           role: true,
         },
@@ -1484,57 +1485,6 @@ export class OrganizationController extends Controller {
       this.setStatus(200);
       return {
         message: "Invited users fetched successfully",
-        data: fetchInviteusers,
-      };
-    } catch (error) {
-      this.setStatus(500);
-      return {
-        message: "An error occured",
-      };
-    }
-  }
-
-  @Security("bearerAuth")
-  @Get("/fetch-invited-users-with-access/{organizationId}")
-  public async FetchInviteUsersWithAccess(@Path() organizationId: string) {
-    try {
-      const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
-      });
-
-      if (!organization) {
-        this.setStatus(404);
-        return {
-          message: "Organization not found",
-        };
-      }
-
-      const fetchInviteusers = await prisma.organization.findMany({
-        where: {
-          user: {
-            invited: true,
-            role: "admin",
-          },
-        },
-
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              role: true,
-              user_pic: true,
-            },
-          },
-        },
-      });
-
-      this.setStatus(200);
-      return {
-        message: "Invited users with access fetched successfully",
         data: fetchInviteusers,
       };
     } catch (error) {
