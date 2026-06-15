@@ -1138,9 +1138,7 @@ public async GenerateNewTokenForInvitedUser(
       where: { id: invitedUserId },
       select: {
         id: true,
-        email_address: true,
-        first_name: true,
-        last_name: true,
+        email: true,
         role: true,
         invited: true,
       },
@@ -1154,13 +1152,13 @@ public async GenerateNewTokenForInvitedUser(
       };
     }
 
-    console.log(`✅ Found invited user: ${invitedUser.email_address}`);
+    console.log(`✅ Found invited user: ${invitedUser.email}`);
 
     // Generate a new unique token
     const tokencode = jwt.sign(
       { 
         organizationId: organizationId, 
-        email: invitedUser.email_address,
+        email: invitedUser.email,
         userId: invitedUser.id
       },
       process.env.BEARERAUTH_SECRET || "secret-key",
@@ -1170,7 +1168,7 @@ public async GenerateNewTokenForInvitedUser(
     // Check for existing invitation
     const existingInvite = await prisma.inviteUser.findFirst({
       where: {
-        email: invitedUser.email_address,
+        email: invitedUser.email,
         organizationId: organizationId,
       },
     });
@@ -1189,12 +1187,12 @@ public async GenerateNewTokenForInvitedUser(
           updatedAt: new Date(),
         },
       });
-      console.log(`✅ Updated existing invitation for: ${invitedUser.email_address}`);
+      console.log(`✅ Updated existing invitation for: ${invitedUser.email}`);
     } else {
       // CREATE new invitation if none exists
       inviteEntry = await prisma.inviteUser.create({
         data: {
-          email: invitedUser.email_address,
+          email: invitedUser.email,
           role: invitedUser.role || "member",
           code: tokencode,
           organizationId: organizationId,
@@ -1202,7 +1200,7 @@ public async GenerateNewTokenForInvitedUser(
           expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
         },
       });
-      console.log(`✅ Created new invitation for: ${invitedUser.email_address}`);
+      console.log(`✅ Created new invitation for: ${invitedUser.email}`);
     }
 
     // Generate the invite link
@@ -1211,10 +1209,10 @@ public async GenerateNewTokenForInvitedUser(
     
     // Send invitation email using your SendEmail function
     const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-    const userName = `${invitedUser.first_name || ''} ${invitedUser.last_name || ''}`.trim();
+    const userName = `${invitedUser.email || ''}`.trim();
     
     await SendEmail(
-      invitedUser.email_address,
+      invitedUser.email,
       emailSubject,
       inviteLink,
       "invitation",
@@ -1224,7 +1222,7 @@ public async GenerateNewTokenForInvitedUser(
       }
     );
 
-    console.log(`📧 Invitation email sent to: ${invitedUser.email_address}`);
+    console.log(`📧 Invitation email sent to: ${invitedUser.email}`);
 
     this.setStatus(200);
     return {
@@ -1234,7 +1232,7 @@ public async GenerateNewTokenForInvitedUser(
         : "New invitation generated and sent successfully",
       data: {
         inviteId: inviteEntry.id,
-        email: invitedUser.email_address,
+        email: invitedUser.email,
         role: invitedUser.role,
         expiresIn: inviteEntry.expiresIn,
         inviteLink: inviteLink,
