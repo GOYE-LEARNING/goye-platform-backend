@@ -2,7 +2,44 @@
 import { Request } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../db";
-import { verifyAccessToken, refreshTokens, normalizeLevel, generateTokens, verifyRefreshToken } from "../utils/jwtHelper";
+import { verifyAccessToken, normalizeLevel, verifyRefreshToken } from "../utils/jwtHelper";
+
+// Define the decoded token type
+interface DecodedToken {
+  id: string;
+  email: string;
+  role: string;
+  type?: string;
+  level?: string;
+  deviceId?: string;
+  organizationId?: string;
+  progressId?: string;
+  planId?: string;
+  settingsId?: string;
+  [key: string]: any;
+}
+
+// Define types for Prisma relations
+interface OrganizationRelation {
+  id: string;
+  organization_name: string;
+  [key: string]: any;
+}
+
+interface ProgressRelation {
+  id: string;
+  [key: string]: any;
+}
+
+interface SettingsRelation {
+  id: string;
+  [key: string]: any;
+}
+
+interface PricingHistoryRelation {
+  id: string;
+  [key: string]: any;
+}
 
 // Helper function to set secure cookies
 const setSecureCookie = (res: any, name: string, value: string, maxAge: number) => {
@@ -16,6 +53,186 @@ const setSecureCookie = (res: any, name: string, value: string, maxAge: number) 
   });
 };
 
+// Helper function to safely get first item from array or null with proper typing
+const getFirstOrganization = (arr: any[] | undefined | null): OrganizationRelation | null => {
+  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+};
+
+const getFirstProgress = (arr: any[] | undefined | null): ProgressRelation | null => {
+  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+};
+
+const getFirstSetting = (arr: any[] | undefined | null): SettingsRelation | null => {
+  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+};
+
+const getFirstPricingHistory = (arr: any[] | undefined | null): PricingHistoryRelation | null => {
+  return arr && Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+};
+
+// Helper function to generate new tokens and session from refresh token
+const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string, request: Request) => {
+  try {
+    // Verify refresh token with type assertion
+    const decodedRefresh = verifyRefreshToken(refreshToken) as DecodedToken | null;
+    if (!decodedRefresh || !decodedRefresh.id) {
+      console.error("❌ Invalid refresh token format or missing id");
+      return null;
+    }
+
+    console.log(`🔄 Found refresh token for user: ${decodedRefresh.id}`);
+
+    // Get user from database with proper relations
+    const user = await prisma.user.findUnique({
+      where: { id: decodedRefresh.id },
+      include: {
+        organization: true,
+        progress: true,
+        settings: true,
+        pricingHistory: {
+          orderBy: { createdAt: 'desc' },
+        }
+      }
+    });
+
+    if (!user) {
+      console.error("❌ User not found for refresh token");
+      return null;
+    }
+
+    console.log(`✅ User found: ${user.email_address}`);
+
+    // Get or create device info
+    const deviceType = request.headers["user-agent"] ? "web" : "unknown";
+    
+    // Safely get the first item from each relation using type-safe functions
+    const userOrganization = getFirstOrganization(user.organization as any);
+    const userProgress = getFirstProgress(user.progress as any);
+    const userSetting = getFirstSetting(user.settings as any);
+    const userPricingHistory = getFirstPricingHistory(user.pricingHistory as any);
+    
+    // Determine user type
+    const userType = decodedRefresh.type || 
+                     (userOrganization ? "ORGANIZATION" : 
+                      user.invited ? "INVITED_USER" : "USER");
+
+    // Normalize level
+    const normalizedLevel = normalizeLevel(user.level || "Beginners");
+
+    // Prepare payload for new tokens
+    const payload: any = {
+      id: user.id,
+      email: user.email_address,
+      role: user.role,
+      deviceId: deviceId,
+      level: normalizedLevel,
+      deviceType: deviceType,
+      type: userType,
+    };
+
+    // Add organization data if exists
+    if (userOrganization) {
+      payload.organizationId = userOrganization.id;
+      payload.userId = user.id;
+      payload.organization_name = userOrganization.organization_name;
+    }
+
+    // Add progress data for regular users
+    if (userProgress && userProgress.id) {
+      payload.progressId = userProgress.id;
+    }
+    
+    // Add pricing history data
+    if (userPricingHistory && userPricingHistory.id) {
+      payload.planId = userPricingHistory.id;
+    }
+    
+    // Add settings data
+    if (userSetting && userSetting.id) {
+      payload.settingsId = userSetting.id;
+    }
+
+    // Generate new tokens
+    const newAccessToken = jwt.sign(payload, process.env.ACCESS_SECRET!, { expiresIn: "15m" });
+    const newRefreshToken = jwt.sign(
+      {
+        id: user.id,
+        email: user.email_address,
+        deviceId: deviceId,
+        level: normalizedLevel,
+        deviceType: deviceType,
+        type: userType,
+      },
+      process.env.REFRESH_SECRET!,
+      { expiresIn: "7d" }
+    );
+
+    // Update any revoked sessions for this user and device
+    await prisma.userSession.updateMany({
+      where: {
+        userId: user.id,
+        deviceId: deviceId,
+        isRevoked: true
+      },
+      data: {
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      }
+    });
+
+    // Create or update session
+    const existingSession = await prisma.userSession.findFirst({
+      where: {
+        userId: user.id,
+        deviceId: deviceId,
+      }
+    });
+
+    let session;
+    if (existingSession) {
+      // Update existing session
+      session = await prisma.userSession.update({
+        where: { id: existingSession.id },
+        data: {
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+          lastActive: new Date(),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          isRevoked: false,
+        }
+      });
+      console.log(`✅ Updated existing session for user: ${user.id}`);
+    } else {
+      // Create new session
+      session = await prisma.userSession.create({
+        data: {
+          userId: user.id,
+          deviceId: deviceId,
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          lastActive: new Date(),
+          isRevoked: false,
+          deviceType: deviceType,
+          userType: userType,
+        }
+      });
+      console.log(`✅ Created new session for user: ${user.id}`);
+    }
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      user: user,
+      decoded: payload
+    };
+    
+  } catch (error) {
+    console.error("❌ Error regenerating from refresh token:", error);
+    return null;
+  }
+};
+
 export async function expressAuthentication(
   request: Request,
   securityName: string,
@@ -26,7 +243,7 @@ export async function expressAuthentication(
     let accessToken = request.cookies?.accessToken;
     const tokenFromHeader = request.headers["authorization"]?.split(" ")[1];
     const refreshToken = request.cookies?.refreshToken;
-    const deviceId = request.cookies?.deviceId || request.headers["x-device-id"] || `device_${Date.now()}`;
+    const deviceId = request.cookies?.deviceId || request.headers["x-device-id"] || `device_${Date.now()}_${Math.random()}`;
     
     // Use token from header if available and no cookie token
     if (!accessToken && tokenFromHeader) {
@@ -40,161 +257,101 @@ export async function expressAuthentication(
       path: request.path
     });
 
-    // CASE 1: No access token but has refresh token - try to refresh
-    if (!accessToken && refreshToken) {
-      console.log("🔄 No access token, attempting to refresh using refresh token...");
+    // CASE 1: No access token - try to generate from refresh token
+    if (!accessToken) {
+      console.log("🔄 No access token, attempting to generate from refresh token...");
       
-      try {
-        // First verify if refresh token is valid
-        const decodedRefresh = verifyRefreshToken(refreshToken);
-        if (!decodedRefresh) {
-          console.error("❌ Invalid refresh token format");
-          throw new Error("Invalid refresh token");
-        }
+      if (!refreshToken) {
+        console.error("❌ No refresh token available");
+        throw new Error("No access token or refresh token provided");
+      }
 
-        // Check if session exists in database
-        const session = await prisma.userSession.findFirst({
-          where: {
-            refreshToken: refreshToken,
-            deviceId: deviceId,
-            isRevoked: false,
-            expiresAt: { gt: new Date() }
-          }
-        });
-
-        if (!session) {
-          console.error("❌ No valid session found for refresh token");
-          throw new Error("Session not found or expired");
-        }
-
-        // Get user data
-        const user = await prisma.user.findUnique({
-          where: { id: decodedRefresh.id }
-        });
-
-        if (!user) {
-          console.error("❌ User not found for refresh token");
-          throw new Error("User not found");
-        }
-
-        // Generate new tokens
-        console.log(`✅ Generating new tokens for user: ${user.id}`);
+      // Try to regenerate from refresh token
+      const regenerated = await regenerateFromRefreshToken(refreshToken, deviceId, request);
+      
+      if (regenerated && request.res) {
+        // Set new cookies
+        setSecureCookie(request.res, "accessToken", regenerated.accessToken, 15 * 60 * 1000);
+        setSecureCookie(request.res, "refreshToken", regenerated.refreshToken, 7 * 24 * 60 * 60 * 1000);
+        setSecureCookie(request.res, "deviceId", deviceId, 365 * 24 * 60 * 60 * 1000);
         
-        const normalizedLevel = normalizeLevel(user.level || "Beginners");
+        accessToken = regenerated.accessToken;
         
-        const payload: any = {
-          id: user.id,
-          email: user.email_address,
-          role: user.role,
-          deviceId: deviceId,
-          level: normalizedLevel,
-          deviceType: session.deviceType || "web",
-          type: session.userType || "USER",
-        };
-
-        // Add organization data if exists
-        if (session.userType === "ORGANIZATION") {
-          const organization = await prisma.organization.findFirst({
-            where: { userId: user.id }
+        // Attach user and org to request
+        (request as any).user = regenerated.user;
+        (request as any).deviceId = deviceId;
+        
+        if (regenerated.decoded.organizationId) {
+          const organization = await prisma.organization.findUnique({
+            where: { id: regenerated.decoded.organizationId },
           });
           if (organization) {
-            payload.organizationId = organization.id;
-            payload.userId = user.id;
+            (request as any).org = organization;
           }
         }
-
-        // Add progress and plan data for regular users
-        if (session.userType === "USER" || session.userType === "INVITED_USER") {
-          const progress = await prisma.progress.findFirst({
-            where: { userId: user.id }
-          });
-          if (progress) {
-            payload.progressId = progress.id;
-          }
-
-          const plan = await prisma.pricingHistory.findFirst({
-            where: { userId: user.id },
-            orderBy: { planActivatedAt: 'desc' }
-          });
-          if (plan) {
-            payload.planId = plan.id;
-          }
-
-          const settings = await prisma.settings.findFirst({
-            where: { userId: user.id }
-          });
-          if (settings) {
-            payload.settingsId = settings.id;
-          }
-        }
-
-        // Generate new tokens
-        const newAccessToken = jwt.sign(payload, process.env.ACCESS_SECRET!, { expiresIn: "15m" });
-        const newRefreshToken = jwt.sign(
-          {
-            id: user.id,
-            email: user.email_address,
-            deviceId: deviceId,
-            level: normalizedLevel,
-            deviceType: session.deviceType,
-            type: session.userType,
-          },
-          process.env.REFRESH_SECRET!,
-          { expiresIn: "7d" }
-        );
-
-        // Update session in database
-        await prisma.userSession.update({
-          where: { id: session.id },
-          data: {
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
-            lastActive: new Date()
-          }
-        });
-
-        // Set new cookies
-        if (request.res) {
-          setSecureCookie(request.res, "accessToken", newAccessToken, 15 * 60 * 1000);
-          setSecureCookie(request.res, "refreshToken", newRefreshToken, 7 * 24 * 60 * 60 * 1000);
-        }
-
-        accessToken = newAccessToken;
-        console.log("✅ Tokens refreshed successfully!");
         
-      } catch (refreshError) {
-        console.error("❌ Refresh token error:", refreshError);
-        throw new Error("Failed to refresh token");
+        console.log("✅ Successfully generated new tokens from refresh token!");
+        return regenerated.decoded;
+      } else {
+        console.error("❌ Failed to generate tokens from refresh token");
+        throw new Error("Unable to authenticate: Please login again");
       }
     }
 
-    // CASE 2: Still no access token after refresh attempt
-    if (!accessToken) {
-      console.error("❌ No access token provided and refresh failed");
-      throw new Error("No access token provided");
-    }
-
-    // CASE 3: Verify access token
-    let decoded: any;
+    // CASE 2: Have access token - verify it
+    let decoded: DecodedToken | null = null;
     try {
-      decoded = verifyAccessToken(accessToken);
-      if (!decoded) {
-        console.error("❌ Invalid access token");
-        throw new Error("Invalid access token");
+      decoded = verifyAccessToken(accessToken) as DecodedToken | null;
+      if (!decoded || !decoded.id) {
+        console.log("⚠️ Access token invalid, attempting to refresh...");
+        
+        // Try to refresh using refresh token
+        if (refreshToken) {
+          const regenerated = await regenerateFromRefreshToken(refreshToken, deviceId, request);
+          
+          if (regenerated && request.res) {
+            setSecureCookie(request.res, "accessToken", regenerated.accessToken, 15 * 60 * 1000);
+            setSecureCookie(request.res, "refreshToken", regenerated.refreshToken, 7 * 24 * 60 * 60 * 1000);
+            
+            accessToken = regenerated.accessToken;
+            decoded = regenerated.decoded as DecodedToken;
+            
+            (request as any).user = regenerated.user;
+            (request as any).deviceId = deviceId;
+            
+            if (regenerated.decoded.organizationId) {
+              const organization = await prisma.organization.findUnique({
+                where: { id: regenerated.decoded.organizationId },
+              });
+              if (organization) {
+                (request as any).org = organization;
+              }
+            }
+            
+            console.log("✅ Successfully refreshed expired token!");
+          } else {
+            throw new Error("Invalid refresh token");
+          }
+        } else {
+          throw new Error("No refresh token available");
+        }
       }
-      console.log(`✅ Access token verified for user: ${decoded.id}`);
     } catch (error) {
-      console.error("❌ Access token verification failed:", error);
-      throw new Error("Invalid or expired access token");
+      console.error("❌ Token verification failed:", error);
+      throw new Error("Invalid or expired token");
     }
 
-    // CASE 4: Check and fix missing level
+    // Ensure we have a valid decoded token at this point
+    if (!decoded || !decoded.id) {
+      throw new Error("Invalid token payload");
+    }
+
+    // CASE 3: Ensure level is present
     if (!decoded.level) {
       console.log("⚠️ Token missing level, fetching from database...");
       
       const userFromDb = await prisma.user.findUnique({
         where: { id: decoded.id },
-        select: { level: true, email_address: true, role: true }
       });
       
       if (userFromDb?.level) {
@@ -215,60 +372,11 @@ export async function expressAuthentication(
         console.log(`✅ Token updated with level: ${normalizedLevel}`);
       } else {
         decoded.level = "Beginners";
-        console.log(`⚠️ Set default level: Beginners for user ${decoded.id}`);
+        console.log(`⚠️ Set default level: Beginners`);
       }
     }
 
-    // CASE 5: Validate session in database
-    const session = await prisma.userSession.findFirst({
-      where: {
-        userId: decoded.id,
-        deviceId: deviceId,
-        isRevoked: false,
-        expiresAt: { gt: new Date() }
-      }
-    });
-
-    if (!session) {
-      console.error("❌ No valid session found for user");
-      
-      // Try to create a new session if user exists
-      const userExists = await prisma.user.findUnique({
-        where: { id: decoded.id }
-      });
-      
-      if (userExists && refreshToken) {
-        console.log("🔄 Creating new session for user...");
-        
-        const newSession = await prisma.userSession.create({
-          data: {
-            userId: decoded.id,
-            deviceId: deviceId,
-            accessToken: accessToken,
-            refreshToken: refreshToken || '',
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            lastActive: new Date(),
-            isRevoked: false,
-            deviceType: request.headers["user-agent"] ? "web" : "unknown",
-            userType: decoded.type || "USER"
-          }
-        });
-        
-        if (newSession) {
-          console.log("✅ New session created for user:", decoded.id);
-        }
-      } else {
-        throw new Error("Session not found");
-      }
-    } else {
-      // Update session last active time
-      await prisma.userSession.update({
-        where: { id: session.id },
-        data: { lastActive: new Date() }
-      });
-    }
-
-    // CASE 6: Get and attach user to request
+    // CASE 4: Get user from database
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
     });
@@ -278,10 +386,48 @@ export async function expressAuthentication(
       throw new Error("User not found");
     }
 
+    // CASE 5: Ensure session exists (create if not)
+    let session = await prisma.userSession.findFirst({
+      where: {
+        userId: user.id,
+        deviceId: deviceId,
+        isRevoked: false,
+      }
+    });
+
+    if (!session) {
+      console.log("🔄 No session found, creating new session...");
+      
+      session = await prisma.userSession.create({
+        data: {
+          userId: user.id,
+          deviceId: deviceId,
+          accessToken: accessToken,
+          refreshToken: refreshToken || '',
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          lastActive: new Date(),
+          isRevoked: false,
+          deviceType: request.headers["user-agent"] ? "web" : "unknown",
+          userType: decoded.type || "USER",
+        }
+      });
+      
+      console.log(`✅ Created new session for user: ${user.id}`);
+    } else {
+      // Update session
+      await prisma.userSession.update({
+        where: { id: session.id },
+        data: { 
+          lastActive: new Date(),
+          accessToken: accessToken
+        }
+      });
+    }
+
+    // Attach data to request
     (request as any).user = user;
     (request as any).deviceId = deviceId;
 
-    // Attach additional IDs
     if (decoded.progressId) {
       (request as any).progressId = decoded.progressId;
     }
@@ -289,14 +435,13 @@ export async function expressAuthentication(
       (request as any).planId = decoded.planId;
     }
 
-    // CASE 7: Attach organization if exists
+    // Attach organization if exists
     if (decoded.organizationId) {
       const organization = await prisma.organization.findUnique({
         where: { id: decoded.organizationId },
       });
       if (organization) {
         (request as any).org = organization;
-        console.log(`✅ Organization attached: ${organization.organization_name}`);
       }
     }
 
