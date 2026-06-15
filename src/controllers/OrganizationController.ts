@@ -1029,7 +1029,7 @@ export class OrganizationController extends Controller {
 
           // Send Email
           const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-          const inviteLink = `http://localhost:3000/dashboard/${organizationId}/accept-invite?token=${tokencode}`;
+          const inviteLink = `http://localhost:3000/auth/${organizationId}/accept-invite?token=${tokencode}`;
           const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
 
           await SendEmail(user.email, emailSubject, emailText);
@@ -1099,6 +1099,45 @@ export class OrganizationController extends Controller {
       };
     }
   }
+
+@Post("/invitations/check")
+public async CheckInvitation(
+  @Body() body: { email: string; organizationId: string }
+): Promise<any> {
+  try {
+    const invitation = await prisma.inviteUser.findFirst({
+      where: {
+        email: body.email,
+        organizationId: body.organizationId,
+        expiresIn: { gt: new Date() }, // Not expired
+      },
+    });
+
+    if (!invitation) {
+      this.setStatus(404);
+      return {
+        exists: false,
+        message: "Invitation not found or expired"
+      };
+    }
+
+    return {
+      exists: true,
+      invitation: {
+        role: invitation.role,
+        expiresIn: invitation.expiresIn,
+        code: invitation.code
+      }
+    };
+  } catch (error) {
+    console.error(error);
+    this.setStatus(500);
+    return { 
+      exists: false, 
+      error: "Failed to check invitation" 
+    };
+  }
+}
 
   @Security("bearerAuth")
   @Get("/fetch-invited-users/{organizationId}")
