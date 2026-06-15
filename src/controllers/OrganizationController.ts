@@ -1101,320 +1101,321 @@ export class OrganizationController extends Controller {
     }
   }
 
-// In your OrganizationController
-// In your OrganizationController - Updated GenerateNewTokenForInvitedUser
+  // In your OrganizationController
+  // In your OrganizationController - Updated GenerateNewTokenForInvitedUser
 
-// In your OrganizationController - Better version that updates existing invitation
+  // In your OrganizationController - Better version that updates existing invitation
 
-@Security("bearerAuth")
-@Post("/generate-new-token/{organizationId}/{invitedUserId}")
-public async GenerateNewTokenForInvitedUser(
-  @Path() organizationId: string,
-  @Path() invitedUserId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Get the organization admin/user who is sending the invitation
-    const userIdFromOrganization = req.org?.userId || req.user?.id;
-    
-    console.log(`🔄 Generating new token for invited user: ${invitedUserId}`);
-    console.log(`📋 Organization ID: ${organizationId}`);
+  @Security("bearerAuth")
+  @Post("/generate-new-token/{organizationId}/{invitedUserId}")
+  public async GenerateNewTokenForInvitedUser(
+    @Path() organizationId: string,
+    @Path() invitedUserId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Get the organization admin/user who is sending the invitation
+      const userIdFromOrganization = req.org?.userId || req.user?.id;
 
-    // Check if organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
+      console.log(`🔄 Generating new token for invited user: ${invitedUserId}`);
+      console.log(`📋 Organization ID: ${organizationId}`);
 
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "Organization not found",
-      };
-    }
-
-    // Find the invited user by their user ID
-    const invitedUser = await prisma.inviteUser.findUnique({
-      where: { id: invitedUserId },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        invited: true
-      },
-    });
-
-    if (!invitedUser) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "Invited user not found",
-      };
-    }
-
-    console.log(`✅ Found invited user: ${invitedUser.email}`);
-
-    // Generate a new unique token
-    const tokencode = jwt.sign(
-      { 
-        organizationId: organizationId, 
-        email: invitedUser.email,
-        userId: invitedUser.id
-      },
-      process.env.BEARERAUTH_SECRET || "secret-key",
-      { expiresIn: "24h" }
-    );
-
-    // Check for existing invitation
-    const existingInvite = await prisma.inviteUser.findFirst({
-      where: {
-        email: invitedUser.email,
-        organizationId: organizationId,
-      },
-    });
-
-    let inviteEntry: any;
-    
-    if (existingInvite) {
-      // UPDATE existing invitation instead of deleting
-      inviteEntry = await prisma.inviteUser.update({
-        where: { id: existingInvite.id },
-        data: {
-          code: tokencode,
-          role: invitedUser.role || "member",
-          sentById: userIdFromOrganization,
-          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), // Reset to 24 hours
-          updatedAt: new Date(),
-        },
+      // Check if organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
       });
-      console.log(`✅ Updated existing invitation for: ${invitedUser.email}`);
-    } else {
-      // CREATE new invitation if none exists
-      inviteEntry = await prisma.inviteUser.create({
-        data: {
-          email: invitedUser.email,
-          role: invitedUser.role || "member",
-          code: tokencode,
-          organizationId: organizationId,
-          sentById: userIdFromOrganization,
-          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        },
-      });
-      console.log(`✅ Created new invitation for: ${invitedUser.email}`);
-    }
 
-    // Generate the invite link
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const inviteLink = `${baseUrl}/auth/${tokencode}/accept-invite`;
-    
-    // Send invitation email using your SendEmail function
-    const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-    const userName = `${invitedUser.email || ''}`.trim();
-    
-    await SendEmail(
-      invitedUser.email,
-      emailSubject,
-      inviteLink,
-      "invitation",
-      {
-        organizationName: organization.organization_name,
-        userName: userName || undefined,
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
       }
-    );
 
-    console.log(`📧 Invitation email sent to: ${invitedUser.email}`);
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: existingInvite 
-        ? "Invitation has been renewed and sent successfully" 
-        : "New invitation generated and sent successfully",
-      data: {
-        inviteId: inviteEntry.id,
-        email: invitedUser.email,
-        role: invitedUser.role,
-        expiresIn: inviteEntry.expiresIn,
-        inviteLink: inviteLink,
-        isRenewal: !!existingInvite,
-      },
-    };
-    
-  } catch (error: any) {
-    console.error("❌ Error generating new token:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Error generating new invitation token",
-      error: error.message,
-    };
-  }
-}
-// Also add an endpoint to get all invited users for an organization
-@Security("bearerAuth")
-@Get("/invited-users/{organizationId}")
-public async GetInvitedUsers(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "Organization not found",
-      };
-    }
-
-    // Get all invitations for this organization
-    const invitations = await prisma.inviteUser.findMany({
-      where: {
-        organizationId: organizationId,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        expiresIn: true,
-        createdAt: true,
-        sentById: true,
-      },
-    });
-
-    // Also get users who have already accepted invitations
-    const acceptedUsers = await prisma.user.findMany({
-      where: {
-        invited: true,
-        email_address: {
-          in: invitations.map(i => i.email),
+      // Find the invited user by their user ID
+      const invitedUser = await prisma.inviteUser.findUnique({
+        where: { id: invitedUserId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          invited: true,
         },
-      },
-      select: {
-        id: true,
-        email_address: true,
-        first_name: true,
-        last_name: true,
-        role: true,
-        createdAt: true,
-      },
-    });
+      });
 
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Invited users fetched successfully",
-      data: {
-        pending: invitations.filter(i => i.expiresIn > new Date()),
-        expired: invitations.filter(i => i.expiresIn <= new Date()),
-        accepted: acceptedUsers,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error fetching invited users:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Error fetching invited users",
-      error: error.message,
-    };
-  }
-}
+      if (!invitedUser) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Invited user not found",
+        };
+      }
 
-// Add an endpoint to resend invitation
-@Security("bearerAuth")
-@Post("/resend-invitation/{invitationId}")
-public async ResendInvitation(
-  @Path() invitationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Find the existing invitation
-    const existingInvitation = await prisma.inviteUser.findUnique({
-      where: { id: invitationId },
-      include: {
-        organization: true,
-      },
-    });
+      console.log(`✅ Found invited user: ${invitedUser.email}`);
 
-    if (!existingInvitation) {
-      this.setStatus(404);
+      // Generate a new unique token
+      const tokencode = jwt.sign(
+        {
+          organizationId: organizationId,
+          email: invitedUser.email,
+          userId: invitedUser.id,
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "24h" },
+      );
+
+      // Check for existing invitation
+      const existingInvite = await prisma.inviteUser.findFirst({
+        where: {
+          email: invitedUser.email,
+          organizationId: organizationId,
+        },
+      });
+
+      let inviteEntry: any;
+
+      if (existingInvite) {
+        // UPDATE existing invitation instead of deleting
+        inviteEntry = await prisma.inviteUser.update({
+          where: { id: existingInvite.id },
+          data: {
+            code: tokencode,
+            role: invitedUser.role || "member",
+            sentById: userIdFromOrganization,
+            expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), // Reset to 24 hours
+            updatedAt: new Date(),
+          },
+        });
+        console.log(`✅ Updated existing invitation for: ${invitedUser.email}`);
+      } else {
+        // CREATE new invitation if none exists
+        inviteEntry = await prisma.inviteUser.create({
+          data: {
+            email: invitedUser.email,
+            role: invitedUser.role || "member",
+            code: tokencode,
+            organizationId: organizationId,
+            sentById: userIdFromOrganization,
+            expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          },
+        });
+        console.log(`✅ Created new invitation for: ${invitedUser.email}`);
+      }
+
+      // Generate the invite link
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const inviteLink = `${baseUrl}/auth/${tokencode}/accept-invite`;
+
+      // Send invitation email using your SendEmail function
+      const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
+      const userName = `${invitedUser.email || ""}`.trim();
+
+      await SendEmail(
+        invitedUser.email,
+        emailSubject,
+        inviteLink,
+        "invitation",
+        {
+          organizationName: organization.organization_name,
+          userName: userName || undefined,
+        },
+      );
+
+      console.log(`📧 Invitation email sent to: ${invitedUser.email}`);
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: existingInvite
+          ? "Invitation has been renewed and sent successfully"
+          : "New invitation generated and sent successfully",
+        data: {
+          inviteId: inviteEntry.id,
+          email: invitedUser.email,
+          role: invitedUser.role,
+          expiresIn: inviteEntry.expiresIn,
+          inviteLink: inviteLink,
+          isRenewal: !!existingInvite,
+        },
+      };
+    } catch (error: any) {
+      console.error("❌ Error generating new token:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "Invitation not found",
+        message: "Error generating new invitation token",
+        error: error.message,
       };
     }
+  }
+  // Also add an endpoint to get all invited users for an organization
+  @Security("bearerAuth")
+  @Get("/invited-users/{organizationId}")
+  public async GetInvitedUsers(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
 
-    // Check if it's already accepted (no user associated yet)
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        email_address: existingInvitation.email,
-        invited: true,
-      },
-    });
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
 
-    if (existingUser) {
-      this.setStatus(400);
+      // Get all invitations for this organization
+      const invitations = await prisma.inviteUser.findMany({
+        where: {
+          organizationId: organizationId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          expiresIn: true,
+          createdAt: true,
+          sentById: true,
+        },
+      });
+
+      // Also get users who have already accepted invitations
+      const acceptedUsers = await prisma.user.findMany({
+        where: {
+          invited: true,
+          email_address: {
+            in: invitations.map((i) => i.email),
+          },
+        },
+        select: {
+          id: true,
+          email_address: true,
+          first_name: true,
+          last_name: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Invited users fetched successfully",
+        data: {
+          pending: invitations.filter((i) => i.expiresIn > new Date()),
+          expired: invitations.filter((i) => i.expiresIn <= new Date()),
+          accepted: acceptedUsers,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching invited users:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "User has already accepted the invitation",
+        message: "Error fetching invited users",
+        error: error.message,
       };
     }
-
-    // Generate new token
-    const newTokencode = jwt.sign(
-      { 
-        organizationId: existingInvitation.organizationId, 
-        email: existingInvitation.email 
-      },
-      process.env.BEARERAUTH_SECRET || "secret-key",
-      { expiresIn: "24h" }
-    );
-
-    // Update the invitation with new token and expiration
-    const updatedInvitation = await prisma.inviteUser.update({
-      where: { id: invitationId },
-      data: {
-        code: newTokencode,
-        expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
-        sentById: req.org?.userId || req.user?.id,
-      },
-    });
-
-    // Send new email
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const inviteLink = `${baseUrl}/auth/${newTokencode}/accept-invite`;
-    
-    const emailSubject = `Resent: Invitation to join ${existingInvitation.organization?.organization_name} on GOYE Platform`;
-    const emailText = `Your invitation to join "${existingInvitation.organization?.organization_name}" has been resent. Accept here: ${inviteLink}\n\nThis invitation will expire in 24 hours.`;
-
-    await SendEmail(existingInvitation.email, emailSubject, emailText);
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Invitation resent successfully",
-      data: {
-        inviteLink: inviteLink,
-        expiresIn: updatedInvitation.expiresIn,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error resending invitation:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Error resending invitation",
-      error: error.message,
-    };
   }
-}
+
+  // Add an endpoint to resend invitation
+  @Security("bearerAuth")
+  @Post("/resend-invitation/{invitationId}")
+  public async ResendInvitation(
+    @Path() invitationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Find the existing invitation
+      const existingInvitation = await prisma.inviteUser.findUnique({
+        where: { id: invitationId },
+        include: {
+          organization: true,
+        },
+      });
+
+      if (!existingInvitation) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Invitation not found",
+        };
+      }
+
+      // Check if it's already accepted (no user associated yet)
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email_address: existingInvitation.email,
+          invited: true,
+        },
+      });
+
+      if (existingUser) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "User has already accepted the invitation",
+        };
+      }
+
+      // Generate new token
+      const newTokencode = jwt.sign(
+        {
+          organizationId: existingInvitation.organizationId,
+          email: existingInvitation.email,
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "24h" },
+      );
+
+      // Update the invitation with new token and expiration
+      const updatedInvitation = await prisma.inviteUser.update({
+        where: { id: invitationId },
+        data: {
+          code: newTokencode,
+          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          sentById: req.org?.userId || req.user?.id,
+        },
+      });
+
+      // Send new email
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const inviteLink = `${baseUrl}/auth/${newTokencode}/accept-invite`;
+
+      const emailSubject = `Resent: Invitation to join ${existingInvitation.organization?.organization_name} on GOYE Platform`;
+      const emailText = `Your invitation to join "${existingInvitation.organization?.organization_name}" has been resent. Accept here: ${inviteLink}\n\nThis invitation will expire in 24 hours.`;
+
+      await SendEmail(existingInvitation.email, emailSubject, emailText);
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Invitation resent successfully",
+        data: {
+          inviteLink: inviteLink,
+          expiresIn: updatedInvitation.expiresIn,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error resending invitation:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Error resending invitation",
+        error: error.message,
+      };
+    }
+  }
 
   // Update your invitations/check endpoint to also verify the token
   @Post("/invitations/check")
@@ -1469,23 +1470,14 @@ public async ResendInvitation(
         };
       }
 
-      const fetchInviteusers = await prisma.organization.findMany({
+      const fetchInviteusers = await prisma.inviteUser.findMany({
         where: {
-          user: {
-            invited: true,
-          },
+          organizationId,
         },
 
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              role: true,
-              user_pic: true,
-            },
-          },
+        select: {
+          email: true,
+          role: true,
         },
       });
 
