@@ -1,3 +1,5 @@
+// utils/sendmail.ts
+
 const otpTemplate = (otp: string) => `
 <div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
   <div style="max-width:520px; margin:0 auto;">
@@ -20,7 +22,7 @@ const otpTemplate = (otp: string) => `
         </p>
 
         <div style="background:#252830; border-radius:12px; border:1px solid rgba(255,165,0,0.2); padding:24px 16px; text-align:center; margin-bottom:24px;">
-          <div style="font-size:18px; font-weight:bold; color:#FFA500; margin-left:14px;">
+          <div style="font-size:28px; font-weight:bold; letter-spacing:4px; color:#FFA500;">
             ${otp}
           </div>
           <p style="margin:10px 0 0; font-size:12px; color:#9CA3B0;">Your one-time passcode</p>
@@ -101,15 +103,81 @@ const resetPasswordTemplate = (link: string) => `
   </div>
 </div>`;
 
+const invitationTemplate = (organizationName: string, inviteLink: string, userName: string = '') => `
+<div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
+  <div style="max-width:520px; margin:0 auto;">
+
+    <div style="text-align:center; margin-bottom:28px;">
+      <span style="font-size:18px; font-weight:500; color:#E8EAEF;">GOYE Platform</span>
+    </div>
+
+    <div style="background:#1a1d26; border-radius:16px; border:1px solid #252830; overflow:hidden;">
+
+      <div style="background:linear-gradient(135deg,#FFA500 0%,#FBB041 100%); padding:32px; text-align:center;">
+        <h1 style="margin:0 0 4px; font-size:22px; color:#121318;">You're Invited!</h1>
+        <p style="margin:0; font-size:14px; color:rgba(18,19,24,0.65);">Join ${organizationName}</p>
+      </div>
+
+      <div style="padding:32px;">
+        ${userName ? `<p style="margin:0 0 10px; font-size:15px; color:#B8BCC8; line-height:1.7; text-align:center;">
+          Hello ${userName},
+        </p>` : ''}
+        <p style="margin:0 0 28px; font-size:15px; color:#B8BCC8; line-height:1.7; text-align:center;">
+          You have been invited to join <strong style="color:#FFA500;">${organizationName}</strong> on the GOYE Platform.
+          Click the button below to accept your invitation and complete your registration.
+        </p>
+
+        <div style="text-align:center; margin-bottom:28px;">
+          <a href="${inviteLink}" style="display:inline-block; background:#FFA500; color:#121318; font-size:15px; font-weight:500; text-decoration:none; padding:14px 40px; border-radius:10px;">
+            Accept Invitation
+          </a>
+        </div>
+
+        <div style="background:#252830; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
+          <p style="margin:0 0 6px; font-size:12px; color:#9CA3B0;">Or copy and paste this link into your browser:</p>
+          <p style="margin:0; font-size:12px; color:#FFA500; word-break:break-all;">${inviteLink}</p>
+        </div>
+
+        <div style="background:rgba(254,153,0,0.05); border-radius:10px; border:1px solid rgba(255,165,0,0.18); padding:14px 16px; margin-bottom:28px;">
+          <p style="margin:0; font-size:13px; color:#9CA3B0; line-height:1.6;">
+            ⓘ This invitation link will expire in <span style="color:#FFA500; font-weight:500;">24 hours</span>. 
+            If you did not expect this invitation, you can safely ignore this email.
+          </p>
+        </div>
+
+        <div style="border-top:1px solid #252830; padding-top:20px; text-align:center;">
+          <p style="margin:0 0 4px; font-size:13px; color:#9CA3B0;">Need help? Reach us at</p>
+          <a href="mailto:support@goye.com" style="font-size:13px; color:#FFA500;">support@goye.com</a>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align:center; font-size:12px; color:#9CA3B0; margin-top:20px;">
+      &copy; 2026 GOYE Platform. All rights reserved.
+    </p>
+  </div>
+</div>`;
+
 export const SendEmail = async (
   to: string,
   subject: string,
   content: string,
-  type: "otp" | "reset-password" = "otp",
+  type: "otp" | "reset-password" | "invitation" = "otp",
+  additionalData?: { organizationName?: string; userName?: string }
 ) => {
-  const html = type === "reset-password" 
-    ? resetPasswordTemplate(content) 
-    : otpTemplate(content);
+  let html: string;
+  
+  if (type === "reset-password") {
+    html = resetPasswordTemplate(content);
+  } else if (type === "invitation") {
+    html = invitationTemplate(
+      additionalData?.organizationName || "Organization",
+      content, // content is the invite link
+      additionalData?.userName || ""
+    );
+  } else {
+    html = otpTemplate(content);
+  }
 
   // Get sender email from environment variables
   const senderEmail = process.env.BREVO_SENDER_EMAIL || process.env.GMAIL_USER;
