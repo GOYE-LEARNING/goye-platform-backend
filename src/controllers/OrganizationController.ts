@@ -1029,7 +1029,8 @@ export class OrganizationController extends Controller {
 
           // Send Email
           const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-          const inviteLink = `http://localhost:3000/auth/${organizationId}/accept-invite?token=${tokencode}`;
+          // NEW URL structure: token in the path instead of query param
+          const inviteLink = `http://localhost:3000/auth/${tokencode}/accept-invite`;
           const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
 
           await SendEmail(user.email, emailSubject, emailText);
@@ -1100,15 +1101,17 @@ export class OrganizationController extends Controller {
     }
   }
 
+  // Update your invitations/check endpoint to also verify the token
 @Post("/invitations/check")
 public async CheckInvitation(
-  @Body() body: { email: string; organizationId: string }
+  @Body() body: { email: string; organizationId: string; token?: string }
 ): Promise<any> {
   try {
     const invitation = await prisma.inviteUser.findFirst({
       where: {
         email: body.email,
         organizationId: body.organizationId,
+        code: body.token, // Also check the token matches
         expiresIn: { gt: new Date() }, // Not expired
       },
     });
@@ -1126,7 +1129,6 @@ public async CheckInvitation(
       invitation: {
         role: invitation.role,
         expiresIn: invitation.expiresIn,
-        code: invitation.code
       }
     };
   } catch (error) {
