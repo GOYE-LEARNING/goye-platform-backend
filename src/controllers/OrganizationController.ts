@@ -1104,6 +1104,8 @@ export class OrganizationController extends Controller {
 // In your OrganizationController
 // In your OrganizationController - Updated GenerateNewTokenForInvitedUser
 
+// In your OrganizationController - Better version that updates existing invitation
+
 @Security("bearerAuth")
 @Post("/generate-new-token/{organizationId}/{invitedUserId}")
 public async GenerateNewTokenForInvitedUser(
@@ -1117,7 +1119,6 @@ public async GenerateNewTokenForInvitedUser(
     
     console.log(`🔄 Generating new token for invited user: ${invitedUserId}`);
     console.log(`📋 Organization ID: ${organizationId}`);
-    console.log(`👤 Sent by: ${userIdFromOrganization}`);
 
     // Check if organization exists
     const organization = await prisma.organization.findUnique({
@@ -1133,7 +1134,7 @@ public async GenerateNewTokenForInvitedUser(
     }
 
     // Find the invited user by their user ID
-    const invitedUser = await prisma.user.findUnique({
+    const invitedUser = await prisma.inviteUser.findUnique({
       where: { id: invitedUserId },
       select: {
         id: true,
@@ -1155,22 +1156,6 @@ public async GenerateNewTokenForInvitedUser(
 
     console.log(`✅ Found invited user: ${invitedUser.email_address}`);
 
-    // Check for existing active invitation and delete it (to generate fresh one)
-    const existingInvite = await prisma.inviteUser.findFirst({
-      where: {
-        email: invitedUser.email_address,
-        organizationId: organizationId,
-      },
-    });
-
-    if (existingInvite) {
-      // Delete the old invitation to create a fresh one
-      await prisma.inviteUser.delete({
-        where: { id: existingInvite.id },
-      });
-      console.log(`🗑️ Deleted old invitation for: ${invitedUser.email_address}`);
-    }
-
     // Generate a new unique token
     const tokencode = jwt.sign(
       { 
@@ -1182,25 +1167,49 @@ public async GenerateNewTokenForInvitedUser(
       { expiresIn: "24h" }
     );
 
-    // Create new invitation record in database
-    const inviteEntry = await prisma.inviteUser.create({
-      data: {
+    // Check for existing invitation
+    const existingInvite = await prisma.inviteUser.findFirst({
+      where: {
         email: invitedUser.email_address,
-        role: invitedUser.role || "member",
-        code: tokencode,
         organizationId: organizationId,
-        sentById: userIdFromOrganization,
-        expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
       },
     });
 
-    console.log(`✅ Created new invitation with ID: ${inviteEntry.id}`);
+    let inviteEntry;
+    
+    if (existingInvite) {
+      // UPDATE existing invitation instead of deleting
+      inviteEntry = await prisma.inviteUser.update({
+        where: { id: existingInvite.id },
+        data: {
+          code: tokencode,
+          role: invitedUser.role || "member",
+          sentById: userIdFromOrganization,
+          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), // Reset to 24 hours
+          updatedAt: new Date(),
+        },
+      });
+      console.log(`✅ Updated existing invitation for: ${invitedUser.email_address}`);
+    } else {
+      // CREATE new invitation if none exists
+      inviteEntry = await prisma.inviteUser.create({
+        data: {
+          email: invitedUser.email_address,
+          role: invitedUser.role || "member",
+          code: tokencode,
+          organizationId: organizationId,
+          sentById: userIdFromOrganization,
+          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+      console.log(`✅ Created new invitation for: ${invitedUser.email_address}`);
+    }
 
     // Generate the invite link
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const inviteLink = `${baseUrl}/auth/${tokencode}/accept-invite`;
     
-    // Send invitation email using your updated SendEmail function
+    // Send invitation email using your SendEmail function
     const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
     const userName = `${invitedUser.first_name || ''} ${invitedUser.last_name || ''}`.trim();
     
@@ -1220,13 +1229,16 @@ public async GenerateNewTokenForInvitedUser(
     this.setStatus(200);
     return {
       success: true,
-      message: "New invitation token generated and sent successfully",
+      message: existingInvite 
+        ? "Invitation has been renewed and sent successfully" 
+        : "New invitation generated and sent successfully",
       data: {
         inviteId: inviteEntry.id,
         email: invitedUser.email_address,
         role: invitedUser.role,
         expiresIn: inviteEntry.expiresIn,
         inviteLink: inviteLink,
+        isRenewal: !!existingInvite,
       },
     };
     
