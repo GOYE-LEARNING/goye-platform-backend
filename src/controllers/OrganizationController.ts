@@ -1140,7 +1140,7 @@ public async GenerateNewTokenForInvitedUser(
         id: true,
         email: true,
         role: true,
-        invited: true,
+        invited: true
       },
     });
 
@@ -1173,7 +1173,7 @@ public async GenerateNewTokenForInvitedUser(
       },
     });
 
-    let inviteEntry;
+    let inviteEntry: any;
     
     if (existingInvite) {
       // UPDATE existing invitation instead of deleting

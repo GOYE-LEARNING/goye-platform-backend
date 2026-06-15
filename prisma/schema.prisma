@@ -180,11 +180,13 @@ model InviteUser {
   email          String
   role           String
   code           String
+  invited        Boolean      @default(true)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   organizationId String
   sentBy         User         @relation(fields: [sentById], references: [id], onDelete: Cascade)
   sentById       String
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime?     @updatedAt
   expiresIn      DateTime
 }
 
