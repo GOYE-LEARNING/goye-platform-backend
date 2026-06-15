@@ -849,7 +849,18 @@ export class OrganizationController extends Controller {
 
   @Post("/invite-user/signup")
   public async CreateUser(
-    @Body() body: Omit<User, "id">,
+    @Body()
+    body: {
+      first_name: string;
+      last_name: string;
+      email_address: string;
+      password: string;
+      country: string;
+      state: string;
+      phone_number: string;
+      role: string;
+      level: string;
+    },
     @Request() req: any,
   ): Promise<any> {
     try {
@@ -945,12 +956,6 @@ export class OrganizationController extends Controller {
             last_name: updateUser.last_name,
             email_address: updateUser.email_address,
           },
-        };
-      } else {
-        this.setStatus(400);
-        return {
-          message: "The code does not exist",
-          status: 400,
         };
       }
     } catch (error) {
@@ -1115,7 +1120,7 @@ export class OrganizationController extends Controller {
   ): Promise<any> {
     try {
       // Get the organization admin/user who is sending the invitation
-      const userIdFromOrganization = req.org?.userId
+      const userIdFromOrganization = req.org?.userId;
 
       console.log(`🔄 Generating new token for invited user: ${invitedUserId}`);
       console.log(`📋 Organization ID: ${organizationId}`);
