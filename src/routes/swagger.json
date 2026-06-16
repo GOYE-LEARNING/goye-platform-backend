@@ -242,36 +242,6 @@
 			"MemberPlanType": {
 				"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
 			},
-			"Church": {
-				"properties": {
-					"church_ministry_name": {
-						"type": "string"
-					},
-					"church_lead_pastor": {
-						"type": "string"
-					},
-					"church_leadership_role": {
-						"type": "string"
-					},
-					"church_email": {
-						"type": "string"
-					},
-					"church_address": {
-						"type": "string"
-					},
-					"church_weekly_service": {
-						"type": "string"
-					},
-					"church_website": {
-						"type": "string"
-					},
-					"church_logo": {
-						"type": "string"
-					}
-				},
-				"type": "object",
-				"additionalProperties": false
-			},
 			"School": {
 				"properties": {
 					"school_name": {
@@ -299,6 +269,36 @@
 						"type": "string"
 					},
 					"school_email": {
+						"type": "string"
+					}
+				},
+				"type": "object",
+				"additionalProperties": false
+			},
+			"Church": {
+				"properties": {
+					"church_ministry_name": {
+						"type": "string"
+					},
+					"church_lead_pastor": {
+						"type": "string"
+					},
+					"church_leadership_role": {
+						"type": "string"
+					},
+					"church_email": {
+						"type": "string"
+					},
+					"church_address": {
+						"type": "string"
+					},
+					"church_weekly_service": {
+						"type": "string"
+					},
+					"church_website": {
+						"type": "string"
+					},
+					"church_logo": {
 						"type": "string"
 					}
 				},
@@ -367,6 +367,9 @@
 					"organization_year": {
 						"type": "string"
 					},
+					"school": {
+						"$ref": "#/components/schemas/School"
+					},
 					"user_first_name": {
 						"type": "string"
 					},
@@ -393,9 +396,6 @@
 					},
 					"church": {
 						"$ref": "#/components/schemas/Church"
-					},
-					"school": {
-						"$ref": "#/components/schemas/School"
 					},
 					"club": {
 						"$ref": "#/components/schemas/Club"
@@ -2931,6 +2931,7 @@
 											"properties": {
 												"error": {},
 												"role": {},
+												"organization": {},
 												"progressId": {},
 												"level": {},
 												"user": {},
@@ -2952,6 +2953,7 @@
 											"properties": {
 												"error": {},
 												"role": {},
+												"organization": {},
 												"progressId": {},
 												"level": {},
 												"status": {},
@@ -3087,6 +3089,7 @@
 											"properties": {
 												"error": {},
 												"role": {},
+												"organization": {},
 												"status": {},
 												"progressId": {},
 												"level": {},
@@ -3440,6 +3443,385 @@
 										{
 											"properties": {
 												"error": {},
+												"role": {},
+												"status": {},
+												"progressId": {},
+												"level": {},
+												"organization": {
+													"properties": {
+														"organization_name": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"organization_name"
+													],
+													"type": "object"
+												},
+												"user": {
+													"allOf": [
+														{
+															"properties": {
+																"organization": {
+																	"properties": {
+																		"organization_name": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"organization_name"
+																	],
+																	"type": "object"
+																},
+																"progress": {
+																	"items": {
+																		"allOf": [
+																			{
+																				"properties": {
+																					"badges": {
+																						"items": {
+																							"properties": {
+																								"badgesAndLevelEarnedId": {
+																									"type": "string"
+																								},
+																								"achievementId": {
+																									"type": "string"
+																								},
+																								"badges": {
+																									"$ref": "#/components/schemas/_36_Enums.BadgesEnum"
+																								},
+																								"userId": {
+																									"type": "string"
+																								},
+																								"updatedAt": {
+																									"type": "string",
+																									"format": "date-time"
+																								},
+																								"createdAt": {
+																									"type": "string",
+																									"format": "date-time"
+																								},
+																								"progressId": {
+																									"type": "string"
+																								},
+																								"id": {
+																									"type": "string"
+																								}
+																							},
+																							"required": [
+																								"badgesAndLevelEarnedId",
+																								"achievementId",
+																								"badges",
+																								"userId",
+																								"updatedAt",
+																								"createdAt",
+																								"progressId",
+																								"id"
+																							],
+																							"type": "object"
+																						},
+																						"type": "array"
+																					},
+																					"badges_and_levels": {
+																						"items": {
+																							"properties": {
+																								"achievementId": {
+																									"type": "string"
+																								},
+																								"level": {
+																									"$ref": "#/components/schemas/_36_Enums.Levels"
+																								},
+																								"userId": {
+																									"type": "string"
+																								},
+																								"updatedAt": {
+																									"type": "string",
+																									"format": "date-time"
+																								},
+																								"createdAt": {
+																									"type": "string",
+																									"format": "date-time"
+																								},
+																								"courseId": {
+																									"type": "string"
+																								},
+																								"progressId": {
+																									"type": "string"
+																								},
+																								"id": {
+																									"type": "string"
+																								}
+																							},
+																							"required": [
+																								"achievementId",
+																								"level",
+																								"userId",
+																								"updatedAt",
+																								"createdAt",
+																								"courseId",
+																								"progressId",
+																								"id"
+																							],
+																							"type": "object"
+																						},
+																						"type": "array"
+																					},
+																					"achivement": {
+																						"items": {
+																							"properties": {
+																								"groupId": {
+																									"type": "string"
+																								},
+																								"progressMessage": {
+																									"type": "string"
+																								},
+																								"totalPoint": {
+																									"type": "number",
+																									"format": "double"
+																								},
+																								"content": {
+																									"type": "string"
+																								},
+																								"title": {
+																									"type": "string"
+																								},
+																								"point": {
+																									"type": "number",
+																									"format": "double"
+																								},
+																								"userId": {
+																									"type": "string"
+																								},
+																								"updatedAt": {
+																									"type": "string",
+																									"format": "date-time"
+																								},
+																								"createdAt": {
+																									"type": "string",
+																									"format": "date-time"
+																								},
+																								"courseId": {
+																									"type": "string"
+																								},
+																								"progressId": {
+																									"type": "string"
+																								},
+																								"id": {
+																									"type": "string"
+																								}
+																							},
+																							"required": [
+																								"groupId",
+																								"progressMessage",
+																								"totalPoint",
+																								"content",
+																								"title",
+																								"point",
+																								"userId",
+																								"updatedAt",
+																								"createdAt",
+																								"courseId",
+																								"progressId",
+																								"id"
+																							],
+																							"type": "object"
+																						},
+																						"type": "array"
+																					}
+																				},
+																				"required": [
+																					"badges",
+																					"badges_and_levels",
+																					"achivement"
+																				],
+																				"type": "object"
+																			},
+																			{
+																				"properties": {
+																					"userId": {
+																						"type": "string"
+																					},
+																					"startedJourney": {
+																						"type": "boolean"
+																					},
+																					"progressBar": {
+																						"type": "number",
+																						"format": "double"
+																					},
+																					"updatedAt": {
+																						"type": "string",
+																						"format": "date-time"
+																					},
+																					"createdAt": {
+																						"type": "string",
+																						"format": "date-time"
+																					},
+																					"lessonId": {
+																						"type": "string"
+																					},
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"userId",
+																					"startedJourney",
+																					"progressBar",
+																					"updatedAt",
+																					"createdAt",
+																					"lessonId",
+																					"id"
+																				],
+																				"type": "object"
+																			}
+																		]
+																	},
+																	"type": "array"
+																}
+															},
+															"required": [
+																"organization",
+																"progress"
+															],
+															"type": "object"
+														},
+														{
+															"properties": {
+																"isProfileComplete": {
+																	"type": "boolean"
+																},
+																"completedVideo": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"completedLessons": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"completedCourses": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"provider": {
+																	"type": "string"
+																},
+																"invited": {
+																	"type": "boolean"
+																},
+																"user_pic": {
+																	"type": "string"
+																},
+																"lastActive": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isOnline": {
+																	"type": "boolean"
+																},
+																"form_type": {
+																	"$ref": "#/components/schemas/_36_Enums.FormType"
+																},
+																"completed": {
+																	"type": "string"
+																},
+																"paymentCode": {
+																	"type": "string"
+																},
+																"firebase_uid": {
+																	"type": "string"
+																},
+																"level": {
+																	"type": "string"
+																},
+																"role": {
+																	"type": "string"
+																},
+																"phone_number": {
+																	"type": "string"
+																},
+																"state": {
+																	"type": "string"
+																},
+																"country": {
+																	"type": "string"
+																},
+																"password": {
+																	"type": "string"
+																},
+																"email_address": {
+																	"type": "string"
+																},
+																"last_name": {
+																	"type": "string"
+																},
+																"first_name": {
+																	"type": "string"
+																},
+																"point": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"isProfileComplete",
+																"completedVideo",
+																"completedLessons",
+																"completedCourses",
+																"provider",
+																"invited",
+																"user_pic",
+																"lastActive",
+																"isOnline",
+																"form_type",
+																"completed",
+																"paymentCode",
+																"firebase_uid",
+																"level",
+																"role",
+																"phone_number",
+																"state",
+																"country",
+																"password",
+																"email_address",
+																"last_name",
+																"first_name",
+																"point",
+																"updatedAt",
+																"createdAt",
+																"id"
+															],
+															"type": "object"
+														}
+													]
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"progressId",
+												"level",
+												"organization",
+												"user",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"error": {},
+												"organization": {},
 												"progressId": {},
 												"level": {},
 												"user": {},
@@ -3462,6 +3844,7 @@
 										{
 											"properties": {
 												"role": {},
+												"organization": {},
 												"progressId": {},
 												"level": {},
 												"user": {},
@@ -5928,33 +6311,6 @@
 									"anyOf": [
 										{
 											"properties": {
-												"message": {
-													"type": "string"
-												},
-												"status": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message",
-												"status"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"message": {},
-												"status": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"status"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
 												"gamification": {},
 												"data": {},
 												"message": {
@@ -6795,10 +7151,10 @@
 														"organization_image": {
 															"type": "string"
 														},
-														"organization_password": {
+														"organization_year": {
 															"type": "string"
 														},
-														"organization_year": {
+														"organization_password": {
 															"type": "string"
 														},
 														"organization_role": {
@@ -6852,8 +7208,8 @@
 													},
 													"required": [
 														"organization_image",
-														"organization_password",
 														"organization_year",
+														"organization_password",
 														"organization_role",
 														"organization_description",
 														"organization_state",
@@ -7274,63 +7630,6 @@
 																	],
 																	"type": "object"
 																},
-																"Church": {
-																	"properties": {
-																		"organzationId": {
-																			"type": "string"
-																		},
-																		"church_email": {
-																			"type": "string"
-																		},
-																		"church_logo": {
-																			"type": "string"
-																		},
-																		"church_website": {
-																			"type": "string"
-																		},
-																		"church_weekly_service": {
-																			"type": "string"
-																		},
-																		"church_address": {
-																			"type": "string"
-																		},
-																		"church_role": {
-																			"type": "string"
-																		},
-																		"church_ld_pastor": {
-																			"type": "string"
-																		},
-																		"church_min_name": {
-																			"type": "string"
-																		},
-																		"updatedAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"createdAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"id": {
-																			"type": "string"
-																		}
-																	},
-																	"required": [
-																		"organzationId",
-																		"church_email",
-																		"church_logo",
-																		"church_website",
-																		"church_weekly_service",
-																		"church_address",
-																		"church_role",
-																		"church_ld_pastor",
-																		"church_min_name",
-																		"updatedAt",
-																		"createdAt",
-																		"id"
-																	],
-																	"type": "object"
-																},
 																"school": {
 																	"properties": {
 																		"school_logo": {
@@ -7390,6 +7689,63 @@
 																		"school_type",
 																		"school_name",
 																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"Church": {
+																	"properties": {
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"church_email": {
+																			"type": "string"
+																		},
+																		"church_logo": {
+																			"type": "string"
+																		},
+																		"church_website": {
+																			"type": "string"
+																		},
+																		"church_weekly_service": {
+																			"type": "string"
+																		},
+																		"church_address": {
+																			"type": "string"
+																		},
+																		"church_role": {
+																			"type": "string"
+																		},
+																		"church_ld_pastor": {
+																			"type": "string"
+																		},
+																		"church_min_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"organzationId",
+																		"church_email",
+																		"church_logo",
+																		"church_website",
+																		"church_weekly_service",
+																		"church_address",
+																		"church_role",
+																		"church_ld_pastor",
+																		"church_min_name",
 																		"updatedAt",
 																		"createdAt",
 																		"id"
@@ -7517,8 +7873,8 @@
 															},
 															"required": [
 																"Club",
-																"Church",
 																"school",
+																"Church",
 																"user"
 															],
 															"type": "object"
@@ -7528,10 +7884,10 @@
 																"organization_image": {
 																	"type": "string"
 																},
-																"organization_password": {
+																"organization_year": {
 																	"type": "string"
 																},
-																"organization_year": {
+																"organization_password": {
 																	"type": "string"
 																},
 																"organization_role": {
@@ -7585,8 +7941,8 @@
 															},
 															"required": [
 																"organization_image",
-																"organization_password",
 																"organization_year",
+																"organization_password",
 																"organization_role",
 																"organization_description",
 																"organization_state",
@@ -7819,63 +8175,6 @@
 																	],
 																	"type": "object"
 																},
-																"Church": {
-																	"properties": {
-																		"organzationId": {
-																			"type": "string"
-																		},
-																		"church_email": {
-																			"type": "string"
-																		},
-																		"church_logo": {
-																			"type": "string"
-																		},
-																		"church_website": {
-																			"type": "string"
-																		},
-																		"church_weekly_service": {
-																			"type": "string"
-																		},
-																		"church_address": {
-																			"type": "string"
-																		},
-																		"church_role": {
-																			"type": "string"
-																		},
-																		"church_ld_pastor": {
-																			"type": "string"
-																		},
-																		"church_min_name": {
-																			"type": "string"
-																		},
-																		"updatedAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"createdAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"id": {
-																			"type": "string"
-																		}
-																	},
-																	"required": [
-																		"organzationId",
-																		"church_email",
-																		"church_logo",
-																		"church_website",
-																		"church_weekly_service",
-																		"church_address",
-																		"church_role",
-																		"church_ld_pastor",
-																		"church_min_name",
-																		"updatedAt",
-																		"createdAt",
-																		"id"
-																	],
-																	"type": "object"
-																},
 																"school": {
 																	"properties": {
 																		"school_logo": {
@@ -7935,6 +8234,63 @@
 																		"school_type",
 																		"school_name",
 																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"Church": {
+																	"properties": {
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"church_email": {
+																			"type": "string"
+																		},
+																		"church_logo": {
+																			"type": "string"
+																		},
+																		"church_website": {
+																			"type": "string"
+																		},
+																		"church_weekly_service": {
+																			"type": "string"
+																		},
+																		"church_address": {
+																			"type": "string"
+																		},
+																		"church_role": {
+																			"type": "string"
+																		},
+																		"church_ld_pastor": {
+																			"type": "string"
+																		},
+																		"church_min_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"organzationId",
+																		"church_email",
+																		"church_logo",
+																		"church_website",
+																		"church_weekly_service",
+																		"church_address",
+																		"church_role",
+																		"church_ld_pastor",
+																		"church_min_name",
 																		"updatedAt",
 																		"createdAt",
 																		"id"
@@ -8062,8 +8418,8 @@
 															},
 															"required": [
 																"Club",
-																"Church",
 																"school",
+																"Church",
 																"user"
 															],
 															"type": "object"
@@ -8073,10 +8429,10 @@
 																"organization_image": {
 																	"type": "string"
 																},
-																"organization_password": {
+																"organization_year": {
 																	"type": "string"
 																},
-																"organization_year": {
+																"organization_password": {
 																	"type": "string"
 																},
 																"organization_role": {
@@ -8130,8 +8486,8 @@
 															},
 															"required": [
 																"organization_image",
-																"organization_password",
 																"organization_year",
+																"organization_password",
 																"organization_role",
 																"organization_description",
 																"organization_state",
@@ -8202,7 +8558,47 @@
 					"content": {
 						"application/json": {
 							"schema": {
-								"$ref": "#/components/schemas/Omit_User.id_"
+								"properties": {
+									"level": {
+										"type": "string"
+									},
+									"role": {
+										"type": "string"
+									},
+									"phone_number": {
+										"type": "string"
+									},
+									"state": {
+										"type": "string"
+									},
+									"country": {
+										"type": "string"
+									},
+									"password": {
+										"type": "string"
+									},
+									"email_address": {
+										"type": "string"
+									},
+									"last_name": {
+										"type": "string"
+									},
+									"first_name": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"level",
+									"role",
+									"phone_number",
+									"state",
+									"country",
+									"password",
+									"email_address",
+									"last_name",
+									"first_name"
+								],
+								"type": "object"
 							}
 						}
 					}
@@ -8275,6 +8671,177 @@
 				}
 			}
 		},
+		"/organizations/fetch-specific-invited-user-by-token/{token}": {
+			"get": {
+				"operationId": "FetchInvitedUserByToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "token",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/generate-new-token/{organizationId}/{invitedUserId}": {
+			"post": {
+				"operationId": "GenerateNewTokenForInvitedUser",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "invitedUserId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/invited-users/{organizationId}": {
+			"get": {
+				"operationId": "GetInvitedUsers",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/resend-invitation/{invitationId}": {
+			"post": {
+				"operationId": "ResendInvitation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "invitationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/invitations/check": {
+			"post": {
+				"operationId": "CheckInvitation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"token": {
+										"type": "string"
+									}
+								},
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/organizations/fetch-invited-users/{organizationId}": {
 			"get": {
 				"operationId": "FetchInviteUsers",
@@ -8301,309 +8868,23 @@
 											"properties": {
 												"data": {
 													"items": {
-														"allOf": [
-															{
-																"properties": {
-																	"user": {
-																		"properties": {
-																			"user_pic": {
-																				"type": "string"
-																			},
-																			"role": {
-																				"type": "string"
-																			},
-																			"email_address": {
-																				"type": "string"
-																			},
-																			"last_name": {
-																				"type": "string"
-																			},
-																			"first_name": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"user_pic",
-																			"role",
-																			"email_address",
-																			"last_name",
-																			"first_name"
-																		],
-																		"type": "object"
-																	}
-																},
-																"required": [
-																	"user"
-																],
-																"type": "object"
+														"properties": {
+															"email": {
+																"type": "string"
 															},
-															{
-																"properties": {
-																	"organization_image": {
-																		"type": "string"
-																	},
-																	"organization_password": {
-																		"type": "string"
-																	},
-																	"organization_year": {
-																		"type": "string"
-																	},
-																	"organization_role": {
-																		"type": "string"
-																	},
-																	"organization_description": {
-																		"type": "string"
-																	},
-																	"organization_state": {
-																		"type": "string"
-																	},
-																	"organization_country": {
-																		"type": "string"
-																	},
-																	"organization_phone_number": {
-																		"type": "string"
-																	},
-																	"organization_email": {
-																		"type": "string"
-																	},
-																	"organization_type": {
-																		"$ref": "#/components/schemas/_36_Enums.OrgType"
-																	},
-																	"organization_name": {
-																		"type": "string"
-																	},
-																	"lastActive": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"isOnline": {
-																		"type": "boolean"
-																	},
-																	"form_type": {
-																		"$ref": "#/components/schemas/_36_Enums.FormType"
-																	},
-																	"userId": {
-																		"type": "string"
-																	},
-																	"updatedAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"id": {
-																		"type": "string"
-																	}
-																},
-																"required": [
-																	"organization_image",
-																	"organization_password",
-																	"organization_year",
-																	"organization_role",
-																	"organization_description",
-																	"organization_state",
-																	"organization_country",
-																	"organization_phone_number",
-																	"organization_email",
-																	"organization_type",
-																	"organization_name",
-																	"lastActive",
-																	"isOnline",
-																	"form_type",
-																	"userId",
-																	"updatedAt",
-																	"createdAt",
-																	"id"
-																],
-																"type": "object"
-															}
-														]
-													},
-													"type": "array"
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"data",
-												"message"
-											],
-											"type": "object"
-										}
-									]
-								}
-							}
-						}
-					}
-				},
-				"tags": [
-					"Organization Controllers"
-				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
-				"parameters": [
-					{
-						"in": "path",
-						"name": "organizationId",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				]
-			}
-		},
-		"/organizations/fetch-invited-users-with-access/{organizationId}": {
-			"get": {
-				"operationId": "FetchInviteUsersWithAccess",
-				"responses": {
-					"200": {
-						"description": "Ok",
-						"content": {
-							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"data": {},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"data": {
-													"items": {
-														"allOf": [
-															{
-																"properties": {
-																	"user": {
-																		"properties": {
-																			"user_pic": {
-																				"type": "string"
-																			},
-																			"role": {
-																				"type": "string"
-																			},
-																			"email_address": {
-																				"type": "string"
-																			},
-																			"last_name": {
-																				"type": "string"
-																			},
-																			"first_name": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"user_pic",
-																			"role",
-																			"email_address",
-																			"last_name",
-																			"first_name"
-																		],
-																		"type": "object"
-																	}
-																},
-																"required": [
-																	"user"
-																],
-																"type": "object"
+															"role": {
+																"type": "string"
 															},
-															{
-																"properties": {
-																	"organization_image": {
-																		"type": "string"
-																	},
-																	"organization_password": {
-																		"type": "string"
-																	},
-																	"organization_year": {
-																		"type": "string"
-																	},
-																	"organization_role": {
-																		"type": "string"
-																	},
-																	"organization_description": {
-																		"type": "string"
-																	},
-																	"organization_state": {
-																		"type": "string"
-																	},
-																	"organization_country": {
-																		"type": "string"
-																	},
-																	"organization_phone_number": {
-																		"type": "string"
-																	},
-																	"organization_email": {
-																		"type": "string"
-																	},
-																	"organization_type": {
-																		"$ref": "#/components/schemas/_36_Enums.OrgType"
-																	},
-																	"organization_name": {
-																		"type": "string"
-																	},
-																	"lastActive": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"isOnline": {
-																		"type": "boolean"
-																	},
-																	"form_type": {
-																		"$ref": "#/components/schemas/_36_Enums.FormType"
-																	},
-																	"userId": {
-																		"type": "string"
-																	},
-																	"updatedAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"id": {
-																		"type": "string"
-																	}
-																},
-																"required": [
-																	"organization_image",
-																	"organization_password",
-																	"organization_year",
-																	"organization_role",
-																	"organization_description",
-																	"organization_state",
-																	"organization_country",
-																	"organization_phone_number",
-																	"organization_email",
-																	"organization_type",
-																	"organization_name",
-																	"lastActive",
-																	"isOnline",
-																	"form_type",
-																	"userId",
-																	"updatedAt",
-																	"createdAt",
-																	"id"
-																],
-																"type": "object"
+															"id": {
+																"type": "string"
 															}
-														]
+														},
+														"required": [
+															"email",
+															"role",
+															"id"
+														],
+														"type": "object"
 													},
 													"type": "array"
 												},
@@ -8658,10 +8939,10 @@
 												"organization_image": {
 													"type": "string"
 												},
-												"organization_password": {
+												"organization_year": {
 													"type": "string"
 												},
-												"organization_year": {
+												"organization_password": {
 													"type": "string"
 												},
 												"organization_role": {
@@ -8715,8 +8996,8 @@
 											},
 											"required": [
 												"organization_image",
-												"organization_password",
 												"organization_year",
+												"organization_password",
 												"organization_role",
 												"organization_description",
 												"organization_state",
@@ -11325,10 +11606,10 @@
 																			"organization_image": {
 																				"type": "string"
 																			},
-																			"organization_password": {
+																			"organization_year": {
 																				"type": "string"
 																			},
-																			"organization_year": {
+																			"organization_password": {
 																				"type": "string"
 																			},
 																			"organization_role": {
@@ -11382,8 +11663,8 @@
 																		},
 																		"required": [
 																			"organization_image",
-																			"organization_password",
 																			"organization_year",
+																			"organization_password",
 																			"organization_role",
 																			"organization_description",
 																			"organization_state",

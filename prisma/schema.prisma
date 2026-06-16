@@ -45,7 +45,7 @@ model User {
   joinedGroups      JoinedGroup[]
   notification      Notification[]
   message           Message[]
-  organization      Organization[]
+  organization      Organization?
   inviteUser        InviteUser[]
   settings          Settings[]
   achievement       Achievement[]
@@ -186,7 +186,7 @@ model InviteUser {
   sentBy         User         @relation(fields: [sentById], references: [id], onDelete: Cascade)
   sentById       String
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime?     @updatedAt
+  updatedAt      DateTime?    @updatedAt
   expiresIn      DateTime
 }
 
@@ -219,7 +219,7 @@ model Organization {
   enrollment                Enrollment[]
   feedBacks                 Feedback[]
   certificate               Certificate[]
-  userId                    String
+  userId                    String               @unique
   createdAt                 DateTime             @default(now())
   updatedAt                 DateTime?
   posts                     Post[]

@@ -148,21 +148,6 @@ const models: TsoaRoute.Models = {
         "type": {"ref":"_36_Enums.MemberPlanType","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "Church": {
-        "dataType": "refObject",
-        "properties": {
-            "church_ministry_name": {"dataType":"string"},
-            "church_lead_pastor": {"dataType":"string"},
-            "church_leadership_role": {"dataType":"string"},
-            "church_email": {"dataType":"string"},
-            "church_address": {"dataType":"string"},
-            "church_weekly_service": {"dataType":"string"},
-            "church_website": {"dataType":"string"},
-            "church_logo": {"dataType":"string"},
-        },
-        "additionalProperties": false,
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "School": {
         "dataType": "refObject",
         "properties": {
@@ -175,6 +160,21 @@ const models: TsoaRoute.Models = {
             "school_accreditation_number": {"dataType":"string"},
             "school_document": {"dataType":"string"},
             "school_email": {"dataType":"string"},
+        },
+        "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "Church": {
+        "dataType": "refObject",
+        "properties": {
+            "church_ministry_name": {"dataType":"string"},
+            "church_lead_pastor": {"dataType":"string"},
+            "church_leadership_role": {"dataType":"string"},
+            "church_email": {"dataType":"string"},
+            "church_address": {"dataType":"string"},
+            "church_weekly_service": {"dataType":"string"},
+            "church_website": {"dataType":"string"},
+            "church_logo": {"dataType":"string"},
         },
         "additionalProperties": false,
     },
@@ -197,7 +197,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"organization_name":{"dataType":"string","required":true},"organization_type":{"dataType":"string","required":true},"organization_email":{"dataType":"string"},"organization_phone_number":{"dataType":"string","required":true},"organization_country":{"dataType":"string","required":true},"organization_state":{"dataType":"string","required":true},"organization_description":{"dataType":"string","required":true},"organization_role":{"dataType":"string","required":true},"organization_year":{"dataType":"string","required":true},"user_first_name":{"dataType":"string","required":true},"user_last_name":{"dataType":"string","required":true},"user_email_address":{"dataType":"string","required":true},"user_country":{"dataType":"string","required":true},"user_state":{"dataType":"string","required":true},"user_role":{"dataType":"string","required":true},"user_phone_number":{"dataType":"string","required":true},"user_form_type":{"dataType":"string","required":true},"church":{"ref":"Church"},"school":{"ref":"School"},"club":{"ref":"Club"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"organization_name":{"dataType":"string","required":true},"organization_type":{"dataType":"string","required":true},"organization_email":{"dataType":"string"},"organization_phone_number":{"dataType":"string","required":true},"organization_country":{"dataType":"string","required":true},"organization_state":{"dataType":"string","required":true},"organization_description":{"dataType":"string","required":true},"organization_role":{"dataType":"string","required":true},"organization_year":{"dataType":"string","required":true},"school":{"ref":"School"},"user_first_name":{"dataType":"string","required":true},"user_last_name":{"dataType":"string","required":true},"user_email_address":{"dataType":"string","required":true},"user_country":{"dataType":"string","required":true},"user_state":{"dataType":"string","required":true},"user_role":{"dataType":"string","required":true},"user_phone_number":{"dataType":"string","required":true},"user_form_type":{"dataType":"string","required":true},"church":{"ref":"Church"},"club":{"ref":"Club"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Omit_OrganizationDTO.id_": {
@@ -3173,7 +3173,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsOrganizationController_CreateUser: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"ref":"Omit_User.id_"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"level":{"dataType":"string","required":true},"role":{"dataType":"string","required":true},"phone_number":{"dataType":"string","required":true},"state":{"dataType":"string","required":true},"country":{"dataType":"string","required":true},"password":{"dataType":"string","required":true},"email_address":{"dataType":"string","required":true},"last_name":{"dataType":"string","required":true},"first_name":{"dataType":"string","required":true}}},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
         app.post('/api/organizations/invite-user/signup',
@@ -3236,6 +3236,163 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_FetchInvitedUserByToken: Record<string, TsoaRoute.ParameterSchema> = {
+                token: {"in":"path","name":"token","required":true,"dataType":"string"},
+        };
+        app.get('/api/organizations/fetch-specific-invited-user-by-token/:token',
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.FetchInvitedUserByToken)),
+
+            async function OrganizationController_FetchInvitedUserByToken(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_FetchInvitedUserByToken, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'FetchInvitedUserByToken',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_GenerateNewTokenForInvitedUser: Record<string, TsoaRoute.ParameterSchema> = {
+                organizationId: {"in":"path","name":"organizationId","required":true,"dataType":"string"},
+                invitedUserId: {"in":"path","name":"invitedUserId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/organizations/generate-new-token/:organizationId/:invitedUserId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.GenerateNewTokenForInvitedUser)),
+
+            async function OrganizationController_GenerateNewTokenForInvitedUser(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_GenerateNewTokenForInvitedUser, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'GenerateNewTokenForInvitedUser',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_GetInvitedUsers: Record<string, TsoaRoute.ParameterSchema> = {
+                organizationId: {"in":"path","name":"organizationId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/organizations/invited-users/:organizationId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.GetInvitedUsers)),
+
+            async function OrganizationController_GetInvitedUsers(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_GetInvitedUsers, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetInvitedUsers',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_ResendInvitation: Record<string, TsoaRoute.ParameterSchema> = {
+                invitationId: {"in":"path","name":"invitationId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/organizations/resend-invitation/:invitationId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.ResendInvitation)),
+
+            async function OrganizationController_ResendInvitation(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_ResendInvitation, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'ResendInvitation',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_CheckInvitation: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"token":{"dataType":"string"}}},
+        };
+        app.post('/api/organizations/invitations/check',
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.CheckInvitation)),
+
+            async function OrganizationController_CheckInvitation(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_CheckInvitation, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'CheckInvitation',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsOrganizationController_FetchInviteUsers: Record<string, TsoaRoute.ParameterSchema> = {
                 organizationId: {"in":"path","name":"organizationId","required":true,"dataType":"string"},
         };
@@ -3256,37 +3413,6 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'FetchInviteUsers',
-                controller,
-                response,
-                next,
-                validatedArgs,
-                successStatus: undefined,
-              });
-            } catch (err) {
-                return next(err);
-            }
-        });
-        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsOrganizationController_FetchInviteUsersWithAccess: Record<string, TsoaRoute.ParameterSchema> = {
-                organizationId: {"in":"path","name":"organizationId","required":true,"dataType":"string"},
-        };
-        app.get('/api/organizations/fetch-invited-users-with-access/:organizationId',
-            authenticateMiddleware([{"bearerAuth":[]}]),
-            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
-            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.FetchInviteUsersWithAccess)),
-
-            async function OrganizationController_FetchInviteUsersWithAccess(request: ExRequest, response: ExResponse, next: any) {
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            let validatedArgs: any[] = [];
-            try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_FetchInviteUsersWithAccess, request, response });
-
-                const controller = new OrganizationController();
-
-              await templateService.apiHandler({
-                methodName: 'FetchInviteUsersWithAccess',
                 controller,
                 response,
                 next,

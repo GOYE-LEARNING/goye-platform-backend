@@ -1211,9 +1211,9 @@ export class GamificationService {
       const members = await prisma.user.findMany({
         where: {
           organization: {
-            some: {
+          
               id: organizationId,
-            },
+            
           },
         },
         select: {

@@ -2652,15 +2652,7 @@ public async UpdatePassword(
             },
             organization: {
               select: {
-                organization_name: true,
-                organization_email: true,
-                organization_phone_number: true,
-                organization_image: true,
-                organization_country: true,
-                organization_description: true,
-                organization_state: true,
-                organization_role: true,
-                organization_year: true
+                organization_name: true
               }
             }
           },
@@ -2674,7 +2666,8 @@ public async UpdatePassword(
         this.setStatus(200);
         return {
           message: "Profile fetched successfully",
-          organization: user,
+          user,
+          organization: user.organization,
           level: userLevel ?? null,
           progressId: progressId
         };

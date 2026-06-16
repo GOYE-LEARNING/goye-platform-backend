@@ -471,7 +471,7 @@ export class LeaderBoardAndGamificationController extends Controller {
       const members = await prisma.user.findMany({
         where: {
           OR: [
-            { organization: { some: { id: orgId } } },
+            { organization:  { id: orgId } },
             { Courses: { some: { organizationId: orgId } } },
           ],
         },
