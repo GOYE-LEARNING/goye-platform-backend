@@ -2607,7 +2607,7 @@ public async UpdatePassword(
       }
 
       // Handle student or member role
-      if (userRole === "student" || userRole === "Member" || userRole == 'member') {
+      if (userRole === "student") {
         const user = await prisma.user.findUnique({
           where: {
             id: userId,
@@ -2633,6 +2633,48 @@ public async UpdatePassword(
         return {
           message: "Profile fetched successfully",
           user,
+          level: userLevel ?? null,
+          progressId: progressId
+        };
+      } else if (userRole === "Member" || userRole == 'member') {
+        const user = await prisma.user.findUnique({
+          where: {
+            id: userId,
+            role: userRole,
+          },
+          include: {
+            progress: {
+              include: {
+                achivement: true,
+                badges_and_levels: true,
+                badges: true,
+              },
+            },
+            organization: {
+              select: {
+                organization_name: true,
+                organization_email: true,
+                organization_phone_number: true,
+                organization_image: true,
+                organization_country: true,
+                organization_description: true,
+                organization_state: true,
+                organization_role: true,
+                organization_year: true
+              }
+            }
+          },
+        });
+
+        if (!user) {
+          this.setStatus(404);
+          return { message: "Student not found", status: 404 };
+        }
+
+        this.setStatus(200);
+        return {
+          message: "Profile fetched successfully",
+          organization: user,
           level: userLevel ?? null,
           progressId: progressId
         };
