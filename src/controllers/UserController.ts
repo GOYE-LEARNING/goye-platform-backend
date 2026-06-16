@@ -2578,145 +2578,145 @@ export class UserController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/profile")
-  public async GetProfile(@Request() req: any) {
-    try {
-      const userId = req.user?.id;
-      const userRole = req.user?.role;
-      const userLevel = req.user?.level;
-      const progressId = req.progressId;
+    @Security("bearerAuth")
+    @Get("/profile")
+    public async GetProfile(@Request() req: any) {
+      try {
+        const userId = req.user?.id;
+        const userRole = req.user?.role;
+        const userLevel = req.user?.level;
+        const progressId = req.progressId;
 
-      // Check if user exists
-      if (!userId) {
-        this.setStatus(401);
-        return { message: "Unauthorized", status: 401 };
-      }
-
-      // Handle instructor role
-      if (userRole === "instructor") {
-        const user = await prisma.user.findUnique({
-          where: { id: userId, role: userRole },
-        });
-
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Instructor not found", status: 404 };
+        // Check if user exists
+        if (!userId) {
+          this.setStatus(401);
+          return { message: "Unauthorized", status: 401 };
         }
 
-        this.setStatus(200);
-        return {
-          message: "Profile fetched successfully",
-          user,
-        };
-      }
+        // Handle instructor role
+        if (userRole === "instructor") {
+          const user = await prisma.user.findUnique({
+            where: { id: userId, role: userRole },
+          });
 
-      // Handle student or member role
-      if (userRole === "student") {
-        const user = await prisma.user.findUnique({
-          where: {
-            id: userId,
-            role: userRole,
-          },
-          include: {
-            progress: {
-              include: {
-                achivement: true,
-                badges_and_levels: true,
-                badges: true,
-              },
-            },
-          },
-        });
+          if (!user) {
+            this.setStatus(404);
+            return { message: "Instructor not found", status: 404 };
+          }
 
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Student not found", status: 404 };
+          this.setStatus(200);
+          return {
+            message: "Profile fetched successfully",
+            user,
+          };
         }
 
-        this.setStatus(200);
-        return {
-          message: "Profile fetched successfully",
-          user,
-          level: userLevel ?? null,
-          progressId: progressId,
-        };
-      } // In your controller - the member role section
-      else if (userRole === "Member" || userRole == "member") {
-        const user = await prisma.user.findUnique({
-          where: {
-            id: userId,
-            role: userRole,
-          },
-          include: {
-            progress: {
-              include: {
-                achivement: true,
-                badges_and_levels: true,
-                badges: true,
+        // Handle student or member role
+        if (userRole === "student") {
+          const user = await prisma.user.findUnique({
+            where: {
+              id: userId,
+              role: userRole,
+            },
+            include: {
+              progress: {
+                include: {
+                  achivement: true,
+                  badges_and_levels: true,
+                  badges: true,
+                },
               },
             },
-            organization: {
-              select: {
-                organization_name: true,
-                organization_email: true,
-                organization_phone_number: true,
-                organization_image: true,
-                organization_country: true,
-                organization_description: true,
-                organization_state: true,
-                organization_role: true,
-                organization_year: true,
-                organization_type: true,
-                Church: true,
-                school: true,
-                Club: true,
-              },
-            },
-          },
-        });
+          });
 
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Member not found", status: 404 };
+          if (!user) {
+            this.setStatus(404);
+            return { message: "Student not found", status: 404 };
+          }
+
+          this.setStatus(200);
+          return {
+            message: "Profile fetched successfully",
+            user,
+            level: userLevel ?? null,
+            progressId: progressId,
+          };
+        } // In your controller - the member role section
+        else if (userRole === "Member" || userRole == "member") {
+          const user = await prisma.user.findUnique({
+            where: {
+              id: userId,
+              role: userRole,
+            },
+            include: {
+              progress: {
+                include: {
+                  achivement: true,
+                  badges_and_levels: true,
+                  badges: true,
+                },
+              },
+              organization: {
+                select: {
+                  organization_name: true,
+                  organization_email: true,
+                  organization_phone_number: true,
+                  organization_image: true,
+                  organization_country: true,
+                  organization_description: true,
+                  organization_state: true,
+                  organization_role: true,
+                  organization_year: true,
+                  organization_type: true,
+                  Church: true,
+                  school: true,
+                  Club: true,
+                },
+              },
+            },
+          });
+
+          if (!user) {
+            this.setStatus(404);
+            return { message: "Member not found", status: 404 };
+          }
+
+          this.setStatus(200);
+          return {
+            message: "Profile fetched successfully",
+            organization: user.organization, // ✅ Return organization at root level
+            user: {
+              first_name: user.first_name,
+              last_name: user.last_name,
+              email_address: user.email_address,
+              phone_number: user.phone_number,
+              country: user.country,
+              state: user.state,
+              level: user.level,
+              profile_pic: user.user_pic,
+            },
+            level: userLevel ?? null,
+            progressId: progressId,
+          };
         }
 
-        this.setStatus(200);
+        // Handle invalid role
+        this.setStatus(400);
         return {
-          message: "Profile fetched successfully",
-          organization: user.organization, // ✅ Return organization at root level
-          user: {
-            first_name: user.first_name,
-            last_name: user.last_name,
-            email_address: user.email_address,
-            phone_number: user.phone_number,
-            country: user.country,
-            state: user.state,
-            level: user.level,
-            profile_pic: user.user_pic,
-          },
-          level: userLevel ?? null,
-          progressId: progressId,
+          message: "Invalid user role",
+          status: 400,
+          role: userRole,
+        };
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+        this.setStatus(500);
+        return {
+          message: "Internal server error",
+          status: 500,
+          error: error.message,
         };
       }
-
-      // Handle invalid role
-      this.setStatus(400);
-      return {
-        message: "Invalid user role",
-        status: 400,
-        role: userRole,
-      };
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      this.setStatus(500);
-      return {
-        message: "Internal server error",
-        status: 500,
-        error: error.message,
-      };
     }
-  }
 
   @Post("/forgot-password")
   public async ForgotPassword(

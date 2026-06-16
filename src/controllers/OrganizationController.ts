@@ -847,8 +847,9 @@ export class OrganizationController extends Controller {
     };
   }
 
-  @Post("/invite-user/signup")
+  @Post("/invite-user/signup/{organizationId}")
   public async CreateUser(
+    @Path() organizationId: string,
     @Body()
     body: {
       first_name: string;
@@ -879,8 +880,14 @@ export class OrganizationController extends Controller {
             password: hashedPassword,
             invited: true,
             form_type: "INVITED",
+            organization: {
+              connect: {
+                id: organizationId
+              }
+            },
             level: body.level || "Beginner",
           },
+          
         });
 
         //After creating Users.
@@ -1414,7 +1421,7 @@ public async FetchInvitedUserByToken(
       // Generate the invite link
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const inviteLink = `${baseUrl}/auth/${tokencode}/accept-invite`;
+      const inviteLink = `${baseUrl}/auth/${tokencode}/accept_invite`;
 
       // Send invitation email using your SendEmail function
       const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
