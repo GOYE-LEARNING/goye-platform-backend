@@ -2607,7 +2607,7 @@ public async UpdatePassword(
       }
 
       // Handle student or member role
-      if (userRole === "student" || userRole === "Member") {
+      if (userRole === "student" || userRole === "Member" || userRole == 'member') {
         const user = await prisma.user.findUnique({
           where: {
             id: userId,
