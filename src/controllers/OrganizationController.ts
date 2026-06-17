@@ -75,7 +75,7 @@ export class OrganizationController extends Controller {
               country: body.user_country,
               state: body.user_state,
               phone_number: body.user_phone_number,
-              role: body.user_role,
+              role: "org_admin",
               form_type: "ORGANIZATION",
               level: "ORGANIZATION",
             },
