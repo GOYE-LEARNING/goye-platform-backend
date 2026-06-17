@@ -1605,7 +1605,7 @@ public async FetchInvitedUserByToken(
       // Send new email
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const inviteLink = `${baseUrl}/auth/${newTokencode}/accept-invite`;
+      const inviteLink = `${baseUrl}/auth/${newTokencode}/accept_invite`;
 
       const emailSubject = `Resent: Invitation to join ${existingInvitation.organization?.organization_name} on GOYE Platform`;
       const emailText = `Your invitation to join "${existingInvitation.organization?.organization_name}" has been resent. Accept here: ${inviteLink}\n\nThis invitation will expire in 24 hours.`;
