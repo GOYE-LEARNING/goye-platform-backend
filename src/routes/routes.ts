@@ -78,6 +78,11 @@ const models: TsoaRoute.Models = {
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CADET_BADGE"]},{"dataType":"enum","enums":["COURSE_COMPLETION_BADGE"]},{"dataType":"enum","enums":["CONSISTENCY_BADGE"]},{"dataType":"enum","enums":["MASTERY_BADGE"]},{"dataType":"enum","enums":["MILESTONES_BADGES"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.OrgType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "_36_Enums.EnrollmentStatus": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ENROLLED"]},{"dataType":"enum","enums":["IN_PROGRESS"]},{"dataType":"enum","enums":["COMPLETED"]},{"dataType":"enum","enums":["DROPPED"]},{"dataType":"enum","enums":["NOT_ENROLLED"]}],"validators":{}},
@@ -203,11 +208,6 @@ const models: TsoaRoute.Models = {
     "Omit_OrganizationDTO.id_": {
         "dataType": "refAlias",
         "type": {"ref":"Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__","validators":{}},
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "_36_Enums.OrgType": {
-        "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Prisma.BatchPayload": {
@@ -1376,6 +1376,35 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'RefreshToken',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsUserController_FetchCountries: Record<string, TsoaRoute.ParameterSchema> = {
+        };
+        app.get('/api/user/fetch-countries',
+            ...(fetchMiddlewares<RequestHandler>(UserController)),
+            ...(fetchMiddlewares<RequestHandler>(UserController.prototype.FetchCountries)),
+
+            async function UserController_FetchCountries(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsUserController_FetchCountries, request, response });
+
+                const controller = new UserController();
+
+              await templateService.apiHandler({
+                methodName: 'FetchCountries',
                 controller,
                 response,
                 next,
@@ -3173,10 +3202,11 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsOrganizationController_CreateUser: Record<string, TsoaRoute.ParameterSchema> = {
+                organizationId: {"in":"path","name":"organizationId","required":true,"dataType":"string"},
                 body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"level":{"dataType":"string","required":true},"role":{"dataType":"string","required":true},"phone_number":{"dataType":"string","required":true},"state":{"dataType":"string","required":true},"country":{"dataType":"string","required":true},"password":{"dataType":"string","required":true},"email_address":{"dataType":"string","required":true},"last_name":{"dataType":"string","required":true},"first_name":{"dataType":"string","required":true}}},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
-        app.post('/api/organizations/invite-user/signup',
+        app.post('/api/organizations/invite-user/signup/:organizationId',
             ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
             ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.CreateUser)),
 

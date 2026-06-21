@@ -30,6 +30,7 @@ import {
 } from "../utils/jwtHelper";
 import { firebaseAuthService } from "../services/firebaseService";
 import { otpRateLimit } from "../utils/otp";
+import { WeirdService } from "../services/weridService";
 
 //User route start here
 @Route("user")
@@ -3128,5 +3129,14 @@ export class UserController extends Controller {
       this.setStatus(401);
       return { message: "Invalid refresh token" };
     }
+  }
+
+  @Get("fetch-countries")
+  public async FetchCountries() {
+    const data = await WeirdService.FetchCountries();
+
+    return {
+      data,
+    };
   }
 }

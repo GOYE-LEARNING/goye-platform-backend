@@ -63,6 +63,17 @@ model User {
   savedCourses      SavedCourses[]
   adminProfile      AdminProfile?
   additionalData    UserAdditionalData?
+  waitlists         Waitlist?              @relation(fields: [waitlistId], references: [id])
+  waitlistId        String?                @unique
+}
+
+model Waitlist {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  status    String
+  users     User[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
 enum Provider {

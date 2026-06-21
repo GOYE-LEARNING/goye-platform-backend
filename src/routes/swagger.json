@@ -101,6 +101,15 @@
 					"MILESTONES_BADGES"
 				]
 			},
+			"_36_Enums.OrgType": {
+				"type": "string",
+				"enum": [
+					"CHURCH",
+					"SCHOOL",
+					"CLUB",
+					"OTHER"
+				]
+			},
 			"_36_Enums.EnrollmentStatus": {
 				"type": "string",
 				"enum": [
@@ -425,15 +434,6 @@
 			"Omit_OrganizationDTO.id_": {
 				"$ref": "#/components/schemas/Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
-			},
-			"_36_Enums.OrgType": {
-				"type": "string",
-				"enum": [
-					"CHURCH",
-					"SCHOOL",
-					"CLUB",
-					"OTHER"
-				]
 			},
 			"Prisma.BatchPayload": {
 				"properties": {
@@ -2763,6 +2763,9 @@
 												"paymentCode": {
 													"type": "string"
 												},
+												"waitlistId": {
+													"type": "string"
+												},
 												"firebase_uid": {
 													"type": "string"
 												},
@@ -2822,6 +2825,7 @@
 												"form_type",
 												"completed",
 												"paymentCode",
+												"waitlistId",
 												"firebase_uid",
 												"level",
 												"role",
@@ -2931,7 +2935,6 @@
 											"properties": {
 												"error": {},
 												"role": {},
-												"organization": {},
 												"progressId": {},
 												"level": {},
 												"user": {},
@@ -2953,7 +2956,6 @@
 											"properties": {
 												"error": {},
 												"role": {},
-												"organization": {},
 												"progressId": {},
 												"level": {},
 												"status": {},
@@ -2997,6 +2999,9 @@
 															"type": "string"
 														},
 														"paymentCode": {
+															"type": "string"
+														},
+														"waitlistId": {
 															"type": "string"
 														},
 														"firebase_uid": {
@@ -3058,6 +3063,7 @@
 														"form_type",
 														"completed",
 														"paymentCode",
+														"waitlistId",
 														"firebase_uid",
 														"level",
 														"role",
@@ -3089,7 +3095,6 @@
 											"properties": {
 												"error": {},
 												"role": {},
-												"organization": {},
 												"status": {},
 												"progressId": {},
 												"level": {},
@@ -3350,6 +3355,9 @@
 																"paymentCode": {
 																	"type": "string"
 																},
+																"waitlistId": {
+																	"type": "string"
+																},
 																"firebase_uid": {
 																	"type": "string"
 																},
@@ -3409,6 +3417,7 @@
 																"form_type",
 																"completed",
 																"paymentCode",
+																"waitlistId",
 																"firebase_uid",
 																"level",
 																"role",
@@ -3447,363 +3456,282 @@
 												"status": {},
 												"progressId": {},
 												"level": {},
-												"organization": {
-													"properties": {
-														"organization_name": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"organization_name"
-													],
-													"type": "object"
-												},
 												"user": {
-													"allOf": [
-														{
+													"properties": {
+														"organization": {
 															"properties": {
-																"organization": {
+																"Club": {
 																	"properties": {
-																		"organization_name": {
+																		"club_email": {
+																			"type": "string"
+																		},
+																		"club_document": {
+																			"type": "string"
+																		},
+																		"club_description": {
+																			"type": "string"
+																		},
+																		"club_parent_org": {
+																			"type": "string"
+																		},
+																		"club_social_link": {
+																			"type": "string"
+																		},
+																		"club_meeting_frequency": {
+																			"type": "string"
+																		},
+																		"club_role": {
+																			"type": "string"
+																		},
+																		"club_leader_name": {
+																			"type": "string"
+																		},
+																		"club_type": {
+																			"type": "string"
+																		},
+																		"club_name": {
+																			"type": "string"
+																		},
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
 																			"type": "string"
 																		}
 																	},
 																	"required": [
-																		"organization_name"
+																		"club_email",
+																		"club_document",
+																		"club_description",
+																		"club_parent_org",
+																		"club_social_link",
+																		"club_meeting_frequency",
+																		"club_role",
+																		"club_leader_name",
+																		"club_type",
+																		"club_name",
+																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
 																	],
 																	"type": "object"
 																},
-																"progress": {
-																	"items": {
-																		"allOf": [
-																			{
-																				"properties": {
-																					"badges": {
-																						"items": {
-																							"properties": {
-																								"badgesAndLevelEarnedId": {
-																									"type": "string"
-																								},
-																								"achievementId": {
-																									"type": "string"
-																								},
-																								"badges": {
-																									"$ref": "#/components/schemas/_36_Enums.BadgesEnum"
-																								},
-																								"userId": {
-																									"type": "string"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"progressId": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"badgesAndLevelEarnedId",
-																								"achievementId",
-																								"badges",
-																								"userId",
-																								"updatedAt",
-																								"createdAt",
-																								"progressId",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					},
-																					"badges_and_levels": {
-																						"items": {
-																							"properties": {
-																								"achievementId": {
-																									"type": "string"
-																								},
-																								"level": {
-																									"$ref": "#/components/schemas/_36_Enums.Levels"
-																								},
-																								"userId": {
-																									"type": "string"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"courseId": {
-																									"type": "string"
-																								},
-																								"progressId": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"achievementId",
-																								"level",
-																								"userId",
-																								"updatedAt",
-																								"createdAt",
-																								"courseId",
-																								"progressId",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					},
-																					"achivement": {
-																						"items": {
-																							"properties": {
-																								"groupId": {
-																									"type": "string"
-																								},
-																								"progressMessage": {
-																									"type": "string"
-																								},
-																								"totalPoint": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"content": {
-																									"type": "string"
-																								},
-																								"title": {
-																									"type": "string"
-																								},
-																								"point": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"userId": {
-																									"type": "string"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"courseId": {
-																									"type": "string"
-																								},
-																								"progressId": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"groupId",
-																								"progressMessage",
-																								"totalPoint",
-																								"content",
-																								"title",
-																								"point",
-																								"userId",
-																								"updatedAt",
-																								"createdAt",
-																								"courseId",
-																								"progressId",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					}
-																				},
-																				"required": [
-																					"badges",
-																					"badges_and_levels",
-																					"achivement"
-																				],
-																				"type": "object"
-																			},
-																			{
-																				"properties": {
-																					"userId": {
-																						"type": "string"
-																					},
-																					"startedJourney": {
-																						"type": "boolean"
-																					},
-																					"progressBar": {
-																						"type": "number",
-																						"format": "double"
-																					},
-																					"updatedAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"createdAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"lessonId": {
-																						"type": "string"
-																					},
-																					"id": {
-																						"type": "string"
-																					}
-																				},
-																				"required": [
-																					"userId",
-																					"startedJourney",
-																					"progressBar",
-																					"updatedAt",
-																					"createdAt",
-																					"lessonId",
-																					"id"
-																				],
-																				"type": "object"
-																			}
-																		]
+																"school": {
+																	"properties": {
+																		"school_logo": {
+																			"type": "string"
+																		},
+																		"school_document": {
+																			"type": "string"
+																		},
+																		"school_accreditation_number": {
+																			"type": "string"
+																		},
+																		"school_website": {
+																			"type": "string"
+																		},
+																		"school_email": {
+																			"type": "string"
+																		},
+																		"school_role": {
+																			"type": "string"
+																		},
+																		"school_admin_name": {
+																			"type": "string"
+																		},
+																		"school_address": {
+																			"type": "string"
+																		},
+																		"school_type": {
+																			"type": "string"
+																		},
+																		"school_name": {
+																			"type": "string"
+																		},
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
 																	},
-																	"type": "array"
+																	"required": [
+																		"school_logo",
+																		"school_document",
+																		"school_accreditation_number",
+																		"school_website",
+																		"school_email",
+																		"school_role",
+																		"school_admin_name",
+																		"school_address",
+																		"school_type",
+																		"school_name",
+																		"organzationId",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"Church": {
+																	"properties": {
+																		"organzationId": {
+																			"type": "string"
+																		},
+																		"church_email": {
+																			"type": "string"
+																		},
+																		"church_logo": {
+																			"type": "string"
+																		},
+																		"church_website": {
+																			"type": "string"
+																		},
+																		"church_weekly_service": {
+																			"type": "string"
+																		},
+																		"church_address": {
+																			"type": "string"
+																		},
+																		"church_role": {
+																			"type": "string"
+																		},
+																		"church_ld_pastor": {
+																			"type": "string"
+																		},
+																		"church_min_name": {
+																			"type": "string"
+																		},
+																		"updatedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"createdAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"organzationId",
+																		"church_email",
+																		"church_logo",
+																		"church_website",
+																		"church_weekly_service",
+																		"church_address",
+																		"church_role",
+																		"church_ld_pastor",
+																		"church_min_name",
+																		"updatedAt",
+																		"createdAt",
+																		"id"
+																	],
+																	"type": "object"
+																},
+																"organization_image": {
+																	"type": "string"
+																},
+																"organization_year": {
+																	"type": "string"
+																},
+																"organization_role": {
+																	"type": "string"
+																},
+																"organization_description": {
+																	"type": "string"
+																},
+																"organization_state": {
+																	"type": "string"
+																},
+																"organization_country": {
+																	"type": "string"
+																},
+																"organization_phone_number": {
+																	"type": "string"
+																},
+																"organization_email": {
+																	"type": "string"
+																},
+																"organization_type": {
+																	"$ref": "#/components/schemas/_36_Enums.OrgType"
+																},
+																"organization_name": {
+																	"type": "string"
 																}
 															},
 															"required": [
-																"organization",
-																"progress"
+																"Club",
+																"school",
+																"Church",
+																"organization_image",
+																"organization_year",
+																"organization_role",
+																"organization_description",
+																"organization_state",
+																"organization_country",
+																"organization_phone_number",
+																"organization_email",
+																"organization_type",
+																"organization_name"
 															],
 															"type": "object"
 														},
-														{
-															"properties": {
-																"isProfileComplete": {
-																	"type": "boolean"
-																},
-																"completedVideo": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"completedLessons": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"completedCourses": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"provider": {
-																	"type": "string"
-																},
-																"invited": {
-																	"type": "boolean"
-																},
-																"user_pic": {
-																	"type": "string"
-																},
-																"lastActive": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"isOnline": {
-																	"type": "boolean"
-																},
-																"form_type": {
-																	"$ref": "#/components/schemas/_36_Enums.FormType"
-																},
-																"completed": {
-																	"type": "string"
-																},
-																"paymentCode": {
-																	"type": "string"
-																},
-																"firebase_uid": {
-																	"type": "string"
-																},
-																"level": {
-																	"type": "string"
-																},
-																"role": {
-																	"type": "string"
-																},
-																"phone_number": {
-																	"type": "string"
-																},
-																"state": {
-																	"type": "string"
-																},
-																"country": {
-																	"type": "string"
-																},
-																"password": {
-																	"type": "string"
-																},
-																"email_address": {
-																	"type": "string"
-																},
-																"last_name": {
-																	"type": "string"
-																},
-																"first_name": {
-																	"type": "string"
-																},
-																"point": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"updatedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"createdAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"id": {
-																	"type": "string"
-																}
-															},
-															"required": [
-																"isProfileComplete",
-																"completedVideo",
-																"completedLessons",
-																"completedCourses",
-																"provider",
-																"invited",
-																"user_pic",
-																"lastActive",
-																"isOnline",
-																"form_type",
-																"completed",
-																"paymentCode",
-																"firebase_uid",
-																"level",
-																"role",
-																"phone_number",
-																"state",
-																"country",
-																"password",
-																"email_address",
-																"last_name",
-																"first_name",
-																"point",
-																"updatedAt",
-																"createdAt",
-																"id"
-															],
-															"type": "object"
+														"profile_pic": {
+															"type": "string"
+														},
+														"level": {
+															"type": "string"
+														},
+														"state": {
+															"type": "string"
+														},
+														"country": {
+															"type": "string"
+														},
+														"phone_number": {
+															"type": "string"
+														},
+														"email_address": {
+															"type": "string"
+														},
+														"last_name": {
+															"type": "string"
+														},
+														"first_name": {
+															"type": "string"
 														}
-													]
+													},
+													"required": [
+														"organization",
+														"profile_pic",
+														"level",
+														"state",
+														"country",
+														"phone_number",
+														"email_address",
+														"last_name",
+														"first_name"
+													],
+													"type": "object"
 												},
 												"message": {
 													"type": "string"
@@ -3812,7 +3740,6 @@
 											"required": [
 												"progressId",
 												"level",
-												"organization",
 												"user",
 												"message"
 											],
@@ -3821,7 +3748,6 @@
 										{
 											"properties": {
 												"error": {},
-												"organization": {},
 												"progressId": {},
 												"level": {},
 												"user": {},
@@ -3844,7 +3770,6 @@
 										{
 											"properties": {
 												"role": {},
-												"organization": {},
 												"progressId": {},
 												"level": {},
 												"user": {},
@@ -4207,6 +4132,46 @@
 						"content": {
 							"application/json": {
 								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [],
+				"parameters": []
+			}
+		},
+		"/user/fetch-countries": {
+			"get": {
+				"operationId": "FetchCountries",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {
+									"properties": {
+										"data": {
+											"properties": {
+												"data": {},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"data",
+												"message"
+											],
+											"type": "object"
+										}
+									},
+									"required": [
+										"data"
+									],
+									"type": "object"
+								}
 							}
 						}
 					}
@@ -7794,6 +7759,9 @@
 																		"paymentCode": {
 																			"type": "string"
 																		},
+																		"waitlistId": {
+																			"type": "string"
+																		},
 																		"firebase_uid": {
 																			"type": "string"
 																		},
@@ -7853,6 +7821,7 @@
 																		"form_type",
 																		"completed",
 																		"paymentCode",
+																		"waitlistId",
 																		"firebase_uid",
 																		"level",
 																		"role",
@@ -8339,6 +8308,9 @@
 																		"paymentCode": {
 																			"type": "string"
 																		},
+																		"waitlistId": {
+																			"type": "string"
+																		},
 																		"firebase_uid": {
 																			"type": "string"
 																		},
@@ -8398,6 +8370,7 @@
 																		"form_type",
 																		"completed",
 																		"paymentCode",
+																		"waitlistId",
 																		"firebase_uid",
 																		"level",
 																		"role",
@@ -8535,7 +8508,7 @@
 				"parameters": []
 			}
 		},
-		"/organizations/invite-user/signup": {
+		"/organizations/invite-user/signup/{organizationId}": {
 			"post": {
 				"operationId": "CreateUser",
 				"responses": {
@@ -8552,7 +8525,16 @@
 					"Organization Controllers"
 				],
 				"security": [],
-				"parameters": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -11725,6 +11707,9 @@
 																			"paymentCode": {
 																				"type": "string"
 																			},
+																			"waitlistId": {
+																				"type": "string"
+																			},
 																			"firebase_uid": {
 																				"type": "string"
 																			},
@@ -11784,6 +11769,7 @@
 																			"form_type",
 																			"completed",
 																			"paymentCode",
+																			"waitlistId",
 																			"firebase_uid",
 																			"level",
 																			"role",
