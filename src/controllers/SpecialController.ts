@@ -37,7 +37,14 @@ export class SpecialController extends Controller {
         this.setStatus(400);
         return {
           success: false,
-          message: "The great kingdom builder, please enter a valid and powerful email address."
+          message: `
+            <div class="modal-content">
+              <div class="modal-icon error">✕</div>
+              <h2 class="modal-title error">Invalid Email Address</h2>
+              <p class="modal-text">Please enter a valid email address and try again.</p>
+              <p class="modal-text">Double-check your spelling to make sure we can send you launch updates and your early access invitation.</p>
+            </div>
+          `
         };
       }
 
@@ -52,7 +59,15 @@ export class SpecialController extends Controller {
         this.setStatus(409);
         return {
           success: false,
-          message: "You're already on the waitlist! 🎉"
+          message: `
+            <div class="modal-content">
+              <div class="modal-icon info">✓</div>
+              <h2 class="modal-title info">You're Already on the Waitlist ✅</h2>
+              <p class="modal-text">Good news! This email is already registered.</p>
+              <p class="modal-text">Your place is secure, and there's nothing else you need to do. We'll notify you as soon as GOYE is ready for early access.</p>
+              <p class="modal-text highlight">Thank you for being part of our journey.</p>
+            </div>
+          `
         };
       }
 
@@ -69,7 +84,14 @@ export class SpecialController extends Controller {
       this.setStatus(201);
       return {
         success: true,
-        message: "Successfully joined the waitlist! 🎉",
+        message: `
+          <div class="modal-content">
+            <div class="modal-icon success">★</div>
+            <h2 class="modal-title success">You're In! 🎉</h2>
+            <p class="modal-text">Thanks for joining the GOYE waitlist.</p>
+            <p class="modal-text">Your spot has been successfully reserved. We'll keep you updated with exclusive news, product milestones, and your invitation to experience GOYE before public launch.</p>
+          </div>
+        `,
         data: {
           email: normalizedEmail,
           status: "active"
@@ -81,7 +103,13 @@ export class SpecialController extends Controller {
       this.setStatus(500);
       return {
         success: false,
-        message: "An unexpected error occurred. Please try again."
+        message: `
+          <div class="modal-content">
+            <div class="modal-icon error">✕</div>
+            <h2 class="modal-title error">Something went wrong</h2>
+            <p class="modal-text">An unexpected error occurred. Please try again.</p>
+          </div>
+        `
       };
     }
   }
@@ -95,7 +123,14 @@ export class SpecialController extends Controller {
         return {
           success: false,
           exists: false,
-          message: "Invalid email format."
+          message: `
+            <div class="modal-content">
+              <div class="modal-icon error">✕</div>
+              <h2 class="modal-title error">Invalid Email Address</h2>
+              <p class="modal-text">Please enter a valid email address and try again.</p>
+              <p class="modal-text">Double-check your spelling to make sure we can send you launch updates and your early access invitation.</p>
+            </div>
+          `
         };
       }
 
@@ -119,7 +154,14 @@ export class SpecialController extends Controller {
         success: true,
         exists: true,
         status: waitlistEntry.status,
-        message: "Email is on the waitlist!"
+        message: `
+          <div class="modal-content">
+            <div class="modal-icon info">👋</div>
+            <h2 class="modal-title info">Welcome Back! 👋</h2>
+            <p class="modal-text">It looks like you've already joined the GOYE waitlist.</p>
+            <p class="modal-text">Your early access is reserved, and we'll keep you informed with launch updates and important announcements.</p>
+          </div>
+        `
       };
 
     } catch (error: any) {
@@ -128,7 +170,13 @@ export class SpecialController extends Controller {
       return {
         success: false,
         exists: false,
-        message: "An unexpected error occurred. Please try again."
+        message: `
+          <div class="modal-content">
+            <div class="modal-icon error">✕</div>
+            <h2 class="modal-title error">Something went wrong</h2>
+            <p class="modal-text">An unexpected error occurred. Please try again.</p>
+          </div>
+        `
       };
     }
   }
