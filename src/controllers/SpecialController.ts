@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Get, Query } from "tsoa";
+import { Body, Controller, Post, Get, Query, Route, Tags } from "tsoa";
 import prisma from "../db";
 
 interface CreateWaitlistResponse {
@@ -20,6 +20,9 @@ interface CheckWaitlistResponse {
   status?: string;
   message?: string;
 }
+
+@Tags("Special Controller")
+@Route("special")
 
 export class SpecialController extends Controller {
   
