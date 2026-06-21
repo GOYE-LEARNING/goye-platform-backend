@@ -34,7 +34,7 @@ export class SpecialController extends Controller {
         this.setStatus(400);
         return {
           success: false,
-          message: "Please enter a valid email address."
+          message: "The great kingdom builder, please enter a valid and powerful email address."
         };
       }
 
