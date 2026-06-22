@@ -2289,51 +2289,60 @@ export class UserController extends Controller {
   }
 
   //update User
-  @Security("bearerAuth")
-  @Security("bearerAuth")
-  @Put("/update-user")
-  public async UpdateUser(
-    @Request() req: any,
-    @Body()
-    data: {
-      first_name: string;
-      last_name: string;
-      country: string;
-      state: string;
-      phone_number: string;
-      language: string
-      languageCode: string
-    },
-  ): Promise<any> {
-    const userId = req.user?.id;
+@Security("bearerAuth")
+@Put("/update-user")
+public async UpdateUser(
+  @Request() req: any,
+  @Body()
+  data: {
+    first_name?: string;
+    last_name?: string;
+    country?: string;
+    state?: string;
+    phone_number?: string;
+    language?: string;
+    languageCode?: string;
+  },
+): Promise<any> {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(404);
-      return {
-        message: "User not found",
-      };
-    }
-
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        first_name: data.first_name,
-        last_name: data.last_name,
-        country: data.country,
-        state: data.state,
-        phone_number: data.phone_number,
-        language: data.language,
-        languageCode: data.languageCode
-      },
-    });
-
-    this.setStatus(201);
+  if (!userId) {
+    this.setStatus(404);
     return {
-      message: "User updated successfully",
-      data: user,
+      message: "User not found",
     };
   }
 
+  // Build update data dynamically based on what's provided
+  const updateData: any = {};
+
+  if (data.first_name !== undefined) updateData.first_name = data.first_name;
+  if (data.last_name !== undefined) updateData.last_name = data.last_name;
+  if (data.country !== undefined) updateData.country = data.country;
+  if (data.state !== undefined) updateData.state = data.state;
+  if (data.phone_number !== undefined) updateData.phone_number = data.phone_number;
+  if (data.language !== undefined) updateData.language = data.language;
+  if (data.languageCode !== undefined) updateData.languageCode = data.languageCode;
+
+  // If no fields to update, return error
+  if (Object.keys(updateData).length === 0) {
+    this.setStatus(400);
+    return {
+      message: "No fields provided to update",
+    };
+  }
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: updateData,
+  });
+
+  this.setStatus(200);
+  return {
+    message: "User updated successfully",
+    data: user,
+  };
+}
   //delete user
   @Delete("delete-user/{id}")
   public async DeleteUser(@Path() id: string) {

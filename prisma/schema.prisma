@@ -18,7 +18,7 @@ model User {
   country           String
   state             String
   phone_number      String
-  language          String?
+  language          String?                @default("unknown")
   languageCode      String?
   role              String                 @default("student")
   level             String
@@ -71,23 +71,24 @@ model User {
 }
 
 enum LanguageCode {
-  en   // English
-  fr   // French
-  es   // Spanish
-  pt   // Portuguese
-  de   // German
-  it   // Italian
-  nl   // Dutch
+  unknown //  UNKNOWN language
+  en // English
+  fr // French
+  es // Spanish
+  pt // Portuguese
+  de // German
+  it // Italian
+  nl // Dutch
   zh_CN // Chinese (Simplified)
   zh_TW // Chinese (Traditional)
-  ja   // Japanese
-  ko   // Korean
-  hi   // Hindi
-  sw   // Swahili
-  yo   // Yorùbá
-  ig   // Igbo
-  ha   // Hausa
-  am   // Amharic
+  ja // Japanese
+  ko // Korean
+  hi // Hindi
+  sw // Swahili
+  yo // Yorùbá
+  ig // Igbo
+  ha // Hausa
+  am // Amharic
 }
 
 model Waitlist {
