@@ -7,7 +7,7 @@ export class WeirdService {
         "https://api.restcountries.com/countries/v5",
         {
           headers: {
-            Authorization: `Bearer rc_live_65a59ff240474513a09c003daf291192`,
+            Authorization: `Bearer ${process.env.CONTRIES_API}`,
           },
         },
       );

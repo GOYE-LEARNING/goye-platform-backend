@@ -18,6 +18,8 @@ model User {
   country           String
   state             String
   phone_number      String
+  language          String?
+  languageCode      String?
   role              String                 @default("student")
   level             String
   point             Int?
@@ -35,6 +37,7 @@ model User {
   completedLessons  Int?
   completedVideo    Int?
   isProfileComplete Boolean?               @default(false)
+  isFromWaitList    Boolean?
   enrollment        Enrollment[]
   post              Post[]
   reply             Reply[]
@@ -65,6 +68,26 @@ model User {
   additionalData    UserAdditionalData?
   waitlists         Waitlist?              @relation(fields: [waitlistId], references: [id])
   waitlistId        String?                @unique
+}
+
+enum LanguageCode {
+  en   // English
+  fr   // French
+  es   // Spanish
+  pt   // Portuguese
+  de   // German
+  it   // Italian
+  nl   // Dutch
+  zh_CN // Chinese (Simplified)
+  zh_TW // Chinese (Traditional)
+  ja   // Japanese
+  ko   // Korean
+  hi   // Hindi
+  sw   // Swahili
+  yo   // Yorùbá
+  ig   // Igbo
+  ha   // Hausa
+  am   // Amharic
 }
 
 model Waitlist {

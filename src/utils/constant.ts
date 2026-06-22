@@ -8,7 +8,6 @@ export const ALLOWED_ORIGINS = [
   "https://goye-web-app.vercel.app",
   "https://goye-web-app.onrender.com",
   "https://goye-platform-backend.onrender.com",
-  "https://yourdomain.com",
   "https://2qm3zg9b-3000.uks1.devtunnels.ms",
   "https://goyewaitlist2026.vercel.app"
 ];

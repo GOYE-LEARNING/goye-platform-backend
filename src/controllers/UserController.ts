@@ -733,7 +733,7 @@ export class UserController extends Controller {
 
     // Create user with default level if not provided
     const user = await prisma.user.create({
-      data: { ...body, password: hashedPassword, level: body.level },
+      data: { ...body, password: hashedPassword, level: body.level, language: body.language, languageCode: body.languageCode },
     });
 
     //After creating Users.
@@ -2301,6 +2301,8 @@ export class UserController extends Controller {
       country: string;
       state: string;
       phone_number: string;
+      language: string
+      languageCode: string
     },
   ): Promise<any> {
     const userId = req.user?.id;
@@ -2320,6 +2322,8 @@ export class UserController extends Controller {
         country: data.country,
         state: data.state,
         phone_number: data.phone_number,
+        language: data.language,
+        languageCode: data.languageCode
       },
     });
 
@@ -3131,6 +3135,7 @@ export class UserController extends Controller {
     }
   }
 
+  @Security("bearerAuth")
   @Get("fetch-countries")
   public async FetchCountries() {
     const data = await WeirdService.FetchCountries();

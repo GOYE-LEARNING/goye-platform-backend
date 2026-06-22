@@ -7,6 +7,8 @@ export interface User {
   country: string;
   state: string;
   phone_number: string;
+  language?: string
+  languageCode: string
   role: string;
   level: string;
   createAt?: any;
