@@ -488,8 +488,8 @@ export class UserController extends Controller {
             first_name: updateUser.first_name,
             last_name: updateUser.last_name,
             role: updateUser.role,
+            form_type: user.form_type, // ✅ Add this
             progressId: progress.id,
-            form_type: user.form_type,
             organizationId: invitationOrg?.organizationId || null,
           },
         };
@@ -1944,6 +1944,7 @@ export class UserController extends Controller {
       };
     }
   }
+
   @Post("/sendOtp")
   public async SendOtp(@Body() body: { email: string }): Promise<any> {
     try {

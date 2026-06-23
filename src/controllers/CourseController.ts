@@ -697,13 +697,15 @@ export class CourseController extends Controller {
         });
 
 
-        const translateText = await TranslateText("This course is mine", language, languageCode)
+        const translateText = await TranslateText(getAllCourses[0].course_description, language, languageCode)
         this.setStatus(200);
         return {
-          message: "Courses fetched successfully",
+          message: "This user course fetched successfully",
           data: {
             getAllCourses,
-            courseInLanguage: translateText 
+            language: language ?? null,
+            languageCode: languageCode ?? null,
+            translateText: translateText ?? null
           },
         };
       } else if (normalizedLevel === "intermediate") {
@@ -734,7 +736,7 @@ export class CourseController extends Controller {
 
         this.setStatus(200);
         return {
-          message: "Courses fetched successfully",
+          message: "This user course fetched successfully",
           data: {
             getAllCourses,
           },

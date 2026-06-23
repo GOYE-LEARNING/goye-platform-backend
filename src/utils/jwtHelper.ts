@@ -105,7 +105,7 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
     id: payload.id,
     email: payload.email,
     language: payload.language,
-    LanguageCode: payload.languageCode,
+    languageCode: payload.languageCode,
     role: payload.role,
     level: payload.level,
     type: payload.type || "USER",
@@ -122,6 +122,8 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
   if (payload.full_name) accessPayload.full_name = payload.full_name;
   if (payload.adminRole) accessPayload.adminRole = payload.adminRole;
   if (payload.user_pic) accessPayload.user_pic = payload.user_pic;
+  if (payload.language) accessPayload.language = payload.language
+    if (payload.language) accessPayload.languageCode = payload.languageCode
   if (payload.isProfileComplete !== undefined)
     accessPayload.isProfileComplete = payload.isProfileComplete;
 
