@@ -5,7 +5,7 @@ interface AIResponse {
   message: string;
   data: any[];
 }
-export async function TranlateText(
+export async function TranslateText(
   text: string,
   language: string,
   languageCode: string,

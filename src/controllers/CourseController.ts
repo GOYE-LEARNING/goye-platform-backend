@@ -24,7 +24,8 @@ import {
   GamificationService,
 } from "../services/gamificationService";
 import { NotificationService, Role } from "../services/notificationServices";
-
+import { TranslateText } from "../utils/ai_utils/translator";
+import { text } from "body-parser";
 //To determine levels
 const levels: Record<string, string> = {
   beginner: "Beginner",
@@ -654,7 +655,8 @@ export class CourseController extends Controller {
     @Request() req: any,
   ): Promise<CourseResponse> {
     const userLevel = req.user?.level;
-
+    const language = req.user?.language
+    const languageCode = req.user?.languageCode
     try {
       // Validate user level
       if (!userLevel) {
@@ -694,11 +696,14 @@ export class CourseController extends Controller {
           },
         });
 
+
+        const translateText = await TranslateText("This course is mine", language, languageCode)
         this.setStatus(200);
         return {
           message: "Courses fetched successfully",
           data: {
             getAllCourses,
+            courseInLanguage: translateText 
           },
         };
       } else if (normalizedLevel === "intermediate") {
