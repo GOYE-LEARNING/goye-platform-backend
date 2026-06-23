@@ -733,7 +733,13 @@ export class UserController extends Controller {
 
     // Create user with default level if not provided
     const user = await prisma.user.create({
-      data: { ...body, password: hashedPassword, level: body.level, language: body.language, languageCode: body.languageCode },
+      data: {
+        ...body,
+        password: hashedPassword,
+        level: body.level,
+        language: body.language,
+        languageCode: body.languageCode as any,
+      },
     });
 
     //After creating Users.
@@ -822,6 +828,8 @@ export class UserController extends Controller {
       id: updateUser.id,
       email: updateUser.email_address,
       role: updateUser.role,
+      language: updateUser.language,
+      languageCode: updateUser.languageCode,
       type: updateUser.form_type || "INDIVIDUAL",
       settingsId: createSettings.id,
       full_name: `${updateUser.first_name} ${updateUser.last_name}`,
@@ -1020,6 +1028,8 @@ export class UserController extends Controller {
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          language: updateUser.language,
+          languageCode: updateUser.languageCode,
           adminRole: user.adminProfile?.role || "super_admin",
           progressId: progress.id,
           level: updateUser.level,
@@ -1208,6 +1218,8 @@ export class UserController extends Controller {
           role: updateUser.role,
           progressId: progress.id,
           level: updateUser.level,
+          language: updateUser.language,
+          languageCode: updateUser.languageCode,
           updateStatus: updateUser.isOnline,
           organizationId: invitationOrg?.organizationId || null,
           planId,
@@ -1392,6 +1404,8 @@ export class UserController extends Controller {
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          language: updateUser.language,
+          languageCode: updateUser.languageCode,
           level: updateUser.level,
           progressId: progress.id,
           updateStatus: updateUser.isOnline,
@@ -1560,6 +1574,8 @@ export class UserController extends Controller {
           email: updatedOrganization.user.email_address,
           role: updatedOrganization.user.role,
           settingsId: settingsId,
+          language: updatedOrganization.language,
+          languageCode: updatedOrganization.languageCode,
           organizationId: updatedOrganization.id,
           organization_name: updatedOrganization.organization_name,
           organization_email: updatedOrganization.organization_email,
@@ -2289,60 +2305,62 @@ export class UserController extends Controller {
   }
 
   //update User
-@Security("bearerAuth")
-@Put("/update-user")
-public async UpdateUser(
-  @Request() req: any,
-  @Body()
-  data: {
-    first_name?: string;
-    last_name?: string;
-    country?: string;
-    state?: string;
-    phone_number?: string;
-    language?: string;
-    languageCode?: string;
-  },
-): Promise<any> {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Put("/update-user")
+  public async UpdateUser(
+    @Request() req: any,
+    @Body()
+    data: {
+      first_name?: string;
+      last_name?: string;
+      country?: string;
+      state?: string;
+      phone_number?: string;
+      language?: string;
+      languageCode?: string;
+    },
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(404);
+    if (!userId) {
+      this.setStatus(404);
+      return {
+        message: "User not found",
+      };
+    }
+
+    // Build update data dynamically based on what's provided
+    const updateData: any = {};
+
+    if (data.first_name !== undefined) updateData.first_name = data.first_name;
+    if (data.last_name !== undefined) updateData.last_name = data.last_name;
+    if (data.country !== undefined) updateData.country = data.country;
+    if (data.state !== undefined) updateData.state = data.state;
+    if (data.phone_number !== undefined)
+      updateData.phone_number = data.phone_number;
+    if (data.language !== undefined) updateData.language = data.language;
+    if (data.languageCode !== undefined)
+      updateData.languageCode = data.languageCode;
+
+    // If no fields to update, return error
+    if (Object.keys(updateData).length === 0) {
+      this.setStatus(400);
+      return {
+        message: "No fields provided to update",
+      };
+    }
+
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+
+    this.setStatus(200);
     return {
-      message: "User not found",
+      message: "User updated successfully",
+      data: user,
     };
   }
-
-  // Build update data dynamically based on what's provided
-  const updateData: any = {};
-
-  if (data.first_name !== undefined) updateData.first_name = data.first_name;
-  if (data.last_name !== undefined) updateData.last_name = data.last_name;
-  if (data.country !== undefined) updateData.country = data.country;
-  if (data.state !== undefined) updateData.state = data.state;
-  if (data.phone_number !== undefined) updateData.phone_number = data.phone_number;
-  if (data.language !== undefined) updateData.language = data.language;
-  if (data.languageCode !== undefined) updateData.languageCode = data.languageCode;
-
-  // If no fields to update, return error
-  if (Object.keys(updateData).length === 0) {
-    this.setStatus(400);
-    return {
-      message: "No fields provided to update",
-    };
-  }
-
-  const user = await prisma.user.update({
-    where: { id: userId },
-    data: updateData,
-  });
-
-  this.setStatus(200);
-  return {
-    message: "User updated successfully",
-    data: user,
-  };
-}
   //delete user
   @Delete("delete-user/{id}")
   public async DeleteUser(@Path() id: string) {

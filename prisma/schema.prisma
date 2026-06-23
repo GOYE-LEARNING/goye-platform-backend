@@ -19,7 +19,7 @@ model User {
   state             String
   phone_number      String
   language          String?                @default("unknown")
-  languageCode      String?
+  languageCode      LanguageCode?          @default(unknown)
   role              String                 @default("student")
   level             String
   point             Int?
@@ -239,6 +239,8 @@ model Organization {
   organization_password     String?
   organization_year         String
   organization_image        String?
+  language                  String?
+  languageCode              String?
   organization_plan         PricingHistory[]
   form_type                 FormType?            @default(ORGANIZATION)
   isOnline                  Boolean?             @default(false)

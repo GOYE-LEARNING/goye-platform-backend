@@ -2,12 +2,15 @@
 import jwt from "jsonwebtoken";
 import prisma from "../db";
 import crypto from "crypto";
+import { LanguageCode } from "@prisma/client";
 
 interface TokenPayload {
   id: string;
   email: string;
   role: string;
   type?: string;
+  language?: string;
+  languageCode?: string;
   deviceId?: string;
   deviceType?: string;
   progressId?: string;
@@ -37,18 +40,22 @@ interface Tokens {
 // Helper function to normalize level
 export const normalizeLevel = (level: string): string => {
   if (!level) return "Beginners";
-  
+
   const lowerLevel = level.toLowerCase();
-  if (lowerLevel === 'beginner') return 'Beginners';
-  if (lowerLevel === 'intermediate') return 'Intermediate';
-  if (lowerLevel === 'organization') return 'ORGANIZATION';
-  
+  if (lowerLevel === "beginner") return "Beginners";
+  if (lowerLevel === "intermediate") return "Intermediate";
+  if (lowerLevel === "organization") return "ORGANIZATION";
+
   // If already in correct format
-  if (level === 'Beginners' || level === 'Intermediate' || level === 'ORGANIZATION') {
+  if (
+    level === "Beginners" ||
+    level === "Intermediate" ||
+    level === "ORGANIZATION"
+  ) {
     return level;
   }
-  
-  return 'Beginners';
+
+  return "Beginners";
 };
 
 // Validate level is valid
@@ -67,7 +74,7 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
       role: payload.role,
       type: payload.type,
     });
-    
+
     // Set default level instead of throwing error
     payload.level = "Beginners";
     console.log(`⚠️ Set default level "Beginners" for user ${payload.id}`);
@@ -75,7 +82,7 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
 
   // Normalize level
   const normalizedLevel = normalizeLevel(payload.level);
-  
+
   // Validate level is valid
   if (!isValidLevel(normalizedLevel)) {
     console.error("ERROR: Invalid level value!", {
@@ -89,12 +96,16 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
     payload.level = normalizedLevel;
   }
 
-  console.log(`✅ Generating token with level: ${payload.level} for user: ${payload.id}`);
+  console.log(
+    `✅ Generating token with level: ${payload.level} for user: ${payload.id}`,
+  );
 
   // Create access token payload with essential fields
   const accessPayload: any = {
     id: payload.id,
     email: payload.email,
+    language: payload.language,
+    LanguageCode: payload.languageCode,
     role: payload.role,
     level: payload.level,
     type: payload.type || "USER",
@@ -102,7 +113,8 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
   };
 
   // Add optional fields if they exist
-  if (payload.organizationId) accessPayload.organizationId = payload.organizationId;
+  if (payload.organizationId)
+    accessPayload.organizationId = payload.organizationId;
   if (payload.userId) accessPayload.userId = payload.userId;
   if (payload.progressId) accessPayload.progressId = payload.progressId;
   if (payload.planId) accessPayload.planId = payload.planId;
@@ -110,7 +122,8 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
   if (payload.full_name) accessPayload.full_name = payload.full_name;
   if (payload.adminRole) accessPayload.adminRole = payload.adminRole;
   if (payload.user_pic) accessPayload.user_pic = payload.user_pic;
-  if (payload.isProfileComplete !== undefined) accessPayload.isProfileComplete = payload.isProfileComplete;
+  if (payload.isProfileComplete !== undefined)
+    accessPayload.isProfileComplete = payload.isProfileComplete;
 
   const accessToken = jwt.sign(accessPayload, process.env.ACCESS_SECRET!, {
     expiresIn: "15m",
@@ -146,7 +159,9 @@ export const verifyAccessToken = (token: string): any => {
           role: decoded.role,
         });
       } else {
-        console.log(`✅ Verified token with level: ${decoded.level} for user: ${decoded.id}`);
+        console.log(
+          `✅ Verified token with level: ${decoded.level} for user: ${decoded.id}`,
+        );
       }
     }
 
@@ -213,6 +228,8 @@ export const refreshTokens = async (
       id: user.id,
       email: user.email_address,
       role: user.role,
+      language: user.language,
+      LanguageCode: user.languageCode,
       deviceId: deviceId,
       level: normalizedLevel,
       deviceType: userSession.deviceType,
@@ -241,7 +258,10 @@ export const refreshTokens = async (
       }
     }
 
-    if (userSession.userType === "USER" || userSession.userType === "INVITED_USER") {
+    if (
+      userSession.userType === "USER" ||
+      userSession.userType === "INVITED_USER"
+    ) {
       const progress = await prisma.progress.findFirst({
         where: { userId: user.id },
       });
@@ -251,7 +271,7 @@ export const refreshTokens = async (
 
       const plan = await prisma.pricingHistory.findFirst({
         where: { userId: user.id },
-        orderBy: { planActivatedAt: 'desc' },
+        orderBy: { planActivatedAt: "desc" },
       });
       if (plan) {
         payload.planId = plan.id;
@@ -266,7 +286,8 @@ export const refreshTokens = async (
     }
 
     // Generate new tokens
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens(payload);
+    const { accessToken, refreshToken: newRefreshToken } =
+      generateTokens(payload);
 
     // Update session with new tokens
     await prisma.userSession.update({
@@ -278,8 +299,10 @@ export const refreshTokens = async (
       },
     });
 
-    console.log(`✅ Tokens refreshed for user: ${user.id} with level: ${normalizedLevel}`);
-    
+    console.log(
+      `✅ Tokens refreshed for user: ${user.id} with level: ${normalizedLevel}`,
+    );
+
     return { accessToken, refreshToken: newRefreshToken };
   } catch (error) {
     console.error("Error refreshing tokens:", error);
@@ -329,7 +352,9 @@ export const getUserFromToken = async (token: string): Promise<any | null> => {
 };
 
 // Helper function to get organization from token
-export const getOrganizationFromToken = async (token: string): Promise<any | null> => {
+export const getOrganizationFromToken = async (
+  token: string,
+): Promise<any | null> => {
   try {
     const decoded = verifyAccessToken(token);
     if (!decoded || !decoded.organizationId) return null;
