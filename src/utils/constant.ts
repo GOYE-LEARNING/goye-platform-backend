@@ -3,6 +3,7 @@ export const PORT = process.env.PORT || 10000;
 
 export const ALLOWED_ORIGINS = [
   "http://localhost:3000",
+  " http://localhost:3002",
   "http://127.0.0.1:3001",
   "http://localhost:3001",
   "https://goye-web-app.vercel.app",
