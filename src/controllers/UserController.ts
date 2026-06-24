@@ -1945,164 +1945,314 @@ export class UserController extends Controller {
     }
   }
 
-  @Post("/sendOtp")
-  public async SendOtp(@Body() body: { email: string }): Promise<any> {
-    try {
-      // ✅ CHANGE 1: Add rate limiting
-      const now = Date.now();
-      const userRequests = otpRateLimit.get(body.email) || [];
-      const recentRequests = userRequests.filter(
-        (time) => time > now - 5 * 60 * 1000,
-      );
+ @Post("/sendOtp")
+public async SendOtp(@Body() body: { email: string, type?: 'user' | 'organization' }): Promise<any> {
+  try {
+    const { email, type = 'user' } = body;
 
-      if (recentRequests.length >= 3) {
-        this.setStatus(429);
-        return {
-          success: false,
-          status: 429,
-          message: "Too many OTP requests. Please try again in an 5 minutes.",
-        };
-      }
-
-      recentRequests.push(now);
-      otpRateLimit.set(body.email, recentRequests);
-
-      const otp = crypto.randomInt(100000, 999999).toString();
-      const expires = new Date(Date.now() + 5 * 60 * 1000);
-
-      // ✅ CHANGE 2: Delete old OTPs before creating new one
-      await prisma.otp.deleteMany({
-        where: { email: body.email },
-      });
-
-      const newOtp = await prisma.otp.create({
-        data: {
-          code: otp,
-          email: body.email,
-          expiresIn: expires,
-        },
-      });
-
-      const sessionToken = jwt.sign(
-        { email: body.email, otpId: otp },
-        process.env.JWT_SECRET || "secret-key",
-        { expiresIn: "6min" },
-      );
-
-      // ✅ CHANGE 3: Add retry logic for email
-      let emailSent = false;
-      for (let i = 0; i < 3; i++) {
-        try {
-          await SendEmail(
-            newOtp.email,
-            "GOYE VERIFICATION",
-            `${newOtp.code}`,
-            "otp",
-          );
-          emailSent = true;
-          break;
-        } catch (error) {
-          console.log(`Email attempt ${i + 1} failed`);
-          if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      this.setStatus(200);
-      return {
-        success: emailSent,
-        message: emailSent
-          ? "OTP sent successfully"
-          : "OTP generated but email failed",
-        sessionToken,
-        // ✅ CHANGE 4: NEVER return OTP in production - only in development
-        ...(process.env.NODE_ENV === "development" && { otp }),
-        email: body.email,
-      };
-    } catch (error: any) {
-      console.error("SendOTP error:", error);
-      this.setStatus(500);
+    // ✅ Validate email
+    if (!email) {
+      this.setStatus(400);
       return {
         success: false,
-        message: `Failed to send OTP: ${error.message}`,
+        message: "Email is required",
       };
     }
-  }
 
-  @Post("/verify-otp")
-  public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
-    try {
-      const { otp, sessionToken } = body;
+    // ✅ Check if the email exists in either User or Organization
+    let user = null;
+    let organization = null;
+    let userType = '';
 
-      // ✅ CHANGE: Better validation
-      if (!otp || !sessionToken) {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "OTP and session token are required",
-        };
+    // Check if it's a user email
+    user = await prisma.user.findUnique({
+      where: { email_address: email },
+      select: { id: true, email_address: true, first_name: true, last_name: true }
+    });
+
+    if (user) {
+      userType = 'user';
+    } else {
+      // Check if it's an organization email
+      organization = await prisma.organization.findUnique({
+        where: { organization_email: email },
+        select: { id: true, organization_email: true, organization_name: true }
+      });
+
+      if (organization) {
+        userType = 'organization';
       }
+    }
 
-      let decoded: { email: string; otpId: string };
+    // If type is specified, verify it matches
+    if (type === 'user' && !user) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "No user found with this email address",
+      };
+    }
+
+    if (type === 'organization' && !organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "No organization found with this email address",
+      };
+    }
+
+    // If no type specified and neither user nor organization found
+    if (!user && !organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "No account found with this email address",
+      };
+    }
+
+    // ✅ Rate limiting - separate limits for user and organization
+    const rateLimitKey = `otp_${email}`;
+    const now = Date.now();
+    const userRequests = otpRateLimit.get(rateLimitKey) || [];
+    const recentRequests = userRequests.filter(
+      (time: number) => time > now - 5 * 60 * 1000,
+    );
+
+    if (recentRequests.length >= 3) {
+      this.setStatus(429);
+      return {
+        success: false,
+        status: 429,
+        message: "Too many OTP requests. Please try again in 5 minutes.",
+      };
+    }
+
+    recentRequests.push(now);
+    otpRateLimit.set(rateLimitKey, recentRequests);
+
+    // ✅ Generate OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 5 * 60 * 1000);
+
+    // ✅ Delete old OTPs before creating new one
+    await prisma.otp.deleteMany({
+      where: { email: email },
+    });
+
+    const newOtp = await prisma.otp.create({
+      data: {
+        code: otp,
+        email: email,
+        expiresIn: expires,
+      },
+    });
+
+    // ✅ Create session token with user type
+    const sessionToken = jwt.sign(
+      { 
+        email: email, 
+        otpId: newOtp.id,
+        type: userType,
+        userId: user?.id,
+        organizationId: organization?.id
+      },
+      process.env.JWT_SECRET || "secret-key",
+      { expiresIn: "6min" },
+    );
+
+    // ✅ Prepare email content based on user type
+    let emailSubject = "GOYE VERIFICATION";
+    let emailContent = `${newOtp.code}`;
+    let userName = '';
+
+    if (user) {
+      userName = `${user.first_name} ${user.last_name}`;
+      emailSubject = "GOYE Verification - Your Account";
+    } else if (organization) {
+      userName = organization.organization_name;
+      emailSubject = "GOYE Verification - Your Organization";
+    }
+
+    // ✅ Send email with retry logic
+    let emailSent = false;
+    for (let i = 0; i < 3; i++) {
       try {
-        decoded = jwt.verify(
-          sessionToken,
-          process.env.JWT_SECRET || "secret-key",
-        ) as any;
-      } catch (jwtError) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Invalid or expired session token",
-        };
+        await SendEmail(
+          newOtp.email,
+          emailSubject,
+          emailContent,
+          "otp"
+        );
+        emailSent = true;
+        break;
+      } catch (error) {
+        console.log(`Email attempt ${i + 1} failed for ${email}`);
+        if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
       }
+    }
 
-      const verifyOtp = await prisma.otp.findFirst({
-        where: {
-          code: otp,
-          email: decoded.email,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+    this.setStatus(200);
+    return {
+      success: true,
+      message: emailSent
+        ? "OTP sent successfully"
+        : "OTP generated but email failed",
+      sessionToken,
+      data: {
+        email: email,
+        type: userType,
+        userName: userName,
+        // ✅ Never return OTP in production - only in development
+        ...(process.env.NODE_ENV === "development" && { otp }),
+      },
+    };
+  } catch (error: any) {
+    console.error("SendOTP error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Failed to send OTP: ${error.message}`,
+    };
+  }
+}
 
-      if (!verifyOtp) {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid OTP code",
-        };
-      }
+@Post("/verifyOtp")
+public async VerifyOtp(@Body() body: { email: string; otp: string; type?: 'user' | 'organization' }): Promise<any> {
+  try {
+    const { email, otp, type } = body;
 
-      if (verifyOtp.expiresIn < new Date()) {
-        // ✅ CHANGE: Delete expired OTP
-        await prisma.otp.delete({ where: { id: verifyOtp.id } });
-
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "OTP has expired. Please request a new one.",
-        };
-      }
-
-      // Delete the used OTP
-      await prisma.otp.delete({ where: { id: verifyOtp.id } });
-
-      this.setStatus(200);
-      return {
-        success: true,
-        message: "Email verified successfully",
-        email: decoded.email,
-      };
-    } catch (error: any) {
-      console.error("VerifyOTP error:", error);
-      this.setStatus(500);
+    if (!email || !otp) {
+      this.setStatus(400);
       return {
         success: false,
-        message: `Verification failed: ${error.message}`,
+        message: "Email and OTP are required",
       };
     }
+
+    // ✅ Find the OTP
+    const otpRecord = await prisma.otp.findFirst({
+      where: {
+        email: email,
+        code: otp,
+        expiresIn: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!otpRecord) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Invalid or expired OTP",
+      };
+    }
+
+    // ✅ Delete the OTP after successful verification
+    await prisma.otp.delete({
+      where: { id: otpRecord.id },
+    });
+
+    // ✅ Determine the account type
+    let user = null;
+    let organization = null;
+    let accountType = '';
+
+    user = await prisma.user.findUnique({
+      where: { email_address: email },
+      select: { 
+        id: true, 
+        email_address: true, 
+        first_name: true, 
+        last_name: true,
+        isVerified: true,
+      }
+    });
+
+    if (user) {
+      accountType = 'user';
+    } else {
+      organization = await prisma.organization.findUnique({
+        where: { organization_email: email },
+        select: { 
+          id: true, 
+          organization_email: true, 
+          organization_name: true,
+          isVerified: true,
+        }
+      });
+
+      if (organization) {
+        accountType = 'organization';
+      }
+    }
+
+    if (!user && !organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "No account found with this email",
+      };
+    }
+   
+    if (organization) {
+      await prisma.organization.update({
+        where: { id: organization.id },
+        data: { 
+          isVerified: true,
+          verifiedAt: new Date(),
+        },
+      });
+    }
+
+    // ✅ Generate auth token
+    const token = jwt.sign(
+      {
+        id: user?.id || organization?.id,
+        email: email,
+        type: accountType,
+        ...(user && { 
+          userId: user.id,
+          full_name: `${user.first_name} ${user.last_name}`,
+        }),
+        ...(organization && { 
+          organizationId: organization.id,
+          org_name: organization.organization_name,
+        }),
+      },
+      process.env.BEARERAUTH_SECRET || "secret-key",
+      { expiresIn: "7d" },
+    );
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "OTP verified successfully",
+      token,
+      data: {
+        email: email,
+        type: accountType,
+        isVerified: true,
+        ...(user && {
+          userId: user.id,
+          firstName: user.first_name,
+          lastName: user.last_name,
+        }),
+        ...(organization && {
+          organizationId: organization.id,
+          organizationName: organization.organization_name,
+        }),
+      },
+    };
+  } catch (error: any) {
+    console.error("VerifyOTP error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Failed to verify OTP: ${error.message}`,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Post("/upload-profile-picture")
