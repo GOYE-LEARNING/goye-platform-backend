@@ -2196,16 +2196,16 @@ export class UserController extends Controller {
 @Put("/update-password")
 public async UpdatePassword(
   @Request() req: any,
-  @Body() body: { currentPassword: string; newPassword: string }
+  @Body() body: {newPassword: string }
 ): Promise<any> {
   const userId = req.user?.id;
   const organizationId = req.org?.id;
   const isOrganization = req.user?.type === "ORGANIZATION" || req.org?.id;
   
-  const { currentPassword, newPassword } = body;
+  const { newPassword } = body;
 
   // Validate input
-  if (!currentPassword || !newPassword) {
+  if (!newPassword) {
     this.setStatus(400);
     return {
       message: "Current password and new password are required",
@@ -2238,18 +2238,7 @@ public async UpdatePassword(
         };
       }
 
-      // Verify current password
-      const isPasswordValid = await bcrypt.compare(
-        currentPassword,
-        organization.organization_password || ""
-      );
 
-      if (!isPasswordValid) {
-        this.setStatus(401);
-        return {
-          message: "Current password is incorrect",
-        };
-      }
 
       // Hash new password
       const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -2309,19 +2298,6 @@ public async UpdatePassword(
         this.setStatus(404);
         return {
           message: "User not found",
-        };
-      }
-
-      // Verify current password
-      const isPasswordValid = await bcrypt.compare(
-        currentPassword,
-        user.password || ""
-      );
-
-      if (!isPasswordValid) {
-        this.setStatus(401);
-        return {
-          message: "Current password is incorrect",
         };
       }
 
