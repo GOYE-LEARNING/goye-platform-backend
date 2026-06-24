@@ -216,7 +216,7 @@ model InviteUser {
   role           String
   code           String
   invited        Boolean      @default(true)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id])
   organizationId String
   sentBy         User         @relation(fields: [sentById], references: [id], onDelete: Cascade)
   sentById       String
@@ -226,42 +226,49 @@ model InviteUser {
 }
 
 model Organization {
-  id                        String               @id @default(uuid())
-  user                      User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization_name         String
-  organization_type         OrgType              @default(OTHER)
-  organization_email        String               @unique
-  organization_phone_number String
-  organization_country      String
-  organization_state        String
-  organization_description  String
-  organization_role         String
-  organization_password     String?
-  organization_year         String
-  organization_image        String?
-  language                  String?
-  languageCode              String?
-  organization_plan         PricingHistory[]
-  form_type                 FormType?            @default(ORGANIZATION)
-  isOnline                  Boolean?             @default(false)
-  lastActive                DateTime
-  Church                    Church_Organization?
-  school                    School_Organization?
-  Club                      Club_Organization?
-  course                    Course[]
-  quiz                      Quiz[]
-  quizAttempt               QuizAttempt[]
-  inviteUser                InviteUser[]
-  notification              Notification[]
-  enrollment                Enrollment[]
-  feedBacks                 Feedback[]
-  certificate               Certificate[]
-  userId                    String               @unique
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime?
-  posts                     Post[]
-  settings                  Settings[]
-  pointHistory              PointHistory[]
+  id                         String               @id @default(uuid())
+  user                       User?                @relation(fields: [userId], references: [id])
+  organization_name          String
+  organization_type          OrgType              @default(OTHER)
+  organization_email         String               @unique
+  organization_phone_number  String
+  organization_country       String
+  organization_state         String
+  organization_description   String
+  organization_role          String
+  organization_password      String?
+  organization_year          String
+  organization_image         String?
+  language                   String?
+  languageCode               String?
+  organization_plan          PricingHistory[]
+  form_type                  FormType?            @default(ORGANIZATION)
+  isOnline                   Boolean?             @default(false)
+  lastActive                 DateTime
+  isVerified                 Boolean             @default(false)
+  verifiedAt                 DateTime?
+  verificationOTP            String?
+  verificationOTPExpires     DateTime?
+  verificationOTPAttempts    Int                  @default(0)
+  verificationOTPResendCount Int                  @default(0)
+  verificationOTPResendAt    DateTime?
+  Church                     Church_Organization?
+  school                     School_Organization?
+  Club                       Club_Organization?
+  course                     Course[]
+  quiz                       Quiz[]
+  quizAttempt                QuizAttempt[]
+  inviteUser                 InviteUser[]
+  notification               Notification[]
+  enrollment                 Enrollment[]
+  feedBacks                  Feedback[]
+  certificate                Certificate[]
+  userId                     String               @unique
+  createdAt                  DateTime             @default(now())
+  updatedAt                  DateTime?
+  posts                      Post[]
+  settings                   Settings[]
+  pointHistory               PointHistory[]
 }
 
 model Church_Organization {

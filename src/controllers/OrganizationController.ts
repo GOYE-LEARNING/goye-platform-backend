@@ -270,6 +270,385 @@ export class OrganizationController extends Controller {
     }
   }
 
+  // Add this to your OrganizationController class
+
+// Organization Verification OTP
+@Post("/auth/send-verification-otp/{organizationId}")
+public async SendVerificationOTP(
+  @Path() organizationId: string,
+): Promise<any> {
+  try {
+    // Find the organization
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Organization not found",
+      };
+    }
+
+    // Check if organization is already verified
+    if (organization.isVerified) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Organization is already verified",
+      };
+    }
+
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Hash the OTP before storing (optional but recommended)
+    const hashedOTP = await bcrypt.hash(otp, 10);
+
+    // Store OTP in database with expiration (10 minutes)
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        verificationOTP: hashedOTP,
+        verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        verificationOTPAttempts: 0,
+      },
+    });
+
+    // Send OTP via email
+    const emailSubject = `Verify Your Organization - ${organization.organization_name}`;
+    
+    // Use the sendOrganizationVerificationOTP helper or SendEmail directly
+    const { sendOrganizationVerificationOTP } = await import('../utils/sendmail.js');
+    
+    await sendOrganizationVerificationOTP(
+      organization.organization_email,
+      otp,
+      organization.organization_name
+    );
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Verification OTP sent successfully",
+      data: {
+        organizationId: organization.id,
+        email: organization.organization_email,
+        expiresIn: "10 minutes",
+      },
+    };
+  } catch (error: any) {
+    console.error("Error sending verification OTP:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to send verification OTP",
+      error: error.message,
+    };
+  }
+}
+
+@Post("/auth/verify-organization-otp")
+public async VerifyOrganizationOTP(
+  @Body() body: { organizationId: string; otp: string },
+): Promise<any> {
+  try {
+    const { organizationId, otp } = body;
+
+    if (!organizationId || !otp) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Organization ID and OTP are required",
+      };
+    }
+
+    // Find the organization
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Organization not found",
+      };
+    }
+
+    // Check if already verified
+    if (organization.isVerified) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Organization is already verified",
+      };
+    }
+
+    // Check if OTP exists
+    if (!organization.verificationOTP || !organization.verificationOTPExpires) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "No verification OTP found. Please request a new one.",
+      };
+    }
+
+    // Check if OTP has expired
+    if (new Date() > organization.verificationOTPExpires) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Verification OTP has expired. Please request a new one.",
+      };
+    }
+
+    // Check attempt count (max 5 attempts)
+    const attempts = organization.verificationOTPAttempts || 0;
+    if (attempts >= 5) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Too many failed attempts. Please request a new OTP.",
+      };
+    }
+
+    // Verify the OTP
+    const isValid = await bcrypt.compare(otp, organization.verificationOTP);
+
+    if (!isValid) {
+      // Increment attempts
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          verificationOTPAttempts: attempts + 1,
+        },
+      });
+
+      const remainingAttempts = 4 - attempts;
+      this.setStatus(400);
+      return {
+        success: false,
+        message: `Invalid OTP. ${remainingAttempts} attempts remaining.`,
+        data: {
+          remainingAttempts,
+        },
+      };
+    }
+
+    // OTP is valid - verify the organization
+    const updatedOrganization = await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        isVerified: true,
+        verifiedAt: new Date(),
+        verificationOTP: null,
+        verificationOTPExpires: null,
+        verificationOTPAttempts: 0,
+      },
+      include: {
+        user: true,
+        Church: true,
+        school: true,
+        Club: true,
+      },
+    });
+
+
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Organization verified successfully",
+      data: {
+        organizationId: updatedOrganization.id,
+        organizationName: updatedOrganization.organization_name,
+        isVerified: updatedOrganization.isVerified,
+        verifiedAt: updatedOrganization.verifiedAt,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error verifying organization:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to verify organization",
+      error: error.message,
+    };
+  }
+}
+
+@Post("/auth/resend-verification-otp/{organizationId}")
+public async ResendVerificationOTP(
+  @Path() organizationId: string,
+): Promise<any> {
+  try {
+    // Find the organization
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Organization not found",
+      };
+    }
+
+    // Check if already verified
+    if (organization.isVerified) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Organization is already verified",
+      };
+    }
+
+    // Check if user can resend (rate limiting - 3 resends per hour)
+    const lastResend = organization.verificationOTPResendAt;
+    if (lastResend) {
+      const timeSinceLastResend = Date.now() - new Date(lastResend).getTime();
+      const minutesSinceLastResend = timeSinceLastResend / (1000 * 60);
+      
+      if (minutesSinceLastResend < 2) {
+        this.setStatus(429);
+        return {
+          success: false,
+          message: `Please wait ${Math.ceil(2 - minutesSinceLastResend)} minutes before requesting another OTP`,
+        };
+      }
+    }
+
+    // Check resend count (max 3 resends per hour)
+    const resendCount = organization.verificationOTPResendCount || 0;
+    if (resendCount >= 3) {
+      this.setStatus(429);
+      return {
+        success: false,
+        message: "Maximum resend limit reached. Please try again in 1 hour.",
+      };
+    }
+
+    // Generate a new 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const hashedOTP = await bcrypt.hash(otp, 10);
+
+    // Update OTP in database
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        verificationOTP: hashedOTP,
+        verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000),
+        verificationOTPAttempts: 0,
+        verificationOTPResendCount: resendCount + 1,
+        verificationOTPResendAt: new Date(),
+      },
+    });
+
+    // Send OTP via email
+    const { sendOrganizationVerificationOTP } = await import('../utils/sendmail.js');
+    
+    await sendOrganizationVerificationOTP(
+      organization.organization_email,
+      otp,
+      organization.organization_name
+    );
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "New verification OTP sent successfully",
+      data: {
+        organizationId: organization.id,
+        email: organization.organization_email,
+        expiresIn: "10 minutes",
+        remainingResends: 2 - resendCount,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error resending verification OTP:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to resend verification OTP",
+      error: error.message,
+    };
+  }
+}
+
+@Get("/auth/check-verification-status/{organizationId}")
+public async CheckVerificationStatus(
+  @Path() organizationId: string,
+): Promise<any> {
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        organization_name: true,
+        isVerified: true,
+        verifiedAt: true,
+        verificationOTPExpires: true,
+        verificationOTPAttempts: true,
+        // Don't include the actual OTP for security
+      },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Organization not found",
+      };
+    }
+
+    let status = "NOT_VERIFIED";
+    let message = "Organization is not verified yet";
+    
+    if (organization.isVerified) {
+      status = "VERIFIED";
+      message = "Organization is verified";
+    } else if (organization.verificationOTPExpires && new Date() > organization.verificationOTPExpires) {
+      status = "OTP_EXPIRED";
+      message = "Verification OTP has expired. Please request a new one.";
+    } else if (organization.verificationOTPExpires) {
+      status = "OTP_SENT";
+      message = "Verification OTP has been sent and is still valid";
+    } else {
+      status = "NO_OTP";
+      message = "No verification OTP found. Please request one.";
+    }
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message,
+      data: {
+        organizationId: organization.id,
+        organizationName: organization.organization_name,
+        isVerified: organization.isVerified,
+        verifiedAt: organization.verifiedAt,
+        status,
+        otpExpiresAt: organization.verificationOTPExpires,
+        attemptsUsed: organization.verificationOTPAttempts || 0,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error checking verification status:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to check verification status",
+      error: error.message,
+    };
+  }
+}
+
   @Get("/fetch-organizations")
   public async FetchOrganization(): Promise<any> {
     try {

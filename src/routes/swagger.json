@@ -7288,6 +7288,135 @@
 				}
 			}
 		},
+		"/organizations/auth/send-verification-otp/{organizationId}": {
+			"post": {
+				"operationId": "SendVerificationOTP",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/auth/verify-organization-otp": {
+			"post": {
+				"operationId": "VerifyOrganizationOTP",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"otp": {
+										"type": "string"
+									},
+									"organizationId": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"otp",
+									"organizationId"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organizations/auth/resend-verification-otp/{organizationId}": {
+			"post": {
+				"operationId": "ResendVerificationOTP",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/auth/check-verification-status/{organizationId}": {
+			"get": {
+				"operationId": "CheckVerificationStatus",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/fetch-organizations": {
 			"get": {
 				"operationId": "FetchOrganization",
@@ -7340,6 +7469,32 @@
 												"status": {},
 												"data": {
 													"properties": {
+														"verificationOTPResendAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"verificationOTPResendCount": {
+															"type": "number",
+															"format": "double"
+														},
+														"verificationOTPAttempts": {
+															"type": "number",
+															"format": "double"
+														},
+														"verificationOTPExpires": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"verificationOTP": {
+															"type": "string"
+														},
+														"verifiedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"isVerified": {
+															"type": "boolean"
+														},
 														"organization_image": {
 															"type": "string"
 														},
@@ -7405,6 +7560,13 @@
 														}
 													},
 													"required": [
+														"verificationOTPResendAt",
+														"verificationOTPResendCount",
+														"verificationOTPAttempts",
+														"verificationOTPExpires",
+														"verificationOTP",
+														"verifiedAt",
+														"isVerified",
 														"organization_image",
 														"organization_year",
 														"organization_password",
@@ -8097,6 +8259,32 @@
 														},
 														{
 															"properties": {
+																"verificationOTPResendAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"verificationOTPResendCount": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"verificationOTPAttempts": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"verificationOTPExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"verificationOTP": {
+																	"type": "string"
+																},
+																"verifiedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isVerified": {
+																	"type": "boolean"
+																},
 																"organization_image": {
 																	"type": "string"
 																},
@@ -8162,6 +8350,13 @@
 																}
 															},
 															"required": [
+																"verificationOTPResendAt",
+																"verificationOTPResendCount",
+																"verificationOTPAttempts",
+																"verificationOTPExpires",
+																"verificationOTP",
+																"verifiedAt",
+																"isVerified",
 																"organization_image",
 																"organization_year",
 																"organization_password",
@@ -8666,6 +8861,32 @@
 														},
 														{
 															"properties": {
+																"verificationOTPResendAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"verificationOTPResendCount": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"verificationOTPAttempts": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"verificationOTPExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"verificationOTP": {
+																	"type": "string"
+																},
+																"verifiedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isVerified": {
+																	"type": "boolean"
+																},
 																"organization_image": {
 																	"type": "string"
 																},
@@ -8731,6 +8952,13 @@
 																}
 															},
 															"required": [
+																"verificationOTPResendAt",
+																"verificationOTPResendCount",
+																"verificationOTPAttempts",
+																"verificationOTPExpires",
+																"verificationOTP",
+																"verifiedAt",
+																"isVerified",
 																"organization_image",
 																"organization_year",
 																"organization_password",
@@ -9193,6 +9421,32 @@
 									"properties": {
 										"data": {
 											"properties": {
+												"verificationOTPResendAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"verificationOTPResendCount": {
+													"type": "number",
+													"format": "double"
+												},
+												"verificationOTPAttempts": {
+													"type": "number",
+													"format": "double"
+												},
+												"verificationOTPExpires": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"verificationOTP": {
+													"type": "string"
+												},
+												"verifiedAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"isVerified": {
+													"type": "boolean"
+												},
 												"organization_image": {
 													"type": "string"
 												},
@@ -9258,6 +9512,13 @@
 												}
 											},
 											"required": [
+												"verificationOTPResendAt",
+												"verificationOTPResendCount",
+												"verificationOTPAttempts",
+												"verificationOTPExpires",
+												"verificationOTP",
+												"verifiedAt",
+												"isVerified",
 												"organization_image",
 												"organization_year",
 												"organization_password",
@@ -11894,6 +12155,32 @@
 																"properties": {
 																	"organization": {
 																		"properties": {
+																			"verificationOTPResendAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"verificationOTPResendCount": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"verificationOTPAttempts": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"verificationOTPExpires": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"verificationOTP": {
+																				"type": "string"
+																			},
+																			"verifiedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"isVerified": {
+																				"type": "boolean"
+																			},
 																			"organization_image": {
 																				"type": "string"
 																			},
@@ -11959,6 +12246,13 @@
 																			}
 																		},
 																		"required": [
+																			"verificationOTPResendAt",
+																			"verificationOTPResendCount",
+																			"verificationOTPAttempts",
+																			"verificationOTPExpires",
+																			"verificationOTP",
+																			"verifiedAt",
+																			"isVerified",
 																			"organization_image",
 																			"organization_year",
 																			"organization_password",
