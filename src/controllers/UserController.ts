@@ -31,7 +31,8 @@ import {
 import { firebaseAuthService } from "../services/firebaseService";
 import { otpRateLimit } from "../utils/otp";
 import { WeirdService } from "../services/weridService";
-
+// At the top of your controller class
+const forgotPasswordRateLimit = new Map<string, number[]>();
 //User route start here
 @Route("user")
 @Tags("User control APIs")
@@ -1946,87 +1947,119 @@ export class UserController extends Controller {
   }
 
   @Post("/sendOtp")
-  public async SendOtp(@Body() body: { email: string }): Promise<any> {
-    try {
-      // ✅ CHANGE 1: Add rate limiting
-      const now = Date.now();
-      const userRequests = otpRateLimit.get(body.email) || [];
-      const recentRequests = userRequests.filter(
-        (time) => time > now - 5 * 60 * 1000,
-      );
+public async SendOtp(@Body() body: { email: string }): Promise<any> {
+  try {
+    const { email } = body;
 
-      if (recentRequests.length >= 3) {
-        this.setStatus(429);
-        return {
-          success: false,
-          status: 429,
-          message: "Too many OTP requests. Please try again in an 5 minutes.",
-        };
-      }
-
-      recentRequests.push(now);
-      otpRateLimit.set(body.email, recentRequests);
-
-      const otp = crypto.randomInt(100000, 999999).toString();
-      const expires = new Date(Date.now() + 5 * 60 * 1000);
-
-      // ✅ CHANGE 2: Delete old OTPs before creating new one
-      await prisma.otp.deleteMany({
-        where: { email: body.email },
-      });
-
-      const newOtp = await prisma.otp.create({
-        data: {
-          code: otp,
-          email: body.email,
-          expiresIn: expires,
-        },
-      });
-
-      const sessionToken = jwt.sign(
-        { email: body.email, otpId: otp },
-        process.env.JWT_SECRET || "secret-key",
-        { expiresIn: "6min" },
-      );
-
-      // ✅ CHANGE 3: Add retry logic for email
-      let emailSent = false;
-      for (let i = 0; i < 3; i++) {
-        try {
-          await SendEmail(
-            newOtp.email,
-            "GOYE VERIFICATION",
-            `${newOtp.code}`,
-            "otp",
-          );
-          emailSent = true;
-          break;
-        } catch (error) {
-          console.log(`Email attempt ${i + 1} failed`);
-          if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-
-      this.setStatus(200);
-      return {
-        success: emailSent,
-        message: emailSent
-          ? "OTP sent successfully"
-          : "OTP generated but email failed",
-        sessionToken,
-        // ✅ CHANGE 4: NEVER return OTP in production - only in development
-        ...(process.env.NODE_ENV === "development" && { otp }),
-        email: body.email,
-      };
-    } catch (error: any) {
-      console.error("SendOTP error:", error);
-      this.setStatus(500);
+    // ✅ Validate email
+    if (!email) {
+      this.setStatus(400);
       return {
         success: false,
-        message: `Failed to send OTP: ${error.message}`,
+        message: "Email is required",
       };
     }
+
+    // ✅ Check if email exists in either User or Organization
+    const user = await prisma.user.findUnique({
+      where: { email_address: email },
+      select: { id: true, email_address: true },
+    });
+
+    const organization = await prisma.organization.findUnique({
+      where: { organization_email: email },
+      select: { id: true, organization_email: true },
+    });
+
+    // ✅ If email doesn't exist in either table, return error
+    if (!user && !organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "No account found with this email address. Please sign up first.",
+      };
+    }
+
+    // ✅ Rate limiting
+    const now = Date.now();
+    const userRequests = otpRateLimit.get(email) || [];
+    const recentRequests = userRequests.filter(
+      (time: number) => time > now - 5 * 60 * 1000,
+    );
+
+    if (recentRequests.length >= 3) {
+      this.setStatus(429);
+      return {
+        success: false,
+        status: 429,
+        message: "Too many OTP requests. Please try again in 5 minutes.",
+      };
+    }
+
+    recentRequests.push(now);
+    otpRateLimit.set(email, recentRequests);
+
+    // ✅ Generate OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const expires = new Date(Date.now() + 5 * 60 * 1000);
+
+    // ✅ Delete old OTPs
+    await prisma.otp.deleteMany({
+      where: { email: email },
+    });
+
+    const newOtp = await prisma.otp.create({
+      data: {
+        code: otp,
+        email: email,
+        expiresIn: expires,
+      },
+    });
+
+    const sessionToken = jwt.sign(
+      { email: email, otpId: newOtp.id },
+      process.env.JWT_SECRET || "secret-key",
+      { expiresIn: "6min" },
+    );
+
+    // ✅ Send email with retry
+    let emailSent = false;
+    for (let i = 0; i < 3; i++) {
+      try {
+        await SendEmail(
+          newOtp.email,
+          "GOYE VERIFICATION",
+          `${newOtp.code}`,
+          "otp",
+        );
+        emailSent = true;
+        break;
+      } catch (error) {
+        console.log(`Email attempt ${i + 1} failed`);
+        if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    this.setStatus(200);
+    return {
+      success: emailSent,
+      message: emailSent
+        ? "OTP sent successfully"
+        : "OTP generated but email failed",
+      sessionToken,
+      email: email,
+      // ✅ Return OTP only in development
+      ...(process.env.NODE_ENV === "development" && { otp }),
+    };
+  } catch (error: any) {
+    console.error("SendOTP error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Failed to send OTP: ${error.message}`,
+    };
   }
+}
 
   @Post("/verify-otp")
   public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
@@ -2192,164 +2225,160 @@ export class UserController extends Controller {
     };
   }
 
- @Security("bearerAuth")
-@Put("/update-password")
-public async UpdatePassword(
-  @Request() req: any,
-  @Body() body: {newPassword: string }
-): Promise<any> {
-  const userId = req.user?.id;
-  const organizationId = req.org?.id;
-  const isOrganization = req.user?.type === "ORGANIZATION" || req.org?.id;
+  @Security("bearerAuth")
+  @Put("/update-password")
+  public async UpdatePassword(
+    @Request() req: any,
+    @Body() body: { newPassword: string },
+  ): Promise<any> {
+    const userId = req.user?.id;
+    const organizationId = req.org?.id;
+    const isOrganization = req.user?.type === "ORGANIZATION" || req.org?.id;
 
-  // Validate input
-  if (!body.newPassword) {
-    this.setStatus(400);
-    return {
-      message: "Current password and new password are required",
-    };
-  }
+    // Validate input
+    if (!body.newPassword) {
+      this.setStatus(400);
+      return {
+        message: "Current password and new password are required",
+      };
+    }
 
-  if (body.newPassword.length < 8) {
-    this.setStatus(400);
-    return {
-      message: "New password must be at least 8 characters long",
-    };
-  }
+    if (body.newPassword.length < 8) {
+      this.setStatus(400);
+      return {
+        message: "New password must be at least 8 characters long",
+      };
+    }
 
-  try {
-    if (isOrganization && organizationId) {
-      // Update organization password
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: {
-          id: true,
-          organization_password: true,
-          organization_email: true,
-        },
-      });
-
-      if (!organization) {
-        this.setStatus(404);
-        return {
-          message: "Organization not found",
-        };
-      }
-
-
-
-      // Hash new password
-      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
-
-      // Update organization password
-      const updatedOrganization = await prisma.organization.update({
-        where: { id: organizationId },
-        data: {
-          organization_password: hashedPassword,
-        },
-        select: {
-          id: true,
-          organization_email: true,
-        },
-      });
-
-      // Also update the associated user's password if they exist
-      const associatedUser = await prisma.user.findFirst({
-        where: {
-          organization: {
-            id: organizationId
-          }
-        },
-      });
-
-      if (associatedUser) {
-        await prisma.user.update({
-          where: { id: associatedUser.id },
-          data: {
-            password: hashedPassword,
+    try {
+      if (isOrganization && organizationId) {
+        // Update organization password
+        const organization = await prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: {
+            id: true,
+            organization_password: true,
+            organization_email: true,
           },
         });
-      }
 
-      this.setStatus(200);
-      return {
-        message: "Organization password updated successfully",
-        data: {
-          id: updatedOrganization.id,
-          email: updatedOrganization.organization_email,
-          type: "ORGANIZATION",
-        },
-      };
+        if (!organization) {
+          this.setStatus(404);
+          return {
+            message: "Organization not found",
+          };
+        }
 
-    } else if (userId) {
-      // Update user password
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email_address: true,
-          password: true,
-        },
-      });
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(body.newPassword, 10);
 
-      if (!user) {
-        this.setStatus(404);
-        return {
-          message: "User not found",
-        };
-      }
-
-      // Hash new password
-      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
-
-      // Update user password
-      const updatedUser = await prisma.user.update({
-        where: { id: userId },
-        data: {
-          password: hashedPassword,
-        },  
-        select: {
-          id: true,
-          email_address: true,
-          organization: true
-        },
-      });
-
-      // If user belongs to an organization, also update organization password
-      if (updatedUser) {
-        await prisma.organization.update({
-          where: { id: updatedUser.organization.id },
+        // Update organization password
+        const updatedOrganization = await prisma.organization.update({
+          where: { id: organizationId },
           data: {
             organization_password: hashedPassword,
           },
+          select: {
+            id: true,
+            organization_email: true,
+          },
         });
+
+        // Also update the associated user's password if they exist
+        const associatedUser = await prisma.user.findFirst({
+          where: {
+            organization: {
+              id: organizationId,
+            },
+          },
+        });
+
+        if (associatedUser) {
+          await prisma.user.update({
+            where: { id: associatedUser.id },
+            data: {
+              password: hashedPassword,
+            },
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          message: "Organization password updated successfully",
+          data: {
+            id: updatedOrganization.id,
+            email: updatedOrganization.organization_email,
+            type: "ORGANIZATION",
+          },
+        };
+      } else if (userId) {
+        // Update user password
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email_address: true,
+            password: true,
+          },
+        });
+
+        if (!user) {
+          this.setStatus(404);
+          return {
+            message: "User not found",
+          };
+        }
+
+        // Hash new password
+        const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+
+        // Update user password
+        const updatedUser = await prisma.user.update({
+          where: { id: userId },
+          data: {
+            password: hashedPassword,
+          },
+          select: {
+            id: true,
+            email_address: true,
+            organization: true,
+          },
+        });
+
+        // If user belongs to an organization, also update organization password
+        if (updatedUser) {
+          await prisma.organization.update({
+            where: { id: updatedUser.organization.id },
+            data: {
+              organization_password: hashedPassword,
+            },
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          message: "User password updated successfully",
+          data: {
+            id: updatedUser.id,
+            email: updatedUser.email_address,
+            type: "USER",
+          },
+        };
+      } else {
+        this.setStatus(401);
+        return {
+          message: "Unauthorized - No user or organization ID found",
+        };
       }
-
-      this.setStatus(200);
+    } catch (error: any) {
+      console.error("Error updating password:", error);
+      this.setStatus(500);
       return {
-        message: "User password updated successfully",
-        data: {
-          id: updatedUser.id,
-          email: updatedUser.email_address,
-          type: "USER",
-        },
-      };
-
-    } else {
-      this.setStatus(401);
-      return {
-        message: "Unauthorized - No user or organization ID found",
+        message: "Failed to update password",
+        error: error.message,
       };
     }
-  } catch (error: any) {
-    console.error("Error updating password:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to update password",
-      error: error.message,
-    };
   }
-}
 
   @Get("/get-user/{id}")
   public async GetUser(@Path() id: string): Promise<any> {
@@ -2833,208 +2862,391 @@ public async UpdatePassword(
       };
     }
   }
-
- @Post("/reset-password")
-public async ResetPassword(
-  @Body() body: { token: string; newPassword: string }
-): Promise<any> {
-  try {
-    const { token, newPassword } = body;
-
-    if (!token || !newPassword) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Token and new password are required",
-      };
-    }
-
-    if (newPassword.length < 8) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Password must be at least 8 characters long",
-      };
-    }
-
-    // ✅ Verify token
-    let decoded: any;
+  @Post("/forgot-password")
+  public async ForgotPassword(
+    @Body() body: { email: string; link?: string },
+  ): Promise<any> {
     try {
-      decoded = jwt.verify(
-        token,
-        process.env.BEARERAUTH_SECRET || "secret-key"
-      );
-    } catch (error: any) {
-      if (error.name === "TokenExpiredError") {
-        this.setStatus(401);
+      const { email, link } = body;
+
+      // ✅ Validate email
+      if (!email) {
+        this.setStatus(400);
         return {
           success: false,
-          message: "Password reset token has expired. Please request a new one.",
-        };
-      }
-      this.setStatus(401);
-      return {
-        success: false,
-        message: "Invalid password reset token",
-      };
-    }
-
-    const { email, type, userId, organizationId } = decoded;
-
-    // ✅ Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    if (type === 'user' && userId) {
-      // ✅ Update user password
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email_address: true, resetToken: true, resetTokenExpires: true },
-      });
-
-      if (!user) {
-        this.setStatus(404);
-        return {
-          success: false,
-          message: "User not found",
+          message: "Email is required",
         };
       }
 
-      // ✅ Verify reset token matches (optional - for additional security)
-      if (user.resetToken !== token) {
-        this.setStatus(401);
+      // ✅ Rate limiting (optional but recommended)
+      const rateLimitKey = `forgot_password_${email}`;
+      const now = Date.now();
+      const requests = forgotPasswordRateLimit.get(rateLimitKey) || [];
+      const recentRequests = requests.filter(
+        (time: number) => time > now - 15 * 60 * 1000,
+      ); // 15 minutes
+
+      if (recentRequests.length >= 3) {
+        this.setStatus(429);
         return {
           success: false,
-          message: "Invalid reset token",
+          message:
+            "Too many password reset requests. Please try again in 15 minutes.",
         };
       }
 
-      if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Reset token has expired",
-        };
-      }
+      recentRequests.push(now);
+      forgotPasswordRateLimit.set(rateLimitKey, recentRequests);
 
-      // ✅ Update password
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          password: hashedPassword,
-          resetToken: null,
-          resetTokenExpires: null,
+      // ✅ Check if email belongs to a user or organization
+      let user = null;
+      let organization = null;
+      let accountType = "";
+
+      // First check user
+      user = await prisma.user.findUnique({
+        where: { email_address: email },
+        select: {
+          id: true,
+          email_address: true,
+          first_name: true,
+          last_name: true,
+          password: true,
         },
       });
 
-      // ✅ If user belongs to an organization, also update organization password
-      const userWithOrg = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { organization: true },
-      });
-
-      if (userWithOrg?.organization.id) {
-        await prisma.organization.update({
-          where: { id: userWithOrg.organization.id },
-          data: {
-            organization_password: hashedPassword,
+      if (user) {
+        accountType = "user";
+      } else {
+        // Then check organization
+        organization = await prisma.organization.findUnique({
+          where: { organization_email: email },
+          select: {
+            id: true,
+            organization_email: true,
+            organization_name: true,
+            organization_password: true,
           },
         });
+
+        if (organization) {
+          accountType = "organization";
+        }
+      }
+
+      // ✅ If no account found
+      if (!user && !organization) {
+        // For security, we might not want to reveal whether an email exists
+        // But we'll return a generic message to avoid user enumeration
+        this.setStatus(200);
+        return {
+          success: true,
+          message:
+            "If an account exists with this email, a password reset link has been sent.",
+        };
+      }
+
+      // ✅ Generate reset token
+      const resetToken = jwt.sign(
+        {
+          email: email,
+          type: accountType,
+          ...(user && { userId: user.id }),
+          ...(organization && { organizationId: organization.id }),
+        },
+        process.env.BEARERAUTH_SECRET || "secret-key",
+        { expiresIn: "1h" },
+      );
+
+      // ✅ Store reset token in database
+      if (user) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            resetToken: resetToken,
+            resetTokenExpires: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+          },
+        });
+      }
+
+      if (organization) {
+        await prisma.organization.update({
+          where: { id: organization.id },
+          data: {
+            resetToken: resetToken,
+            resetTokenExpires: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        });
+      }
+
+      // ✅ Build reset link
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const resetLink =
+        link || `${baseUrl}/auth/reset-password?token=${resetToken}`;
+
+      // ✅ Prepare email content
+      const accountName = user
+        ? `${user.first_name} ${user.last_name}`
+        : organization?.organization_name || "Your Account";
+
+      const emailSubject =
+        accountType === "organization"
+          ? `Reset Your Organization Password - GOYE Platform`
+          : `Reset Your Password - GOYE Platform`;
+
+      // ✅ Send email with retry logic
+      let emailSent = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await SendEmail(email, emailSubject, resetLink, "reset-password", {
+            userName: accountName,
+          });
+          emailSent = true;
+          break;
+        } catch (error) {
+          console.log(`Email attempt ${i + 1} failed for ${email}`);
+          if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      if (!emailSent) {
+        this.setStatus(500);
+        return {
+          success: false,
+          message: "Failed to send password reset email. Please try again.",
+        };
       }
 
       this.setStatus(200);
       return {
         success: true,
-        message: "Password reset successfully",
+        message: `Password reset link sent to ${accountType === "organization" ? "organization " : ""}email`,
         data: {
-          type: "user",
-          email: user.email_address,
+          email: email,
+          type: accountType,
+          accountName: accountName,
+          // Only return reset link in development
+          ...(process.env.NODE_ENV === "development" && { resetLink }),
         },
       };
+    } catch (error: any) {
+      console.error("ForgotPassword error:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: `Failed to process request: ${error.message}`,
+      };
+    }
+  }
+  @Post("/reset-password")
+  public async ResetPassword(
+    @Body() body: { token: string; newPassword: string },
+  ): Promise<any> {
+    try {
+      const { token, newPassword } = body;
 
-    } else if (type === 'organization' && organizationId) {
-      // ✅ Update organization password
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { 
-          id: true, 
-          organization_email: true, 
-          resetToken: true, 
-          resetTokenExpires: true,
-          userId: true,
-        },
-      });
-
-      if (!organization) {
-        this.setStatus(404);
+      if (!token || !newPassword) {
+        this.setStatus(400);
         return {
           success: false,
-          message: "Organization not found",
+          message: "Token and new password are required",
         };
       }
 
-      // ✅ Verify reset token matches
-      if (organization.resetToken !== token) {
+      if (newPassword.length < 8) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Password must be at least 8 characters long",
+        };
+      }
+
+      // ✅ Verify token
+      let decoded: any;
+      try {
+        decoded = jwt.verify(
+          token,
+          process.env.BEARERAUTH_SECRET || "secret-key",
+        );
+      } catch (error: any) {
+        if (error.name === "TokenExpiredError") {
+          this.setStatus(401);
+          return {
+            success: false,
+            message:
+              "Password reset token has expired. Please request a new one.",
+          };
+        }
         this.setStatus(401);
         return {
           success: false,
-          message: "Invalid reset token",
+          message: "Invalid password reset token",
         };
       }
 
-      if (organization.resetTokenExpires && new Date() > organization.resetTokenExpires) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Reset token has expired",
-        };
-      }
+      const { email, type, userId, organizationId } = decoded;
 
-      // ✅ Update organization password
-      await prisma.organization.update({
-        where: { id: organizationId },
-        data: {
-          organization_password: hashedPassword,
-          resetToken: null,
-          resetTokenExpires: null,
-        },
-      });
+      // ✅ Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-      // ✅ Also update the associated user's password
-      if (organization.userId) {
+      if (type === "user" && userId) {
+        // ✅ Update user password
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            email_address: true,
+            resetToken: true,
+            resetTokenExpires: true,
+          },
+        });
+
+        if (!user) {
+          this.setStatus(404);
+          return {
+            success: false,
+            message: "User not found",
+          };
+        }
+
+        // ✅ Verify reset token matches (optional - for additional security)
+        if (user.resetToken !== token) {
+          this.setStatus(401);
+          return {
+            success: false,
+            message: "Invalid reset token",
+          };
+        }
+
+        if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
+          this.setStatus(401);
+          return {
+            success: false,
+            message: "Reset token has expired",
+          };
+        }
+
+        // ✅ Update password
         await prisma.user.update({
-          where: { id: organization.userId },
+          where: { id: userId },
           data: {
             password: hashedPassword,
+            resetToken: null,
+            resetTokenExpires: null,
           },
         });
+
+        // ✅ If user belongs to an organization, also update organization password
+        const userWithOrg = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { organization: true },
+        });
+
+        if (userWithOrg?.organization.id) {
+          await prisma.organization.update({
+            where: { id: userWithOrg.organization.id },
+            data: {
+              organization_password: hashedPassword,
+            },
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          success: true,
+          message: "Password reset successfully",
+          data: {
+            type: "user",
+            email: user.email_address,
+          },
+        };
+      } else if (type === "organization" && organizationId) {
+        // ✅ Update organization password
+        const organization = await prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: {
+            id: true,
+            organization_email: true,
+            resetToken: true,
+            resetTokenExpires: true,
+            userId: true,
+          },
+        });
+
+        if (!organization) {
+          this.setStatus(404);
+          return {
+            success: false,
+            message: "Organization not found",
+          };
+        }
+
+        // ✅ Verify reset token matches
+        if (organization.resetToken !== token) {
+          this.setStatus(401);
+          return {
+            success: false,
+            message: "Invalid reset token",
+          };
+        }
+
+        if (
+          organization.resetTokenExpires &&
+          new Date() > organization.resetTokenExpires
+        ) {
+          this.setStatus(401);
+          return {
+            success: false,
+            message: "Reset token has expired",
+          };
+        }
+
+        // ✅ Update organization password
+        await prisma.organization.update({
+          where: { id: organizationId },
+          data: {
+            organization_password: hashedPassword,
+            resetToken: null,
+            resetTokenExpires: null,
+          },
+        });
+
+        // ✅ Also update the associated user's password
+        if (organization.userId) {
+          await prisma.user.update({
+            where: { id: organization.userId },
+            data: {
+              password: hashedPassword,
+            },
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          success: true,
+          message: "Organization password reset successfully",
+          data: {
+            type: "organization",
+            email: organization.organization_email,
+          },
+        };
+      } else {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid token data",
+        };
       }
-
-      this.setStatus(200);
-      return {
-        success: true,
-        message: "Organization password reset successfully",
-        data: {
-          type: "organization",
-          email: organization.organization_email,
-        },
-      };
-
-    } else {
-      this.setStatus(400);
+    } catch (error: any) {
+      console.error("ResetPassword error:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "Invalid token data",
+        message: `Failed to reset password: ${error.message}`,
       };
     }
-  } catch (error: any) {
-    console.error("ResetPassword error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Failed to reset password: ${error.message}`,
-    };
   }
-}
 
   @Security("bearerAuth")
   @Post("/check-password")

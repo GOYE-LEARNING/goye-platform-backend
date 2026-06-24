@@ -2542,13 +2542,6 @@
 						"application/json": {
 							"schema": {
 								"properties": {
-									"type": {
-										"type": "string",
-										"enum": [
-											"user",
-											"organization"
-										]
-									},
 									"email": {
 										"type": "string"
 									}
@@ -2563,7 +2556,7 @@
 				}
 			}
 		},
-		"/user/verifyOtp": {
+		"/user/verify-otp": {
 			"post": {
 				"operationId": "VerifyOtp",
 				"responses": {
@@ -2571,7 +2564,45 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {}
+								"schema": {
+									"anyOf": [
+										{
+											"properties": {
+												"email": {},
+												"message": {
+													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"message",
+												"success"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"email": {
+													"type": "string"
+												},
+												"message": {
+													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
+												}
+											},
+											"required": [
+												"email",
+												"message",
+												"success"
+											],
+											"type": "object"
+										}
+									]
+								}
 							}
 						}
 					}
@@ -2587,23 +2618,16 @@
 						"application/json": {
 							"schema": {
 								"properties": {
-									"type": {
-										"type": "string",
-										"enum": [
-											"user",
-											"organization"
-										]
-									},
-									"otp": {
+									"sessionToken": {
 										"type": "string"
 									},
-									"email": {
+									"otp": {
 										"type": "string"
 									}
 								},
 								"required": [
-									"otp",
-									"email"
+									"sessionToken",
+									"otp"
 								],
 								"type": "object"
 							}
@@ -2826,6 +2850,20 @@
 									"properties": {
 										"user": {
 											"properties": {
+												"verifiedAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"isVerified": {
+													"type": "boolean"
+												},
+												"resetTokenExpires": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"resetToken": {
+													"type": "string"
+												},
 												"isFromWaitList": {
 													"type": "boolean"
 												},
@@ -2925,6 +2963,10 @@
 												}
 											},
 											"required": [
+												"verifiedAt",
+												"isVerified",
+												"resetTokenExpires",
+												"resetToken",
 												"isFromWaitList",
 												"isProfileComplete",
 												"completedVideo",
@@ -3076,6 +3118,20 @@
 												"status": {},
 												"user": {
 													"properties": {
+														"verifiedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"isVerified": {
+															"type": "boolean"
+														},
+														"resetTokenExpires": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"resetToken": {
+															"type": "string"
+														},
 														"isFromWaitList": {
 															"type": "boolean"
 														},
@@ -3175,6 +3231,10 @@
 														}
 													},
 													"required": [
+														"verifiedAt",
+														"isVerified",
+														"resetTokenExpires",
+														"resetToken",
 														"isFromWaitList",
 														"isProfileComplete",
 														"completedVideo",
@@ -3442,6 +3502,20 @@
 														},
 														{
 															"properties": {
+																"verifiedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isVerified": {
+																	"type": "boolean"
+																},
+																"resetTokenExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"resetToken": {
+																	"type": "string"
+																},
 																"isFromWaitList": {
 																	"type": "boolean"
 																},
@@ -3541,6 +3615,10 @@
 																}
 															},
 															"required": [
+																"verifiedAt",
+																"isVerified",
+																"resetTokenExpires",
+																"resetToken",
 																"isFromWaitList",
 																"isProfileComplete",
 																"completedVideo",
@@ -3945,9 +4023,9 @@
 				"parameters": []
 			}
 		},
-		"/user/forgot-password": {
+		"/user/reset-password": {
 			"post": {
-				"operationId": "ForgotPassword",
+				"operationId": "ResetPassword",
 				"responses": {
 					"200": {
 						"description": "Ok",
@@ -3969,16 +4047,16 @@
 						"application/json": {
 							"schema": {
 								"properties": {
-									"link": {
+									"newPassword": {
 										"type": "string"
 									},
-									"email": {
+									"token": {
 										"type": "string"
 									}
 								},
 								"required": [
-									"link",
-									"email"
+									"newPassword",
+									"token"
 								],
 								"type": "object"
 							}
@@ -7472,13 +7550,6 @@
 														"verificationOTP": {
 															"type": "string"
 														},
-														"verifiedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isVerified": {
-															"type": "boolean"
-														},
 														"organization_image": {
 															"type": "string"
 														},
@@ -7510,6 +7581,20 @@
 															"$ref": "#/components/schemas/_36_Enums.OrgType"
 														},
 														"organization_name": {
+															"type": "string"
+														},
+														"verifiedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"isVerified": {
+															"type": "boolean"
+														},
+														"resetTokenExpires": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"resetToken": {
 															"type": "string"
 														},
 														"lastActive": {
@@ -7549,8 +7634,6 @@
 														"verificationOTPAttempts",
 														"verificationOTPExpires",
 														"verificationOTP",
-														"verifiedAt",
-														"isVerified",
 														"organization_image",
 														"organization_year",
 														"organization_password",
@@ -7562,6 +7645,10 @@
 														"organization_email",
 														"organization_type",
 														"organization_name",
+														"verifiedAt",
+														"isVerified",
+														"resetTokenExpires",
+														"resetToken",
 														"lastActive",
 														"isOnline",
 														"form_type",
@@ -8100,6 +8187,20 @@
 																},
 																"user": {
 																	"properties": {
+																		"verifiedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"isVerified": {
+																			"type": "boolean"
+																		},
+																		"resetTokenExpires": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"resetToken": {
+																			"type": "string"
+																		},
 																		"isFromWaitList": {
 																			"type": "boolean"
 																		},
@@ -8199,6 +8300,10 @@
 																		}
 																	},
 																	"required": [
+																		"verifiedAt",
+																		"isVerified",
+																		"resetTokenExpires",
+																		"resetToken",
 																		"isFromWaitList",
 																		"isProfileComplete",
 																		"completedVideo",
@@ -8262,13 +8367,6 @@
 																"verificationOTP": {
 																	"type": "string"
 																},
-																"verifiedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"isVerified": {
-																	"type": "boolean"
-																},
 																"organization_image": {
 																	"type": "string"
 																},
@@ -8300,6 +8398,20 @@
 																	"$ref": "#/components/schemas/_36_Enums.OrgType"
 																},
 																"organization_name": {
+																	"type": "string"
+																},
+																"verifiedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isVerified": {
+																	"type": "boolean"
+																},
+																"resetTokenExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"resetToken": {
 																	"type": "string"
 																},
 																"lastActive": {
@@ -8339,8 +8451,6 @@
 																"verificationOTPAttempts",
 																"verificationOTPExpires",
 																"verificationOTP",
-																"verifiedAt",
-																"isVerified",
 																"organization_image",
 																"organization_year",
 																"organization_password",
@@ -8352,6 +8462,10 @@
 																"organization_email",
 																"organization_type",
 																"organization_name",
+																"verifiedAt",
+																"isVerified",
+																"resetTokenExpires",
+																"resetToken",
 																"lastActive",
 																"isOnline",
 																"form_type",
@@ -8702,6 +8816,20 @@
 																},
 																"user": {
 																	"properties": {
+																		"verifiedAt": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"isVerified": {
+																			"type": "boolean"
+																		},
+																		"resetTokenExpires": {
+																			"type": "string",
+																			"format": "date-time"
+																		},
+																		"resetToken": {
+																			"type": "string"
+																		},
 																		"isFromWaitList": {
 																			"type": "boolean"
 																		},
@@ -8801,6 +8929,10 @@
 																		}
 																	},
 																	"required": [
+																		"verifiedAt",
+																		"isVerified",
+																		"resetTokenExpires",
+																		"resetToken",
 																		"isFromWaitList",
 																		"isProfileComplete",
 																		"completedVideo",
@@ -8864,13 +8996,6 @@
 																"verificationOTP": {
 																	"type": "string"
 																},
-																"verifiedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"isVerified": {
-																	"type": "boolean"
-																},
 																"organization_image": {
 																	"type": "string"
 																},
@@ -8902,6 +9027,20 @@
 																	"$ref": "#/components/schemas/_36_Enums.OrgType"
 																},
 																"organization_name": {
+																	"type": "string"
+																},
+																"verifiedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isVerified": {
+																	"type": "boolean"
+																},
+																"resetTokenExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"resetToken": {
 																	"type": "string"
 																},
 																"lastActive": {
@@ -8941,8 +9080,6 @@
 																"verificationOTPAttempts",
 																"verificationOTPExpires",
 																"verificationOTP",
-																"verifiedAt",
-																"isVerified",
 																"organization_image",
 																"organization_year",
 																"organization_password",
@@ -8954,6 +9091,10 @@
 																"organization_email",
 																"organization_type",
 																"organization_name",
+																"verifiedAt",
+																"isVerified",
+																"resetTokenExpires",
+																"resetToken",
 																"lastActive",
 																"isOnline",
 																"form_type",
@@ -9424,13 +9565,6 @@
 												"verificationOTP": {
 													"type": "string"
 												},
-												"verifiedAt": {
-													"type": "string",
-													"format": "date-time"
-												},
-												"isVerified": {
-													"type": "boolean"
-												},
 												"organization_image": {
 													"type": "string"
 												},
@@ -9462,6 +9596,20 @@
 													"$ref": "#/components/schemas/_36_Enums.OrgType"
 												},
 												"organization_name": {
+													"type": "string"
+												},
+												"verifiedAt": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"isVerified": {
+													"type": "boolean"
+												},
+												"resetTokenExpires": {
+													"type": "string",
+													"format": "date-time"
+												},
+												"resetToken": {
 													"type": "string"
 												},
 												"lastActive": {
@@ -9501,8 +9649,6 @@
 												"verificationOTPAttempts",
 												"verificationOTPExpires",
 												"verificationOTP",
-												"verifiedAt",
-												"isVerified",
 												"organization_image",
 												"organization_year",
 												"organization_password",
@@ -9514,6 +9660,10 @@
 												"organization_email",
 												"organization_type",
 												"organization_name",
+												"verifiedAt",
+												"isVerified",
+												"resetTokenExpires",
+												"resetToken",
 												"lastActive",
 												"isOnline",
 												"form_type",
@@ -12158,13 +12308,6 @@
 																			"verificationOTP": {
 																				"type": "string"
 																			},
-																			"verifiedAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"isVerified": {
-																				"type": "boolean"
-																			},
 																			"organization_image": {
 																				"type": "string"
 																			},
@@ -12196,6 +12339,20 @@
 																				"$ref": "#/components/schemas/_36_Enums.OrgType"
 																			},
 																			"organization_name": {
+																				"type": "string"
+																			},
+																			"verifiedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"isVerified": {
+																				"type": "boolean"
+																			},
+																			"resetTokenExpires": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"resetToken": {
 																				"type": "string"
 																			},
 																			"lastActive": {
@@ -12235,8 +12392,6 @@
 																			"verificationOTPAttempts",
 																			"verificationOTPExpires",
 																			"verificationOTP",
-																			"verifiedAt",
-																			"isVerified",
 																			"organization_image",
 																			"organization_year",
 																			"organization_password",
@@ -12248,6 +12403,10 @@
 																			"organization_email",
 																			"organization_type",
 																			"organization_name",
+																			"verifiedAt",
+																			"isVerified",
+																			"resetTokenExpires",
+																			"resetToken",
 																			"lastActive",
 																			"isOnline",
 																			"form_type",
@@ -12262,6 +12421,20 @@
 																	},
 																	"user": {
 																		"properties": {
+																			"verifiedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"isVerified": {
+																				"type": "boolean"
+																			},
+																			"resetTokenExpires": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"resetToken": {
+																				"type": "string"
+																			},
 																			"isFromWaitList": {
 																				"type": "boolean"
 																			},
@@ -12361,6 +12534,10 @@
 																			}
 																		},
 																		"required": [
+																			"verifiedAt",
+																			"isVerified",
+																			"resetTokenExpires",
+																			"resetToken",
 																			"isFromWaitList",
 																			"isProfileComplete",
 																			"completedVideo",

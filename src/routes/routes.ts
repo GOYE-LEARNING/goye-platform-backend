@@ -788,7 +788,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_SendOtp: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"type":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["user"]},{"dataType":"enum","enums":["organization"]}]},"email":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"email":{"dataType":"string","required":true}}},
         };
         app.post('/api/user/sendOtp',
             ...(fetchMiddlewares<RequestHandler>(UserController)),
@@ -818,9 +818,9 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_VerifyOtp: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"type":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["user"]},{"dataType":"enum","enums":["organization"]}]},"otp":{"dataType":"string","required":true},"email":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"sessionToken":{"dataType":"string","required":true},"otp":{"dataType":"string","required":true}}},
         };
-        app.post('/api/user/verifyOtp',
+        app.post('/api/user/verify-otp',
             ...(fetchMiddlewares<RequestHandler>(UserController)),
             ...(fetchMiddlewares<RequestHandler>(UserController.prototype.VerifyOtp)),
 
@@ -1127,25 +1127,25 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsUserController_ForgotPassword: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"link":{"dataType":"string","required":true},"email":{"dataType":"string","required":true}}},
+        const argsUserController_ResetPassword: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newPassword":{"dataType":"string","required":true},"token":{"dataType":"string","required":true}}},
         };
-        app.post('/api/user/forgot-password',
+        app.post('/api/user/reset-password',
             ...(fetchMiddlewares<RequestHandler>(UserController)),
-            ...(fetchMiddlewares<RequestHandler>(UserController.prototype.ForgotPassword)),
+            ...(fetchMiddlewares<RequestHandler>(UserController.prototype.ResetPassword)),
 
-            async function UserController_ForgotPassword(request: ExRequest, response: ExResponse, next: any) {
+            async function UserController_ResetPassword(request: ExRequest, response: ExResponse, next: any) {
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
             let validatedArgs: any[] = [];
             try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsUserController_ForgotPassword, request, response });
+                validatedArgs = templateService.getValidatedArgs({ args: argsUserController_ResetPassword, request, response });
 
                 const controller = new UserController();
 
               await templateService.apiHandler({
-                methodName: 'ForgotPassword',
+                methodName: 'ResetPassword',
                 controller,
                 response,
                 next,
