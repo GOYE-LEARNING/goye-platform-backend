@@ -2201,18 +2201,16 @@ public async UpdatePassword(
   const userId = req.user?.id;
   const organizationId = req.org?.id;
   const isOrganization = req.user?.type === "ORGANIZATION" || req.org?.id;
-  
-  const { newPassword } = body;
 
   // Validate input
-  if (!newPassword) {
+  if (!body.newPassword) {
     this.setStatus(400);
     return {
       message: "Current password and new password are required",
     };
   }
 
-  if (newPassword.length < 8) {
+  if (body.newPassword.length < 8) {
     this.setStatus(400);
     return {
       message: "New password must be at least 8 characters long",
@@ -2241,7 +2239,7 @@ public async UpdatePassword(
 
 
       // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
 
       // Update organization password
       const updatedOrganization = await prisma.organization.update({
@@ -2302,14 +2300,14 @@ public async UpdatePassword(
       }
 
       // Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      const hashedPassword = await bcrypt.hash(body.newPassword, 10);
 
       // Update user password
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
           password: hashedPassword,
-        },
+        },  
         select: {
           id: true,
           email_address: true,

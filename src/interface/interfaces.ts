@@ -7,8 +7,8 @@ export interface User {
   country: string;
   state: string;
   phone_number: string;
-  language?: string
-  languageCode: string
+  language?: string;
+  languageCode: string;
   role: string;
   level: string;
   createAt?: any;
@@ -144,6 +144,8 @@ export interface OrganizationDTO {
   organization_description: string;
   organization_role: string;
   organization_year: string;
+  language: string;
+  languageCode: string;
   //User information
   user_first_name: string;
   user_last_name: string;
@@ -209,12 +211,12 @@ export interface Recipitent {
 }
 
 export interface IFlutterwaveTransferPayload {
-  account_bank: string;    
-  account_number: string;  
-  amount: number;          
-  currency: "NGN" | "USD" | "GHS" | "KES"; 
-  narration: string;      
-  reference: string;      
-  callback_url?: string;   
+  account_bank: string;
+  account_number: string;
+  amount: number;
+  currency: "NGN" | "USD" | "GHS" | "KES";
+  narration: string;
+  reference: string;
+  callback_url?: string;
   debit_currency?: string;
 }

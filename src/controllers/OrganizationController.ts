@@ -66,7 +66,8 @@ export class OrganizationController extends Controller {
           organization_phone_number: body.organization_phone_number,
           organization_year: body.organization_year,
           organization_type: orgTypeMap[body.organization_type],
-
+          language: body.language,
+          languageCode: body.languageCode,
           // ✅ USER (always exists)
           user: {
             create: {
@@ -272,382 +273,388 @@ export class OrganizationController extends Controller {
 
   // Add this to your OrganizationController class
 
-// Organization Verification OTP
-@Post("/auth/send-verification-otp/{organizationId}")
-public async SendVerificationOTP(
-  @Path() organizationId: string,
-): Promise<any> {
-  try {
-    // Find the organization
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      include: {
-        user: true,
-      },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "Organization not found",
-      };
-    }
-
-    // Check if organization is already verified
-    if (organization.isVerified) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Organization is already verified",
-      };
-    }
-
-    // Generate a 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    // Hash the OTP before storing (optional but recommended)
-    const hashedOTP = await bcrypt.hash(otp, 10);
-
-    // Store OTP in database with expiration (10 minutes)
-    await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        verificationOTP: hashedOTP,
-        verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-        verificationOTPAttempts: 0,
-      },
-    });
-
-    // Send OTP via email
-    const emailSubject = `Verify Your Organization - ${organization.organization_name}`;
-    
-    // Use the sendOrganizationVerificationOTP helper or SendEmail directly
-    const { sendOrganizationVerificationOTP } = await import('../utils/sendmail.js');
-    
-    await sendOrganizationVerificationOTP(
-      organization.organization_email,
-      otp,
-      organization.organization_name
-    );
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Verification OTP sent successfully",
-      data: {
-        organizationId: organization.id,
-        email: organization.organization_email,
-        expiresIn: "10 minutes",
-      },
-    };
-  } catch (error: any) {
-    console.error("Error sending verification OTP:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to send verification OTP",
-      error: error.message,
-    };
-  }
-}
-
-@Post("/auth/verify-organization-otp")
-public async VerifyOrganizationOTP(
-  @Body() body: { organizationId: string; otp: string },
-): Promise<any> {
-  try {
-    const { organizationId, otp } = body;
-
-    if (!organizationId || !otp) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Organization ID and OTP are required",
-      };
-    }
-
-    // Find the organization
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "Organization not found",
-      };
-    }
-
-    // Check if already verified
-    if (organization.isVerified) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Organization is already verified",
-      };
-    }
-
-    // Check if OTP exists
-    if (!organization.verificationOTP || !organization.verificationOTPExpires) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "No verification OTP found. Please request a new one.",
-      };
-    }
-
-    // Check if OTP has expired
-    if (new Date() > organization.verificationOTPExpires) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Verification OTP has expired. Please request a new one.",
-      };
-    }
-
-    // Check attempt count (max 5 attempts)
-    const attempts = organization.verificationOTPAttempts || 0;
-    if (attempts >= 5) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Too many failed attempts. Please request a new OTP.",
-      };
-    }
-
-    // Verify the OTP
-    const isValid = await bcrypt.compare(otp, organization.verificationOTP);
-
-    if (!isValid) {
-      // Increment attempts
-      await prisma.organization.update({
+  // Organization Verification OTP
+  @Post("/auth/send-verification-otp/{organizationId}")
+  public async SendVerificationOTP(
+    @Path() organizationId: string,
+  ): Promise<any> {
+    try {
+      // Find the organization
+      const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
-        data: {
-          verificationOTPAttempts: attempts + 1,
+        include: {
+          user: true,
         },
       });
 
-      const remainingAttempts = 4 - attempts;
-      this.setStatus(400);
-      return {
-        success: false,
-        message: `Invalid OTP. ${remainingAttempts} attempts remaining.`,
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // Check if organization is already verified
+      if (organization.isVerified) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Organization is already verified",
+        };
+      }
+
+      // Generate a 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+      // Hash the OTP before storing (optional but recommended)
+      const hashedOTP = await bcrypt.hash(otp, 10);
+
+      // Store OTP in database with expiration (10 minutes)
+      await prisma.organization.update({
+        where: { id: organizationId },
         data: {
-          remainingAttempts,
+          verificationOTP: hashedOTP,
+          verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+          verificationOTPAttempts: 0,
+        },
+      });
+
+      // Send OTP via email
+      const emailSubject = `Verify Your Organization - ${organization.organization_name}`;
+
+      // Use the sendOrganizationVerificationOTP helper or SendEmail directly
+      const { sendOrganizationVerificationOTP } =
+        await import("../utils/sendmail.js");
+
+      await sendOrganizationVerificationOTP(
+        organization.organization_email,
+        otp,
+        organization.organization_name,
+      );
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Verification OTP sent successfully",
+        data: {
+          organizationId: organization.id,
+          email: organization.organization_email,
+          expiresIn: "10 minutes",
         },
       };
+    } catch (error: any) {
+      console.error("Error sending verification OTP:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to send verification OTP",
+        error: error.message,
+      };
     }
-
-    // OTP is valid - verify the organization
-    const updatedOrganization = await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        isVerified: true,
-        verifiedAt: new Date(),
-        verificationOTP: null,
-        verificationOTPExpires: null,
-        verificationOTPAttempts: 0,
-      },
-      include: {
-        user: true,
-        Church: true,
-        school: true,
-        Club: true,
-      },
-    });
-
-
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Organization verified successfully",
-      data: {
-        organizationId: updatedOrganization.id,
-        organizationName: updatedOrganization.organization_name,
-        isVerified: updatedOrganization.isVerified,
-        verifiedAt: updatedOrganization.verifiedAt,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error verifying organization:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to verify organization",
-      error: error.message,
-    };
   }
-}
 
-@Post("/auth/resend-verification-otp/{organizationId}")
-public async ResendVerificationOTP(
-  @Path() organizationId: string,
-): Promise<any> {
-  try {
-    // Find the organization
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
+  @Post("/auth/verify-organization-otp")
+  public async VerifyOrganizationOTP(
+    @Body() body: { organizationId: string; otp: string },
+  ): Promise<any> {
+    try {
+      const { organizationId, otp } = body;
 
-    if (!organization) {
-      this.setStatus(404);
+      if (!organizationId || !otp) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Organization ID and OTP are required",
+        };
+      }
+
+      // Find the organization
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // Check if already verified
+      if (organization.isVerified) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Organization is already verified",
+        };
+      }
+
+      // Check if OTP exists
+      if (
+        !organization.verificationOTP ||
+        !organization.verificationOTPExpires
+      ) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "No verification OTP found. Please request a new one.",
+        };
+      }
+
+      // Check if OTP has expired
+      if (new Date() > organization.verificationOTPExpires) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Verification OTP has expired. Please request a new one.",
+        };
+      }
+
+      // Check attempt count (max 5 attempts)
+      const attempts = organization.verificationOTPAttempts || 0;
+      if (attempts >= 5) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Too many failed attempts. Please request a new OTP.",
+        };
+      }
+
+      // Verify the OTP
+      const isValid = await bcrypt.compare(otp, organization.verificationOTP);
+
+      if (!isValid) {
+        // Increment attempts
+        await prisma.organization.update({
+          where: { id: organizationId },
+          data: {
+            verificationOTPAttempts: attempts + 1,
+          },
+        });
+
+        const remainingAttempts = 4 - attempts;
+        this.setStatus(400);
+        return {
+          success: false,
+          message: `Invalid OTP. ${remainingAttempts} attempts remaining.`,
+          data: {
+            remainingAttempts,
+          },
+        };
+      }
+
+      // OTP is valid - verify the organization
+      const updatedOrganization = await prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          isVerified: true,
+          verifiedAt: new Date(),
+          verificationOTP: null,
+          verificationOTPExpires: null,
+          verificationOTPAttempts: 0,
+        },
+        include: {
+          user: true,
+          Church: true,
+          school: true,
+          Club: true,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Organization verified successfully",
+        data: {
+          organizationId: updatedOrganization.id,
+          organizationName: updatedOrganization.organization_name,
+          isVerified: updatedOrganization.isVerified,
+          verifiedAt: updatedOrganization.verifiedAt,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error verifying organization:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "Organization not found",
+        message: "Failed to verify organization",
+        error: error.message,
       };
     }
+  }
 
-    // Check if already verified
-    if (organization.isVerified) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Organization is already verified",
-      };
-    }
+  @Post("/auth/resend-verification-otp/{organizationId}")
+  public async ResendVerificationOTP(
+    @Path() organizationId: string,
+  ): Promise<any> {
+    try {
+      // Find the organization
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
 
-    // Check if user can resend (rate limiting - 3 resends per hour)
-    const lastResend = organization.verificationOTPResendAt;
-    if (lastResend) {
-      const timeSinceLastResend = Date.now() - new Date(lastResend).getTime();
-      const minutesSinceLastResend = timeSinceLastResend / (1000 * 60);
-      
-      if (minutesSinceLastResend < 2) {
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // Check if already verified
+      if (organization.isVerified) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Organization is already verified",
+        };
+      }
+
+      // Check if user can resend (rate limiting - 3 resends per hour)
+      const lastResend = organization.verificationOTPResendAt;
+      if (lastResend) {
+        const timeSinceLastResend = Date.now() - new Date(lastResend).getTime();
+        const minutesSinceLastResend = timeSinceLastResend / (1000 * 60);
+
+        if (minutesSinceLastResend < 2) {
+          this.setStatus(429);
+          return {
+            success: false,
+            message: `Please wait ${Math.ceil(2 - minutesSinceLastResend)} minutes before requesting another OTP`,
+          };
+        }
+      }
+
+      // Check resend count (max 3 resends per hour)
+      const resendCount = organization.verificationOTPResendCount || 0;
+      if (resendCount >= 3) {
         this.setStatus(429);
         return {
           success: false,
-          message: `Please wait ${Math.ceil(2 - minutesSinceLastResend)} minutes before requesting another OTP`,
+          message: "Maximum resend limit reached. Please try again in 1 hour.",
         };
       }
-    }
 
-    // Check resend count (max 3 resends per hour)
-    const resendCount = organization.verificationOTPResendCount || 0;
-    if (resendCount >= 3) {
-      this.setStatus(429);
+      // Generate a new 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const hashedOTP = await bcrypt.hash(otp, 10);
+
+      // Update OTP in database
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          verificationOTP: hashedOTP,
+          verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000),
+          verificationOTPAttempts: 0,
+          verificationOTPResendCount: resendCount + 1,
+          verificationOTPResendAt: new Date(),
+        },
+      });
+
+      // Send OTP via email
+      const { sendOrganizationVerificationOTP } =
+        await import("../utils/sendmail.js");
+
+      await sendOrganizationVerificationOTP(
+        organization.organization_email,
+        otp,
+        organization.organization_name,
+      );
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "New verification OTP sent successfully",
+        data: {
+          organizationId: organization.id,
+          email: organization.organization_email,
+          expiresIn: "10 minutes",
+          remainingResends: 2 - resendCount,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error resending verification OTP:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "Maximum resend limit reached. Please try again in 1 hour.",
+        message: "Failed to resend verification OTP",
+        error: error.message,
       };
     }
-
-    // Generate a new 6-digit OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const hashedOTP = await bcrypt.hash(otp, 10);
-
-    // Update OTP in database
-    await prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        verificationOTP: hashedOTP,
-        verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000),
-        verificationOTPAttempts: 0,
-        verificationOTPResendCount: resendCount + 1,
-        verificationOTPResendAt: new Date(),
-      },
-    });
-
-    // Send OTP via email
-    const { sendOrganizationVerificationOTP } = await import('../utils/sendmail.js');
-    
-    await sendOrganizationVerificationOTP(
-      organization.organization_email,
-      otp,
-      organization.organization_name
-    );
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "New verification OTP sent successfully",
-      data: {
-        organizationId: organization.id,
-        email: organization.organization_email,
-        expiresIn: "10 minutes",
-        remainingResends: 2 - resendCount,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error resending verification OTP:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to resend verification OTP",
-      error: error.message,
-    };
   }
-}
 
-@Get("/auth/check-verification-status/{organizationId}")
-public async CheckVerificationStatus(
-  @Path() organizationId: string,
-): Promise<any> {
-  try {
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: {
-        id: true,
-        organization_name: true,
-        isVerified: true,
-        verifiedAt: true,
-        verificationOTPExpires: true,
-        verificationOTPAttempts: true,
-        // Don't include the actual OTP for security
-      },
-    });
+  @Get("/auth/check-verification-status/{organizationId}")
+  public async CheckVerificationStatus(
+    @Path() organizationId: string,
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          id: true,
+          organization_name: true,
+          isVerified: true,
+          verifiedAt: true,
+          verificationOTPExpires: true,
+          verificationOTPAttempts: true,
+          // Don't include the actual OTP for security
+        },
+      });
 
-    if (!organization) {
-      this.setStatus(404);
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      let status = "NOT_VERIFIED";
+      let message = "Organization is not verified yet";
+
+      if (organization.isVerified) {
+        status = "VERIFIED";
+        message = "Organization is verified";
+      } else if (
+        organization.verificationOTPExpires &&
+        new Date() > organization.verificationOTPExpires
+      ) {
+        status = "OTP_EXPIRED";
+        message = "Verification OTP has expired. Please request a new one.";
+      } else if (organization.verificationOTPExpires) {
+        status = "OTP_SENT";
+        message = "Verification OTP has been sent and is still valid";
+      } else {
+        status = "NO_OTP";
+        message = "No verification OTP found. Please request one.";
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message,
+        data: {
+          organizationId: organization.id,
+          organizationName: organization.organization_name,
+          isVerified: organization.isVerified,
+          verifiedAt: organization.verifiedAt,
+          status,
+          otpExpiresAt: organization.verificationOTPExpires,
+          attemptsUsed: organization.verificationOTPAttempts || 0,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error checking verification status:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "Organization not found",
+        message: "Failed to check verification status",
+        error: error.message,
       };
     }
-
-    let status = "NOT_VERIFIED";
-    let message = "Organization is not verified yet";
-    
-    if (organization.isVerified) {
-      status = "VERIFIED";
-      message = "Organization is verified";
-    } else if (organization.verificationOTPExpires && new Date() > organization.verificationOTPExpires) {
-      status = "OTP_EXPIRED";
-      message = "Verification OTP has expired. Please request a new one.";
-    } else if (organization.verificationOTPExpires) {
-      status = "OTP_SENT";
-      message = "Verification OTP has been sent and is still valid";
-    } else {
-      status = "NO_OTP";
-      message = "No verification OTP found. Please request one.";
-    }
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message,
-      data: {
-        organizationId: organization.id,
-        organizationName: organization.organization_name,
-        isVerified: organization.isVerified,
-        verifiedAt: organization.verifiedAt,
-        status,
-        otpExpiresAt: organization.verificationOTPExpires,
-        attemptsUsed: organization.verificationOTPAttempts || 0,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error checking verification status:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to check verification status",
-      error: error.message,
-    };
   }
-}
 
   @Get("/fetch-organizations")
   public async FetchOrganization(): Promise<any> {
@@ -1069,7 +1076,8 @@ public async CheckVerificationStatus(
           organization_phone_number: body.organization_phone_number,
           organization_year: body.organization_year,
           organization_type: body.organization_type as any,
-
+          language: body.language,
+          languageCode: body.languageCode,
           // Church update - assumes it exists
           Church: body.church
             ? {
@@ -2121,242 +2129,247 @@ public async CheckVerificationStatus(
     }
   }
 
- @Security("bearerAuth")
-@Get("/get-courses-by-organization")
-public async GetCoursesByOrganization(
-  @Request() req: any,
-): Promise<CourseResponse> {
-  const organizationId = req.user?.organizationId;
-  const userLevel = req.user?.level;
-  const language = req.user?.language;
-  const languageCode = req.user?.languageCode;
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Get("/get-courses-by-organization")
+  public async GetCoursesByOrganization(
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const organizationId = req.user?.organizationId;
+    const userLevel = req.user?.level;
+    const language = req.user?.language;
+    const languageCode = req.user?.languageCode;
+    const userId = req.user?.id;
 
-  try {
-    // Validate inputs
-    if (!organizationId) {
-      this.setStatus(400);
-      return {
-        message: "Organization ID not found for this user",
-        data: null,
-      };
-    }
-
-    if (!userLevel) {
-      this.setStatus(400);
-      return {
-        message: "User level not found",
-        data: null,
-      };
-    }
-
-    // Verify the organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { id: true, organization_name: true }
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        message: "Organization not found",
-        data: null,
-      };
-    }
-
-    // Normalize level
-    const normalizedLevel = userLevel.toLowerCase();
-    let levelCondition = {};
-    
-    if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
-      levelCondition = { course_level: "Beginner" };
-    } else if (normalizedLevel === "intermediate") {
-      levelCondition = { course_level: "Intermediate" };
-    } else {
-      this.setStatus(400);
-      return {
-        message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
-        data: null,
-      };
-    }
-
-    // Fetch courses with proper error handling
-    let organizationCourses;
     try {
-      organizationCourses = await prisma.course.findMany({
-        where: {
-          organizationId: organizationId,
-          ...levelCondition,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          module: {
-            select: {
-              _count: {
-                select: {
-                  lesson: true,
-                },
-              },
-              lesson: {
-                select: {
-                  duration: true,
-                },
-              },
-            },
-          },
-          organization: {
-            select: {
-              organization_name: true,
-              organization_type: true,
-            },
-          },
-          enrollment: {
-            where: {
-              userId: userId,
-            },
-            select: {
-              status: true,
-              enrolledAt: true,
-              completedAt: true,
-            },
-          },
-          _count: {
-            select: {
-              enrollment: true,
-            },
-          },
-        },
-      });
-    } catch (dbError: any) {
-      console.error("Database error:", dbError);
-      this.setStatus(500);
-      return {
-        message: "Database error while fetching courses: " + dbError.message,
-        data: null,
-      };
-    }
+      // Validate inputs
+      if (!organizationId) {
+        this.setStatus(400);
+        return {
+          message: "Organization ID not found for this user",
+          data: null,
+        };
+      }
 
-    // Get user's enrollment status for these courses
-    const courseIds = organizationCourses.map(c => c.id);
-    let userEnrollments = [];
-    
-    if (courseIds.length > 0 && userId) {
+      if (!userLevel) {
+        this.setStatus(400);
+        return {
+          message: "User level not found",
+          data: null,
+        };
+      }
+
+      // Verify the organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { id: true, organization_name: true },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          message: "Organization not found",
+          data: null,
+        };
+      }
+
+      // Normalize level
+      const normalizedLevel = userLevel.toLowerCase();
+      let levelCondition = {};
+
+      if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
+        levelCondition = { course_level: "Beginner" };
+      } else if (normalizedLevel === "intermediate") {
+        levelCondition = { course_level: "Intermediate" };
+      } else {
+        this.setStatus(400);
+        return {
+          message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
+          data: null,
+        };
+      }
+
+      // Fetch courses with proper error handling
+      let organizationCourses;
       try {
-        userEnrollments = await prisma.enrollment.findMany({
+        organizationCourses = await prisma.course.findMany({
           where: {
-            userId: userId,
-            courseId: { in: courseIds },
+            organizationId: organizationId,
+            ...levelCondition,
           },
-          select: {
-            courseId: true,
-            status: true,
-            enrolledAt: true,
+          orderBy: {
+            createdAt: "desc",
+          },
+          include: {
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
+                },
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
+                },
+              },
+            },
+            organization: {
+              select: {
+                organization_name: true,
+                organization_type: true,
+              },
+            },
+            enrollment: {
+              where: {
+                userId: userId,
+              },
+              select: {
+                status: true,
+                enrolledAt: true,
+                completedAt: true,
+              },
+            },
+            _count: {
+              select: {
+                enrollment: true,
+              },
+            },
           },
         });
-      } catch (enrollmentError: any) {
-        console.error("Error fetching enrollments:", enrollmentError);
-        // Continue without enrollment data
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        this.setStatus(500);
+        return {
+          message: "Database error while fetching courses: " + dbError.message,
+          data: null,
+        };
       }
-    }
 
-    // Create a map for easy lookup
-    const enrollmentMap = new Map(
-      userEnrollments.map(e => [e.courseId, e])
-    );
+      // Get user's enrollment status for these courses
+      const courseIds = organizationCourses.map((c) => c.id);
+      let userEnrollments = [];
 
-    // Format response with enrollment status
-    const formattedCourses = organizationCourses.map(course => {
-      const userEnrollment = enrollmentMap.get(course.id);
-      
-      return {
-        id: course.id,
-        course_title: course.course_title,
-        course_short_description: course.course_short_description,
-        course_description: course.course_description,
-        course_level: course.course_level,
-        course_image: course.course_image,
-        createdAt: course.createdAt,
-        updatedAt: course.updatedAt,
-        moduleCount: course.module.length,
-        lessonCount: course.module.reduce((acc, m) => acc + m._count.lesson, 0),
-        totalDuration: course.module.reduce((acc, m) => {
-          const durationSum = m.lesson.reduce((sum, l) => sum + (l.duration || 0), 0);
-          return acc + durationSum;
-        }, 0),
-        enrollmentStatus: userEnrollment?.status || 'NOT_ENROLLED',
-        isEnrolled: !!userEnrollment,
-        totalEnrollments: course._count.enrollment,
-        organizationName: course.organization?.organization_name,
-      };
-    });
-
-    // Handle translation (optional)
-    let translatedText = null;
-    if (formattedCourses.length > 0 && language && languageCode) {
-      try {
-        translatedText = await TranslateText(
-          formattedCourses[0].course_description,
-          language,
-          languageCode
-        );
-      } catch (translationError) {
-        console.error("Translation error:", translationError);
-        // Continue without translation
+      if (courseIds.length > 0 && userId) {
+        try {
+          userEnrollments = await prisma.enrollment.findMany({
+            where: {
+              userId: userId,
+              courseId: { in: courseIds },
+            },
+            select: {
+              courseId: true,
+              status: true,
+              enrolledAt: true,
+            },
+          });
+        } catch (enrollmentError: any) {
+          console.error("Error fetching enrollments:", enrollmentError);
+          // Continue without enrollment data
+        }
       }
-    }
 
-    this.setStatus(200);
-    return {
-      message: "Organization courses fetched successfully",
-      data: {
-        courses: formattedCourses,
-        organizationId: organizationId,
-        organizationName: organization.organization_name,
-        level: userLevel,
-        totalCourses: formattedCourses.length,
-        language: language ?? null,
-        languageCode: languageCode ?? null,
-        translatedText: translatedText ?? null,
-      },
-    };
+      // Create a map for easy lookup
+      const enrollmentMap = new Map(
+        userEnrollments.map((e) => [e.courseId, e]),
+      );
 
-  } catch (error: any) {
-    console.error("Error details:", {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack
-    });
+      // Format response with enrollment status
+      const formattedCourses = organizationCourses.map((course) => {
+        const userEnrollment = enrollmentMap.get(course.id);
 
-    // Handle specific Prisma errors
-    if (error.code === 'P2002') {
-      this.setStatus(409);
+        return {
+          id: course.id,
+          course_title: course.course_title,
+          course_short_description: course.course_short_description,
+          course_description: course.course_description,
+          course_level: course.course_level,
+          course_image: course.course_image,
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+          moduleCount: course.module.length,
+          lessonCount: course.module.reduce(
+            (acc, m) => acc + m._count.lesson,
+            0,
+          ),
+          totalDuration: course.module.reduce((acc, m) => {
+            const durationSum = m.lesson.reduce(
+              (sum, l) => sum + (l.duration || 0),
+              0,
+            );
+            return acc + durationSum;
+          }, 0),
+          enrollmentStatus: userEnrollment?.status || "NOT_ENROLLED",
+          isEnrolled: !!userEnrollment,
+          totalEnrollments: course._count.enrollment,
+          organizationName: course.organization?.organization_name,
+        };
+      });
+
+      // Handle translation (optional)
+      let translatedText = null;
+      if (formattedCourses.length > 0 && language && languageCode) {
+        try {
+          translatedText = await TranslateText(
+            formattedCourses[0].course_description,
+            language,
+            languageCode,
+          );
+        } catch (translationError) {
+          console.error("Translation error:", translationError);
+          // Continue without translation
+        }
+      }
+
+      this.setStatus(200);
       return {
-        message: `Unique constraint violation: ${error.meta?.target || 'unknown field'}`,
+        message: "Organization courses fetched successfully",
         data: {
-          error: 'DUPLICATE_ENTRY',
-          field: error.meta?.target,
+          courses: formattedCourses,
+          organizationId: organizationId,
+          organizationName: organization.organization_name,
+          level: userLevel,
+          totalCourses: formattedCourses.length,
+          language: language ?? null,
+          languageCode: languageCode ?? null,
+          translatedText: translatedText ?? null,
         },
       };
-    }
+    } catch (error: any) {
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        meta: error.meta,
+        stack: error.stack,
+      });
 
-    if (error.code === 'P2025') {
-      this.setStatus(404);
+      // Handle specific Prisma errors
+      if (error.code === "P2002") {
+        this.setStatus(409);
+        return {
+          message: `Unique constraint violation: ${error.meta?.target || "unknown field"}`,
+          data: {
+            error: "DUPLICATE_ENTRY",
+            field: error.meta?.target,
+          },
+        };
+      }
+
+      if (error.code === "P2025") {
+        this.setStatus(404);
+        return {
+          message: "Record not found",
+          data: null,
+        };
+      }
+
+      this.setStatus(500);
       return {
-        message: "Record not found",
+        message: "Error fetching organization courses: " + error.message,
         data: null,
       };
     }
-
-    this.setStatus(500);
-    return {
-      message: "Error fetching organization courses: " + error.message,
-      data: null,
-    };
   }
-}
 
   @Security("bearerAuth")
   @Post("/logout")
