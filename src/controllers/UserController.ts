@@ -2192,81 +2192,190 @@ export class UserController extends Controller {
     };
   }
 
-  @Security("bearerAuth")
-  @Put("/update-password")
-  public async UpdatePassword(
-    @Request() req: any,
-    @Body() body: { newPassword: string },
-  ): Promise<any> {
-    const userId = req.user?.id;
-    const orgId = req.org?.id;
-    const hashedPassword = await bcrypt.hash(body.newPassword, 10);
+ @Security("bearerAuth")
+@Put("/update-password")
+public async UpdatePassword(
+  @Request() req: any,
+  @Body() body: { currentPassword: string; newPassword: string }
+): Promise<any> {
+  const userId = req.user?.id;
+  const organizationId = req.org?.id;
+  const isOrganization = req.user?.type === "ORGANIZATION" || req.org?.id;
+  
+  const { currentPassword, newPassword } = body;
 
-    try {
-      // First, check if this is an individual user
+  // Validate input
+  if (!currentPassword || !newPassword) {
+    this.setStatus(400);
+    return {
+      message: "Current password and new password are required",
+    };
+  }
+
+  if (newPassword.length < 8) {
+    this.setStatus(400);
+    return {
+      message: "New password must be at least 8 characters long",
+    };
+  }
+
+  try {
+    if (isOrganization && organizationId) {
+      // Update organization password
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          id: true,
+          organization_password: true,
+          organization_email: true,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          message: "Organization not found",
+        };
+      }
+
+      // Verify current password
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        organization.organization_password || ""
+      );
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return {
+          message: "Current password is incorrect",
+        };
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      // Update organization password
+      const updatedOrganization = await prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          organization_password: hashedPassword,
+        },
+        select: {
+          id: true,
+          organization_email: true,
+        },
+      });
+
+      // Also update the associated user's password if they exist
+      const associatedUser = await prisma.user.findFirst({
+        where: {
+          organization: {
+            id: organizationId
+          }
+        },
+      });
+
+      if (associatedUser) {
+        await prisma.user.update({
+          where: { id: associatedUser.id },
+          data: {
+            password: hashedPassword,
+          },
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Organization password updated successfully",
+        data: {
+          id: updatedOrganization.id,
+          email: updatedOrganization.organization_email,
+          type: "ORGANIZATION",
+        },
+      };
+
+    } else if (userId) {
+      // Update user password
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { organization: true }, // Include related organization if any
+        select: {
+          id: true,
+          email_address: true,
+          password: true,
+        },
       });
 
       if (!user) {
         this.setStatus(404);
-        return { message: "User not found" };
+        return {
+          message: "User not found",
+        };
       }
 
-      // Check if password is different from old one
-      const checkPassword = await bcrypt.compare(
-        body.newPassword,
-        user.password,
+      // Verify current password
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password || ""
       );
-      if (checkPassword) {
-        this.setStatus(400);
-        return { message: "This password must be different from the old one" };
+
+      if (!isPasswordValid) {
+        this.setStatus(401);
+        return {
+          message: "Current password is incorrect",
+        };
       }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
       // Update user password
-      await prisma.user.update({
+      const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
           password: hashedPassword,
-          updatedAt: new Date(),
+        },
+        select: {
+          id: true,
+          email_address: true,
+          organization: true
         },
       });
 
       // If user belongs to an organization, also update organization password
-      if (orgId) {
-        const organization = await prisma.organization.findUnique({
-          where: { id: orgId },
+      if (updatedUser) {
+        await prisma.organization.update({
+          where: { id: updatedUser.organization.id },
+          data: {
+            organization_password: hashedPassword,
+          },
         });
-
-        if (organization) {
-          const checkOrgPassword = await bcrypt.compare(
-            body.newPassword,
-            organization.organization_password,
-          );
-
-          if (!checkOrgPassword) {
-            await prisma.organization.update({
-              where: { id: orgId },
-              data: {
-                organization_password: hashedPassword,
-                updatedAt: new Date(),
-              },
-            });
-          }
-        }
       }
 
       this.setStatus(200);
-      return { message: "Password updated successfully" };
-    } catch (error: any) {
-      console.error("Error updating password:", error);
-      this.setStatus(500);
       return {
-        message: `An error occurred while updating password: ${error.message}`,
+        message: "User password updated successfully",
+        data: {
+          id: updatedUser.id,
+          email: updatedUser.email_address,
+          type: "USER",
+        },
+      };
+
+    } else {
+      this.setStatus(401);
+      return {
+        message: "Unauthorized - No user or organization ID found",
       };
     }
+  } catch (error: any) {
+    console.error("Error updating password:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to update password",
+      error: error.message,
+    };
   }
+}
 
   @Get("/get-user/{id}")
   public async GetUser(@Path() id: string): Promise<any> {

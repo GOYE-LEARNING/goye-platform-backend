@@ -2732,10 +2732,14 @@
 								"properties": {
 									"newPassword": {
 										"type": "string"
+									},
+									"currentPassword": {
+										"type": "string"
 									}
 								},
 								"required": [
-									"newPassword"
+									"newPassword",
+									"currentPassword"
 								],
 								"type": "object"
 							}
