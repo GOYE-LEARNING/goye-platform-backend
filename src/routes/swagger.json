@@ -472,6 +472,12 @@
 			},
 			"Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__": {
 				"properties": {
+					"language": {
+						"type": "string"
+					},
+					"languageCode": {
+						"type": "string"
+					},
 					"organization_name": {
 						"type": "string"
 					},
@@ -534,6 +540,8 @@
 					}
 				},
 				"required": [
+					"language",
+					"languageCode",
 					"organization_name",
 					"organization_type",
 					"organization_phone_number",
@@ -2534,6 +2542,13 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"type": {
+										"type": "string",
+										"enum": [
+											"user",
+											"organization"
+										]
+									},
 									"email": {
 										"type": "string"
 									}
@@ -2548,7 +2563,7 @@
 				}
 			}
 		},
-		"/user/verify-otp": {
+		"/user/verifyOtp": {
 			"post": {
 				"operationId": "VerifyOtp",
 				"responses": {
@@ -2556,45 +2571,7 @@
 						"description": "Ok",
 						"content": {
 							"application/json": {
-								"schema": {
-									"anyOf": [
-										{
-											"properties": {
-												"email": {},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"message",
-												"success"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"email": {
-													"type": "string"
-												},
-												"message": {
-													"type": "string"
-												},
-												"success": {
-													"type": "boolean"
-												}
-											},
-											"required": [
-												"email",
-												"message",
-												"success"
-											],
-											"type": "object"
-										}
-									]
-								}
+								"schema": {}
 							}
 						}
 					}
@@ -2610,16 +2587,23 @@
 						"application/json": {
 							"schema": {
 								"properties": {
-									"sessionToken": {
-										"type": "string"
+									"type": {
+										"type": "string",
+										"enum": [
+											"user",
+											"organization"
+										]
 									},
 									"otp": {
+										"type": "string"
+									},
+									"email": {
 										"type": "string"
 									}
 								},
 								"required": [
-									"sessionToken",
-									"otp"
+									"otp",
+									"email"
 								],
 								"type": "object"
 							}
@@ -2732,14 +2716,10 @@
 								"properties": {
 									"newPassword": {
 										"type": "string"
-									},
-									"currentPassword": {
-										"type": "string"
 									}
 								},
 								"required": [
-									"newPassword",
-									"currentPassword"
+									"newPassword"
 								],
 								"type": "object"
 							}

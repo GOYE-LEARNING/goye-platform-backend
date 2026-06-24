@@ -250,7 +250,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_OrganizationDTO.Exclude_keyofOrganizationDTO.id__": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"organization_name":{"dataType":"string","required":true},"organization_type":{"dataType":"string","required":true},"organization_email":{"dataType":"string"},"organization_phone_number":{"dataType":"string","required":true},"organization_country":{"dataType":"string","required":true},"organization_state":{"dataType":"string","required":true},"organization_description":{"dataType":"string","required":true},"organization_role":{"dataType":"string","required":true},"organization_year":{"dataType":"string","required":true},"school":{"ref":"School"},"user_first_name":{"dataType":"string","required":true},"user_last_name":{"dataType":"string","required":true},"user_email_address":{"dataType":"string","required":true},"user_country":{"dataType":"string","required":true},"user_state":{"dataType":"string","required":true},"user_role":{"dataType":"string","required":true},"user_phone_number":{"dataType":"string","required":true},"user_form_type":{"dataType":"string","required":true},"church":{"ref":"Church"},"club":{"ref":"Club"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"language":{"dataType":"string","required":true},"languageCode":{"dataType":"string","required":true},"organization_name":{"dataType":"string","required":true},"organization_type":{"dataType":"string","required":true},"organization_email":{"dataType":"string"},"organization_phone_number":{"dataType":"string","required":true},"organization_country":{"dataType":"string","required":true},"organization_state":{"dataType":"string","required":true},"organization_description":{"dataType":"string","required":true},"organization_role":{"dataType":"string","required":true},"organization_year":{"dataType":"string","required":true},"school":{"ref":"School"},"user_first_name":{"dataType":"string","required":true},"user_last_name":{"dataType":"string","required":true},"user_email_address":{"dataType":"string","required":true},"user_country":{"dataType":"string","required":true},"user_state":{"dataType":"string","required":true},"user_role":{"dataType":"string","required":true},"user_phone_number":{"dataType":"string","required":true},"user_form_type":{"dataType":"string","required":true},"church":{"ref":"Church"},"club":{"ref":"Club"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Omit_OrganizationDTO.id_": {
@@ -788,7 +788,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_SendOtp: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"email":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"type":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["user"]},{"dataType":"enum","enums":["organization"]}]},"email":{"dataType":"string","required":true}}},
         };
         app.post('/api/user/sendOtp',
             ...(fetchMiddlewares<RequestHandler>(UserController)),
@@ -818,9 +818,9 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_VerifyOtp: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"sessionToken":{"dataType":"string","required":true},"otp":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"type":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["user"]},{"dataType":"enum","enums":["organization"]}]},"otp":{"dataType":"string","required":true},"email":{"dataType":"string","required":true}}},
         };
-        app.post('/api/user/verify-otp',
+        app.post('/api/user/verifyOtp',
             ...(fetchMiddlewares<RequestHandler>(UserController)),
             ...(fetchMiddlewares<RequestHandler>(UserController.prototype.VerifyOtp)),
 
@@ -912,7 +912,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_UpdatePassword: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newPassword":{"dataType":"string","required":true},"currentPassword":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newPassword":{"dataType":"string","required":true}}},
         };
         app.put('/api/user/update-password',
             authenticateMiddleware([{"bearerAuth":[]}]),

@@ -1945,314 +1945,164 @@ export class UserController extends Controller {
     }
   }
 
- @Post("/sendOtp")
-public async SendOtp(@Body() body: { email: string, type?: 'user' | 'organization' }): Promise<any> {
-  try {
-    const { email, type = 'user' } = body;
+  @Post("/sendOtp")
+  public async SendOtp(@Body() body: { email: string }): Promise<any> {
+    try {
+      // ✅ CHANGE 1: Add rate limiting
+      const now = Date.now();
+      const userRequests = otpRateLimit.get(body.email) || [];
+      const recentRequests = userRequests.filter(
+        (time) => time > now - 5 * 60 * 1000,
+      );
 
-    // ✅ Validate email
-    if (!email) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Email is required",
-      };
-    }
+      if (recentRequests.length >= 3) {
+        this.setStatus(429);
+        return {
+          success: false,
+          status: 429,
+          message: "Too many OTP requests. Please try again in an 5 minutes.",
+        };
+      }
 
-    // ✅ Check if the email exists in either User or Organization
-    let user = null;
-    let organization = null;
-    let userType = '';
+      recentRequests.push(now);
+      otpRateLimit.set(body.email, recentRequests);
 
-    // Check if it's a user email
-    user = await prisma.user.findUnique({
-      where: { email_address: email },
-      select: { id: true, email_address: true, first_name: true, last_name: true }
-    });
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expires = new Date(Date.now() + 5 * 60 * 1000);
 
-    if (user) {
-      userType = 'user';
-    } else {
-      // Check if it's an organization email
-      organization = await prisma.organization.findUnique({
-        where: { organization_email: email },
-        select: { id: true, organization_email: true, organization_name: true }
+      // ✅ CHANGE 2: Delete old OTPs before creating new one
+      await prisma.otp.deleteMany({
+        where: { email: body.email },
       });
 
-      if (organization) {
-        userType = 'organization';
-      }
-    }
-
-    // If type is specified, verify it matches
-    if (type === 'user' && !user) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "No user found with this email address",
-      };
-    }
-
-    if (type === 'organization' && !organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "No organization found with this email address",
-      };
-    }
-
-    // If no type specified and neither user nor organization found
-    if (!user && !organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "No account found with this email address",
-      };
-    }
-
-    // ✅ Rate limiting - separate limits for user and organization
-    const rateLimitKey = `otp_${email}`;
-    const now = Date.now();
-    const userRequests = otpRateLimit.get(rateLimitKey) || [];
-    const recentRequests = userRequests.filter(
-      (time: number) => time > now - 5 * 60 * 1000,
-    );
-
-    if (recentRequests.length >= 3) {
-      this.setStatus(429);
-      return {
-        success: false,
-        status: 429,
-        message: "Too many OTP requests. Please try again in 5 minutes.",
-      };
-    }
-
-    recentRequests.push(now);
-    otpRateLimit.set(rateLimitKey, recentRequests);
-
-    // ✅ Generate OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const expires = new Date(Date.now() + 5 * 60 * 1000);
-
-    // ✅ Delete old OTPs before creating new one
-    await prisma.otp.deleteMany({
-      where: { email: email },
-    });
-
-    const newOtp = await prisma.otp.create({
-      data: {
-        code: otp,
-        email: email,
-        expiresIn: expires,
-      },
-    });
-
-    // ✅ Create session token with user type
-    const sessionToken = jwt.sign(
-      { 
-        email: email, 
-        otpId: newOtp.id,
-        type: userType,
-        userId: user?.id,
-        organizationId: organization?.id
-      },
-      process.env.JWT_SECRET || "secret-key",
-      { expiresIn: "6min" },
-    );
-
-    // ✅ Prepare email content based on user type
-    let emailSubject = "GOYE VERIFICATION";
-    let emailContent = `${newOtp.code}`;
-    let userName = '';
-
-    if (user) {
-      userName = `${user.first_name} ${user.last_name}`;
-      emailSubject = "GOYE Verification - Your Account";
-    } else if (organization) {
-      userName = organization.organization_name;
-      emailSubject = "GOYE Verification - Your Organization";
-    }
-
-    // ✅ Send email with retry logic
-    let emailSent = false;
-    for (let i = 0; i < 3; i++) {
-      try {
-        await SendEmail(
-          newOtp.email,
-          emailSubject,
-          emailContent,
-          "otp"
-        );
-        emailSent = true;
-        break;
-      } catch (error) {
-        console.log(`Email attempt ${i + 1} failed for ${email}`);
-        if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: emailSent
-        ? "OTP sent successfully"
-        : "OTP generated but email failed",
-      sessionToken,
-      data: {
-        email: email,
-        type: userType,
-        userName: userName,
-        // ✅ Never return OTP in production - only in development
-        ...(process.env.NODE_ENV === "development" && { otp }),
-      },
-    };
-  } catch (error: any) {
-    console.error("SendOTP error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Failed to send OTP: ${error.message}`,
-    };
-  }
-}
-
-@Post("/verifyOtp")
-public async VerifyOtp(@Body() body: { email: string; otp: string; type?: 'user' | 'organization' }): Promise<any> {
-  try {
-    const { email, otp, type } = body;
-
-    if (!email || !otp) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Email and OTP are required",
-      };
-    }
-
-    // ✅ Find the OTP
-    const otpRecord = await prisma.otp.findFirst({
-      where: {
-        email: email,
-        code: otp,
-        expiresIn: {
-          gt: new Date(),
+      const newOtp = await prisma.otp.create({
+        data: {
+          code: otp,
+          email: body.email,
+          expiresIn: expires,
         },
-      },
-    });
+      });
 
-    if (!otpRecord) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Invalid or expired OTP",
-      };
-    }
+      const sessionToken = jwt.sign(
+        { email: body.email, otpId: otp },
+        process.env.JWT_SECRET || "secret-key",
+        { expiresIn: "6min" },
+      );
 
-    // ✅ Delete the OTP after successful verification
-    await prisma.otp.delete({
-      where: { id: otpRecord.id },
-    });
-
-    // ✅ Determine the account type
-    let user = null;
-    let organization = null;
-    let accountType = '';
-
-    user = await prisma.user.findUnique({
-      where: { email_address: email },
-      select: { 
-        id: true, 
-        email_address: true, 
-        first_name: true, 
-        last_name: true,
-        isVerified: true,
-      }
-    });
-
-    if (user) {
-      accountType = 'user';
-    } else {
-      organization = await prisma.organization.findUnique({
-        where: { organization_email: email },
-        select: { 
-          id: true, 
-          organization_email: true, 
-          organization_name: true,
-          isVerified: true,
+      // ✅ CHANGE 3: Add retry logic for email
+      let emailSent = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await SendEmail(
+            newOtp.email,
+            "GOYE VERIFICATION",
+            `${newOtp.code}`,
+            "otp",
+          );
+          emailSent = true;
+          break;
+        } catch (error) {
+          console.log(`Email attempt ${i + 1} failed`);
+          if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
         }
-      });
-
-      if (organization) {
-        accountType = 'organization';
       }
-    }
 
-    if (!user && !organization) {
-      this.setStatus(404);
+      this.setStatus(200);
+      return {
+        success: emailSent,
+        message: emailSent
+          ? "OTP sent successfully"
+          : "OTP generated but email failed",
+        sessionToken,
+        // ✅ CHANGE 4: NEVER return OTP in production - only in development
+        ...(process.env.NODE_ENV === "development" && { otp }),
+        email: body.email,
+      };
+    } catch (error: any) {
+      console.error("SendOTP error:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "No account found with this email",
+        message: `Failed to send OTP: ${error.message}`,
       };
     }
-   
-    if (organization) {
-      await prisma.organization.update({
-        where: { id: organization.id },
-        data: { 
-          isVerified: true,
-          verifiedAt: new Date(),
+  }
+
+  @Post("/verify-otp")
+  public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
+    try {
+      const { otp, sessionToken } = body;
+
+      // ✅ CHANGE: Better validation
+      if (!otp || !sessionToken) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "OTP and session token are required",
+        };
+      }
+
+      let decoded: { email: string; otpId: string };
+      try {
+        decoded = jwt.verify(
+          sessionToken,
+          process.env.JWT_SECRET || "secret-key",
+        ) as any;
+      } catch (jwtError) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Invalid or expired session token",
+        };
+      }
+
+      const verifyOtp = await prisma.otp.findFirst({
+        where: {
+          code: otp,
+          email: decoded.email,
+        },
+        orderBy: {
+          createdAt: "desc",
         },
       });
+
+      if (!verifyOtp) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Invalid OTP code",
+        };
+      }
+
+      if (verifyOtp.expiresIn < new Date()) {
+        // ✅ CHANGE: Delete expired OTP
+        await prisma.otp.delete({ where: { id: verifyOtp.id } });
+
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "OTP has expired. Please request a new one.",
+        };
+      }
+
+      // Delete the used OTP
+      await prisma.otp.delete({ where: { id: verifyOtp.id } });
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Email verified successfully",
+        email: decoded.email,
+      };
+    } catch (error: any) {
+      console.error("VerifyOTP error:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: `Verification failed: ${error.message}`,
+      };
     }
-
-    // ✅ Generate auth token
-    const token = jwt.sign(
-      {
-        id: user?.id || organization?.id,
-        email: email,
-        type: accountType,
-        ...(user && { 
-          userId: user.id,
-          full_name: `${user.first_name} ${user.last_name}`,
-        }),
-        ...(organization && { 
-          organizationId: organization.id,
-          org_name: organization.organization_name,
-        }),
-      },
-      process.env.BEARERAUTH_SECRET || "secret-key",
-      { expiresIn: "7d" },
-    );
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "OTP verified successfully",
-      token,
-      data: {
-        email: email,
-        type: accountType,
-        isVerified: true,
-        ...(user && {
-          userId: user.id,
-          firstName: user.first_name,
-          lastName: user.last_name,
-        }),
-        ...(organization && {
-          organizationId: organization.id,
-          organizationName: organization.organization_name,
-        }),
-      },
-    };
-  } catch (error: any) {
-    console.error("VerifyOTP error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Failed to verify OTP: ${error.message}`,
-    };
   }
-}
 
   @Security("bearerAuth")
   @Post("/upload-profile-picture")
@@ -2984,32 +2834,207 @@ public async UpdatePassword(
     }
   }
 
-  @Post("/forgot-password")
-  public async ForgotPassword(
-    @Body() body: { email: string; link: string },
-  ): Promise<any> {
-    const checkEmail = await prisma.user.findUnique({
-      where: { email_address: body.email },
-    });
+ @Post("/reset-password")
+public async ResetPassword(
+  @Body() body: { token: string; newPassword: string }
+): Promise<any> {
+  try {
+    const { token, newPassword } = body;
 
-    if (!checkEmail) {
-      this.setStatus(401);
+    if (!token || !newPassword) {
+      this.setStatus(400);
       return {
-        message: "User does not exist",
+        success: false,
+        message: "Token and new password are required",
       };
     }
 
-    await SendEmail(
-      checkEmail.email_address,
-      "Forgot Password Link",
-      body.link,
-      "reset-password",
-    );
-    this.setStatus(200);
+    if (newPassword.length < 8) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Password must be at least 8 characters long",
+      };
+    }
+
+    // ✅ Verify token
+    let decoded: any;
+    try {
+      decoded = jwt.verify(
+        token,
+        process.env.BEARERAUTH_SECRET || "secret-key"
+      );
+    } catch (error: any) {
+      if (error.name === "TokenExpiredError") {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Password reset token has expired. Please request a new one.",
+        };
+      }
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "Invalid password reset token",
+      };
+    }
+
+    const { email, type, userId, organizationId } = decoded;
+
+    // ✅ Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    if (type === 'user' && userId) {
+      // ✅ Update user password
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email_address: true, resetToken: true, resetTokenExpires: true },
+      });
+
+      if (!user) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "User not found",
+        };
+      }
+
+      // ✅ Verify reset token matches (optional - for additional security)
+      if (user.resetToken !== token) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Invalid reset token",
+        };
+      }
+
+      if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Reset token has expired",
+        };
+      }
+
+      // ✅ Update password
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: hashedPassword,
+          resetToken: null,
+          resetTokenExpires: null,
+        },
+      });
+
+      // ✅ If user belongs to an organization, also update organization password
+      const userWithOrg = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { organization: true },
+      });
+
+      if (userWithOrg?.organization.id) {
+        await prisma.organization.update({
+          where: { id: userWithOrg.organization.id },
+          data: {
+            organization_password: hashedPassword,
+          },
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Password reset successfully",
+        data: {
+          type: "user",
+          email: user.email_address,
+        },
+      };
+
+    } else if (type === 'organization' && organizationId) {
+      // ✅ Update organization password
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { 
+          id: true, 
+          organization_email: true, 
+          resetToken: true, 
+          resetTokenExpires: true,
+          userId: true,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // ✅ Verify reset token matches
+      if (organization.resetToken !== token) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Invalid reset token",
+        };
+      }
+
+      if (organization.resetTokenExpires && new Date() > organization.resetTokenExpires) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Reset token has expired",
+        };
+      }
+
+      // ✅ Update organization password
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          organization_password: hashedPassword,
+          resetToken: null,
+          resetTokenExpires: null,
+        },
+      });
+
+      // ✅ Also update the associated user's password
+      if (organization.userId) {
+        await prisma.user.update({
+          where: { id: organization.userId },
+          data: {
+            password: hashedPassword,
+          },
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Organization password reset successfully",
+        data: {
+          type: "organization",
+          email: organization.organization_email,
+        },
+      };
+
+    } else {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Invalid token data",
+      };
+    }
+  } catch (error: any) {
+    console.error("ResetPassword error:", error);
+    this.setStatus(500);
     return {
-      message: "Link sent successfully",
+      success: false,
+      message: `Failed to reset password: ${error.message}`,
     };
   }
+}
 
   @Security("bearerAuth")
   @Post("/check-password")
