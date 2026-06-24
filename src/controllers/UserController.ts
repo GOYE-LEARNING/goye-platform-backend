@@ -1662,7 +1662,7 @@ export class UserController extends Controller {
               id: updatedOrganization.id,
               organization_name: updatedOrganization.organization_name,
               organization_email: updatedOrganization.organization_email,
-              organization_role: updatedOrganization.organization_role,
+              organization_role: updatedOrganization.user.role,
               organization_isOnline: updatedOrganization.isOnline,
             },
           },
