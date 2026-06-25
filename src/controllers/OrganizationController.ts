@@ -1429,7 +1429,7 @@ export class OrganizationController extends Controller {
           // Send Email
           const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
           // NEW URL structure: token in the path instead of query param
-          const inviteLink = `http://localhost:3000/auth/${tokencode}/accept-invite`;
+          const inviteLink = `http://localhost:3000/auth/${tokencode}/accept_invite`;
           const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
 
           await SendEmail(user.email, emailSubject, emailText);
