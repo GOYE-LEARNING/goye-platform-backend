@@ -10,6 +10,8 @@ import {
   Put,
   Delete,
   Path,
+  Query,
+  Patch,
 } from "tsoa";
 import prisma from "../db";
 import { User } from "../interface/interfaces.js";
@@ -1946,120 +1948,208 @@ export class UserController extends Controller {
     }
   }
 
-  @Post("/sendOtp")
-public async SendOtp(@Body() body: { email: string }): Promise<any> {
-  try {
-    const { email } = body;
+  @Get("/check-email")
+  public async CheckEmail(@Query() email: string): Promise<any> {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { email_address: email },
+        select: {
+          id: true,
+          email_address: true,
+          organizationId: true,
+        },
+      });
 
-    // ✅ Validate email
-    if (!email) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Email is required",
-      };
-    }
-
-    // ✅ Check if email exists in either User or Organization
-    const user = await prisma.user.findUnique({
-      where: { email_address: email },
-      select: { id: true, email_address: true },
-    });
-
-    const organization = await prisma.organization.findUnique({
-      where: { organization_email: email },
-      select: { id: true, organization_email: true },
-    });
-
-    // ✅ If email doesn't exist in either table, return error
-    if (!user && !organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "No account found with this email address. Please sign up first.",
-      };
-    }
-
-    // ✅ Rate limiting
-    const now = Date.now();
-    const userRequests = otpRateLimit.get(email) || [];
-    const recentRequests = userRequests.filter(
-      (time: number) => time > now - 5 * 60 * 1000,
-    );
-
-    if (recentRequests.length >= 3) {
-      this.setStatus(429);
-      return {
-        success: false,
-        status: 429,
-        message: "Too many OTP requests. Please try again in 5 minutes.",
-      };
-    }
-
-    recentRequests.push(now);
-    otpRateLimit.set(email, recentRequests);
-
-    // ✅ Generate OTP
-    const otp = crypto.randomInt(100000, 999999).toString();
-    const expires = new Date(Date.now() + 5 * 60 * 1000);
-
-    // ✅ Delete old OTPs
-    await prisma.otp.deleteMany({
-      where: { email: email },
-    });
-
-    const newOtp = await prisma.otp.create({
-      data: {
-        code: otp,
-        email: email,
-        expiresIn: expires,
-      },
-    });
-
-    const sessionToken = jwt.sign(
-      { email: email, otpId: newOtp.id },
-      process.env.JWT_SECRET || "secret-key",
-      { expiresIn: "6min" },
-    );
-
-    // ✅ Send email with retry
-    let emailSent = false;
-    for (let i = 0; i < 3; i++) {
-      try {
-        await SendEmail(
-          newOtp.email,
-          "GOYE VERIFICATION",
-          `${newOtp.code}`,
-          "otp",
-        );
-        emailSent = true;
-        break;
-      } catch (error) {
-        console.log(`Email attempt ${i + 1} failed`);
-        if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (user) {
+        return {
+          exists: true,
+          userId: user.id,
+          hasOrganization: !!user.organizationId,
+        };
       }
-    }
 
-    this.setStatus(200);
-    return {
-      success: emailSent,
-      message: emailSent
-        ? "OTP sent successfully"
-        : "OTP generated but email failed",
-      sessionToken,
-      email: email,
-      // ✅ Return OTP only in development
-      ...(process.env.NODE_ENV === "development" && { otp }),
-    };
-  } catch (error: any) {
-    console.error("SendOTP error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Failed to send OTP: ${error.message}`,
-    };
+      return {
+        exists: false,
+      };
+    } catch (error: any) {
+      console.error("Check email error:", error);
+      this.setStatus(500);
+      return {
+        exists: false,
+        error: error.message,
+      };
+    }
   }
-}
+
+  @Patch("/update-invitation/{userId}")
+  public async UpdateUserInvitation(
+    @Path() userId: string,
+    @Body() body: { organizationId: string; invited: boolean; role: string },
+  ): Promise<any> {
+    try {
+      const { organizationId, invited, role } = body;
+
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          organizationId: organizationId,
+          invited: invited,
+          role: role,
+          form_type: "INVITED",
+        },
+        include: {
+          organization: true,
+        },
+      });
+
+      // Also create or update the invitation record
+      await prisma.inviteUser.create({
+        data: {
+          email: updatedUser.email_address,
+          role: role,
+          code: crypto.randomBytes(32).toString("hex"),
+          organizationId: organizationId,
+          sentById: userId,
+          invited: true,
+          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+
+      return {
+        success: true,
+        message: "User invitation updated successfully",
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email_address,
+          organizationId: updatedUser.organization.id,
+        },
+      };
+    } catch (error: any) {
+      console.error("Update invitation error:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to update user invitation",
+        error: error.message,
+      };
+    }
+  }
+
+  @Post("/sendOtp")
+  public async SendOtp(@Body() body: { email: string }): Promise<any> {
+    try {
+      const { email } = body;
+
+      // ✅ Validate email
+      if (!email) {
+        this.setStatus(400);
+        return {
+          success: false,
+          message: "Email is required",
+        };
+      }
+
+      // ✅ Check if email exists in either User or Organization
+      const user = await prisma.user.findUnique({
+        where: { email_address: email },
+        select: { id: true, email_address: true },
+      });
+
+      const organization = await prisma.organization.findUnique({
+        where: { organization_email: email },
+        select: { id: true, organization_email: true },
+      });
+
+      // ✅ If email doesn't exist in either table, return error
+      if (!user && !organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message:
+            "No account found with this email address. Please sign up first.",
+        };
+      }
+
+      // ✅ Rate limiting
+      const now = Date.now();
+      const userRequests = otpRateLimit.get(email) || [];
+      const recentRequests = userRequests.filter(
+        (time: number) => time > now - 5 * 60 * 1000,
+      );
+
+      if (recentRequests.length >= 3) {
+        this.setStatus(429);
+        return {
+          success: false,
+          status: 429,
+          message: "Too many OTP requests. Please try again in 5 minutes.",
+        };
+      }
+
+      recentRequests.push(now);
+      otpRateLimit.set(email, recentRequests);
+
+      // ✅ Generate OTP
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const expires = new Date(Date.now() + 5 * 60 * 1000);
+
+      // ✅ Delete old OTPs
+      await prisma.otp.deleteMany({
+        where: { email: email },
+      });
+
+      const newOtp = await prisma.otp.create({
+        data: {
+          code: otp,
+          email: email,
+          expiresIn: expires,
+        },
+      });
+
+      const sessionToken = jwt.sign(
+        { email: email, otpId: newOtp.id },
+        process.env.JWT_SECRET || "secret-key",
+        { expiresIn: "6min" },
+      );
+
+      // ✅ Send email with retry
+      let emailSent = false;
+      for (let i = 0; i < 3; i++) {
+        try {
+          await SendEmail(
+            newOtp.email,
+            "GOYE VERIFICATION",
+            `${newOtp.code}`,
+            "otp",
+          );
+          emailSent = true;
+          break;
+        } catch (error) {
+          console.log(`Email attempt ${i + 1} failed`);
+          if (i < 2) await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      this.setStatus(200);
+      return {
+        success: emailSent,
+        message: emailSent
+          ? "OTP sent successfully"
+          : "OTP generated but email failed",
+        sessionToken,
+        email: email,
+        // ✅ Return OTP only in development
+        ...(process.env.NODE_ENV === "development" && { otp }),
+      };
+    } catch (error: any) {
+      console.error("SendOTP error:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: `Failed to send OTP: ${error.message}`,
+      };
+    }
+  }
 
   @Post("/verify-otp")
   public async VerifyOtp(@Body() body: { otp: string; sessionToken: string }) {
