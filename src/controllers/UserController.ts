@@ -3133,214 +3133,195 @@ export class UserController extends Controller {
       };
     }
   }
-  @Post("/reset-password")
-  public async ResetPassword(
-    @Body() body: { token: string; newPassword: string },
-  ): Promise<any> {
+@Post("/reset-password-no-auth")
+public async ResetPasswordNoAuth(
+  @Body() body: { token: string; newPassword: string }
+): Promise<any> {
+  try {
+    const { token, newPassword } = body;
+
+    if (!token || !newPassword) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Token and new password are required",
+      };
+    }
+
+    if (newPassword.length < 8) {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Password must be at least 8 characters long",
+      };
+    }
+
+    // ✅ Verify token
+    let decoded: any;
     try {
-      const { token, newPassword } = body;
-
-      if (!token || !newPassword) {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Token and new password are required",
-        };
-      }
-
-      if (newPassword.length < 8) {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Password must be at least 8 characters long",
-        };
-      }
-
-      // ✅ Verify token
-      let decoded: any;
-      try {
-        decoded = jwt.verify(
-          token,
-          process.env.BEARERAUTH_SECRET || "secret-key",
-        );
-      } catch (error: any) {
-        if (error.name === "TokenExpiredError") {
-          this.setStatus(401);
-          return {
-            success: false,
-            message:
-              "Password reset token has expired. Please request a new one.",
-          };
-        }
+      decoded = jwt.verify(
+        token,
+        process.env.BEARERAUTH_SECRET || "secret-key"
+      );
+    } catch (error: any) {
+      if (error.name === "TokenExpiredError") {
         this.setStatus(401);
         return {
           success: false,
-          message: "Invalid password reset token",
+          message: "Password reset token has expired. Please request a new one.",
         };
       }
-
-      const { email, type, userId, organizationId } = decoded;
-
-      // ✅ Hash new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-      if (type === "user" && userId) {
-        // ✅ Update user password
-        const user = await prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            id: true,
-            email_address: true,
-            resetToken: true,
-            resetTokenExpires: true,
-          },
-        });
-
-        if (!user) {
-          this.setStatus(404);
-          return {
-            success: false,
-            message: "User not found",
-          };
-        }
-
-        // ✅ Verify reset token matches (optional - for additional security)
-        if (user.resetToken !== token) {
-          this.setStatus(401);
-          return {
-            success: false,
-            message: "Invalid reset token",
-          };
-        }
-
-        if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
-          this.setStatus(401);
-          return {
-            success: false,
-            message: "Reset token has expired",
-          };
-        }
-
-        // ✅ Update password
-        await prisma.user.update({
-          where: { id: userId },
-          data: {
-            password: hashedPassword,
-            resetToken: null,
-            resetTokenExpires: null,
-          },
-        });
-
-        // ✅ If user belongs to an organization, also update organization password
-        const userWithOrg = await prisma.user.findUnique({
-          where: { id: userId },
-          select: { organization: true },
-        });
-
-        if (userWithOrg?.organization.id) {
-          await prisma.organization.update({
-            where: { id: userWithOrg.organization.id },
-            data: {
-              organization_password: hashedPassword,
-            },
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Password reset successfully",
-          data: {
-            type: "user",
-            email: user.email_address,
-          },
-        };
-      } else if (type === "organization" && organizationId) {
-        // ✅ Update organization password
-        const organization = await prisma.organization.findUnique({
-          where: { id: organizationId },
-          select: {
-            id: true,
-            organization_email: true,
-            resetToken: true,
-            resetTokenExpires: true,
-            userId: true,
-          },
-        });
-
-        if (!organization) {
-          this.setStatus(404);
-          return {
-            success: false,
-            message: "Organization not found",
-          };
-        }
-
-        // ✅ Verify reset token matches
-        if (organization.resetToken !== token) {
-          this.setStatus(401);
-          return {
-            success: false,
-            message: "Invalid reset token",
-          };
-        }
-
-        if (
-          organization.resetTokenExpires &&
-          new Date() > organization.resetTokenExpires
-        ) {
-          this.setStatus(401);
-          return {
-            success: false,
-            message: "Reset token has expired",
-          };
-        }
-
-        // ✅ Update organization password
-        await prisma.organization.update({
-          where: { id: organizationId },
-          data: {
-            organization_password: hashedPassword,
-            resetToken: null,
-            resetTokenExpires: null,
-          },
-        });
-
-        // ✅ Also update the associated user's password
-        if (organization.userId) {
-          await prisma.user.update({
-            where: { id: organization.userId },
-            data: {
-              password: hashedPassword,
-            },
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Organization password reset successfully",
-          data: {
-            type: "organization",
-            email: organization.organization_email,
-          },
-        };
-      } else {
-        this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid token data",
-        };
-      }
-    } catch (error: any) {
-      console.error("ResetPassword error:", error);
-      this.setStatus(500);
+      this.setStatus(401);
       return {
         success: false,
-        message: `Failed to reset password: ${error.message}`,
+        message: "Invalid password reset token",
       };
     }
+
+    const { email, type, userId, organizationId } = decoded;
+
+    // ✅ Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    if (type === "user" && userId) {
+      // ✅ Update user password
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email_address: true,
+          resetToken: true,
+          resetTokenExpires: true,
+        },
+      });
+
+      if (!user) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "User not found",
+        };
+      }
+
+      // ✅ Verify reset token matches
+      if (user.resetToken !== token) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Invalid reset token",
+        };
+      }
+
+      if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Reset token has expired",
+        };
+      }
+
+      // ✅ Update password
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: hashedPassword,
+          resetToken: null,
+          resetTokenExpires: null,
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Password reset successfully",
+        data: {
+          type: "user",
+          email: user.email_address,
+        },
+      };
+    } else if (type === "organization" && organizationId) {
+      // ✅ Update organization password
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          id: true,
+          organization_email: true,
+          resetToken: true,
+          resetTokenExpires: true,
+          userId: true,
+        },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // ✅ Verify reset token matches
+      if (organization.resetToken !== token) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Invalid reset token",
+        };
+      }
+
+      if (organization.resetTokenExpires && new Date() > organization.resetTokenExpires) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Reset token has expired",
+        };
+      }
+
+      // ✅ Update organization password
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: {
+          organization_password: hashedPassword,
+          resetToken: null,
+          resetTokenExpires: null,
+        },
+      });
+
+      // ✅ Also update the associated user's password
+      if (organization.userId) {
+        await prisma.user.update({
+          where: { id: organization.userId },
+          data: {
+            password: hashedPassword,
+          },
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Organization password reset successfully",
+        data: {
+          type: "organization",
+          email: organization.organization_email,
+        },
+      };
+    } else {
+      this.setStatus(400);
+      return {
+        success: false,
+        message: "Invalid token data",
+      };
+    }
+  } catch (error: any) {
+    console.error("ResetPassword error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Failed to reset password: ${error.message}`,
+    };
   }
+}
 
   @Security("bearerAuth")
   @Post("/check-password")

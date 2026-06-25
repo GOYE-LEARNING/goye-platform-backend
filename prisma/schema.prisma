@@ -231,7 +231,8 @@ model InviteUser {
 
 model Organization {
   id                        String    @id @default(uuid())
-  user                      User?     @relation(fields: [userId], references: [id])
+ user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String? @unique // Make it optional to allow deletion  
   organization_name         String
   organization_type         OrgType   @default(OTHER)
   organization_email        String    @unique
@@ -269,7 +270,6 @@ model Organization {
   enrollment                 Enrollment[]
   feedBacks                  Feedback[]
   certificate                Certificate[]
-  userId                     String               @unique
   createdAt                  DateTime             @default(now())
   updatedAt                  DateTime?
   posts                      Post[]
