@@ -1956,7 +1956,7 @@ export class UserController extends Controller {
         select: {
           id: true,
           email_address: true,
-          organizationId: true,
+          organization: true
         },
       });
 
@@ -1964,7 +1964,7 @@ export class UserController extends Controller {
         return {
           exists: true,
           userId: user.id,
-          hasOrganization: !!user.organizationId,
+          hasOrganization: !!user.organization.id,
         };
       }
 
@@ -1992,7 +1992,11 @@ export class UserController extends Controller {
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
-          organizationId: organizationId,
+          organization: {
+            update: {
+              id: organizationId
+            }
+          },
           invited: invited,
           role: role,
           form_type: "INVITED",

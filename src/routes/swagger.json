@@ -2518,6 +2518,90 @@
 				}
 			}
 		},
+		"/user/check-email": {
+			"get": {
+				"operationId": "CheckEmail",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "email",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/user/update-invitation/{userId}": {
+			"patch": {
+				"operationId": "UpdateUserInvitation",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"role": {
+										"type": "string"
+									},
+									"invited": {
+										"type": "boolean"
+									},
+									"organizationId": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"role",
+									"invited",
+									"organizationId"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/user/sendOtp": {
 			"post": {
 				"operationId": "SendOtp",
@@ -4021,6 +4105,47 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/user/forgot-password": {
+			"post": {
+				"operationId": "ForgotPassword",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"link": {
+										"type": "string"
+									},
+									"email": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"email"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
 			}
 		},
 		"/user/reset-password": {
