@@ -2223,7 +2223,6 @@ export class OrganizationController extends Controller {
         organizationCourses = await prisma.course.findMany({
           where: {
             organizationId: organizationId,
-            ...levelCondition,
           },
           orderBy: {
             createdAt: "desc",
