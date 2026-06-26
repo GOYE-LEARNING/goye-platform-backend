@@ -2129,272 +2129,252 @@ export class OrganizationController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/get-courses-by-organization")
-  public async GetCoursesByOrganization(
-    @Request() req: any,
-  ): Promise<CourseResponse> {
-    const userId = req.user?.id;
-    const userLevel = req.user?.level;
-    const language = req.user?.language;
-    const languageCode = req.user?.languageCode;
+ @Security("bearerAuth")
+@Get("/get-courses-by-organization")
+public async GetCoursesByOrganization(
+  @Request() req: any,
+): Promise<CourseResponse> {
+  // ✅ Use req.user.organizationId directly from the token
+  const organizationId = req.user?.organizationId;
+  const userId = req.user?.id;
+  const userLevel = req.user?.level;
+  const language = req.user?.language;
+  const languageCode = req.user?.languageCode;
 
-    try {
-      // Validate inputs
-      if (!userId) {
-        this.setStatus(400);
-        return {
-          message: "User ID not found",
-          data: null,
-        };
-      }
-
-      // ✅ FIX: Get organizationId from the user's record
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          organization: true,
-          level: true,
-        },
-      });
-
-      if (!user) {
-        this.setStatus(404);
-        return {
-          message: "User not found",
-          data: null,
-        };
-      }
-
-      const organizationId = user.organization.id;
-
-      if (!organizationId) {
-        this.setStatus(404);
-        return {
-          message: "User is not associated with any organization",
-          data: null,
-        };
-      }
-
-      // ✅ Get the actual user level from database if not in token
-      const effectiveLevel = userLevel || user.level;
-
-      if (!effectiveLevel) {
-        this.setStatus(400);
-        return {
-          message: "User level not found",
-          data: null,
-        };
-      }
-
-      // Verify the organization exists
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { id: true, organization_name: true },
-      });
-
-      if (!organization) {
-        this.setStatus(404);
-        return {
-          message: "Organization not found",
-          data: null,
-        };
-      }
-
-      // Normalize level
-      const normalizedLevel = effectiveLevel.toLowerCase();
-      let levelCondition = {};
-
-      if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
-        levelCondition = { course_level: "Beginner" };
-      } else if (normalizedLevel === "intermediate") {
-        levelCondition = { course_level: "Intermediate" };
-      } else if (normalizedLevel === "advanced") {
-        levelCondition = { course_level: "Advanced" };
-      } else {
-        // If level doesn't match, fetch all courses
-        levelCondition = {};
-      }
-
-      // Fetch courses with proper error handling
-      let organizationCourses;
-      try {
-        organizationCourses = await prisma.course.findMany({
-          where: {
-            organizationId: organizationId,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          include: {
-            module: {
-              select: {
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
-                },
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            },
-            organization: {
-              select: {
-                organization_name: true,
-                organization_type: true,
-              },
-            },
-            enrollment: {
-              where: {
-                userId: userId,
-              },
-              select: {
-                status: true,
-                enrolledAt: true,
-                completedAt: true,
-              },
-            },
-            _count: {
-              select: {
-                enrollment: true,
-              },
-            },
-          },
-        });
-      } catch (dbError: any) {
-        console.error("Database error:", dbError);
-        this.setStatus(500);
-        return {
-          message: "Database error while fetching courses: " + dbError.message,
-          data: null,
-        };
-      }
-
-      // Get user's enrollment status for these courses
-      const courseIds = organizationCourses.map((c) => c.id);
-      let userEnrollments = [];
-
-      if (courseIds.length > 0 && userId) {
-        try {
-          userEnrollments = await prisma.enrollment.findMany({
-            where: {
-              userId: userId,
-              courseId: { in: courseIds },
-            },
-            select: {
-              courseId: true,
-              status: true,
-              enrolledAt: true,
-            },
-          });
-        } catch (enrollmentError: any) {
-          console.error("Error fetching enrollments:", enrollmentError);
-        }
-      }
-
-      // Create a map for easy lookup
-      const enrollmentMap = new Map(
-        userEnrollments.map((e) => [e.courseId, e]),
-      );
-
-      // Format response with enrollment status
-      const formattedCourses = organizationCourses.map((course) => {
-        const userEnrollment = enrollmentMap.get(course.id);
-
-        return {
-          id: course.id,
-          course_title: course.course_title,
-          course_short_description: course.course_short_description,
-          course_description: course.course_description,
-          course_level: course.course_level,
-          course_image: course.course_image,
-          createdAt: course.createdAt,
-          updatedAt: course.updatedAt,
-          moduleCount: course.module.length,
-          lessonCount: course.module.reduce(
-            (acc, m) => acc + m._count.lesson,
-            0,
-          ),
-          totalDuration: course.module.reduce((acc, m) => {
-            const durationSum = m.lesson.reduce(
-              (sum, l) => sum + (l.duration || 0),
-              0,
-            );
-            return acc + durationSum;
-          }, 0),
-          enrollmentStatus: userEnrollment?.status || "NOT_ENROLLED",
-          isEnrolled: !!userEnrollment,
-          totalEnrollments: course._count.enrollment,
-          organizationName: course.organization?.organization_name,
-        };
-      });
-
-      // Handle translation (optional)
-      let translatedText = null;
-      if (formattedCourses.length > 0 && language && languageCode) {
-        try {
-          translatedText = await TranslateText(
-            formattedCourses[0].course_description,
-            language,
-            languageCode,
-          );
-        } catch (translationError) {
-          console.error("Translation error:", translationError);
-        }
-      }
-
-      this.setStatus(200);
+  try {
+    // Validate inputs
+    if (!userId) {
+      this.setStatus(400);
       return {
-        message: "Organization courses fetched successfully",
-        data: {
-          courses: formattedCourses,
-          organizationId: organizationId,
-          organizationName: organization.organization_name,
-          level: effectiveLevel,
-          totalCourses: formattedCourses.length,
-          language: language ?? null,
-          languageCode: languageCode ?? null,
-          translatedText: translatedText ?? null,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error details:", {
-        message: error.message,
-        code: error.code,
-        meta: error.meta,
-        stack: error.stack,
-      });
-
-      if (error.code === "P2002") {
-        this.setStatus(409);
-        return {
-          message: `Unique constraint violation: ${error.meta?.target || "unknown field"}`,
-          data: {
-            error: "DUPLICATE_ENTRY",
-            field: error.meta?.target,
-          },
-        };
-      }
-
-      if (error.code === "P2025") {
-        this.setStatus(404);
-        return {
-          message: "Record not found",
-          data: null,
-        };
-      }
-
-      this.setStatus(500);
-      return {
-        message: "Error fetching organization courses: " + error.message,
+        message: "User ID not found",
         data: null,
       };
     }
+
+    if (!organizationId) {
+      this.setStatus(404);
+      return {
+        message: "User is not associated with any organization",
+        data: null,
+      };
+    }
+
+    if (!userLevel) {
+      this.setStatus(400);
+      return {
+        message: "User level not found",
+        data: null,
+      };
+    }
+
+    // Verify the organization exists
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { id: true, organization_name: true },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return {
+        message: "Organization not found",
+        data: null,
+      };
+    }
+
+    // Normalize level
+    const normalizedLevel = userLevel.toLowerCase();
+    let levelCondition = {};
+
+    if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
+      levelCondition = { course_level: "Beginner" };
+    } else if (normalizedLevel === "intermediate") {
+      levelCondition = { course_level: "Intermediate" };
+    } else if (normalizedLevel === "advanced") {
+      levelCondition = { course_level: "Advanced" };
+    } else {
+      // If level doesn't match, fetch all courses
+      levelCondition = {};
+    }
+
+    // ✅ Fetch courses - filtering by organizationId
+    let organizationCourses;
+    try {
+      organizationCourses = await prisma.course.findMany({
+        where: {
+          organizationId: organizationId,
+          ...levelCondition,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          module: {
+            select: {
+              _count: {
+                select: {
+                  lesson: true,
+                },
+              },
+              lesson: {
+                select: {
+                  duration: true,
+                },
+              },
+            },
+          },
+          organization: {
+            select: {
+              organization_name: true,
+              organization_type: true,
+            },
+          },
+          enrollment: {
+            where: {
+              userId: userId,
+            },
+            select: {
+              status: true,
+              enrolledAt: true,
+              completedAt: true,
+            },
+          },
+          _count: {
+            select: {
+              enrollment: true,
+            },
+          },
+        },
+      });
+    } catch (dbError: any) {
+      console.error("Database error:", dbError);
+      this.setStatus(500);
+      return {
+        message: "Database error while fetching courses: " + dbError.message,
+        data: null,
+      };
+    }
+
+    // Get user's enrollment status for these courses
+    const courseIds = organizationCourses.map((c) => c.id);
+    let userEnrollments = [];
+
+    if (courseIds.length > 0 && userId) {
+      try {
+        userEnrollments = await prisma.enrollment.findMany({
+          where: {
+            userId: userId,
+            courseId: { in: courseIds },
+          },
+          select: {
+            courseId: true,
+            status: true,
+            enrolledAt: true,
+          },
+        });
+      } catch (enrollmentError: any) {
+        console.error("Error fetching enrollments:", enrollmentError);
+      }
+    }
+
+    // Create a map for easy lookup
+    const enrollmentMap = new Map(
+      userEnrollments.map((e) => [e.courseId, e]),
+    );
+
+    // Format response with enrollment status
+    const formattedCourses = organizationCourses.map((course) => {
+      const userEnrollment = enrollmentMap.get(course.id);
+
+      return {
+        id: course.id,
+        course_title: course.course_title,
+        course_short_description: course.course_short_description,
+        course_description: course.course_description,
+        course_level: course.course_level,
+        course_image: course.course_image,
+        createdAt: course.createdAt,
+        updatedAt: course.updatedAt,
+        moduleCount: course.module.length,
+        lessonCount: course.module.reduce(
+          (acc, m) => acc + m._count.lesson,
+          0,
+        ),
+        totalDuration: course.module.reduce((acc, m) => {
+          const durationSum = m.lesson.reduce(
+            (sum, l) => sum + (l.duration || 0),
+            0,
+          );
+          return acc + durationSum;
+        }, 0),
+        enrollmentStatus: userEnrollment?.status || "NOT_ENROLLED",
+        isEnrolled: !!userEnrollment,
+        totalEnrollments: course._count.enrollment,
+        organizationName: course.organization?.organization_name,
+      };
+    });
+
+    // Handle translation (optional)
+    let translatedText = null;
+    if (formattedCourses.length > 0 && language && languageCode) {
+      try {
+        translatedText = await TranslateText(
+          formattedCourses[0].course_description,
+          language,
+          languageCode,
+        );
+      } catch (translationError) {
+        console.error("Translation error:", translationError);
+      }
+    }
+
+    this.setStatus(200);
+    return {
+      message: "Organization courses fetched successfully",
+      data: {
+        courses: formattedCourses,
+        organizationId: organizationId,
+        organizationName: organization.organization_name,
+        level: userLevel,
+        totalCourses: formattedCourses.length,
+        language: language ?? null,
+        languageCode: languageCode ?? null,
+        translatedText: translatedText ?? null,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error details:", {
+      message: error.message,
+      code: error.code,
+      meta: error.meta,
+      stack: error.stack,
+    });
+
+    if (error.code === "P2002") {
+      this.setStatus(409);
+      return {
+        message: `Unique constraint violation: ${error.meta?.target || "unknown field"}`,
+        data: {
+          error: "DUPLICATE_ENTRY",
+          field: error.meta?.target,
+        },
+      };
+    }
+
+    if (error.code === "P2025") {
+      this.setStatus(404);
+      return {
+        message: "Record not found",
+        data: null,
+      };
+    }
+
+    this.setStatus(500);
+    return {
+      message: "Error fetching organization courses: " + error.message,
+      data: null,
+    };
   }
+}
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
