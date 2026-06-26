@@ -2134,23 +2134,53 @@ export class OrganizationController extends Controller {
   public async GetCoursesByOrganization(
     @Request() req: any,
   ): Promise<CourseResponse> {
-    const organizationId = req.user?.organizationId;
+    const userId = req.user?.id;
     const userLevel = req.user?.level;
     const language = req.user?.language;
     const languageCode = req.user?.languageCode;
-    const userId = req.user?.id;
 
     try {
       // Validate inputs
-      if (!organizationId) {
+      if (!userId) {
         this.setStatus(400);
         return {
-          message: "Organization ID not found for this user",
+          message: "User ID not found",
           data: null,
         };
       }
 
-      if (!userLevel) {
+      // ✅ FIX: Get organizationId from the user's record
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          organization: true,
+          level: true,
+        },
+      });
+
+      if (!user) {
+        this.setStatus(404);
+        return {
+          message: "User not found",
+          data: null,
+        };
+      }
+
+      const organizationId = user.organization.id;
+
+      if (!organizationId) {
+        this.setStatus(404);
+        return {
+          message: "User is not associated with any organization",
+          data: null,
+        };
+      }
+
+      // ✅ Get the actual user level from database if not in token
+      const effectiveLevel = userLevel || user.level;
+
+      if (!effectiveLevel) {
         this.setStatus(400);
         return {
           message: "User level not found",
@@ -2173,19 +2203,18 @@ export class OrganizationController extends Controller {
       }
 
       // Normalize level
-      const normalizedLevel = userLevel.toLowerCase();
+      const normalizedLevel = effectiveLevel.toLowerCase();
       let levelCondition = {};
 
       if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
         levelCondition = { course_level: "Beginner" };
       } else if (normalizedLevel === "intermediate") {
         levelCondition = { course_level: "Intermediate" };
+      } else if (normalizedLevel === "advanced") {
+        levelCondition = { course_level: "Advanced" };
       } else {
-        this.setStatus(400);
-        return {
-          message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
-          data: null,
-        };
+        // If level doesn't match, fetch all courses
+        levelCondition = {};
       }
 
       // Fetch courses with proper error handling
@@ -2265,7 +2294,6 @@ export class OrganizationController extends Controller {
           });
         } catch (enrollmentError: any) {
           console.error("Error fetching enrollments:", enrollmentError);
-          // Continue without enrollment data
         }
       }
 
@@ -2317,7 +2345,6 @@ export class OrganizationController extends Controller {
           );
         } catch (translationError) {
           console.error("Translation error:", translationError);
-          // Continue without translation
         }
       }
 
@@ -2328,7 +2355,7 @@ export class OrganizationController extends Controller {
           courses: formattedCourses,
           organizationId: organizationId,
           organizationName: organization.organization_name,
-          level: userLevel,
+          level: effectiveLevel,
           totalCourses: formattedCourses.length,
           language: language ?? null,
           languageCode: languageCode ?? null,
@@ -2343,7 +2370,6 @@ export class OrganizationController extends Controller {
         stack: error.stack,
       });
 
-      // Handle specific Prisma errors
       if (error.code === "P2002") {
         this.setStatus(409);
         return {
@@ -2370,7 +2396,6 @@ export class OrganizationController extends Controller {
       };
     }
   }
-
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {

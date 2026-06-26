@@ -4148,9 +4148,9 @@
 				}
 			}
 		},
-		"/user/reset-password": {
+		"/user/reset-password-no-auth": {
 			"post": {
-				"operationId": "ResetPassword",
+				"operationId": "ResetPasswordNoAuth",
 				"responses": {
 					"200": {
 						"description": "Ok",

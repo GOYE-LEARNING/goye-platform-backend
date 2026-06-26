@@ -1218,25 +1218,25 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsUserController_ResetPassword: Record<string, TsoaRoute.ParameterSchema> = {
+        const argsUserController_ResetPasswordNoAuth: Record<string, TsoaRoute.ParameterSchema> = {
                 body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"newPassword":{"dataType":"string","required":true},"token":{"dataType":"string","required":true}}},
         };
-        app.post('/api/user/reset-password',
+        app.post('/api/user/reset-password-no-auth',
             ...(fetchMiddlewares<RequestHandler>(UserController)),
-            ...(fetchMiddlewares<RequestHandler>(UserController.prototype.ResetPassword)),
+            ...(fetchMiddlewares<RequestHandler>(UserController.prototype.ResetPasswordNoAuth)),
 
-            async function UserController_ResetPassword(request: ExRequest, response: ExResponse, next: any) {
+            async function UserController_ResetPasswordNoAuth(request: ExRequest, response: ExResponse, next: any) {
 
             // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 
             let validatedArgs: any[] = [];
             try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsUserController_ResetPassword, request, response });
+                validatedArgs = templateService.getValidatedArgs({ args: argsUserController_ResetPasswordNoAuth, request, response });
 
                 const controller = new UserController();
 
               await templateService.apiHandler({
-                methodName: 'ResetPassword',
+                methodName: 'ResetPasswordNoAuth',
                 controller,
                 response,
                 next,
