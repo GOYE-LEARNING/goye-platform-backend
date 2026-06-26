@@ -2138,8 +2138,8 @@ public async GetCoursesByOrganization(
   const organizationId = req.user?.organizationId;
   const userId = req.user?.id;
   const userLevel = req.user?.level;
-  const language = req.user?.language;
-  const languageCode = req.user?.languageCode;
+  const language = req.org?.language;
+  const languageCode = req.org?.languageCode;
 
   try {
     // Validate inputs
@@ -2202,7 +2202,7 @@ public async GetCoursesByOrganization(
       organizationCourses = await prisma.course.findMany({
         where: {
           organizationId: organizationId,
-          ...levelCondition,
+          ...levelCondition,  
         },
         orderBy: {
           createdAt: "desc",
