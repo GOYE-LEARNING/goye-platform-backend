@@ -2138,8 +2138,8 @@ public async GetCoursesByOrganization(
   const organizationId = req.user?.organizationId;
   const userId = req.user?.id;
   const userLevel = req.user?.level;
-  const language = req.org?.language;
-  const languageCode = req.org?.languageCode;
+  const language = req.user?.language;
+  const languageCode = req.user?.languageCode;
 
   try {
     // Validate inputs
