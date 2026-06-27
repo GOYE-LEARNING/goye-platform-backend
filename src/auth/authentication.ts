@@ -108,7 +108,7 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
     // Determine user type
     const userType = decodedRefresh.type || 
                      (userOrganization ? "ORGANIZATION" : 
-                      user.invited ? "INVITED_USER" : "USER");
+                      user.userType ? "INVITED_USER" : "USER");
 
     // Normalize level
     const normalizedLevel = normalizeLevel(user.level || "Beginners");

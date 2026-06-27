@@ -33,9 +33,9 @@ import {
 import { firebaseAuthService } from "../services/firebaseService";
 import { otpRateLimit } from "../utils/otp";
 import { WeirdService } from "../services/weridService";
-// At the top of your controller class
+
 const forgotPasswordRateLimit = new Map<string, number[]>();
-//User route start here
+
 @Route("user")
 @Tags("User control APIs")
 export class UserController extends Controller {
@@ -45,29 +45,21 @@ export class UserController extends Controller {
     @Request() req: any,
   ): Promise<any> {
     try {
-      // Get device information
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = getDeviceType(userAgent);
       const deviceId = generateDeviceId();
       const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
-
-      // Determine environment for cookie settings
       const isProduction = process.env.NODE_ENV === "production";
 
-      // Verify Google token
       const googleUser = await firebaseAuthService.verifyGoogleToken(
         body.idToken,
       );
 
       if (!googleUser) {
         this.setStatus(401);
-        return {
-          success: false,
-          message: "Invalid Google token",
-        };
+        return { success: false, message: "Invalid Google token" };
       }
 
-      // Find or create user with detailed status
       const {
         user,
         isExistingUser,
@@ -77,45 +69,29 @@ export class UserController extends Controller {
 
       if (!user) {
         this.setStatus(500);
-        return {
-          success: false,
-          message: "Failed to process user",
-        };
+        return { success: false, message: "Failed to process user" };
       }
 
-      // Check if user is organization (has associated org)
       let organization = await prisma.organization.findFirst({
         where: { userId: user.id },
         include: { user: true },
       });
 
-      // Update user online status
       const updateUser = await prisma.user.update({
         where: { id: user.id },
-        data: {
-          isOnline: true,
-          lastActive: new Date(),
-        },
+        data: { isOnline: true, lastActive: new Date() },
       });
 
-      // Handle ORGANIZATION type
+      // ─── ORGANIZATION OWNER ───────────────────────────────────────────────
       if (organization) {
         const updatedOrganization = await prisma.organization.update({
           where: { id: organization.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user: true,
-          },
+          data: { isOnline: true, lastActive: new Date() },
+          include: { user: true },
         });
 
-        // Get or create plan for organization
         let plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: updateUser.id,
-          },
+          where: { userId: updateUser.id },
         });
 
         if (!plan) {
@@ -126,12 +102,12 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate tokens for ORGANIZATION
         const { accessToken, refreshToken } = generateTokens({
           type: "ORGANIZATION",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,           // ✅
           organizationId: updatedOrganization.id,
           organization_name: updatedOrganization.organization_name,
           organization_email: updatedOrganization.organization_email,
@@ -145,34 +121,32 @@ export class UserController extends Controller {
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         });
 
-        // Create or update session
         await prisma.userSession.upsert({
           where: { deviceId: deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
+            refreshToken,
+            accessToken,
             userType: "ORGANIZATION",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent,
+            ipAddress,
             lastActive: new Date(),
             isRevoked: false,
           },
           create: {
             userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
+            deviceId,
+            deviceType,
+            refreshToken,
+            accessToken,
             userType: "ORGANIZATION",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent,
+            ipAddress,
             isRevoked: false,
           },
         });
 
-        // Set cookies
         if (req.res) {
           req.res.cookie("accessToken", accessToken, {
             httpOnly: true,
@@ -181,7 +155,6 @@ export class UserController extends Controller {
             path: "/",
             maxAge: 15 * 60 * 1000,
           });
-
           req.res.cookie("refreshToken", refreshToken, {
             httpOnly: true,
             secure: isProduction,
@@ -189,7 +162,6 @@ export class UserController extends Controller {
             path: "/",
             maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("deviceId", deviceId, {
             httpOnly: true,
             secure: isProduction,
@@ -211,7 +183,8 @@ export class UserController extends Controller {
           accessToken,
           refreshToken,
           user: {
-            type: "organization",
+            type: "ORGANIZATION",
+            userType: updateUser.userType,   // ✅
             id: updatedOrganization.id,
             organization_name: updatedOrganization.organization_name,
             organization_email: updatedOrganization.organization_email,
@@ -221,32 +194,24 @@ export class UserController extends Controller {
         };
       }
 
-      // Handle ADMIN user
+      // ─── ADMIN ────────────────────────────────────────────────────────────
       if (user.role === "goye_admin") {
-        // Get admin profile
         const adminProfile = await prisma.adminProfile.findUnique({
           where: { userId: user.id },
         });
 
-        // ALWAYS get or create progress for admin
         let progress = await prisma.progress.findFirst({
           where: { userId: user.id },
         });
 
         if (!progress) {
           progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
+            data: { userId: user.id, startedJourney: true, progressBar: 0 },
           });
         }
 
         let plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
+          where: { userId: user.id },
         });
 
         if (!plan) {
@@ -257,81 +222,64 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate tokens for ADMIN
         const { accessToken, refreshToken } = generateTokens({
           type: "ADMIN",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,   // ✅
           adminRole: adminProfile?.role || "super_admin",
           progressId: progress.id,
           level: updateUser.level,
           provider: "GOOGLE",
           firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
+          deviceId,
+          deviceType,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         });
 
-        // Create or update session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
+            refreshToken,
+            accessToken,
             userType: "ADMIN",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent,
+            ipAddress,
             lastActive: new Date(),
             isRevoked: false,
           },
           create: {
             userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
+            deviceId,
+            deviceType,
+            refreshToken,
+            accessToken,
             userType: "ADMIN",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent,
+            ipAddress,
             isRevoked: false,
           },
         });
 
-        // Set cookies
         if (req.res) {
           req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
           });
-
           req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
 
@@ -339,15 +287,12 @@ export class UserController extends Controller {
         return {
           success: true,
           message: "Google authentication successful",
-          status: {
-            isExistingUser: true,
-            isProfileComplete: true,
-            requiresProfileCompletion: false,
-          },
+          status: { isExistingUser: true, isProfileComplete: true, requiresProfileCompletion: false },
           accessToken,
           refreshToken,
           user: {
             type: "ADMIN",
+            userType: updateUser.userType,   // ✅
             id: updateUser.id,
             first_name: updateUser.first_name,
             last_name: updateUser.last_name,
@@ -358,33 +303,27 @@ export class UserController extends Controller {
         };
       }
 
-      // Handle INVITED user
-      if (user.form_type === "INVITED") {
-        const invitationOrg = await prisma.inviteUser.findFirst({
-          where: {
-            email: user.email_address,
-          },
+      // ─── INVITED MEMBER ───────────────────────────────────────────────────
+      // ✅ Use userType instead of form_type === "INVITED"
+      if (user.userType === "INVITED_MEMBER") {
+        // ✅ Resolve which org this user belongs to via OrganizationMember
+        const membership = await prisma.organizationMember.findFirst({
+          where: { userId: user.id, isActive: true },
+          select: { organizationId: true },
         });
 
-        // ALWAYS get or create progress for invited user
         let progress = await prisma.progress.findFirst({
           where: { userId: user.id },
         });
 
         if (!progress) {
           progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
+            data: { userId: user.id, startedJourney: true, progressBar: 0 },
           });
         }
 
         let plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
+          where: { userId: user.id },
         });
 
         if (!plan) {
@@ -395,82 +334,54 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate tokens for INVITED_USER
         const { accessToken, refreshToken } = generateTokens({
           type: "INVITED_USER",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,                    // ✅
           progressId: progress.id,
           level: updateUser.level,
           updateStatus: updateUser.isOnline,
-          organizationId: invitationOrg?.organizationId || null,
+          organizationId: membership?.organizationId || null, // ✅ from membership table
           provider: "GOOGLE",
           firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
+          deviceId,
+          deviceType,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         });
 
-        // Create or update session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
+            refreshToken, accessToken, userType: "INVITED_USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
+            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
           },
           create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
+            userId: updateUser.id, deviceId, deviceType,
+            refreshToken, accessToken, userType: "INVITED_USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            isRevoked: false,
+            userAgent, ipAddress, isRevoked: false,
           },
         });
 
-        // Set cookies
         if (req.res) {
           req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
           });
-
           req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
 
@@ -478,44 +389,34 @@ export class UserController extends Controller {
         return {
           success: true,
           message: "Google authentication successful",
-          status: {
-            isExistingUser: true,
-            isProfileComplete: true,
-            requiresProfileCompletion: false,
-          },
+          status: { isExistingUser: true, isProfileComplete: true, requiresProfileCompletion: false },
           accessToken,
           refreshToken,
           user: {
             type: "INVITED_USER",
+            userType: updateUser.userType,               // ✅
             id: updateUser.id,
             first_name: updateUser.first_name,
             last_name: updateUser.last_name,
             role: updateUser.role,
-            form_type: user.form_type, // ✅ Add this
             progressId: progress.id,
-            organizationId: invitationOrg?.organizationId || null,
+            organizationId: membership?.organizationId || null, // ✅
           },
         };
       }
 
-      // Handle REGULAR user (INDIVIDUAL) - FIXED SECTION
-      if (user.form_type === "INDIVIDUAL") {
-        // ALWAYS get or create progress for regular user (even if profile not complete)
+      // ─── INDIVIDUAL ───────────────────────────────────────────────────────
+      if (user.userType === "INDIVIDUAL" || user.form_type === "INDIVIDUAL") {
         let progress = await prisma.progress.findFirst({
           where: { userId: user.id },
         });
 
         if (!progress) {
           progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
+            data: { userId: user.id, startedJourney: true, progressBar: 0 },
           });
         }
 
-        // Get or create plan
         let plan = await prisma.pricingHistory.findFirst({
           where: { userId: user.id },
         });
@@ -528,7 +429,6 @@ export class UserController extends Controller {
           });
         }
 
-        // Get or create settings
         let settings = await prisma.settings.findFirst({
           where: { userId: user.id },
         });
@@ -550,12 +450,12 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate tokens for REGULAR USER - progress is guaranteed to exist
         const { accessToken, refreshToken } = generateTokens({
           type: "USER",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,   // ✅
           level: updateUser.level,
           progressId: progress.id,
           updateStatus: updateUser.isOnline,
@@ -563,92 +463,57 @@ export class UserController extends Controller {
           settingsId: settings.id,
           provider: "GOOGLE",
           firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
+          deviceId,
+          deviceType,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
           user_pic: user.user_pic,
-          isProfileComplete: isProfileComplete,
+          isProfileComplete,
         });
 
-        // Create or update session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
+            refreshToken, accessToken, userType: "USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
+            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
           },
           create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
+            userId: updateUser.id, deviceId, deviceType,
+            refreshToken, accessToken, userType: "USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            isRevoked: false,
+            userAgent, ipAddress, isRevoked: false,
           },
         });
 
-        // Set cookies - progress_id is always set now
         if (req.res) {
           req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
           });
-
           req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
           });
-
-          // Always set progress_id (no conditional check needed anymore)
           req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
-
           req.res.cookie("plan_id", plan.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
+            httpOnly: true, secure: isProduction,
+            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
           });
         }
 
-        // Determine response message based on user status
         let responseMessage = "";
         if (!isExistingUser) {
           responseMessage = "New user created. Please complete your profile.";
         } else if (isExistingUser && !isProfileComplete) {
-          responseMessage =
-            "Welcome back! Please complete your profile to continue.";
-        } else if (isExistingUser && isProfileComplete) {
+          responseMessage = "Welcome back! Please complete your profile to continue.";
+        } else {
           responseMessage = "Welcome back! Your profile is complete.";
         }
 
@@ -657,15 +522,16 @@ export class UserController extends Controller {
           success: true,
           message: responseMessage,
           status: {
-            isExistingUser: isExistingUser,
-            isProfileComplete: isProfileComplete,
+            isExistingUser,
+            isProfileComplete,
             requiresProfileCompletion: !isProfileComplete,
-            userStatusMessage: userStatusMessage,
+            userStatusMessage,
           },
           accessToken,
           refreshToken,
           user: {
             type: "USER",
+            userType: updateUser.userType,   // ✅
             id: updateUser.id,
             first_name: updateUser.first_name,
             last_name: updateUser.last_name,
@@ -676,7 +542,7 @@ export class UserController extends Controller {
             country: user.country,
             state: user.state,
             phone_number: user.phone_number,
-            isProfileComplete: isProfileComplete,
+            isProfileComplete,
             progressId: progress.id,
             planId: plan.id,
           },
@@ -684,10 +550,7 @@ export class UserController extends Controller {
       }
 
       this.setStatus(404);
-      return {
-        success: false,
-        message: "User not found",
-      };
+      return { success: false, message: "User not found" };
     } catch (error: any) {
       console.error("Google auth error:", error);
       this.setStatus(500);
@@ -697,44 +560,34 @@ export class UserController extends Controller {
       };
     }
   }
+
   @Post("/signup")
   public async CreateUser(
     @Body() body: Omit<User, "id">,
     @Request() req: any,
   ): Promise<any> {
-    // Generate device information
     const userAgent = req.headers["user-agent"] || "unknown";
     const deviceType = getDeviceType(userAgent);
     const deviceId = generateDeviceId();
     const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
-
-    // Determine environment for cookie settings
     const isProduction = process.env.NODE_ENV === "production";
 
-    // First check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: {
-        email_address: body.email_address,
-      },
+      where: { email_address: body.email_address },
     });
 
     if (existingUser) {
-      this.setStatus(400); // Conflict
-      return {
-        message: "User with this email already exists",
-      };
+      this.setStatus(400);
+      return { message: "User with this email already exists" };
     }
 
-    if (body.password == "") {
+    if (body.password === "") {
       this.setStatus(400);
-      return {
-        message: "Password must be filled",
-      };
+      return { message: "Password must be filled" };
     }
 
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
-    // Create user with default level if not provided
     const user = await prisma.user.create({
       data: {
         ...body,
@@ -742,11 +595,10 @@ export class UserController extends Controller {
         level: body.level,
         language: body.language,
         languageCode: body.languageCode as any,
+        userType: "INDIVIDUAL", // ✅ explicit on signup
       },
     });
 
-    //After creating Users.
-    //It is necessary to automatically create settings database for the users.
     const createSettings = await prisma.settings.create({
       data: {
         enable_push_notification: true,
@@ -762,7 +614,6 @@ export class UserController extends Controller {
       },
     });
 
-    //Greeting user with notifications
     await NotificationService.createNotification({
       message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
       title: "Welcome New User",
@@ -774,10 +625,7 @@ export class UserController extends Controller {
 
     const updateUser = await prisma.user.update({
       where: { id: user.id },
-      data: {
-        isOnline: true,
-        lastActive: new Date(),
-      },
+      data: { isOnline: true, lastActive: new Date() },
     });
 
     const plan = await PricingService.GenerateNewPaymentForNewUser({
@@ -793,16 +641,10 @@ export class UserController extends Controller {
         progressBar: 0,
       },
       include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-          },
-        },
+        user: { select: { first_name: true, last_name: true } },
       },
     });
 
-    // Create achievement message
     const achievementResult = await GrowthService.AchievementMessage({
       message_title: "Christian Cadet",
       message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
@@ -813,20 +655,16 @@ export class UserController extends Controller {
       progressId: startJourney.id,
     });
 
-    // Check if achievement was created successfully
     if (achievementResult.error) {
       console.error("Achievement creation failed:", achievementResult.error);
-      // Still return success for journey but with achievement error
       this.setStatus(200);
       return {
-        message:
-          "Journey created successfully, but achievement creation failed",
+        message: "Journey created successfully, but achievement creation failed",
         data: startJourney,
         achievementError: achievementResult.error,
       };
     }
 
-    // Generate access and refresh tokens
     const { accessToken, refreshToken } = generateTokens({
       id: updateUser.id,
       email: updateUser.email_address,
@@ -834,93 +672,73 @@ export class UserController extends Controller {
       language: updateUser.language,
       languageCode: updateUser.languageCode,
       type: updateUser.form_type || "INDIVIDUAL",
+      userType: updateUser.userType,   // ✅
       settingsId: createSettings.id,
       full_name: `${updateUser.first_name} ${updateUser.last_name}`,
       progressId: startJourney.id,
       updateStatus: updateUser.isOnline,
       planId: plan.id,
-      deviceId: deviceId,
-      deviceType: deviceType,
+      deviceId,
+      deviceType,
       level: updateUser.level,
     });
 
-    // Create user session with all required fields
     await prisma.userSession.create({
       data: {
         userId: updateUser.id,
-        deviceId: deviceId,
-        deviceType: deviceType,
-        refreshToken: refreshToken,
-        accessToken: accessToken,
+        deviceId,
+        deviceType,
+        refreshToken,
+        accessToken,
         userType: "USER",
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        userAgent: userAgent,
-        ipAddress: ipAddress,
+        userAgent,
+        ipAddress,
         isRevoked: false,
       },
     });
 
     if (req.res) {
-      // Set cookies - FIXED
       req.res.cookie("accessToken", accessToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 15 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
       });
-
       req.res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
       });
-
       req.res.cookie("deviceId", deviceId, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 365 * 24 * 60 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
       });
-
       req.res.cookie("progress_id", startJourney.id, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
       });
-
       req.res.cookie("plan_id", plan.id, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
       });
     }
 
     this.setStatus(201);
     return {
       message: "Signup successful",
-      accessToken, // Return in body as fallback
-      refreshToken, // Return in body as fallback
+      accessToken,
+      refreshToken,
       deviceId,
       user: {
         id: updateUser.id,
         first_name: updateUser.first_name,
         last_name: updateUser.last_name,
         email_address: updateUser.email_address,
+        userType: updateUser.userType, // ✅
         planId: plan.id,
         progressId: startJourney.id,
       },
     };
   }
 
-  //login
   @Post("/login")
   public async Login(
     @Body()
@@ -933,28 +751,20 @@ export class UserController extends Controller {
     @Request() req: any,
   ): Promise<any> {
     const settingsId = req.org?.settingsId;
-
-    // Determine environment for cookie settings
     const isProduction = process.env.NODE_ENV === "production";
 
     try {
-      // Get device information
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = credentials.deviceType || getDeviceType(userAgent);
       const deviceId = credentials.deviceId || generateDeviceId();
       const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
 
-      // Check if user exists
       const user = await prisma.user.findUnique({
-        where: {
-          email_address: credentials.email,
-        },
-        include: {
-          adminProfile: true, // Include admin profile if exists
-        },
+        where: { email_address: credentials.email },
+        include: { adminProfile: true },
       });
 
-      // Check for admin user first (before invited or regular)
+      // ─── ADMIN ──────────────────────────────────────────────────────────
       if (user && user.role === "goye_admin") {
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
@@ -966,12 +776,10 @@ export class UserController extends Controller {
           return { message: "Password is invalid" };
         }
 
-        // Check if this device already has an active session
         const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
+          where: { deviceId },
         });
 
-        // Revoke old session for this device if exists
         if (existingSession) {
           await prisma.userSession.update({
             where: { id: existingSession.id },
@@ -981,38 +789,22 @@ export class UserController extends Controller {
 
         const updateUser = await prisma.user.update({
           where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user_plan: {
-              select: {
-                id: true,
-              },
-            },
-          },
+          data: { isOnline: true, lastActive: new Date() },
+          include: { user_plan: { select: { id: true } } },
         });
 
-        // Get or create progress for admin
         let progress = await prisma.progress.findFirst({
           where: { userId: user.id },
         });
 
         if (!progress) {
           progress = await prisma.progress.create({
-            data: {
-              userId: user.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
+            data: { userId: user.id, startedJourney: true, progressBar: 0 },
           });
         }
 
         const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
+          where: { userId: user.id },
         });
 
         const planId = plan?.id ?? null;
@@ -1025,101 +817,56 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate access and refresh tokens
         const { accessToken, refreshToken } = generateTokens({
           type: "ADMIN",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,   // ✅
           language: updateUser.language,
           languageCode: updateUser.languageCode,
           adminRole: user.adminProfile?.role || "super_admin",
           progressId: progress.id,
           level: updateUser.level,
           planId,
-          deviceId: deviceId,
-          deviceType: deviceType,
+          deviceId,
+          deviceType,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         });
 
-        // Create or update user session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ADMIN",
+            refreshToken, accessToken, userType: "ADMIN",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
+            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
           },
           create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ADMIN",
+            userId: updateUser.id, deviceId, deviceType,
+            refreshToken, accessToken, userType: "ADMIN",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent, ipAddress,
           },
         });
 
         if (req.res) {
-          // Set cookies - FIXED
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
+          req.res.cookie("accessToken", accessToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000 });
+          req.res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("deviceId", deviceId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("progress_id", progress.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("plan_id", planId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         }
 
         this.setStatus(200);
         return {
           data: {
             message: "Login successful",
-            accessToken, // Return in body as fallback
-            refreshToken, // Return in body as fallback
+            accessToken,
+            refreshToken,
             deviceId,
             user: {
               type: "ADMIN",
+              userType: updateUser.userType,   // ✅
               id: updateUser.id,
               first_name: updateUser.first_name,
               last_name: updateUser.last_name,
@@ -1131,12 +878,13 @@ export class UserController extends Controller {
         };
       }
 
-      // Check for invited users
-      if (user && user.form_type === "INVITED") {
-        const invitationOrg = await prisma.inviteUser.findFirst({
-          where: {
-            email: credentials.email,
-          },
+      // ─── INVITED MEMBER ─────────────────────────────────────────────────
+      // ✅ Use userType instead of form_type === "INVITED"
+      if (user && user.userType === "INVITED_MEMBER") {
+        // ✅ Resolve org from OrganizationMember — no more InviteUser lookup
+        const membership = await prisma.organizationMember.findFirst({
+          where: { userId: user.id, isActive: true },
+          select: { organizationId: true },
         });
 
         const isPasswordValid = await bcrypt.compare(
@@ -1149,9 +897,8 @@ export class UserController extends Controller {
           return { message: "Password is invalid" };
         }
 
-        // Check if this device already has an active session
         const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
+          where: { deviceId },
         });
 
         if (existingSession) {
@@ -1163,26 +910,15 @@ export class UserController extends Controller {
 
         const updateUser = await prisma.user.update({
           where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            progress: {
-              include: { user: true },
-            },
-          },
+          data: { isOnline: true, lastActive: new Date() },
+          include: { progress: { include: { user: true } } },
         });
 
         let progress = updateUser.progress?.[0];
 
         if (!progress) {
           progress = await prisma.progress.create({
-            data: {
-              userId: updateUser.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
+            data: { userId: updateUser.id, startedJourney: true, progressBar: 0 },
             include: { user: true },
           });
 
@@ -1198,9 +934,7 @@ export class UserController extends Controller {
         }
 
         const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
+          where: { userId: user.id },
         });
 
         const planId = plan?.id ?? null;
@@ -1213,116 +947,70 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate access and refresh tokens
         const { accessToken, refreshToken } = generateTokens({
           type: "INVITED_USER",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,                    // ✅
           progressId: progress.id,
           level: updateUser.level,
           language: updateUser.language,
           languageCode: updateUser.languageCode,
           updateStatus: updateUser.isOnline,
-          organizationId: invitationOrg?.organizationId || null,
+          organizationId: membership?.organizationId || null, // ✅ from membership table
           planId,
-          deviceId: deviceId,
-          deviceType: deviceType,
+          deviceId,
+          deviceType,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         });
 
-        // Create or update user session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
+            refreshToken, accessToken, userType: "INVITED_USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
+            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
           },
           create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "INVITED_USER",
+            userId: updateUser.id, deviceId, deviceType,
+            refreshToken, accessToken, userType: "INVITED_USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent, ipAddress,
           },
         });
 
         if (req.res) {
-          // Set cookies - FIXED
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
+          req.res.cookie("accessToken", accessToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000 });
+          req.res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("deviceId", deviceId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("progress_id", progress.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("plan_id", planId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         }
 
         this.setStatus(200);
         return {
           data: {
             message: "Login successful",
-            accessToken, // Return in body as fallback
-            refreshToken, // Return in body as fallback
+            accessToken,
+            refreshToken,
             deviceId,
             user: {
               type: "INVITED_USER",
+              userType: updateUser.userType,                   // ✅
               id: updateUser.id,
               first_name: updateUser.first_name,
               last_name: updateUser.last_name,
               role: updateUser.role,
               progressId: progress.id,
-              form_type: updateUser.form_type,
-              organizationId: invitationOrg?.organizationId || null,
+              organizationId: membership?.organizationId || null, // ✅
             },
           },
         };
       }
 
-      // Check for regular users
-      if (user && user.form_type === "INDIVIDUAL") {
+      // ─── INDIVIDUAL USER ─────────────────────────────────────────────────
+      if (user && (user.userType === "INDIVIDUAL" || user.form_type === "INDIVIDUAL")) {
         const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password,
@@ -1333,9 +1021,8 @@ export class UserController extends Controller {
           return { message: "Password is invalid" };
         }
 
-        // Check if this device already has an active session
         const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
+          where: { deviceId },
         });
 
         if (existingSession) {
@@ -1347,26 +1034,15 @@ export class UserController extends Controller {
 
         const updateUser = await prisma.user.update({
           where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            progress: {
-              include: { user: true },
-            },
-          },
+          data: { isOnline: true, lastActive: new Date() },
+          include: { progress: { include: { user: true } } },
         });
 
         let progress = updateUser.progress?.[0];
 
         if (!progress) {
           progress = await prisma.progress.create({
-            data: {
-              userId: updateUser.id,
-              startedJourney: true,
-              progressBar: 0,
-            },
+            data: { userId: updateUser.id, startedJourney: true, progressBar: 0 },
             include: { user: true },
           });
 
@@ -1386,9 +1062,7 @@ export class UserController extends Controller {
         });
 
         const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: user.id,
-          },
+          where: { userId: user.id },
         });
 
         const planId = plan?.id ?? null;
@@ -1401,12 +1075,12 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate access and refresh tokens
         const { accessToken, refreshToken } = generateTokens({
           type: "USER",
           id: updateUser.id,
           email: updateUser.email_address,
           role: updateUser.role,
+          userType: updateUser.userType,   // ✅
           language: updateUser.language,
           languageCode: updateUser.languageCode,
           level: updateUser.level,
@@ -1414,89 +1088,44 @@ export class UserController extends Controller {
           updateStatus: updateUser.isOnline,
           organizationId: organizationData?.id || null,
           planId,
-          deviceId: deviceId,
-          deviceType: deviceType,
+          deviceId,
+          deviceType,
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
         });
 
-        // Create or update user session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
+            refreshToken, accessToken, userType: "USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
+            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
           },
           create: {
-            userId: updateUser.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "USER",
+            userId: updateUser.id, deviceId, deviceType,
+            refreshToken, accessToken, userType: "USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent, ipAddress,
           },
         });
 
         if (req.res) {
-          // Set cookies - FIXED
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
+          req.res.cookie("accessToken", accessToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000 });
+          req.res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("deviceId", deviceId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("progress_id", progress.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("plan_id", planId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         }
 
         this.setStatus(200);
         return {
           data: {
             message: "Login successful",
-            accessToken, // Return in body as fallback
-            refreshToken, // Return in body as fallback
+            accessToken,
+            refreshToken,
             deviceId,
             user: {
               type: "USER",
+              userType: updateUser.userType,   // ✅
               id: updateUser.id,
               first_name: updateUser.first_name,
               last_name: updateUser.last_name,
@@ -1508,14 +1137,10 @@ export class UserController extends Controller {
         };
       }
 
-      // Check for organization
+      // ─── ORGANIZATION LOGIN ──────────────────────────────────────────────
       const organization = await prisma.organization.findUnique({
-        where: {
-          organization_email: credentials.email,
-        },
-        include: {
-          user: true,
-        },
+        where: { organization_email: credentials.email },
+        include: { user: true },
       });
 
       if (organization) {
@@ -1529,9 +1154,8 @@ export class UserController extends Controller {
           return { message: "Password is invalid" };
         }
 
-        // Check if this device already has an active session
         const existingSession = await prisma.userSession.findUnique({
-          where: { deviceId: deviceId },
+          where: { deviceId },
         });
 
         if (existingSession) {
@@ -1542,22 +1166,13 @@ export class UserController extends Controller {
         }
 
         const updatedOrganization = await prisma.organization.update({
-          where: {
-            organization_email: credentials.email,
-          },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-          include: {
-            user: true,
-          },
+          where: { organization_email: credentials.email },
+          data: { isOnline: true, lastActive: new Date() },
+          include: { user: true },
         });
 
         const plan = await prisma.pricingHistory.findFirst({
-          where: {
-            userId: updatedOrganization.user.id,
-          },
+          where: { userId: updatedOrganization.user.id },
         });
 
         const planId = plan?.id ?? null;
@@ -1570,13 +1185,13 @@ export class UserController extends Controller {
           });
         }
 
-        // Generate access and refresh tokens with complete payload
         const { accessToken, refreshToken } = generateTokens({
           type: "ORGANIZATION",
           id: updatedOrganization.user.id,
           email: updatedOrganization.user.email_address,
           role: updatedOrganization.user.role,
-          settingsId: settingsId,
+          userType: updatedOrganization.user.userType,   // ✅
+          settingsId,
           language: updatedOrganization.language,
           languageCode: updatedOrganization.languageCode,
           organizationId: updatedOrganization.id,
@@ -1584,84 +1199,46 @@ export class UserController extends Controller {
           organization_email: updatedOrganization.organization_email,
           organization_role: updatedOrganization.user.role,
           userId: updatedOrganization.user.id,
-          planId: planId,
-          deviceId: deviceId,
+          planId,
+          deviceId,
           level: "ORGANIZATION",
-          deviceType: deviceType,
+          deviceType,
           full_name: `${updatedOrganization.user.first_name} ${updatedOrganization.user.last_name}`,
           progressId: null,
         });
 
-        // Create or update user session
         await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
+          where: { deviceId },
           update: {
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ORGANIZATION",
+            refreshToken, accessToken, userType: "ORGANIZATION",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
+            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
           },
           create: {
-            userId: updatedOrganization.user.id,
-            deviceId: deviceId,
-            deviceType: deviceType,
-            refreshToken: refreshToken,
-            accessToken: accessToken,
-            userType: "ORGANIZATION",
+            userId: updatedOrganization.user.id, deviceId, deviceType,
+            refreshToken, accessToken, userType: "ORGANIZATION",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent: userAgent,
-            ipAddress: ipAddress,
+            userAgent, ipAddress,
           },
         });
 
         if (req.res) {
-          // Set cookies - FIXED
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-
-          req.res.cookie("plan_id", planId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
+          req.res.cookie("accessToken", accessToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000 });
+          req.res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("deviceId", deviceId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000 });
+          req.res.cookie("plan_id", planId, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         }
 
         this.setStatus(200);
         return {
           data: {
             message: "Login successful",
-            accessToken, // Return in body as fallback
-            refreshToken, // Return in body as fallback
+            accessToken,
+            refreshToken,
             deviceId,
             organization: {
-              type: "organization",
+              type: "ORGANIZATION",
+              userType: updatedOrganization.user.userType,   // ✅
               id: updatedOrganization.id,
               organization_name: updatedOrganization.organization_name,
               organization_email: updatedOrganization.organization_email,
@@ -1671,14 +1248,13 @@ export class UserController extends Controller {
           },
         };
       }
+
       this.setStatus(404);
       return { message: "User or Login not found" };
     } catch (error: any) {
       console.error("Login error:", error);
       this.setStatus(500);
-      return {
-        message: `An error occurred: ${error.message}`,
-      };
+      return { message: `An error occurred: ${error.message}` };
     }
   }
 
@@ -1699,52 +1275,32 @@ export class UserController extends Controller {
     },
   ) {
     const userId = req.user?.id;
-
-    // Determine environment for cookie settings
     const isProduction = process.env.NODE_ENV === "production";
 
     if (!userId) {
       this.setStatus(401);
-      return {
-        success: false,
-        message: "Unauthorized - User not found",
-      };
+      return { success: false, message: "Unauthorized - User not found" };
     }
 
     try {
-      // Check if user exists
       const existingUser = await prisma.user.findUnique({
         where: { id: userId },
-        include: {
-          progress: true,
-          settings: true,
-          user_plan: true,
-        },
+        include: { progress: true, settings: true, user_plan: true },
       });
 
       if (!existingUser) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "User does not exist",
-        };
+        return { success: false, message: "User does not exist" };
       }
 
-      // Check if profile is already complete
       if (existingUser.isProfileComplete === true) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Profile is already complete",
-        };
+        return { success: false, message: "Profile is already complete" };
       }
 
-      // Ensure level has a value
       const userLevel = body.level || "1";
-
       const hashPassword = await bcrypt.hash(body.password, 10);
 
-      // Update user information and mark profile as complete
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
@@ -1757,10 +1313,10 @@ export class UserController extends Controller {
           role: body.role,
           level: userLevel,
           isProfileComplete: true,
+          // ✅ userType stays as INDIVIDUAL — no change needed on profile completion
         },
       });
 
-      // Check if user has settings, if not create them (like signup)
       let settings = existingUser.settings?.[0];
       if (!settings) {
         settings = await prisma.settings.create({
@@ -1773,51 +1329,38 @@ export class UserController extends Controller {
             darkMode: false,
             email_notification: true,
             updatedAt: new Date(),
-            userId: userId,
+            userId,
             organizationId: null,
           },
         });
-        console.log(`Created settings for user ${userId}`);
       }
 
-      // Check if user has progress, if not create it (like signup)
       let progress = existingUser.progress?.[0];
       if (!progress) {
-        // Create progress
         progress = await prisma.progress.create({
-          data: {
-            userId: userId,
-            startedJourney: true,
-            progressBar: 0,
-          },
+          data: { userId, startedJourney: true, progressBar: 0 },
         });
 
-        // Create achievement message for new user
         await GrowthService.AchievementMessage({
           message_title: "Christian Cadet",
           message_content: `${updatedUser.first_name} you just joined the rest of the soldiers to join the army`,
           point: 10,
           progress_message: "",
-          userId: userId,
+          userId,
           badge: "CADET_BADGE",
           progressId: progress.id,
         });
-
-        console.log(`Created progress and achievement for user ${userId}`);
       }
 
-      // Check if user has a plan, if not create one (like signup)
       let plan = existingUser.user_plan?.[0];
       if (!plan) {
         plan = await PricingService.GenerateNewPaymentForNewUser({
-          userId: userId,
+          userId,
           type: "INDIVIDUAL",
           orgId: null,
         });
-        console.log(`Created plan for user ${userId}`);
       }
 
-      // ✅ CRITICAL FIX: Generate NEW tokens with updated level
       const deviceId = req.cookies?.deviceId || generateDeviceId();
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = getDeviceType(userAgent);
@@ -1827,75 +1370,41 @@ export class UserController extends Controller {
         id: updatedUser.id,
         email: updatedUser.email_address,
         role: updatedUser.role,
+        userType: updatedUser.userType,   // ✅
         level: updatedUser.level,
         progressId: progress?.id,
         updateStatus: updatedUser.isOnline,
         planId: plan?.id,
         settingsId: settings?.id,
-        deviceId: deviceId,
-        deviceType: deviceType,
+        deviceId,
+        deviceType,
         full_name: `${updatedUser.first_name} ${updatedUser.last_name}`,
         user_pic: updatedUser.user_pic,
         isProfileComplete: true,
       });
 
-      // Update the session with new tokens
       await prisma.userSession.updateMany({
-        where: { userId: userId },
-        data: {
-          refreshToken: refreshToken,
-          accessToken: accessToken,
-          lastActive: new Date(),
-        },
+        where: { userId },
+        data: { refreshToken, accessToken, lastActive: new Date() },
       });
 
-      // Send welcome notification
       await NotificationService.createNotification({
         message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
         title: "Welcome to GOYE",
         type: "greeting",
         role: Role.STUDENT,
         to: Role.STUDENT,
-        userId: userId,
+        userId,
       });
-      console.log(`Sent welcome notification to user ${userId}`);
 
-      // Update session cookies with new tokens and ids - FIXED
       if (req.res) {
-        req.res.cookie("accessToken", accessToken, {
-          httpOnly: true,
-          secure: isProduction,
-          sameSite: isProduction ? "none" : "lax",
-          path: "/",
-          maxAge: 15 * 60 * 1000,
-        });
-
-        req.res.cookie("refreshToken", refreshToken, {
-          httpOnly: true,
-          secure: isProduction,
-          sameSite: isProduction ? "none" : "lax",
-          path: "/",
-          maxAge: 7 * 24 * 60 * 60 * 1000,
-        });
-
+        req.res.cookie("accessToken", accessToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000 });
+        req.res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         if (progress?.id) {
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
+          req.res.cookie("progress_id", progress.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         }
-
         if (plan?.id) {
-          req.res.cookie("plan_id", plan.id, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
+          req.res.cookie("plan_id", plan.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
         }
       }
 
@@ -1903,7 +1412,7 @@ export class UserController extends Controller {
       return {
         success: true,
         message: "Profile completed successfully! Welcome to GOYE!",
-        accessToken, // Return new tokens in body as fallback
+        accessToken,
         refreshToken,
         data: {
           user: {
@@ -1916,6 +1425,7 @@ export class UserController extends Controller {
             phone_number: updatedUser.phone_number,
             role: updatedUser.role,
             level: updatedUser.level,
+            userType: updatedUser.userType,   // ✅
             isProfileComplete: updatedUser.isProfileComplete,
           },
           settings: {
@@ -1924,27 +1434,15 @@ export class UserController extends Controller {
             email_notification: settings.email_notification,
           },
           progress: progress
-            ? {
-                id: progress.id,
-                progressBar: progress.progressBar,
-                startedJourney: progress.startedJourney,
-              }
+            ? { id: progress.id, progressBar: progress.progressBar, startedJourney: progress.startedJourney }
             : null,
-          plan: plan
-            ? {
-                id: plan.id,
-                type: plan.type,
-              }
-            : null,
+          plan: plan ? { id: plan.id, type: plan.type } : null,
         },
       };
     } catch (error: any) {
       console.error("Complete profile error:", error);
       this.setStatus(500);
-      return {
-        success: false,
-        message: `Failed to complete profile: ${error.message}`,
-      };
+      return { success: false, message: `Failed to complete profile: ${error.message}` };
     }
   }
 
@@ -1956,7 +1454,8 @@ export class UserController extends Controller {
         select: {
           id: true,
           email_address: true,
-          organization: true
+          userType: true,       // ✅ replaces checking `organization` relation
+          organization: true,
         },
       });
 
@@ -1964,49 +1463,60 @@ export class UserController extends Controller {
         return {
           exists: true,
           userId: user.id,
-          hasOrganization: !!user.organization.id,
+          userType: user.userType,                   // ✅
+          isOrganizationOwner: user.userType === "ORGANIZATION_OWNER",
+          hasOrganization: !!user.organization?.id,
         };
       }
 
-      return {
-        exists: false,
-      };
+      return { exists: false };
     } catch (error: any) {
       console.error("Check email error:", error);
       this.setStatus(500);
-      return {
-        exists: false,
-        error: error.message,
-      };
+      return { exists: false, error: error.message };
     }
   }
 
   @Patch("/update-invitation/{userId}")
   public async UpdateUserInvitation(
     @Path() userId: string,
-    @Body() body: { organizationId: string; invited: boolean; role: string },
+    @Body() body: { organizationId: string; role: string },
   ): Promise<any> {
     try {
-      const { organizationId, invited, role } = body;
+      const { organizationId, role } = body;
 
+      // ✅ Update user to INVITED_MEMBER — no more `invited` boolean
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: {
-          organization: {
-            update: {
-              id: organizationId
-            }
-          },
-          invited: invited,
+          userType: "INVITED_MEMBER",  // ✅
           role: role,
           form_type: "INVITED",
         },
-        include: {
-          organization: true,
+      });
+
+      // ✅ Upsert the OrganizationMember record
+      await prisma.organizationMember.upsert({
+        where: {
+          userId_organizationId: {
+            userId,
+            organizationId,
+          },
+        },
+        update: {
+          role,
+          isActive: true,
+        },
+        create: {
+          userId,
+          organizationId,
+          role,
+          joinedVia: "INVITE",
+          isActive: true,
         },
       });
 
-      // Also create or update the invitation record
+      // ✅ Create an InviteUser record for audit trail
       await prisma.inviteUser.create({
         data: {
           email: updatedUser.email_address,
@@ -2025,7 +1535,8 @@ export class UserController extends Controller {
         user: {
           id: updatedUser.id,
           email: updatedUser.email_address,
-          organizationId: updatedUser.organization.id,
+          userType: updatedUser.userType,   // ✅
+          organizationId,
         },
       };
     } catch (error: any) {
@@ -2044,16 +1555,11 @@ export class UserController extends Controller {
     try {
       const { email } = body;
 
-      // ✅ Validate email
       if (!email) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Email is required",
-        };
+        return { success: false, message: "Email is required" };
       }
 
-      // ✅ Check if email exists in either User or Organization
       const user = await prisma.user.findUnique({
         where: { email_address: email },
         select: { id: true, email_address: true },
@@ -2064,17 +1570,14 @@ export class UserController extends Controller {
         select: { id: true, organization_email: true },
       });
 
-      // ✅ If email doesn't exist in either table, return error
       if (!user && !organization) {
         this.setStatus(404);
         return {
           success: false,
-          message:
-            "No account found with this email address. Please sign up first.",
+          message: "No account found with this email address. Please sign up first.",
         };
       }
 
-      // ✅ Rate limiting
       const now = Date.now();
       const userRequests = otpRateLimit.get(email) || [];
       const recentRequests = userRequests.filter(
@@ -2093,39 +1596,25 @@ export class UserController extends Controller {
       recentRequests.push(now);
       otpRateLimit.set(email, recentRequests);
 
-      // ✅ Generate OTP
       const otp = crypto.randomInt(100000, 999999).toString();
       const expires = new Date(Date.now() + 5 * 60 * 1000);
 
-      // ✅ Delete old OTPs
-      await prisma.otp.deleteMany({
-        where: { email: email },
-      });
+      await prisma.otp.deleteMany({ where: { email } });
 
       const newOtp = await prisma.otp.create({
-        data: {
-          code: otp,
-          email: email,
-          expiresIn: expires,
-        },
+        data: { code: otp, email, expiresIn: expires },
       });
 
       const sessionToken = jwt.sign(
-        { email: email, otpId: newOtp.id },
+        { email, otpId: newOtp.id },
         process.env.JWT_SECRET || "secret-key",
         { expiresIn: "6min" },
       );
 
-      // ✅ Send email with retry
       let emailSent = false;
       for (let i = 0; i < 3; i++) {
         try {
-          await SendEmail(
-            newOtp.email,
-            "GOYE VERIFICATION",
-            `${newOtp.code}`,
-            "otp",
-          );
+          await SendEmail(newOtp.email, "GOYE VERIFICATION", `${newOtp.code}`, "otp");
           emailSent = true;
           break;
         } catch (error) {
@@ -2137,21 +1626,15 @@ export class UserController extends Controller {
       this.setStatus(200);
       return {
         success: emailSent,
-        message: emailSent
-          ? "OTP sent successfully"
-          : "OTP generated but email failed",
+        message: emailSent ? "OTP sent successfully" : "OTP generated but email failed",
         sessionToken,
-        email: email,
-        // ✅ Return OTP only in development
+        email,
         ...(process.env.NODE_ENV === "development" && { otp }),
       };
     } catch (error: any) {
       console.error("SendOTP error:", error);
       this.setStatus(500);
-      return {
-        success: false,
-        message: `Failed to send OTP: ${error.message}`,
-      };
+      return { success: false, message: `Failed to send OTP: ${error.message}` };
     }
   }
 
@@ -2160,13 +1643,9 @@ export class UserController extends Controller {
     try {
       const { otp, sessionToken } = body;
 
-      // ✅ CHANGE: Better validation
       if (!otp || !sessionToken) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "OTP and session token are required",
-        };
+        return { success: false, message: "OTP and session token are required" };
       }
 
       let decoded: { email: string; otpId: string };
@@ -2177,57 +1656,33 @@ export class UserController extends Controller {
         ) as any;
       } catch (jwtError) {
         this.setStatus(401);
-        return {
-          success: false,
-          message: "Invalid or expired session token",
-        };
+        return { success: false, message: "Invalid or expired session token" };
       }
 
       const verifyOtp = await prisma.otp.findFirst({
-        where: {
-          code: otp,
-          email: decoded.email,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
+        where: { code: otp, email: decoded.email },
+        orderBy: { createdAt: "desc" },
       });
 
       if (!verifyOtp) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Invalid OTP code",
-        };
+        return { success: false, message: "Invalid OTP code" };
       }
 
       if (verifyOtp.expiresIn < new Date()) {
-        // ✅ CHANGE: Delete expired OTP
         await prisma.otp.delete({ where: { id: verifyOtp.id } });
-
         this.setStatus(400);
-        return {
-          success: false,
-          message: "OTP has expired. Please request a new one.",
-        };
+        return { success: false, message: "OTP has expired. Please request a new one." };
       }
 
-      // Delete the used OTP
       await prisma.otp.delete({ where: { id: verifyOtp.id } });
 
       this.setStatus(200);
-      return {
-        success: true,
-        message: "Email verified successfully",
-        email: decoded.email,
-      };
+      return { success: true, message: "Email verified successfully", email: decoded.email };
     } catch (error: any) {
       console.error("VerifyOTP error:", error);
       this.setStatus(500);
-      return {
-        success: false,
-        message: `Verification failed: ${error.message}`,
-      };
+      return { success: false, message: `Verification failed: ${error.message}` };
     }
   }
 
@@ -2235,22 +1690,13 @@ export class UserController extends Controller {
   @Post("/upload-profile-picture")
   public async UploadPicture(
     @Request() req: any,
-    @Body()
-    body: {
-      file: string;
-      fileName: string;
-      mimeType: string;
-    },
+    @Body() body: { file: string; fileName: string; mimeType: string },
   ): Promise<any> {
     const userId = req.user?.id;
     const fileBuffer = Buffer.from(body.file, "base64");
 
-    // 1. Upload to Firebase
     const { url, error } = await MediaService.uploadUserAvatar(
-      userId,
-      fileBuffer,
-      body.fileName,
-      body.mimeType,
+      userId, fileBuffer, body.fileName, body.mimeType,
     );
 
     if (error) {
@@ -2259,7 +1705,6 @@ export class UserController extends Controller {
     }
 
     try {
-      // 2. Try to update user with Prisma
       const updatedUser = await prisma.user.update({
         where: { id: userId },
         data: { user_pic: url },
@@ -2267,33 +1712,18 @@ export class UserController extends Controller {
       });
 
       this.setStatus(200);
-      return {
-        message: "Avatar uploaded successfully",
-        user: updatedUser,
-      };
+      return { message: "Avatar uploaded successfully", user: updatedUser };
     } catch (error: any) {
-      // 3. If RLS error, use raw SQL fallback
       if (error.message.includes("row-level security")) {
-        console.log("RLS detected, using raw SQL fallback");
-
         try {
           await prisma.$executeRaw`UPDATE "User" SET user_pic = ${url} WHERE id = ${userId}`;
-
           this.setStatus(200);
-          return {
-            message: "Avatar uploaded successfully (used fallback)",
-            user: { user_pic: url },
-          };
+          return { message: "Avatar uploaded successfully (used fallback)", user: { user_pic: url } };
         } catch (rawError) {
           this.setStatus(500);
-          return {
-            message: "Failed to update user profile",
-            error: rawError.message,
-          };
+          return { message: "Failed to update user profile", error: rawError.message };
         }
       }
-
-      // 4. Handle other errors
       this.setStatus(500);
       return { message: "Failed to update user profile", error: error.message };
     }
@@ -2306,17 +1736,11 @@ export class UserController extends Controller {
     const password = req.user?.password;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     });
 
     this.setStatus(200);
-    return {
-      message: "Password fetched successfully",
-      user,
-      password,
-    };
+    return { message: "Password fetched successfully", user, password };
   }
 
   @Security("bearerAuth")
@@ -2329,158 +1753,98 @@ export class UserController extends Controller {
     const organizationId = req.org?.id;
     const isOrganization = req.user?.type === "ORGANIZATION" || req.org?.id;
 
-    // Validate input
     if (!body.newPassword) {
       this.setStatus(400);
-      return {
-        message: "Current password and new password are required",
-      };
+      return { message: "Current password and new password are required" };
     }
 
     if (body.newPassword.length < 8) {
       this.setStatus(400);
-      return {
-        message: "New password must be at least 8 characters long",
-      };
+      return { message: "New password must be at least 8 characters long" };
     }
 
     try {
       if (isOrganization && organizationId) {
-        // Update organization password
         const organization = await prisma.organization.findUnique({
           where: { id: organizationId },
-          select: {
-            id: true,
-            organization_password: true,
-            organization_email: true,
-          },
+          select: { id: true, organization_password: true, organization_email: true },
         });
 
         if (!organization) {
           this.setStatus(404);
-          return {
-            message: "Organization not found",
-          };
+          return { message: "Organization not found" };
         }
 
-        // Hash new password
         const hashedPassword = await bcrypt.hash(body.newPassword, 10);
 
-        // Update organization password
         const updatedOrganization = await prisma.organization.update({
           where: { id: organizationId },
-          data: {
-            organization_password: hashedPassword,
-          },
-          select: {
-            id: true,
-            organization_email: true,
-          },
+          data: { organization_password: hashedPassword },
+          select: { id: true, organization_email: true },
         });
 
-        // Also update the associated user's password if they exist
         const associatedUser = await prisma.user.findFirst({
-          where: {
-            organization: {
-              id: organizationId,
-            },
-          },
+          where: { organization: { id: organizationId } },
         });
 
         if (associatedUser) {
           await prisma.user.update({
             where: { id: associatedUser.id },
-            data: {
-              password: hashedPassword,
-            },
+            data: { password: hashedPassword },
           });
         }
 
         this.setStatus(200);
         return {
           message: "Organization password updated successfully",
-          data: {
-            id: updatedOrganization.id,
-            email: updatedOrganization.organization_email,
-            type: "ORGANIZATION",
-          },
+          data: { id: updatedOrganization.id, email: updatedOrganization.organization_email, type: "ORGANIZATION" },
         };
       } else if (userId) {
-        // Update user password
         const user = await prisma.user.findUnique({
           where: { id: userId },
-          select: {
-            id: true,
-            email_address: true,
-            password: true,
-          },
+          select: { id: true, email_address: true, password: true, organization: true },
         });
 
         if (!user) {
           this.setStatus(404);
-          return {
-            message: "User not found",
-          };
+          return { message: "User not found" };
         }
 
-        // Hash new password
         const hashedPassword = await bcrypt.hash(body.newPassword, 10);
 
-        // Update user password
         const updatedUser = await prisma.user.update({
           where: { id: userId },
-          data: {
-            password: hashedPassword,
-          },
-          select: {
-            id: true,
-            email_address: true,
-            organization: true,
-          },
+          data: { password: hashedPassword },
+          select: { id: true, email_address: true, organization: true },
         });
 
-        // If user belongs to an organization, also update organization password
-        if (updatedUser) {
+        if (updatedUser.organization) {
           await prisma.organization.update({
             where: { id: updatedUser.organization.id },
-            data: {
-              organization_password: hashedPassword,
-            },
+            data: { organization_password: hashedPassword },
           });
         }
 
         this.setStatus(200);
         return {
           message: "User password updated successfully",
-          data: {
-            id: updatedUser.id,
-            email: updatedUser.email_address,
-            type: "USER",
-          },
+          data: { id: updatedUser.id, email: updatedUser.email_address, type: "USER" },
         };
       } else {
         this.setStatus(401);
-        return {
-          message: "Unauthorized - No user or organization ID found",
-        };
+        return { message: "Unauthorized - No user or organization ID found" };
       }
     } catch (error: any) {
       console.error("Error updating password:", error);
       this.setStatus(500);
-      return {
-        message: "Failed to update password",
-        error: error.message,
-      };
+      return { message: "Failed to update password", error: error.message };
     }
   }
 
   @Get("/get-user/{id}")
   public async GetUser(@Path() id: string): Promise<any> {
     const getUser = await prisma.user.findUnique({
-      where: {
-        id,
-      },
-
+      where: { id },
       select: {
         id: true,
         user_pic: true,
@@ -2488,6 +1852,7 @@ export class UserController extends Controller {
         last_name: true,
         email_address: true,
         role: true,
+        userType: true,   // ✅
         isOnline: true,
         lastActive: true,
         country: true,
@@ -2500,18 +1865,13 @@ export class UserController extends Controller {
 
     if (!getUser) {
       this.setStatus(404);
-      return {
-        message: "User not found",
-      };
+      return { message: "User not found" };
     }
+
     this.setStatus(200);
-    return {
-      message: `User fetched successfully`,
-      getUser,
-    };
+    return { message: "User fetched successfully", getUser };
   }
 
-  //update User
   @Security("bearerAuth")
   @Put("/update-user")
   public async UpdateUser(
@@ -2531,30 +1891,21 @@ export class UserController extends Controller {
 
     if (!userId) {
       this.setStatus(404);
-      return {
-        message: "User not found",
-      };
+      return { message: "User not found" };
     }
 
-    // Build update data dynamically based on what's provided
     const updateData: any = {};
-
     if (data.first_name !== undefined) updateData.first_name = data.first_name;
     if (data.last_name !== undefined) updateData.last_name = data.last_name;
     if (data.country !== undefined) updateData.country = data.country;
     if (data.state !== undefined) updateData.state = data.state;
-    if (data.phone_number !== undefined)
-      updateData.phone_number = data.phone_number;
+    if (data.phone_number !== undefined) updateData.phone_number = data.phone_number;
     if (data.language !== undefined) updateData.language = data.language;
-    if (data.languageCode !== undefined)
-      updateData.languageCode = data.languageCode;
+    if (data.languageCode !== undefined) updateData.languageCode = data.languageCode;
 
-    // If no fields to update, return error
     if (Object.keys(updateData).length === 0) {
       this.setStatus(400);
-      return {
-        message: "No fields provided to update",
-      };
+      return { message: "No fields provided to update" };
     }
 
     const user = await prisma.user.update({
@@ -2563,41 +1914,27 @@ export class UserController extends Controller {
     });
 
     this.setStatus(200);
-    return {
-      message: "User updated successfully",
-      data: user,
-    };
+    return { message: "User updated successfully", data: user };
   }
-  //delete user
+
   @Delete("delete-user/{id}")
   public async DeleteUser(@Path() id: string) {
-    const user = await prisma.user.delete({
-      where: {
-        id,
-      },
-    });
-
+    const user = await prisma.user.delete({ where: { id } });
     this.setStatus(200);
-    return {
-      message: "User Deleted Succefully",
-      user,
-    };
+    return { message: "User Deleted Successfully", user };
   }
 
-  //format time
   private formatLastActive(lastActive: Date): string {
     const now = new Date();
     const diffInMinutes = Math.floor(
       (now.getTime() - lastActive.getTime()) / (1000 * 60),
     );
-
     if (diffInMinutes < 1) return "Just now";
     if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
     if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
     return `${Math.floor(diffInMinutes / 1440)}d ago`;
   }
 
-  //fetch student
   @Security("bearerAuth")
   @Get("/fetch-users-student")
   public async GetStudent(@Request() req: any): Promise<any> {
@@ -2605,101 +1942,58 @@ export class UserController extends Controller {
     const orgId = req.org?.id;
 
     try {
-      const users = await prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-      });
+      const users = await prisma.user.findUnique({ where: { id: userId } });
 
       if (users) {
         const students = await prisma.user.findMany({
-          where: {
-            role: "student",
-          },
+          where: { role: "student" },
           select: {
-            id: true,
-            user_pic: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-            role: true,
-            isOnline: true,
-            lastActive: true,
-            enrollment: true,
+            id: true, user_pic: true, first_name: true, last_name: true,
+            email_address: true, role: true, userType: true, isOnline: true,
+            lastActive: true, enrollment: true,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         });
+
         const enhancedStudents = students.map((student) => ({
           ...student,
-          // Calculate if user was active in last 5 minutes
-          isCurrentlyOnline:
-            student.isOnline &&
-            student.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          // Format last active time
+          isCurrentlyOnline: student.isOnline && student.lastActive > new Date(Date.now() - 5 * 60 * 1000),
           lastActiveFormatted: this.formatLastActive(student.lastActive),
-          // Full name for display
           full_name: `${student.first_name} ${student.last_name}`,
         }));
 
         this.setStatus(200);
-        return {
-          message: "Student fetched successfully",
-          enhancedStudents,
-        };
+        return { message: "Student fetched successfully", enhancedStudents };
       }
 
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: orgId,
-        },
+        where: { id: orgId },
       });
 
-      //To fetch Student in an orgniazation
       if (organization) {
         const students = await prisma.organization.findMany({
-          where: {
-            user: {
-              role: "student",
-            },
-          },
+          where: { user: { role: "student" } },
           select: {
             user: {
               select: {
-                id: true,
-                user_pic: true,
-                first_name: true,
-                last_name: true,
-                email_address: true,
-                role: true,
-                isOnline: true,
-                lastActive: true,
-                enrollment: true,
+                id: true, user_pic: true, first_name: true, last_name: true,
+                email_address: true, role: true, userType: true, isOnline: true,
+                lastActive: true, enrollment: true,
               },
             },
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         });
+
         const enhancedStudents = students.map((student) => ({
           ...student,
-          // Calculate if user was active in last 5 minutes
-          isCurrentlyOnline:
-            student.user.isOnline &&
-            student.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          // Format last active time
+          isCurrentlyOnline: student.user.isOnline && student.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
           lastActiveFormatted: this.formatLastActive(student.user.lastActive),
-          // Full name for display
           full_name: `${student.user.first_name} ${student.user.last_name}`,
         }));
 
         this.setStatus(200);
-        return {
-          message: "Student fetched successfully",
-          enhancedStudents,
-        };
+        return { message: "Student fetched successfully", enhancedStudents };
       }
     } catch (error) {
       this.setStatus(500);
@@ -2707,7 +2001,6 @@ export class UserController extends Controller {
     }
   }
 
-  //fetch tutors
   @Security("bearerAuth")
   @Get("/fetch-users-tutors")
   public async GetTutor(@Request() req: any): Promise<any> {
@@ -2715,101 +2008,58 @@ export class UserController extends Controller {
     const orgId = req.org?.id;
 
     try {
-      const tutor = await prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
-      });
+      const tutor = await prisma.user.findUnique({ where: { id: userId } });
 
       if (tutor) {
         const tutors = await prisma.user.findMany({
-          where: {
-            role: "tutor",
-          },
+          where: { role: "tutor" },
           select: {
-            id: true,
-            user_pic: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-            role: true,
-            isOnline: true,
-            lastActive: true,
-            enrollment: true,
+            id: true, user_pic: true, first_name: true, last_name: true,
+            email_address: true, role: true, userType: true, isOnline: true,
+            lastActive: true, enrollment: true,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         });
-        const enhancedStudents = tutors.map((tutors) => ({
-          ...tutors,
-          // Calculate if user was active in last 5 minutes
-          isCurrentlyOnline:
-            tutors.isOnline &&
-            tutors.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          // Format last active time
-          lastActiveFormatted: this.formatLastActive(tutors.lastActive),
-          // Full name for display
-          full_name: `${tutors.first_name} ${tutors.last_name}`,
+
+        const enhancedStudents = tutors.map((t) => ({
+          ...t,
+          isCurrentlyOnline: t.isOnline && t.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+          lastActiveFormatted: this.formatLastActive(t.lastActive),
+          full_name: `${t.first_name} ${t.last_name}`,
         }));
 
         this.setStatus(200);
-        return {
-          message: "Tutor fetched successfully",
-          enhancedStudents,
-        };
+        return { message: "Tutor fetched successfully", enhancedStudents };
       }
 
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: orgId,
-        },
+        where: { id: orgId },
       });
 
-      //To fetch Student in an orgniazation
       if (organization) {
         const tutors = await prisma.organization.findMany({
-          where: {
-            user: {
-              role: "tutor",
-            },
-          },
+          where: { user: { role: "tutor" } },
           select: {
             user: {
               select: {
-                id: true,
-                user_pic: true,
-                first_name: true,
-                last_name: true,
-                email_address: true,
-                role: true,
-                isOnline: true,
-                lastActive: true,
-                enrollment: true,
+                id: true, user_pic: true, first_name: true, last_name: true,
+                email_address: true, role: true, userType: true, isOnline: true,
+                lastActive: true, enrollment: true,
               },
             },
           },
-          orderBy: {
-            createdAt: "desc",
-          },
+          orderBy: { createdAt: "desc" },
         });
-        const enhancedStudents = tutors.map((tutors) => ({
-          ...tutors,
-          // Calculate if user was active in last 5 minutes
-          isCurrentlyOnline:
-            tutors.user.isOnline &&
-            tutors.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          // Format last active time
-          lastActiveFormatted: this.formatLastActive(tutors.user.lastActive),
-          // Full name for display
-          full_name: `${tutors.user.first_name} ${tutors.user.last_name}`,
+
+        const enhancedStudents = tutors.map((t) => ({
+          ...t,
+          isCurrentlyOnline: t.user.isOnline && t.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+          lastActiveFormatted: this.formatLastActive(t.user.lastActive),
+          full_name: `${t.user.first_name} ${t.user.last_name}`,
         }));
 
         this.setStatus(200);
-        return {
-          message: "Tutor fetched successfully",
-          enhancedStudents,
-        };
+        return { message: "Tutor fetched successfully", enhancedStudents };
       }
     } catch (error) {
       this.setStatus(500);
@@ -2826,13 +2076,11 @@ export class UserController extends Controller {
       const userLevel = req.user?.level;
       const progressId = req.progressId;
 
-      // Check if user exists
       if (!userId) {
         this.setStatus(401);
         return { message: "Unauthorized", status: 401 };
       }
 
-      // Handle instructor role
       if (userRole === "instructor") {
         const user = await prisma.user.findUnique({
           where: { id: userId, role: userRole },
@@ -2844,26 +2092,15 @@ export class UserController extends Controller {
         }
 
         this.setStatus(200);
-        return {
-          message: "Profile fetched successfully",
-          user,
-        };
+        return { message: "Profile fetched successfully", user };
       }
 
-      // Handle student or member role
       if (userRole === "student") {
         const user = await prisma.user.findUnique({
-          where: {
-            id: userId,
-            role: userRole,
-          },
+          where: { id: userId, role: userRole },
           include: {
             progress: {
-              include: {
-                achivement: true,
-                badges_and_levels: true,
-                badges: true,
-              },
+              include: { achivement: true, badges_and_levels: true, badges: true },
             },
           },
         });
@@ -2878,22 +2115,16 @@ export class UserController extends Controller {
           message: "Profile fetched successfully",
           user,
           level: userLevel ?? null,
-          progressId: progressId,
+          progressId,
         };
-      } // In your controller - the member role section
-      else if (userRole === "Member" || userRole == "member") {
+      }
+
+      if (userRole === "Member" || userRole === "member") {
         const user = await prisma.user.findUnique({
-          where: {
-            id: userId,
-            role: userRole,
-          },
+          where: { id: userId, role: userRole },
           include: {
             progress: {
-              include: {
-                achivement: true,
-                badges_and_levels: true,
-                badges: true,
-              },
+              include: { achivement: true, badges_and_levels: true, badges: true },
             },
             organization: {
               select: {
@@ -2910,6 +2141,16 @@ export class UserController extends Controller {
                 Church: true,
                 school: true,
                 Club: true,
+              },
+            },
+            // ✅ Also include their membership record for richer context
+            organizationMemberships: {
+              where: { isActive: true },
+              select: {
+                organizationId: true,
+                role: true,
+                joinedVia: true,
+                joinedAt: true,
               },
             },
           },
@@ -2931,31 +2172,25 @@ export class UserController extends Controller {
             country: user.country,
             state: user.state,
             level: user.level,
+            userType: user.userType,               // ✅
             profile_pic: user.user_pic,
-            organization: user.organization, // ✅ Return organization at root level
+            organization: user.organization,
+            memberships: user.organizationMemberships, // ✅
           },
           level: userLevel ?? null,
-          progressId: progressId,
+          progressId,
         };
       }
 
-      // Handle invalid role
       this.setStatus(400);
-      return {
-        message: "Invalid user role",
-        status: 400,
-        role: userRole,
-      };
+      return { message: "Invalid user role", status: 400, role: userRole };
     } catch (error) {
       console.error("Error fetching profile:", error);
       this.setStatus(500);
-      return {
-        message: "Internal server error",
-        status: 500,
-        error: error.message,
-      };
+      return { message: "Internal server error", status: 500, error: error.message };
     }
   }
+
   @Post("/forgot-password")
   public async ForgotPassword(
     @Body() body: { email: string; link?: string },
@@ -2963,87 +2198,59 @@ export class UserController extends Controller {
     try {
       const { email, link } = body;
 
-      // ✅ Validate email
       if (!email) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Email is required",
-        };
+        return { success: false, message: "Email is required" };
       }
 
-      // ✅ Rate limiting (optional but recommended)
       const rateLimitKey = `forgot_password_${email}`;
       const now = Date.now();
       const requests = forgotPasswordRateLimit.get(rateLimitKey) || [];
       const recentRequests = requests.filter(
         (time: number) => time > now - 15 * 60 * 1000,
-      ); // 15 minutes
+      );
 
       if (recentRequests.length >= 3) {
         this.setStatus(429);
         return {
           success: false,
-          message:
-            "Too many password reset requests. Please try again in 15 minutes.",
+          message: "Too many password reset requests. Please try again in 15 minutes.",
         };
       }
 
       recentRequests.push(now);
       forgotPasswordRateLimit.set(rateLimitKey, recentRequests);
 
-      // ✅ Check if email belongs to a user or organization
       let user = null;
       let organization = null;
       let accountType = "";
 
-      // First check user
       user = await prisma.user.findUnique({
         where: { email_address: email },
-        select: {
-          id: true,
-          email_address: true,
-          first_name: true,
-          last_name: true,
-          password: true,
-        },
+        select: { id: true, email_address: true, first_name: true, last_name: true, password: true },
       });
 
       if (user) {
         accountType = "user";
       } else {
-        // Then check organization
         organization = await prisma.organization.findUnique({
           where: { organization_email: email },
-          select: {
-            id: true,
-            organization_email: true,
-            organization_name: true,
-            organization_password: true,
-          },
+          select: { id: true, organization_email: true, organization_name: true, organization_password: true },
         });
-
-        if (organization) {
-          accountType = "organization";
-        }
+        if (organization) accountType = "organization";
       }
 
-      // ✅ If no account found
       if (!user && !organization) {
-        // For security, we might not want to reveal whether an email exists
-        // But we'll return a generic message to avoid user enumeration
         this.setStatus(200);
         return {
           success: true,
-          message:
-            "If an account exists with this email, a password reset link has been sent.",
+          message: "If an account exists with this email, a password reset link has been sent.",
         };
       }
 
-      // ✅ Generate reset token
       const resetToken = jwt.sign(
         {
-          email: email,
+          email,
           type: accountType,
           ...(user && { userId: user.id }),
           ...(organization && { organizationId: organization.id }),
@@ -3052,50 +2259,35 @@ export class UserController extends Controller {
         { expiresIn: "1h" },
       );
 
-      // ✅ Store reset token in database
       if (user) {
         await prisma.user.update({
           where: { id: user.id },
-          data: {
-            resetToken: resetToken,
-            resetTokenExpires: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
-          },
+          data: { resetToken, resetTokenExpires: new Date(Date.now() + 60 * 60 * 1000) },
         });
       }
 
       if (organization) {
         await prisma.organization.update({
           where: { id: organization.id },
-          data: {
-            resetToken: resetToken,
-            resetTokenExpires: new Date(Date.now() + 60 * 60 * 1000),
-          },
+          data: { resetToken, resetTokenExpires: new Date(Date.now() + 60 * 60 * 1000) },
         });
       }
 
-      // ✅ Build reset link
-      const baseUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const resetLink =
-        link || `${baseUrl}/auth/reset-password?token=${resetToken}`;
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const resetLink = link || `${baseUrl}/auth/reset-password?token=${resetToken}`;
 
-      // ✅ Prepare email content
       const accountName = user
         ? `${user.first_name} ${user.last_name}`
         : organization?.organization_name || "Your Account";
 
-      const emailSubject =
-        accountType === "organization"
-          ? `Reset Your Organization Password - GOYE Platform`
-          : `Reset Your Password - GOYE Platform`;
+      const emailSubject = accountType === "organization"
+        ? "Reset Your Organization Password - GOYE Platform"
+        : "Reset Your Password - GOYE Platform";
 
-      // ✅ Send email with retry logic
       let emailSent = false;
       for (let i = 0; i < 3; i++) {
         try {
-          await SendEmail(email, emailSubject, resetLink, "reset-password", {
-            userName: accountName,
-          });
+          await SendEmail(email, emailSubject, resetLink, "reset-password", { userName: accountName });
           emailSent = true;
           break;
         } catch (error) {
@@ -3106,10 +2298,7 @@ export class UserController extends Controller {
 
       if (!emailSent) {
         this.setStatus(500);
-        return {
-          success: false,
-          message: "Failed to send password reset email. Please try again.",
-        };
+        return { success: false, message: "Failed to send password reset email. Please try again." };
       }
 
       this.setStatus(200);
@@ -3117,211 +2306,132 @@ export class UserController extends Controller {
         success: true,
         message: `Password reset link sent to ${accountType === "organization" ? "organization " : ""}email`,
         data: {
-          email: email,
+          email,
           type: accountType,
-          accountName: accountName,
-          // Only return reset link in development
+          accountName,
           ...(process.env.NODE_ENV === "development" && { resetLink }),
         },
       };
     } catch (error: any) {
       console.error("ForgotPassword error:", error);
       this.setStatus(500);
-      return {
-        success: false,
-        message: `Failed to process request: ${error.message}`,
-      };
+      return { success: false, message: `Failed to process request: ${error.message}` };
     }
   }
-@Post("/reset-password-no-auth")
-public async ResetPasswordNoAuth(
-  @Body() body: { token: string; newPassword: string }
-): Promise<any> {
-  try {
-    const { token, newPassword } = body;
 
-    if (!token || !newPassword) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Token and new password are required",
-      };
-    }
-
-    if (newPassword.length < 8) {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Password must be at least 8 characters long",
-      };
-    }
-
-    // ✅ Verify token
-    let decoded: any;
+  @Post("/reset-password-no-auth")
+  public async ResetPasswordNoAuth(
+    @Body() body: { token: string; newPassword: string },
+  ): Promise<any> {
     try {
-      decoded = jwt.verify(
-        token,
-        process.env.BEARERAUTH_SECRET || "secret-key"
-      );
-    } catch (error: any) {
-      if (error.name === "TokenExpiredError") {
+      const { token, newPassword } = body;
+
+      if (!token || !newPassword) {
+        this.setStatus(400);
+        return { success: false, message: "Token and new password are required" };
+      }
+
+      if (newPassword.length < 8) {
+        this.setStatus(400);
+        return { success: false, message: "Password must be at least 8 characters long" };
+      }
+
+      let decoded: any;
+      try {
+        decoded = jwt.verify(token, process.env.BEARERAUTH_SECRET || "secret-key");
+      } catch (error: any) {
+        if (error.name === "TokenExpiredError") {
+          this.setStatus(401);
+          return { success: false, message: "Password reset token has expired. Please request a new one." };
+        }
         this.setStatus(401);
-        return {
-          success: false,
-          message: "Password reset token has expired. Please request a new one.",
-        };
-      }
-      this.setStatus(401);
-      return {
-        success: false,
-        message: "Invalid password reset token",
-      };
-    }
-
-    const { email, type, userId, organizationId } = decoded;
-
-    // ✅ Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    if (type === "user" && userId) {
-      // ✅ Update user password
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email_address: true,
-          resetToken: true,
-          resetTokenExpires: true,
-        },
-      });
-
-      if (!user) {
-        this.setStatus(404);
-        return {
-          success: false,
-          message: "User not found",
-        };
+        return { success: false, message: "Invalid password reset token" };
       }
 
-      // ✅ Verify reset token matches
-      if (user.resetToken !== token) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Invalid reset token",
-        };
-      }
+      const { type, userId, organizationId } = decoded;
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-      if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Reset token has expired",
-        };
-      }
-
-      // ✅ Update password
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          password: hashedPassword,
-          resetToken: null,
-          resetTokenExpires: null,
-        },
-      });
-
-      this.setStatus(200);
-      return {
-        success: true,
-        message: "Password reset successfully",
-        data: {
-          type: "user",
-          email: user.email_address,
-        },
-      };
-    } else if (type === "organization" && organizationId) {
-      // ✅ Update organization password
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: {
-          id: true,
-          organization_email: true,
-          resetToken: true,
-          resetTokenExpires: true,
-          userId: true,
-        },
-      });
-
-      if (!organization) {
-        this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
-      }
-
-      // ✅ Verify reset token matches
-      if (organization.resetToken !== token) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Invalid reset token",
-        };
-      }
-
-      if (organization.resetTokenExpires && new Date() > organization.resetTokenExpires) {
-        this.setStatus(401);
-        return {
-          success: false,
-          message: "Reset token has expired",
-        };
-      }
-
-      // ✅ Update organization password
-      await prisma.organization.update({
-        where: { id: organizationId },
-        data: {
-          organization_password: hashedPassword,
-          resetToken: null,
-          resetTokenExpires: null,
-        },
-      });
-
-      // ✅ Also update the associated user's password
-      if (organization.userId) {
-        await prisma.user.update({
-          where: { id: organization.userId },
-          data: {
-            password: hashedPassword,
-          },
+      if (type === "user" && userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email_address: true, resetToken: true, resetTokenExpires: true },
         });
-      }
 
-      this.setStatus(200);
-      return {
-        success: true,
-        message: "Organization password reset successfully",
-        data: {
-          type: "organization",
-          email: organization.organization_email,
-        },
-      };
-    } else {
-      this.setStatus(400);
-      return {
-        success: false,
-        message: "Invalid token data",
-      };
+        if (!user) {
+          this.setStatus(404);
+          return { success: false, message: "User not found" };
+        }
+
+        if (user.resetToken !== token) {
+          this.setStatus(401);
+          return { success: false, message: "Invalid reset token" };
+        }
+
+        if (user.resetTokenExpires && new Date() > user.resetTokenExpires) {
+          this.setStatus(401);
+          return { success: false, message: "Reset token has expired" };
+        }
+
+        await prisma.user.update({
+          where: { id: userId },
+          data: { password: hashedPassword, resetToken: null, resetTokenExpires: null },
+        });
+
+        this.setStatus(200);
+        return {
+          success: true,
+          message: "Password reset successfully",
+          data: { type: "user", email: user.email_address },
+        };
+      } else if (type === "organization" && organizationId) {
+        const organization = await prisma.organization.findUnique({
+          where: { id: organizationId },
+          select: { id: true, organization_email: true, resetToken: true, resetTokenExpires: true, userId: true },
+        });
+
+        if (!organization) {
+          this.setStatus(404);
+          return { success: false, message: "Organization not found" };
+        }
+
+        if (organization.resetToken !== token) {
+          this.setStatus(401);
+          return { success: false, message: "Invalid reset token" };
+        }
+
+        if (organization.resetTokenExpires && new Date() > organization.resetTokenExpires) {
+          this.setStatus(401);
+          return { success: false, message: "Reset token has expired" };
+        }
+
+        await prisma.organization.update({
+          where: { id: organizationId },
+          data: { organization_password: hashedPassword, resetToken: null, resetTokenExpires: null },
+        });
+
+        if (organization.userId) {
+          await prisma.user.update({
+            where: { id: organization.userId },
+            data: { password: hashedPassword },
+          });
+        }
+
+        this.setStatus(200);
+        return {
+          success: true,
+          message: "Organization password reset successfully",
+          data: { type: "organization", email: organization.organization_email },
+        };
+      } else {
+        this.setStatus(400);
+        return { success: false, message: "Invalid token data" };
+      }
+    } catch (error: any) {
+      console.error("ResetPassword error:", error);
+      this.setStatus(500);
+      return { success: false, message: `Failed to reset password: ${error.message}` };
     }
-  } catch (error: any) {
-    console.error("ResetPassword error:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: `Failed to reset password: ${error.message}`,
-    };
   }
-}
 
   @Security("bearerAuth")
   @Post("/check-password")
@@ -3334,35 +2444,21 @@ public async ResetPasswordNoAuth(
 
     try {
       const user = await prisma.user.findUnique({
-        where: {
-          email_address: userEmail,
-        },
+        where: { email_address: userEmail },
       });
 
       if (user) {
-        const checkPassword = await bcrypt.compare(
-          body.password,
-          user.password,
-        );
+        const checkPassword = await bcrypt.compare(body.password, user.password);
         if (!checkPassword) {
           this.setStatus(400);
-          return {
-            status: 400,
-            message: "Password is invalid",
-          };
+          return { status: 400, message: "Password is invalid" };
         }
-
         this.setStatus(200);
-        return {
-          message: "Password is correct",
-          status: 200,
-        };
+        return { message: "Password is correct", status: 200 };
       }
 
       const organization = await prisma.organization.findUnique({
-        where: {
-          organization_email: orgEmail,
-        },
+        where: { organization_email: orgEmail },
       });
 
       if (organization) {
@@ -3372,21 +2468,13 @@ public async ResetPasswordNoAuth(
         );
         if (!checkPassword) {
           this.setStatus(400);
-          return {
-            message: "Password is invalid",
-          };
+          return { message: "Password is invalid" };
         }
-
         this.setStatus(200);
-        return {
-          message: "Password is valid",
-          status: 200,
-        };
+        return { message: "Password is valid", status: 200 };
       }
 
-      return {
-        message: "An error occured",
-      };
+      return { message: "An error occurred" };
     } catch (error: any) {
       console.error(error.message);
     }
@@ -3394,27 +2482,15 @@ public async ResetPasswordNoAuth(
 
   @Get("/user-student-status")
   public async GetUserStatus(): Promise<any> {
-    const totalStudents = await prisma.user.count({
-      where: {
-        role: "student",
-      },
-    });
-
-    const onlineStudents = await prisma.user.count({
-      where: {
-        role: "student",
-        isOnline: true,
-      },
-    });
-
+    const totalStudents = await prisma.user.count({ where: { role: "student" } });
+    const onlineStudents = await prisma.user.count({ where: { role: "student", isOnline: true } });
     const newStudentsToday = await prisma.user.count({
       where: {
         role: "student",
-        createdAt: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
+        createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
       },
     });
+
     return {
       message: "User statistics fetched successfully",
       stats: {
@@ -3426,57 +2502,45 @@ public async ResetPasswordNoAuth(
     };
   }
 
-  // Global admin dashboard statistics
   @Security("bearerAuth")
   @Get("/admin-dashboard-stats")
   public async GetAdminDashboardStats(@Request() req: any): Promise<any> {
     const userRole = req.user?.role;
 
-    // Only allow platform admins to access this endpoint
     if (userRole !== "admin" && userRole !== "ADMIN") {
       this.setStatus(403);
-      return {
-        message: "Only admins can access dashboard statistics",
-      };
+      return { message: "Only admins can access dashboard statistics" };
     }
 
-    // Basic user stats
     const totalUsers = await prisma.user.count();
-    const activeUsers = await prisma.user.count({
-      where: { isOnline: true },
-    });
+    const activeUsers = await prisma.user.count({ where: { isOnline: true } });
     const newUsersToday = await prisma.user.count({
-      where: {
-        createdAt: {
-          gte: new Date(new Date().setHours(0, 0, 0, 0)),
-        },
-      },
+      where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
     });
 
-    // Organizations and courses
+    // ✅ Count by userType — much cleaner than old boolean checks
+    const orgOwners = await prisma.user.count({ where: { userType: "ORGANIZATION_OWNER" } });
+    const invitedMembers = await prisma.user.count({ where: { userType: "INVITED_MEMBER" } });
+    const individualUsers = await prisma.user.count({ where: { userType: "INDIVIDUAL" } });
+
     const totalOrganizations = await prisma.organization.count();
     const totalCourses = await prisma.course.count();
-
-    // Enrollment / completion stats
     const totalEnrollments = await prisma.enrollment.count();
-    const completedEnrollments = await prisma.enrollment.count({
-      where: { status: "COMPLETED" },
-    });
+    const completedEnrollments = await prisma.enrollment.count({ where: { status: "COMPLETED" } });
 
-    const avgCompletionRate =
-      totalEnrollments > 0
-        ? Math.round((completedEnrollments / totalEnrollments) * 100)
-        : 0;
+    const avgCompletionRate = totalEnrollments > 0
+      ? Math.round((completedEnrollments / totalEnrollments) * 100)
+      : 0;
 
-    // Engagement: percentage of users who enrolled in at least one course
     const engagedUsers = await prisma.enrollment.groupBy({
       by: ["userId"],
       _count: { userId: true },
     });
 
     const engagedUserCount = engagedUsers.length;
-    const engagementRate =
-      totalUsers > 0 ? Math.round((engagedUserCount / totalUsers) * 100) : 0;
+    const engagementRate = totalUsers > 0
+      ? Math.round((engagedUserCount / totalUsers) * 100)
+      : 0;
 
     this.setStatus(200);
     return {
@@ -3491,6 +2555,12 @@ public async ResetPasswordNoAuth(
         completedEnrollments,
         avgCompletionRate,
         engagementRate,
+        // ✅ New breakdown by userType
+        userTypeBreakdown: {
+          orgOwners,
+          invitedMembers,
+          individualUsers,
+        },
       },
     };
   }
@@ -3509,19 +2579,10 @@ public async ResetPasswordNoAuth(
     const settings = await prisma.settings.findFirst({
       where: orgId ? { organizationId: orgId } : { userId },
       select: {
-        id: true,
-        darkMode: true,
-        enable_push_notification: true,
-        course_updates: true,
-        event: true,
-        achievement: true,
-        daily_reminders: true,
-        group_activity: true,
-        email_notification: true,
-        userId: true,
-        organizationId: true,
-        updatedAt: true,
-        createdAt: true,
+        id: true, darkMode: true, enable_push_notification: true,
+        course_updates: true, event: true, achievement: true,
+        daily_reminders: true, group_activity: true, email_notification: true,
+        userId: true, organizationId: true, updatedAt: true, createdAt: true,
       },
     });
 
@@ -3579,44 +2640,28 @@ public async ResetPasswordNoAuth(
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
     const userId = req.user?.id;
-    const deviceId = req.deviceId;
 
     if (!userId) {
       this.setStatus(401);
       return { message: "User not authenticated" };
     }
 
-    // Clean up session for this specific device
-
-    // Update user status
     await prisma.user.update({
       where: { id: userId },
-      data: {
-        isOnline: false,
-        lastActive: new Date(),
-      },
+      data: { isOnline: false, lastActive: new Date() },
     });
 
-    // Clear the cookie
     if (req.res) {
       req.res.clearCookie("token", {
-        httpOnly: true,
-        secure: true,
-        sameSite: "none",
-        path: "/",
+        httpOnly: true, secure: true, sameSite: "none", path: "/",
       });
-
-      // Set cache control headers to prevent caching
       req.res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       req.res.setHeader("Pragma", "no-cache");
       req.res.setHeader("Expires", "0");
     }
 
     this.setStatus(200);
-    return {
-      message: "Logout successful",
-      clearTokens: true,
-    };
+    return { message: "Logout successful", clearTokens: true };
   }
 
   @Get("/debug-progress")
@@ -3631,7 +2676,6 @@ public async ResetPasswordNoAuth(
     };
   }
 
-  // UserController.ts - add this endpoint
   @Security("bearerAuth")
   @Get("/socket-token")
   public async GetSocketToken(@Request() req: any): Promise<any> {
@@ -3642,7 +2686,6 @@ public async ResetPasswordNoAuth(
       return { message: "Unauthorized" };
     }
 
-    // Sign with ACCESS_SECRET so socket can verify it
     const socketToken = jwt.sign({ id: userId }, process.env.ACCESS_SECRET!, {
       expiresIn: "1h",
     });
@@ -3667,40 +2710,27 @@ public async ResetPasswordNoAuth(
     }
 
     try {
-      // Use your existing refreshTokens helper
       const tokens = await refreshTokens(refreshToken, deviceId);
 
       if (!tokens) {
         this.setStatus(401);
-        return {
-          message: "Failed to refresh token - invalid or expired session",
-        };
+        return { message: "Failed to refresh token - invalid or expired session" };
       }
 
-      // Set new cookies
       const isProduction = process.env.NODE_ENV === "production";
 
       req.res.cookie("accessToken", tokens.accessToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 15 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
       });
 
       req.res.cookie("refreshToken", tokens.refreshToken, {
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: isProduction ? "none" : "lax",
-        path: "/",
-        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true, secure: isProduction,
+        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
       this.setStatus(200);
-      return {
-        message: "Token refreshed successfully",
-        accessToken: tokens.accessToken, // Return in body as fallback
-      };
+      return { message: "Token refreshed successfully", accessToken: tokens.accessToken };
     } catch (error: any) {
       console.error("Refresh token error:", error);
       this.setStatus(401);
@@ -3712,9 +2742,6 @@ public async ResetPasswordNoAuth(
   @Get("fetch-countries")
   public async FetchCountries() {
     const data = await WeirdService.FetchCountries();
-
-    return {
-      data,
-    };
+    return { data };
   }
 }

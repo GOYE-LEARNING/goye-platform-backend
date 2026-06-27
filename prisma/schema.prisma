@@ -7,101 +7,42 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id                String                 @id @default(cuid())
-  firebase_uid      String?                @unique
-  first_name        String
-  last_name         String
-  email_address     String                 @unique
-  paymentCode       String?
-  password          String?
-  country           String
-  state             String
-  phone_number      String
-  language          String?                @default("unknown")
-  languageCode      LanguageCode?          @default(unknown)
-  role              String                 @default("student")
-  level             String
-  point             Int?
-  completed         String                 @default("false")
-  form_type         FormType?              @default(INDIVIDUAL)
-  user_plan         PricingHistory[]
-  createdAt         DateTime               @default(now())
-  isOnline          Boolean                @default(false)
-  lastActive        DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  user_pic          String?
-  invited           Boolean?               @default(false)
-  provider          String?                @default("OTHER")
-  completedCourses  Int?
-  completedLessons  Int?
-  completedVideo    Int?
-  isProfileComplete Boolean?               @default(false)
-  isFromWaitList    Boolean?
-  resetToken        String?
-  resetTokenExpires DateTime?
-  isVerified        Boolean                @default(false)
-  verifiedAt        DateTime?
-  enrollment        Enrollment[]
-  post              Post[]
-  reply             Reply[]
-  quizAttempt       QuizAttempt[]
-  likes             Likes[]
-  Courses           Course[]
-  Group             Group[]
-  joinedGroups      JoinedGroup[]
-  notification      Notification[]
-  message           Message[]
-  organization      Organization?
-  inviteUser        InviteUser[]
-  settings          Settings[]
-  achievement       Achievement[]
-  badgesAndLevel    BadgesAndLevelEarned[]
-  progress          Progress[]
-  badges            Badges[]
-  userSessions      UserSession[]
-  pointHistory      PointHistory[]
-  discussions       Discussion[]
-  discussionLikes   DiscussionLike[]
-  sentMessages      PrivateMessage[]       @relation("SentMessages")
-  receivedMessages  PrivateMessage[]       @relation("ReceivedMessages")
-  feedBack          Feedback[]
-  certificate       Certificate[]
-  savedCourses      SavedCourses[]
-  adminProfile      AdminProfile?
-  additionalData    UserAdditionalData?
-  waitlists         Waitlist?              @relation(fields: [waitlistId], references: [id])
-  waitlistId        String?                @unique
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserType {
+  INDIVIDUAL         // Self-registered, no org
+  ORGANIZATION_OWNER // Created an organization
+  INVITED_MEMBER     // Joined via InviteUser link
+  ADMIN
+}
+
+enum JoinMethod {
+  CREATED   // This user founded the org
+  INVITE    // Joined via InviteUser
+  WAITLIST  // Joined from waitlist
 }
 
 enum LanguageCode {
-  unknown //  UNKNOWN language
-  en // English
-  fr // French
-  es // Spanish
-  pt // Portuguese
-  de // German
-  it // Italian
-  nl // Dutch
-  zh_CN // Chinese (Simplified)
-  zh_TW // Chinese (Traditional)
-  ja // Japanese
-  ko // Korean
-  hi // Hindi
-  sw // Swahili
-  yo // Yorùbá
-  ig // Igbo
-  ha // Hausa
-  am // Amharic
-}
-
-model Waitlist {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  status    String
-  users     User[]
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
+  unknown  // UNKNOWN language
+  en       // English
+  fr       // French
+  es       // Spanish
+  pt       // Portuguese
+  de       // German
+  it       // Italian
+  nl       // Dutch
+  zh_CN    // Chinese (Simplified)
+  zh_TW    // Chinese (Traditional)
+  ja       // Japanese
+  ko       // Korean
+  hi       // Hindi
+  sw       // Swahili
+  yo       // Yorùbá
+  ig       // Igbo
+  ha       // Hausa
+  am       // Amharic
 }
 
 enum Provider {
@@ -111,30 +52,18 @@ enum Provider {
   OTHER
 }
 
-model UserAdditionalData {
-  id                String   @id @default(cuid())
-  organization_name String?
-  organization_role String?
-  organization_type String?
-  type              String?  @default("INDIVIDUAL")
-  userId            String   @unique
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+enum FormType {
+  ORGANIZATION
+  INDIVIDUAL
+  INVITED
+  ADMIN
 }
 
-model PricingHistory {
-  id              String         @id @default(uuid())
-  type            MemberPlanType
-  amountPayed     Int
-  planDuration    PlanDuration
-  plans           Plans
-  user            User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId          String?
-  organization    Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId  String?
-  planActivatedAt DateTime       @default(now())
-  planUpdatedAt   DateTime?
+enum OrgType {
+  CHURCH
+  SCHOOL
+  CLUB
+  OTHER
 }
 
 enum Plans {
@@ -167,6 +96,218 @@ enum MemberPlanType {
   INVITED_INDIVIDUAL
 }
 
+enum EnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+  NOT_ENROLLED
+}
+
+enum Tracking {
+  FIRST_TIME_TRACKING
+  SECOND_TIME_TRACKING
+}
+
+enum BadgesEnum {
+  CADET_BADGE
+  COURSE_COMPLETION_BADGE
+  CONSISTENCY_BADGE
+  MASTERY_BADGE
+  MILESTONES_BADGES
+}
+
+enum Levels {
+  LEVEL1_SEEKER
+  LEVEL2_LEARNER
+  LEVEL3_DISCIPLE
+  LEVEL4_AMBASSADOR
+  LEVEL5_MENTOR
+}
+
+enum CertificateType {
+  COURSE
+  OTHER
+}
+
+enum Category {
+  PRAYER
+  DISCUSSION
+  DEVOTION
+  BLESSING
+  TESTIMONY
+  QUESTION
+}
+
+enum FeedbackType {
+  COURSE
+  GROUP
+  OTHER
+}
+
+// ─────────────────────────────────────────────
+// USER
+// ─────────────────────────────────────────────
+
+model User {
+  id                String                 @id @default(cuid())
+  firebase_uid      String?                @unique
+  first_name        String
+  last_name         String
+  email_address     String                 @unique
+  paymentCode       String?
+  password          String?
+  country           String
+  state             String
+  phone_number      String
+  language          String?                @default("unknown")
+  languageCode      LanguageCode?          @default(unknown)
+  role              String                 @default("student")
+  level             String
+  point             Int?
+  completed         String                 @default("false")
+  form_type         FormType?              @default(INDIVIDUAL)
+
+  // ── Replaces the old `invited Boolean` flag ──────────────────────────────
+  // Use this to distinguish who a user IS at the identity level:
+  //   INDIVIDUAL         → self-registered, no org
+  //   ORGANIZATION_OWNER → created an org (Organization.userId = this user)
+  //   INVITED_MEMBER     → accepted an InviteUser link
+  //   ADMIN              → platform admin
+  userType          UserType               @default(INDIVIDUAL)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  user_plan         PricingHistory[]
+  createdAt         DateTime               @default(now())
+  isOnline          Boolean                @default(false)
+  lastActive        DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  user_pic          String?
+  provider          String?                @default("OTHER")
+  completedCourses  Int?
+  completedLessons  Int?
+  completedVideo    Int?
+  isProfileComplete Boolean?               @default(false)
+  isFromWaitList    Boolean?
+  resetToken        String?
+  resetTokenExpires DateTime?
+  isVerified        Boolean                @default(false)
+  verifiedAt        DateTime?
+
+  enrollment              Enrollment[]
+  post                    Post[]
+  reply                   Reply[]
+  quizAttempt             QuizAttempt[]
+  likes                   Likes[]
+  Courses                 Course[]
+  Group                   Group[]
+  joinedGroups            JoinedGroup[]
+  notification            Notification[]
+  message                 Message[]
+  organization            Organization?
+  inviteUser              InviteUser[]
+  settings                Settings[]
+  achievement             Achievement[]
+  badgesAndLevel          BadgesAndLevelEarned[]
+  progress                Progress[]
+  badges                  Badges[]
+  userSessions            UserSession[]
+  pointHistory            PointHistory[]
+  discussions             Discussion[]
+  discussionLikes         DiscussionLike[]
+  sentMessages            PrivateMessage[]       @relation("SentMessages")
+  receivedMessages        PrivateMessage[]       @relation("ReceivedMessages")
+  feedBack                Feedback[]
+  certificate             Certificate[]
+  savedCourses            SavedCourses[]
+  adminProfile            AdminProfile?
+  additionalData          UserAdditionalData?
+  waitlists               Waitlist?              @relation(fields: [waitlistId], references: [id])
+  waitlistId              String?                @unique
+
+  // ── Org membership audit trail (which orgs this user belongs to & how) ──
+  organizationMemberships OrganizationMember[]
+  // ─────────────────────────────────────────────────────────────────────────
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATION MEMBER
+// Tracks every user–org relationship with full context:
+//   who joined, which org, when, via which method, and which invite.
+// ─────────────────────────────────────────────
+
+model OrganizationMember {
+  id             String     @id @default(cuid())
+  userId         String
+  organizationId String
+  role           String     @default("member") // e.g. "pastor", "student", "admin"
+  joinedVia      JoinMethod @default(INVITE)
+  joinedAt       DateTime   @default(now())
+  isActive       Boolean    @default(true)
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Link back to the specific invite that brought this user in (nullable for CREATED)
+  invite         InviteUser?  @relation(fields: [inviteId], references: [id])
+  inviteId       String?
+
+  @@unique([userId, organizationId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// WAITLIST
+// ─────────────────────────────────────────────
+
+model Waitlist {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  status    String
+  users     User[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+}
+
+// ─────────────────────────────────────────────
+// USER ADDITIONAL DATA
+// ─────────────────────────────────────────────
+
+model UserAdditionalData {
+  id                String   @id @default(cuid())
+  organization_name String?
+  organization_role String?
+  organization_type String?
+  type              String?  @default("INDIVIDUAL")
+  userId            String   @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────
+// PRICING HISTORY
+// ─────────────────────────────────────────────
+
+model PricingHistory {
+  id              String         @id @default(uuid())
+  type            MemberPlanType
+  amountPayed     Int
+  planDuration    PlanDuration
+  plans           Plans
+  user            User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String?
+  organization    Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId  String?
+  planActivatedAt DateTime       @default(now())
+  planUpdatedAt   DateTime?
+}
+
+// ─────────────────────────────────────────────
+// ADMIN PROFILE
+// ─────────────────────────────────────────────
+
 model AdminProfile {
   id          String    @id @default(cuid())
   userId      String    @unique
@@ -183,6 +324,10 @@ model AdminProfile {
   @@index([userId])
   @@index([role])
 }
+
+// ─────────────────────────────────────────────
+// USER SESSION
+// ─────────────────────────────────────────────
 
 model UserSession {
   id           String   @id @default(cuid())
@@ -207,12 +352,9 @@ model UserSession {
   @@index([refreshToken])
 }
 
-enum FormType {
-  ORGANIZATION
-  INDIVIDUAL
-  INVITED
-  ADMIN
-}
+// ─────────────────────────────────────────────
+// INVITE USER
+// ─────────────────────────────────────────────
 
 model InviteUser {
   id             String       @id @default(cuid())
@@ -227,27 +369,35 @@ model InviteUser {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime?    @updatedAt
   expiresIn      DateTime
+
+  // ── Back-link to the OrganizationMember created when invite was accepted ─
+  members        OrganizationMember[]
+  // ─────────────────────────────────────────────────────────────────────────
 }
 
+// ─────────────────────────────────────────────
+// ORGANIZATION
+// ─────────────────────────────────────────────
+
 model Organization {
-  id                        String    @id @default(uuid())
- user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId String? @unique // Make it optional to allow deletion  
-  organization_name         String
-  organization_type         OrgType   @default(OTHER)
-  organization_email        String    @unique
-  organization_phone_number String
-  organization_country      String
-  organization_state        String
-  organization_description  String
-  organization_role         String
-  organization_password     String?
-  organization_year         String
-  organization_image        String?
-  language                  String?
-  languageCode              String?
-  resetToken                String?
-  resetTokenExpires         DateTime?
+  id                         String    @id @default(uuid())
+  user                       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId                     String?   @unique // The owner/creator; nullable to allow deletion
+  organization_name          String
+  organization_type          OrgType   @default(OTHER)
+  organization_email         String    @unique
+  organization_phone_number  String
+  organization_country       String
+  organization_state         String
+  organization_description   String
+  organization_role          String
+  organization_password      String?
+  organization_year          String
+  organization_image         String?
+  language                   String?
+  languageCode               String?
+  resetToken                 String?
+  resetTokenExpires          DateTime?
   organization_plan          PricingHistory[]
   form_type                  FormType?            @default(ORGANIZATION)
   isOnline                   Boolean?             @default(false)
@@ -275,7 +425,15 @@ model Organization {
   posts                      Post[]
   settings                   Settings[]
   pointHistory               PointHistory[]
+
+  // ── All members of this org (owners + invited) ───────────────────────────
+  members                    OrganizationMember[]
+  // ─────────────────────────────────────────────────────────────────────────
 }
+
+// ─────────────────────────────────────────────
+// ORG SUB-TYPES
+// ─────────────────────────────────────────────
 
 model Church_Organization {
   id                    String       @id @default(uuid())
@@ -329,12 +487,9 @@ model Club_Organization {
   updatedAt              DateTime?
 }
 
-enum OrgType {
-  CHURCH
-  SCHOOL
-  CLUB
-  OTHER
-}
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
 
 model Notification {
   id             String        @id @default(uuid())
@@ -368,6 +523,10 @@ model Notification {
   @@index([userId])
 }
 
+// ─────────────────────────────────────────────
+// SETTINGS
+// ─────────────────────────────────────────────
+
 model Settings {
   id                       String        @id @default(uuid())
   enable_push_notification Boolean?      @default(true)
@@ -385,6 +544,10 @@ model Settings {
   updatedAt                DateTime
   createdAt                DateTime      @default(now())
 }
+
+// ─────────────────────────────────────────────
+// COURSES
+// ─────────────────────────────────────────────
 
 model Course {
   id                       String                 @id @default(cuid())
@@ -422,6 +585,10 @@ model Course {
   savedCoursesId           String?
 }
 
+// ─────────────────────────────────────────────
+// ACHIEVEMENT
+// ─────────────────────────────────────────────
+
 model Achievement {
   id                String                 @id @default(uuid())
   title             String
@@ -444,6 +611,10 @@ model Achievement {
   userId            String?
 }
 
+// ─────────────────────────────────────────────
+// PROGRESS
+// ─────────────────────────────────────────────
+
 model Progress {
   id                String                 @id @default(uuid())
   progressBar       Int
@@ -463,8 +634,12 @@ model Progress {
   lesson            Lesson?                @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   lessonId          String?
 
-  @@unique([userId, lessonId]) // ✅ Prevents duplicate lesson progress
+  @@unique([userId, lessonId])
 }
+
+// ─────────────────────────────────────────────
+// VIDEO TRACKER
+// ─────────────────────────────────────────────
 
 model VideoTracker {
   id                String         @id @default(uuid())
@@ -481,8 +656,12 @@ model VideoTracker {
   createdAt         DateTime       @default(now())
   updatedAt         DateTime?
 
-  @@unique([lessonId, progressId]) // ✅ Prevents duplicate video trackers
+  @@unique([lessonId, progressId])
 }
+
+// ─────────────────────────────────────────────
+// POINT HISTORY
+// ─────────────────────────────────────────────
 
 model PointHistory {
   id             String        @id @default(uuid())
@@ -511,10 +690,9 @@ model PointHistory {
   progressId     String?
 }
 
-enum Tracking {
-  FIRST_TIME_TRACKING
-  SECOND_TIME_TRACKING
-}
+// ─────────────────────────────────────────────
+// BADGES & LEVELS
+// ─────────────────────────────────────────────
 
 model BadgesAndLevelEarned {
   id            String       @id @default(uuid())
@@ -547,21 +725,9 @@ model Badges {
   progressId             String?
 }
 
-enum BadgesEnum {
-  CADET_BADGE
-  COURSE_COMPLETION_BADGE
-  CONSISTENCY_BADGE
-  MASTERY_BADGE
-  MILESTONES_BADGES
-}
-
-enum Levels {
-  LEVEL1_SEEKER
-  LEVEL2_LEARNER
-  LEVEL3_DISCIPLE
-  LEVEL4_AMBASSADOR
-  LEVEL5_MENTOR
-}
+// ─────────────────────────────────────────────
+// OTP
+// ─────────────────────────────────────────────
 
 model Otp {
   id        String   @id @default(cuid())
@@ -570,6 +736,10 @@ model Otp {
   createdAt DateTime @default(now())
   expiresIn DateTime
 }
+
+// ─────────────────────────────────────────────
+// MESSAGING
+// ─────────────────────────────────────────────
 
 model Message {
   id        String    @id @default(uuid())
@@ -580,6 +750,35 @@ model Message {
   createdAt DateTime  @default(now())
   updatedAt DateTime?
 }
+
+model PrivateMessage {
+  id         String    @id @default(cuid())
+  content    String
+  senderId   String
+  receiverId String
+  replyToId  String?
+  isDeleted  Boolean   @default(false)
+  isEdited   Boolean   @default(false)
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  sender    User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver  User             @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  replyTo   PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: Cascade)
+  replies   PrivateMessage[] @relation("ReplyTo")
+  hiddenFor String[]         @default([])
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([replyToId])
+  @@index([createdAt])
+  @@index([readAt])
+}
+
+// ─────────────────────────────────────────────
+// POSTS & REPLIES
+// ─────────────────────────────────────────────
 
 model Post {
   id             String         @id @default(cuid())
@@ -630,6 +829,10 @@ model Likes {
   @@unique([userId, postId])
   @@unique([userId, replyId])
 }
+
+// ─────────────────────────────────────────────
+// GROUPS & EVENTS
+// ─────────────────────────────────────────────
 
 model Group {
   id                      String         @id @default(uuid())
@@ -690,6 +893,10 @@ model JoinedEvent {
   eventId       String?
 }
 
+// ─────────────────────────────────────────────
+// ENROLLMENT
+// ─────────────────────────────────────────────
+
 model Enrollment {
   id             String           @id @default(cuid())
   userId         String
@@ -710,13 +917,9 @@ model Enrollment {
   @@unique([userId, courseId])
 }
 
-enum EnrollmentStatus {
-  ENROLLED
-  IN_PROGRESS
-  COMPLETED
-  DROPPED
-  NOT_ENROLLED
-}
+// ─────────────────────────────────────────────
+// SAVED COURSES
+// ─────────────────────────────────────────────
 
 model SavedCourses {
   id        String   @id @default(cuid())
@@ -727,6 +930,10 @@ model SavedCourses {
   updatedAt DateTime @updatedAt
   courseId  String?  @unique
 }
+
+// ─────────────────────────────────────────────
+// MODULE & LESSON
+// ─────────────────────────────────────────────
 
 model Module {
   id                 String   @id @default(cuid())
@@ -758,6 +965,10 @@ model Lesson {
   module       Module         @relation(fields: [moduleId], references: [id], onDelete: Cascade)
 }
 
+// ─────────────────────────────────────────────
+// MATERIAL
+// ─────────────────────────────────────────────
+
 model Material {
   id                   String   @id @default(cuid())
   material_title       String?
@@ -769,6 +980,10 @@ model Material {
   updatedAt            DateTime @updatedAt
   course               Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
+
+// ─────────────────────────────────────────────
+// QUIZ
+// ─────────────────────────────────────────────
 
 model Quiz {
   id             String        @id @default(cuid())
@@ -835,6 +1050,10 @@ model QuizAttempt {
   @@map("quiz_attempts")
 }
 
+// ─────────────────────────────────────────────
+// OBJECTIVES
+// ─────────────────────────────────────────────
+
 model Objectives {
   id               String   @id @default(cuid())
   objective_title1 String
@@ -847,6 +1066,10 @@ model Objectives {
   updatedAt        DateTime @updatedAt
   course           Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
 }
+
+// ─────────────────────────────────────────────
+// CERTIFICATE
+// ─────────────────────────────────────────────
 
 model Certificate {
   id                  String          @id @default(cuid())
@@ -864,10 +1087,9 @@ model Certificate {
   enrollmentId        String?
 }
 
-enum CertificateType {
-  COURSE
-  OTHER
-}
+// ─────────────────────────────────────────────
+// DISCUSSIONS
+// ─────────────────────────────────────────────
 
 model Discussion {
   id        String           @id @default(cuid())
@@ -890,15 +1112,6 @@ model Discussion {
   @@index([isPublic])
 }
 
-enum Category {
-  PRAYER
-  DISCUSSION
-  DEVOTION
-  BLESSING
-  TESTIMONY
-  QUESTION
-}
-
 model DiscussionLike {
   id           String   @id @default(cuid())
   discussionId String
@@ -913,30 +1126,9 @@ model DiscussionLike {
   @@index([userId])
 }
 
-model PrivateMessage {
-  id         String    @id @default(cuid())
-  content    String
-  senderId   String
-  receiverId String
-  replyToId  String?
-  isDeleted  Boolean   @default(false)
-  isEdited   Boolean   @default(false)
-  readAt     DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-
-  sender    User             @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver  User             @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
-  replyTo   PrivateMessage?  @relation("ReplyTo", fields: [replyToId], references: [id], onDelete: Cascade)
-  replies   PrivateMessage[] @relation("ReplyTo")
-  hiddenFor String[]         @default([])
-
-  @@index([senderId])
-  @@index([receiverId])
-  @@index([replyToId])
-  @@index([createdAt])
-  @@index([readAt])
-}
+// ─────────────────────────────────────────────
+// FEEDBACK
+// ─────────────────────────────────────────────
 
 model Feedback {
   id             String        @id @default(ulid())
@@ -948,10 +1140,4 @@ model Feedback {
   userId         String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   organizationId String?
-}
-
-enum FeedbackType {
-  COURSE
-  GROUP
-  OTHER
 }

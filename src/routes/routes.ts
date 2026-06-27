@@ -60,6 +60,11 @@ const models: TsoaRoute.Models = {
         "type": {"ref":"Pick_User.Exclude_keyofUser.id__","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.UserType": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["ADMIN"]},{"dataType":"enum","enums":["ORGANIZATION_OWNER"]},{"dataType":"enum","enums":["INVITED_MEMBER"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "_36_Enums.MemberPlanType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ORGANIZATION"]},{"dataType":"enum","enums":["INDIVIDUAL"]},{"dataType":"enum","enums":["INVITED_INDIVIDUAL"]}],"validators":{}},
@@ -88,6 +93,11 @@ const models: TsoaRoute.Models = {
     "_36_Enums.OrgType": {
         "dataType": "refAlias",
         "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CHURCH"]},{"dataType":"enum","enums":["SCHOOL"]},{"dataType":"enum","enums":["CLUB"]},{"dataType":"enum","enums":["OTHER"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.JoinMethod": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["CREATED"]},{"dataType":"enum","enums":["INVITE"]},{"dataType":"enum","enums":["WAITLIST"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "FormattedCountry": {
@@ -819,7 +829,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_UpdateUserInvitation: Record<string, TsoaRoute.ParameterSchema> = {
                 userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"role":{"dataType":"string","required":true},"invited":{"dataType":"boolean","required":true},"organizationId":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"role":{"dataType":"string","required":true},"organizationId":{"dataType":"string","required":true}}},
         };
         app.patch('/api/user/update-invitation/:userId',
             ...(fetchMiddlewares<RequestHandler>(UserController)),

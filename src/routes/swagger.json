@@ -71,6 +71,15 @@
 				"$ref": "#/components/schemas/Pick_User.Exclude_keyofUser.id__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
+			"_36_Enums.UserType": {
+				"type": "string",
+				"enum": [
+					"INDIVIDUAL",
+					"ADMIN",
+					"ORGANIZATION_OWNER",
+					"INVITED_MEMBER"
+				]
+			},
 			"_36_Enums.MemberPlanType": {
 				"type": "string",
 				"enum": [
@@ -138,6 +147,14 @@
 					"SCHOOL",
 					"CLUB",
 					"OTHER"
+				]
+			},
+			"_36_Enums.JoinMethod": {
+				"type": "string",
+				"enum": [
+					"CREATED",
+					"INVITE",
+					"WAITLIST"
 				]
 			},
 			"FormattedCountry": {
@@ -2382,6 +2399,9 @@
 																"isProfileComplete": {
 																	"type": "boolean"
 																},
+																"userType": {
+																	"$ref": "#/components/schemas/_36_Enums.UserType"
+																},
 																"level": {
 																	"type": "string"
 																},
@@ -2412,6 +2432,7 @@
 															},
 															"required": [
 																"isProfileComplete",
+																"userType",
 																"level",
 																"role",
 																"phone_number",
@@ -2583,16 +2604,12 @@
 									"role": {
 										"type": "string"
 									},
-									"invited": {
-										"type": "boolean"
-									},
 									"organizationId": {
 										"type": "string"
 									}
 								},
 								"required": [
 									"role",
-									"invited",
 									"organizationId"
 								],
 								"type": "object"
@@ -2969,9 +2986,6 @@
 												"provider": {
 													"type": "string"
 												},
-												"invited": {
-													"type": "boolean"
-												},
 												"user_pic": {
 													"type": "string"
 												},
@@ -2981,6 +2995,9 @@
 												},
 												"isOnline": {
 													"type": "boolean"
+												},
+												"userType": {
+													"$ref": "#/components/schemas/_36_Enums.UserType"
 												},
 												"form_type": {
 													"$ref": "#/components/schemas/_36_Enums.FormType"
@@ -3057,10 +3074,10 @@
 												"completedLessons",
 												"completedCourses",
 												"provider",
-												"invited",
 												"user_pic",
 												"lastActive",
 												"isOnline",
+												"userType",
 												"form_type",
 												"completed",
 												"paymentCode",
@@ -3237,9 +3254,6 @@
 														"provider": {
 															"type": "string"
 														},
-														"invited": {
-															"type": "boolean"
-														},
 														"user_pic": {
 															"type": "string"
 														},
@@ -3249,6 +3263,9 @@
 														},
 														"isOnline": {
 															"type": "boolean"
+														},
+														"userType": {
+															"$ref": "#/components/schemas/_36_Enums.UserType"
 														},
 														"form_type": {
 															"$ref": "#/components/schemas/_36_Enums.FormType"
@@ -3325,10 +3342,10 @@
 														"completedLessons",
 														"completedCourses",
 														"provider",
-														"invited",
 														"user_pic",
 														"lastActive",
 														"isOnline",
+														"userType",
 														"form_type",
 														"completed",
 														"paymentCode",
@@ -3621,9 +3638,6 @@
 																"provider": {
 																	"type": "string"
 																},
-																"invited": {
-																	"type": "boolean"
-																},
 																"user_pic": {
 																	"type": "string"
 																},
@@ -3633,6 +3647,9 @@
 																},
 																"isOnline": {
 																	"type": "boolean"
+																},
+																"userType": {
+																	"$ref": "#/components/schemas/_36_Enums.UserType"
 																},
 																"form_type": {
 																	"$ref": "#/components/schemas/_36_Enums.FormType"
@@ -3709,10 +3726,10 @@
 																"completedLessons",
 																"completedCourses",
 																"provider",
-																"invited",
 																"user_pic",
 																"lastActive",
 																"isOnline",
+																"userType",
 																"form_type",
 																"completed",
 																"paymentCode",
@@ -3759,6 +3776,33 @@
 												"level": {},
 												"user": {
 													"properties": {
+														"memberships": {
+															"items": {
+																"properties": {
+																	"joinedAt": {
+																		"type": "string",
+																		"format": "date-time"
+																	},
+																	"joinedVia": {
+																		"$ref": "#/components/schemas/_36_Enums.JoinMethod"
+																	},
+																	"role": {
+																		"type": "string"
+																	},
+																	"organizationId": {
+																		"type": "string"
+																	}
+																},
+																"required": [
+																	"joinedAt",
+																	"joinedVia",
+																	"role",
+																	"organizationId"
+																],
+																"type": "object"
+															},
+															"type": "array"
+														},
 														"organization": {
 															"properties": {
 																"Club": {
@@ -3999,6 +4043,9 @@
 														"profile_pic": {
 															"type": "string"
 														},
+														"userType": {
+															"$ref": "#/components/schemas/_36_Enums.UserType"
+														},
 														"level": {
 															"type": "string"
 														},
@@ -4022,8 +4069,10 @@
 														}
 													},
 													"required": [
+														"memberships",
 														"organization",
 														"profile_pic",
+														"userType",
 														"level",
 														"state",
 														"country",
@@ -6837,15 +6886,15 @@
 																"studentId": {
 																	"type": "string"
 																},
-																"joinedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
 																"isJoined": {
 																	"type": "boolean"
 																},
 																"groupId": {
 																	"type": "string"
+																},
+																"joinedAt": {
+																	"type": "string",
+																	"format": "date-time"
 																},
 																"point": {
 																	"type": "number",
@@ -6860,9 +6909,9 @@
 															},
 															"required": [
 																"studentId",
-																"joinedAt",
 																"isJoined",
 																"groupId",
+																"joinedAt",
 																"point",
 																"progressId",
 																"id"
@@ -7655,136 +7704,211 @@
 											"properties": {
 												"status": {},
 												"data": {
-													"properties": {
-														"verificationOTPResendAt": {
-															"type": "string",
-															"format": "date-time"
+													"allOf": [
+														{
+															"properties": {
+																"members": {
+																	"items": {
+																		"properties": {
+																			"isActive": {
+																				"type": "boolean"
+																			},
+																			"joinedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"joinedVia": {
+																				"$ref": "#/components/schemas/_36_Enums.JoinMethod"
+																			},
+																			"role": {
+																				"type": "string"
+																			},
+																			"userId": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"isActive",
+																			"joinedAt",
+																			"joinedVia",
+																			"role",
+																			"userId",
+																			"id"
+																		],
+																		"type": "object"
+																	},
+																	"type": "array"
+																},
+																"user": {
+																	"properties": {
+																		"userType": {
+																			"$ref": "#/components/schemas/_36_Enums.UserType"
+																		},
+																		"email_address": {
+																			"type": "string"
+																		},
+																		"last_name": {
+																			"type": "string"
+																		},
+																		"first_name": {
+																			"type": "string"
+																		},
+																		"id": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"userType",
+																		"email_address",
+																		"last_name",
+																		"first_name",
+																		"id"
+																	],
+																	"type": "object"
+																}
+															},
+															"required": [
+																"members",
+																"user"
+															],
+															"type": "object"
 														},
-														"verificationOTPResendCount": {
-															"type": "number",
-															"format": "double"
-														},
-														"verificationOTPAttempts": {
-															"type": "number",
-															"format": "double"
-														},
-														"verificationOTPExpires": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"verificationOTP": {
-															"type": "string"
-														},
-														"organization_image": {
-															"type": "string"
-														},
-														"organization_year": {
-															"type": "string"
-														},
-														"organization_password": {
-															"type": "string"
-														},
-														"organization_role": {
-															"type": "string"
-														},
-														"organization_description": {
-															"type": "string"
-														},
-														"organization_state": {
-															"type": "string"
-														},
-														"organization_country": {
-															"type": "string"
-														},
-														"organization_phone_number": {
-															"type": "string"
-														},
-														"organization_email": {
-															"type": "string"
-														},
-														"organization_type": {
-															"$ref": "#/components/schemas/_36_Enums.OrgType"
-														},
-														"organization_name": {
-															"type": "string"
-														},
-														"verifiedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isVerified": {
-															"type": "boolean"
-														},
-														"resetTokenExpires": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"resetToken": {
-															"type": "string"
-														},
-														"lastActive": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isOnline": {
-															"type": "boolean"
-														},
-														"form_type": {
-															"$ref": "#/components/schemas/_36_Enums.FormType"
-														},
-														"languageCode": {
-															"type": "string"
-														},
-														"language": {
-															"type": "string"
-														},
-														"userId": {
-															"type": "string"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"id": {
-															"type": "string"
+														{
+															"properties": {
+																"verificationOTPResendAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"verificationOTPResendCount": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"verificationOTPAttempts": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"verificationOTPExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"verificationOTP": {
+																	"type": "string"
+																},
+																"organization_image": {
+																	"type": "string"
+																},
+																"organization_year": {
+																	"type": "string"
+																},
+																"organization_password": {
+																	"type": "string"
+																},
+																"organization_role": {
+																	"type": "string"
+																},
+																"organization_description": {
+																	"type": "string"
+																},
+																"organization_state": {
+																	"type": "string"
+																},
+																"organization_country": {
+																	"type": "string"
+																},
+																"organization_phone_number": {
+																	"type": "string"
+																},
+																"organization_email": {
+																	"type": "string"
+																},
+																"organization_type": {
+																	"$ref": "#/components/schemas/_36_Enums.OrgType"
+																},
+																"organization_name": {
+																	"type": "string"
+																},
+																"verifiedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isVerified": {
+																	"type": "boolean"
+																},
+																"resetTokenExpires": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"resetToken": {
+																	"type": "string"
+																},
+																"lastActive": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"isOnline": {
+																	"type": "boolean"
+																},
+																"form_type": {
+																	"$ref": "#/components/schemas/_36_Enums.FormType"
+																},
+																"languageCode": {
+																	"type": "string"
+																},
+																"language": {
+																	"type": "string"
+																},
+																"userId": {
+																	"type": "string"
+																},
+																"updatedAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"createdAt": {
+																	"type": "string",
+																	"format": "date-time"
+																},
+																"id": {
+																	"type": "string"
+																}
+															},
+															"required": [
+																"verificationOTPResendAt",
+																"verificationOTPResendCount",
+																"verificationOTPAttempts",
+																"verificationOTPExpires",
+																"verificationOTP",
+																"organization_image",
+																"organization_year",
+																"organization_password",
+																"organization_role",
+																"organization_description",
+																"organization_state",
+																"organization_country",
+																"organization_phone_number",
+																"organization_email",
+																"organization_type",
+																"organization_name",
+																"verifiedAt",
+																"isVerified",
+																"resetTokenExpires",
+																"resetToken",
+																"lastActive",
+																"isOnline",
+																"form_type",
+																"languageCode",
+																"language",
+																"userId",
+																"updatedAt",
+																"createdAt",
+																"id"
+															],
+															"type": "object"
 														}
-													},
-													"required": [
-														"verificationOTPResendAt",
-														"verificationOTPResendCount",
-														"verificationOTPAttempts",
-														"verificationOTPExpires",
-														"verificationOTP",
-														"organization_image",
-														"organization_year",
-														"organization_password",
-														"organization_role",
-														"organization_description",
-														"organization_state",
-														"organization_country",
-														"organization_phone_number",
-														"organization_email",
-														"organization_type",
-														"organization_name",
-														"verifiedAt",
-														"isVerified",
-														"resetTokenExpires",
-														"resetToken",
-														"lastActive",
-														"isOnline",
-														"form_type",
-														"languageCode",
-														"language",
-														"userId",
-														"updatedAt",
-														"createdAt",
-														"id"
-													],
-													"type": "object"
+													]
 												},
 												"message": {
 													"type": "string"
@@ -8347,9 +8471,6 @@
 																		"provider": {
 																			"type": "string"
 																		},
-																		"invited": {
-																			"type": "boolean"
-																		},
 																		"user_pic": {
 																			"type": "string"
 																		},
@@ -8359,6 +8480,9 @@
 																		},
 																		"isOnline": {
 																			"type": "boolean"
+																		},
+																		"userType": {
+																			"$ref": "#/components/schemas/_36_Enums.UserType"
 																		},
 																		"form_type": {
 																			"$ref": "#/components/schemas/_36_Enums.FormType"
@@ -8435,10 +8559,10 @@
 																		"completedLessons",
 																		"completedCourses",
 																		"provider",
-																		"invited",
 																		"user_pic",
 																		"lastActive",
 																		"isOnline",
+																		"userType",
 																		"form_type",
 																		"completed",
 																		"paymentCode",
@@ -8752,6 +8876,41 @@
 													"allOf": [
 														{
 															"properties": {
+																"members": {
+																	"items": {
+																		"properties": {
+																			"isActive": {
+																				"type": "boolean"
+																			},
+																			"joinedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"joinedVia": {
+																				"$ref": "#/components/schemas/_36_Enums.JoinMethod"
+																			},
+																			"role": {
+																				"type": "string"
+																			},
+																			"userId": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"isActive",
+																			"joinedAt",
+																			"joinedVia",
+																			"role",
+																			"userId",
+																			"id"
+																		],
+																		"type": "object"
+																	},
+																	"type": "array"
+																},
 																"Club": {
 																	"properties": {
 																		"club_email": {
@@ -8941,92 +9100,8 @@
 																},
 																"user": {
 																	"properties": {
-																		"verifiedAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"isVerified": {
-																			"type": "boolean"
-																		},
-																		"resetTokenExpires": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"resetToken": {
-																			"type": "string"
-																		},
-																		"isFromWaitList": {
-																			"type": "boolean"
-																		},
-																		"isProfileComplete": {
-																			"type": "boolean"
-																		},
-																		"completedVideo": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"completedLessons": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"completedCourses": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"provider": {
-																			"type": "string"
-																		},
-																		"invited": {
-																			"type": "boolean"
-																		},
-																		"user_pic": {
-																			"type": "string"
-																		},
-																		"lastActive": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"isOnline": {
-																			"type": "boolean"
-																		},
-																		"form_type": {
-																			"$ref": "#/components/schemas/_36_Enums.FormType"
-																		},
-																		"completed": {
-																			"type": "string"
-																		},
-																		"paymentCode": {
-																			"type": "string"
-																		},
-																		"waitlistId": {
-																			"type": "string"
-																		},
-																		"firebase_uid": {
-																			"type": "string"
-																		},
-																		"level": {
-																			"type": "string"
-																		},
-																		"role": {
-																			"type": "string"
-																		},
-																		"languageCode": {
-																			"$ref": "#/components/schemas/_36_Enums.LanguageCode"
-																		},
-																		"language": {
-																			"type": "string"
-																		},
-																		"phone_number": {
-																			"type": "string"
-																		},
-																		"state": {
-																			"type": "string"
-																		},
-																		"country": {
-																			"type": "string"
-																		},
-																		"password": {
-																			"type": "string"
+																		"userType": {
+																			"$ref": "#/components/schemas/_36_Enums.UserType"
 																		},
 																		"email_address": {
 																			"type": "string"
@@ -9037,62 +9112,22 @@
 																		"first_name": {
 																			"type": "string"
 																		},
-																		"point": {
-																			"type": "number",
-																			"format": "double"
-																		},
-																		"updatedAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
-																		"createdAt": {
-																			"type": "string",
-																			"format": "date-time"
-																		},
 																		"id": {
 																			"type": "string"
 																		}
 																	},
 																	"required": [
-																		"verifiedAt",
-																		"isVerified",
-																		"resetTokenExpires",
-																		"resetToken",
-																		"isFromWaitList",
-																		"isProfileComplete",
-																		"completedVideo",
-																		"completedLessons",
-																		"completedCourses",
-																		"provider",
-																		"invited",
-																		"user_pic",
-																		"lastActive",
-																		"isOnline",
-																		"form_type",
-																		"completed",
-																		"paymentCode",
-																		"waitlistId",
-																		"firebase_uid",
-																		"level",
-																		"role",
-																		"languageCode",
-																		"language",
-																		"phone_number",
-																		"state",
-																		"country",
-																		"password",
+																		"userType",
 																		"email_address",
 																		"last_name",
 																		"first_name",
-																		"point",
-																		"updatedAt",
-																		"createdAt",
 																		"id"
 																	],
 																	"type": "object"
 																}
 															},
 															"required": [
+																"members",
 																"Club",
 																"school",
 																"Church",
@@ -9604,6 +9639,52 @@
 												"data": {
 													"items": {
 														"properties": {
+															"members": {
+																"items": {
+																	"properties": {
+																		"isActive": {
+																			"type": "boolean"
+																		},
+																		"joinedVia": {
+																			"$ref": "#/components/schemas/_36_Enums.JoinMethod"
+																		},
+																		"user": {
+																			"properties": {
+																				"userType": {
+																					"$ref": "#/components/schemas/_36_Enums.UserType"
+																				},
+																				"last_name": {
+																					"type": "string"
+																				},
+																				"first_name": {
+																					"type": "string"
+																				},
+																				"id": {
+																					"type": "string"
+																				}
+																			},
+																			"required": [
+																				"userType",
+																				"last_name",
+																				"first_name",
+																				"id"
+																			],
+																			"type": "object"
+																		},
+																		"userId": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"isActive",
+																		"joinedVia",
+																		"user",
+																		"userId"
+																	],
+																	"type": "object"
+																},
+																"type": "array"
+															},
 															"email": {
 																"type": "string"
 															},
@@ -9615,6 +9696,7 @@
 															}
 														},
 														"required": [
+															"members",
 															"email",
 															"role",
 															"id"
@@ -12581,9 +12663,6 @@
 																			"provider": {
 																				"type": "string"
 																			},
-																			"invited": {
-																				"type": "boolean"
-																			},
 																			"user_pic": {
 																				"type": "string"
 																			},
@@ -12593,6 +12672,9 @@
 																			},
 																			"isOnline": {
 																				"type": "boolean"
+																			},
+																			"userType": {
+																				"$ref": "#/components/schemas/_36_Enums.UserType"
 																			},
 																			"form_type": {
 																				"$ref": "#/components/schemas/_36_Enums.FormType"
@@ -12669,10 +12751,10 @@
 																			"completedLessons",
 																			"completedCourses",
 																			"provider",
-																			"invited",
 																			"user_pic",
 																			"lastActive",
 																			"isOnline",
+																			"userType",
 																			"form_type",
 																			"completed",
 																			"paymentCode",

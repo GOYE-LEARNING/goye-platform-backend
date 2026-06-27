@@ -20,6 +20,7 @@ import { MediaService } from "../services/mediaServices";
 import { SendEmail } from "../utils/sendmail";
 import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
+
 enum OrgType {
   CHURCH,
   SCHOOL,
@@ -68,7 +69,8 @@ export class OrganizationController extends Controller {
           organization_type: orgTypeMap[body.organization_type],
           language: body.language,
           languageCode: body.languageCode,
-          // ✅ USER (always exists)
+
+          // ✅ USER — mark as ORGANIZATION_OWNER
           user: {
             create: {
               first_name: body.user_first_name,
@@ -80,6 +82,7 @@ export class OrganizationController extends Controller {
               role: "org_admin",
               form_type: "ORGANIZATION",
               level: "ORGANIZATION",
+              userType: "ORGANIZATION_OWNER", // ✅ replaces old `invited: false`
             },
           },
 
@@ -134,9 +137,23 @@ export class OrganizationController extends Controller {
             },
           }),
         },
+        include: {
+          user: true,
+        },
       });
 
-      //To automatically generate the settings for it
+      // ✅ Create OrganizationMember record for the owner
+      await prisma.organizationMember.create({
+        data: {
+          userId: createOrganization.user.id,
+          organizationId: createOrganization.id,
+          role: "org_admin",
+          joinedVia: "CREATED",
+          isActive: true,
+        },
+      });
+
+      // Auto-generate settings for the organization
       await prisma.settings.create({
         data: {
           enable_push_notification: true,
@@ -191,7 +208,7 @@ export class OrganizationController extends Controller {
       if (!organization) {
         this.setStatus(404);
         return {
-          message: "Organization not found or invalid creditials",
+          message: "Organization not found or invalid credentials",
         };
       }
 
@@ -217,21 +234,19 @@ export class OrganizationController extends Controller {
         },
       });
 
-      // Session management is handled by middleware based on device/tab ID
-      // No cleanup needed here - middleware will handle device conflicts
-
-      // Create token with user ID and organization ID
       const token = jwt.sign(
         {
           type: "ORGANIZATION",
-          id: organization.user.id, // The user's ID associated with this organization
-          userId: organization.user.id, // Also include as userId for middleware compatibility
-          organizationId: updateOrg.id, // The organization ID
+          id: organization.user.id,
+          userId: organization.user.id,
+          organizationId: updateOrg.id,
           org_name: organization.organization_name,
           org_email: organization.organization_email,
           full_name: `${organization.user.first_name} ${organization.user.last_name}`,
           email: organization.user.email_address,
           updatedStatus: updateOrg.isOnline,
+          // ✅ Include userType in token for middleware discrimination
+          userType: organization.user.userType,
         },
         (process.env.BEARERAUTH_SECRET! as string) || "secret-key",
         { expiresIn: "7d" },
@@ -240,8 +255,8 @@ export class OrganizationController extends Controller {
       if (req.res) {
         req.res.cookie("token", token, {
           httpOnly: true,
-          secure: true, // because you're on localhost
-          sameSite: "none", // must be none for cross-port cookie sharing
+          secure: true,
+          sameSite: "none",
           maxAge: 7 * 24 * 60 * 60 * 1000,
         });
       }
@@ -258,6 +273,7 @@ export class OrganizationController extends Controller {
             id: organization.user.id,
             first_name: organization.user.first_name,
             last_name: organization.user.last_name,
+            userType: organization.user.userType, // ✅ expose to client
           },
         },
       };
@@ -271,59 +287,38 @@ export class OrganizationController extends Controller {
     }
   }
 
-  // Add this to your OrganizationController class
-
-  // Organization Verification OTP
   @Post("/auth/send-verification-otp/{organizationId}")
   public async SendVerificationOTP(
     @Path() organizationId: string,
   ): Promise<any> {
     try {
-      // Find the organization
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
-        include: {
-          user: true,
-        },
+        include: { user: true },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
-      // Check if organization is already verified
       if (organization.isVerified) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Organization is already verified",
-        };
+        return { success: false, message: "Organization is already verified" };
       }
 
-      // Generate a 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-      // Hash the OTP before storing (optional but recommended)
       const hashedOTP = await bcrypt.hash(otp, 10);
 
-      // Store OTP in database with expiration (10 minutes)
       await prisma.organization.update({
         where: { id: organizationId },
         data: {
           verificationOTP: hashedOTP,
-          verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+          verificationOTPExpires: new Date(Date.now() + 10 * 60 * 1000),
           verificationOTPAttempts: 0,
         },
       });
 
-      // Send OTP via email
-      const emailSubject = `Verify Your Organization - ${organization.organization_name}`;
-
-      // Use the sendOrganizationVerificationOTP helper or SendEmail directly
       const { sendOrganizationVerificationOTP } =
         await import("../utils/sendmail.js");
 
@@ -369,29 +364,20 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Find the organization
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
-      // Check if already verified
       if (organization.isVerified) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Organization is already verified",
-        };
+        return { success: false, message: "Organization is already verified" };
       }
 
-      // Check if OTP exists
       if (
         !organization.verificationOTP ||
         !organization.verificationOTPExpires
@@ -403,7 +389,6 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Check if OTP has expired
       if (new Date() > organization.verificationOTPExpires) {
         this.setStatus(400);
         return {
@@ -412,7 +397,6 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Check attempt count (max 5 attempts)
       const attempts = organization.verificationOTPAttempts || 0;
       if (attempts >= 5) {
         this.setStatus(400);
@@ -422,16 +406,12 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Verify the OTP
       const isValid = await bcrypt.compare(otp, organization.verificationOTP);
 
       if (!isValid) {
-        // Increment attempts
         await prisma.organization.update({
           where: { id: organizationId },
-          data: {
-            verificationOTPAttempts: attempts + 1,
-          },
+          data: { verificationOTPAttempts: attempts + 1 },
         });
 
         const remainingAttempts = 4 - attempts;
@@ -439,13 +419,10 @@ export class OrganizationController extends Controller {
         return {
           success: false,
           message: `Invalid OTP. ${remainingAttempts} attempts remaining.`,
-          data: {
-            remainingAttempts,
-          },
+          data: { remainingAttempts },
         };
       }
 
-      // OTP is valid - verify the organization
       const updatedOrganization = await prisma.organization.update({
         where: { id: organizationId },
         data: {
@@ -490,29 +467,20 @@ export class OrganizationController extends Controller {
     @Path() organizationId: string,
   ): Promise<any> {
     try {
-      // Find the organization
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
-      // Check if already verified
       if (organization.isVerified) {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Organization is already verified",
-        };
+        return { success: false, message: "Organization is already verified" };
       }
 
-      // Check if user can resend (rate limiting - 3 resends per hour)
       const lastResend = organization.verificationOTPResendAt;
       if (lastResend) {
         const timeSinceLastResend = Date.now() - new Date(lastResend).getTime();
@@ -527,7 +495,6 @@ export class OrganizationController extends Controller {
         }
       }
 
-      // Check resend count (max 3 resends per hour)
       const resendCount = organization.verificationOTPResendCount || 0;
       if (resendCount >= 3) {
         this.setStatus(429);
@@ -537,11 +504,9 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Generate a new 6-digit OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const hashedOTP = await bcrypt.hash(otp, 10);
 
-      // Update OTP in database
       await prisma.organization.update({
         where: { id: organizationId },
         data: {
@@ -553,7 +518,6 @@ export class OrganizationController extends Controller {
         },
       });
 
-      // Send OTP via email
       const { sendOrganizationVerificationOTP } =
         await import("../utils/sendmail.js");
 
@@ -599,16 +563,12 @@ export class OrganizationController extends Controller {
           verifiedAt: true,
           verificationOTPExpires: true,
           verificationOTPAttempts: true,
-          // Don't include the actual OTP for security
         },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
       let status = "NOT_VERIFIED";
@@ -661,10 +621,28 @@ export class OrganizationController extends Controller {
     try {
       const fetchOrganizationsType = await prisma.organization.findMany({
         include: {
-          user: true,
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              userType: true, // ✅ include userType
+            },
+          },
           Church: true,
           school: true,
           Club: true,
+          members: {           // ✅ include membership info
+            select: {
+              id: true,
+              userId: true,
+              role: true,
+              joinedVia: true,
+              joinedAt: true,
+              isActive: true,
+            },
+          },
         },
       });
 
@@ -681,8 +659,27 @@ export class OrganizationController extends Controller {
   public async FetchSpecificOrganization(@Path() id: string) {
     try {
       const fetchSpecificOrganization = await prisma.organization.findUnique({
-        where: {
-          id,
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              userType: true, // ✅
+            },
+          },
+          members: {
+            select: {
+              id: true,
+              userId: true,
+              role: true,
+              joinedVia: true,
+              joinedAt: true,
+              isActive: true,
+            },
+          },
         },
       });
 
@@ -714,15 +711,14 @@ export class OrganizationController extends Controller {
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
         return { message: "Organization not found" };
       }
+
       const fileBuffer = Buffer.from(body.file, "base64");
 
       const { url, error } = await MediaService.UploadOrganizationImage(
@@ -738,12 +734,8 @@ export class OrganizationController extends Controller {
       }
 
       const updateOrganization = await prisma.organization.update({
-        where: {
-          id: organizationId,
-        },
-        data: {
-          organization_image: url,
-        },
+        where: { id: organizationId },
+        data: { organization_image: url },
       });
 
       this.setStatus(201);
@@ -753,9 +745,7 @@ export class OrganizationController extends Controller {
       };
     } catch (error) {
       this.setStatus(500);
-      return {
-        message: "Error creating organization",
-      };
+      return { message: "Error uploading organization image" };
     }
   }
 
@@ -771,9 +761,7 @@ export class OrganizationController extends Controller {
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
       });
 
       if (!organization) {
@@ -796,22 +784,15 @@ export class OrganizationController extends Controller {
       }
 
       const updateOrganizationChurch = await prisma.organization.update({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
         data: {
           Church: {
-            update: {
-              church_logo: url,
-            },
+            update: { church_logo: url },
           },
         },
         select: {
           Church: {
-            select: {
-              id: true,
-              church_logo: true,
-            },
+            select: { id: true, church_logo: true },
           },
         },
       });
@@ -819,12 +800,12 @@ export class OrganizationController extends Controller {
       this.setStatus(200);
       return {
         message: "Church image uploaded successfully",
-        data: {
-          organizationId: updateOrganizationChurch.Church.id,
-        },
+        data: { organizationId: updateOrganizationChurch.Church.id },
         url: updateOrganizationChurch.Church.church_logo,
       };
-    } catch (error) {}
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   @Post("/upload-school-logo/{organizationId}")
@@ -839,9 +820,7 @@ export class OrganizationController extends Controller {
   ): Promise<any> {
     try {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
       });
 
       if (!organization) {
@@ -864,22 +843,15 @@ export class OrganizationController extends Controller {
       }
 
       const updateOrganizationSchool = await prisma.organization.update({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
         data: {
           school: {
-            update: {
-              school_logo: url,
-            },
+            update: { school_logo: url },
           },
         },
         select: {
           school: {
-            select: {
-              id: true,
-              school_logo: true,
-            },
+            select: { id: true, school_logo: true },
           },
         },
       });
@@ -887,9 +859,7 @@ export class OrganizationController extends Controller {
       this.setStatus(200);
       return {
         message: "School image uploaded successfully",
-        data: {
-          organizationId: updateOrganizationSchool.school.id,
-        },
+        data: { organizationId: updateOrganizationSchool.school.id },
         url: updateOrganizationSchool.school.school_logo,
       };
     } catch (error) {
@@ -932,23 +902,15 @@ export class OrganizationController extends Controller {
       }
 
       const updateOrganization = await prisma.organization.update({
-        where: {
-          id: organizationId,
-        },
-
+        where: { id: organizationId },
         data: {
           school: {
-            update: {
-              school_document: url,
-            },
+            update: { school_document: url },
           },
         },
         include: {
           school: {
-            select: {
-              id: true,
-              school_document: true,
-            },
+            select: { id: true, school_document: true },
           },
         },
       });
@@ -1003,23 +965,15 @@ export class OrganizationController extends Controller {
       }
 
       const updateOrganization = await prisma.organization.update({
-        where: {
-          id: organizationId,
-        },
-
+        where: { id: organizationId },
         data: {
           Club: {
-            update: {
-              club_document: url,
-            },
+            update: { club_document: url },
           },
         },
         include: {
           Club: {
-            select: {
-              id: true,
-              club_document: true,
-            },
+            select: { id: true, club_document: true },
           },
         },
       });
@@ -1046,9 +1000,7 @@ export class OrganizationController extends Controller {
   ) {
     try {
       const findOrganization = await prisma.organization.findUnique({
-        where: {
-          id,
-        },
+        where: { id },
         include: {
           Church: true,
           school: true,
@@ -1059,15 +1011,11 @@ export class OrganizationController extends Controller {
 
       if (!findOrganization) {
         this.setStatus(404);
-        return {
-          message: "This organization does not exist.",
-        };
+        return { message: "This organization does not exist." };
       }
 
       const updateOrganization = await prisma.organization.update({
-        where: {
-          id,
-        },
+        where: { id },
         data: {
           organization_name: body.organization_name,
           organization_description: body.organization_description,
@@ -1078,7 +1026,7 @@ export class OrganizationController extends Controller {
           organization_type: body.organization_type as any,
           language: body.language,
           languageCode: body.languageCode,
-          // Church update - assumes it exists
+
           Church: body.church
             ? {
                 update: {
@@ -1092,7 +1040,6 @@ export class OrganizationController extends Controller {
               }
             : undefined,
 
-          // School update - assumes it exists
           school: body.school
             ? {
                 update: {
@@ -1109,7 +1056,6 @@ export class OrganizationController extends Controller {
               }
             : undefined,
 
-          // Club update - assumes it exists
           Club: body.club
             ? {
                 update: {
@@ -1126,7 +1072,6 @@ export class OrganizationController extends Controller {
               }
             : undefined,
 
-          // User update - assumes user exists
           user: {
             update: {
               first_name: body.user_first_name,
@@ -1137,6 +1082,7 @@ export class OrganizationController extends Controller {
               phone_number: body.user_phone_number,
               role: body.user_role,
               form_type: body.user_form_type as any,
+              // ✅ preserve userType — never overwrite it during a plain update
             },
           },
         },
@@ -1172,27 +1118,19 @@ export class OrganizationController extends Controller {
     const hashedPassword = await bcrypt.hash(generatedPassword, 10);
     try {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          message: "Organization not found",
-        };
+        return { message: "Organization not found" };
       }
 
       await prisma.organization.update({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
         data: {
           user: {
-            update: {
-              password: hashedPassword as any,
-            },
+            update: { password: hashedPassword as any },
           },
           organization_password: hashedPassword,
         },
@@ -1221,20 +1159,42 @@ export class OrganizationController extends Controller {
     const organization = await prisma.organization.findUnique({
       where: { id: organizationId },
       include: {
-        user: true,
-        Church: true ? true : null,
-        school: true ? true : null,
-        Club: true ? true : null,
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+            userType: true, // ✅
+          },
+        },
+        Church: true,
+        school: true,
+        Club: true,
+        members: {          // ✅ return membership list
+          select: {
+            id: true,
+            userId: true,
+            role: true,
+            joinedVia: true,
+            joinedAt: true,
+            isActive: true,
+          },
+        },
       },
     });
 
     this.setStatus(200);
     return {
-      message: "Profile fetched succfully",
+      message: "Profile fetched successfully",
       organization,
     };
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // INVITE USER SIGNUP
+  // When an invited user clicks the link and creates their account.
+  // ─────────────────────────────────────────────────────────────────────────
   @Post("/invite-user/signup/{organizationId}")
   public async CreateUser(
     @Path() organizationId: string,
@@ -1254,104 +1214,107 @@ export class OrganizationController extends Controller {
   ): Promise<any> {
     try {
       const hashedPassword = await bcrypt.hash(body.password, 10);
+
+      // ✅ Find the invitation by email
       const invitation = await prisma.inviteUser.findFirst({
-        where: {
-          email: body.email_address,
+        where: { email: body.email_address },
+      });
+
+      if (!invitation) {
+        this.setStatus(403);
+        return {
+          message: "No invitation found for this email address.",
+        };
+      }
+
+      if (body.password === "") {
+        this.setStatus(400);
+        return { message: "Password must be filled" };
+      }
+
+      // ✅ Create user — mark as INVITED_MEMBER (replaces `invited: true`)
+      const user = await prisma.user.create({
+        data: {
+          ...body,
+          password: hashedPassword,
+          userType: "INVITED_MEMBER",   // ✅ new field
+          form_type: "INVITED",
+          level: body.level || "Beginner",
+          // ✅ Do NOT connect org here via the one-to-one relation;
+          //    the OrganizationMember table now owns that relationship.
         },
       });
 
-      if (invitation) {
-        //To store password in token
-        const user = await prisma.user.create({
-          data: {
-            ...body,
-            password: hashedPassword,
-            invited: true,
-            form_type: "INVITED",
-            organization: {
-              connect: {
-                id: organizationId,
-              },
-            },
-            level: body.level || "Beginner",
-          },
+      // ✅ Create OrganizationMember record — this is the authoritative link
+      await prisma.organizationMember.create({
+        data: {
+          userId: user.id,
+          organizationId: organizationId,
+          role: body.role || invitation.role || "member",
+          joinedVia: "INVITE",
+          inviteId: invitation.id,
+          isActive: true,
+        },
+      });
+
+      // Auto-create settings for the user
+      const createSettings = await prisma.settings.create({
+        data: {
+          enable_push_notification: true,
+          course_updates: true,
+          event: true,
+          achievement: true,
+          daily_reminders: true,
+          darkMode: false,
+          email_notification: true,
+          updatedAt: new Date(),
+          userId: user.id,
+          organizationId: null,
+        },
+      });
+
+      const updateUser = await prisma.user.update({
+        where: { id: user.id },
+        data: { isOnline: true, lastActive: new Date() },
+      });
+
+      const token = jwt.sign(
+        {
+          id: updateUser.id,
+          settingsId: createSettings.id,
+          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+          email: updateUser.email_address,
+          role: updateUser.role,
+          userType: updateUser.userType,   // ✅ in token
+          organizationId: organizationId,  // ✅ in token so middleware knows their org
+          updateStatus: updateUser.isOnline,
+        },
+        (process.env.BEARERAUTH_SECRET as string) || "secret-key",
+        { expiresIn: "7d" },
+      );
+
+      if (req.res) {
+        req.res.cookie("token", token, {
+          httpOnly: true,
+          secure: true,
+          sameSite: "none",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
         });
-
-        //After creating Users.
-        //It is necessary to automatically create settings database for the users.
-        const createSettings = await prisma.settings.create({
-          data: {
-            enable_push_notification: true,
-            course_updates: true,
-            event: true,
-            achievement: true,
-            daily_reminders: true,
-            darkMode: false,
-            email_notification: true,
-            updatedAt: new Date(),
-            userId: user.id,
-            organizationId: null,
-          },
-        });
-
-        //Let check if the User exist
-        if (!user) {
-          this.setStatus(401);
-          return {
-            messgae: "User already exist",
-          };
-        }
-
-        if (body.password == "") {
-          this.setStatus(400);
-          return {
-            message: "Password must be filled",
-          };
-        }
-
-        const updateUser = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            isOnline: true,
-            lastActive: new Date(),
-          },
-        });
-
-        const token = jwt.sign(
-          {
-            id: updateUser.id,
-            settingsId: createSettings.id,
-            full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-            email: updateUser.email_address,
-            role: updateUser.role,
-            password: body.password,
-            updateStatus: updateUser.isOnline,
-          },
-          (process.env.BEARERAUTH_SECRET as string) || "secret-key",
-          { expiresIn: "7d" },
-        );
-
-        if (req.res) {
-          req.res.cookie("token", token, {
-            httpOnly: true,
-            secure: true, // because you're on localhost
-            sameSite: "none", // must be none for cross-port cookie sharing
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(201);
-        return {
-          message: "Signup successfull",
-          token,
-          user: {
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            email_address: updateUser.email_address,
-          },
-        };
       }
+
+      this.setStatus(201);
+      return {
+        message: "Signup successful",
+        token,
+        user: {
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          email_address: updateUser.email_address,
+          userType: updateUser.userType, // ✅
+          organizationId,
+        },
+      };
     } catch (error) {
       this.setStatus(500);
       console.error(error);
@@ -1369,17 +1332,13 @@ export class OrganizationController extends Controller {
     try {
       const { users } = body;
 
-      // Check if organization exists first
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
       const results = {
@@ -1407,14 +1366,12 @@ export class OrganizationController extends Controller {
             return;
           }
 
-          // Generate a unique token
           const tokencode = jwt.sign(
             { organizationId, email: user.email },
             process.env.BEARERAUTH_SECRET || "secret-key",
             { expiresIn: "24h" },
           );
 
-          // Create DB record
           const inviteEntry = await prisma.inviteUser.create({
             data: {
               email: user.email,
@@ -1426,9 +1383,7 @@ export class OrganizationController extends Controller {
             },
           });
 
-          // Send Email
           const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-          // NEW URL structure: token in the path instead of query param
           const inviteLink = `http://localhost:3000/auth/${tokencode}/accept_invite`;
           const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
 
@@ -1448,32 +1403,23 @@ export class OrganizationController extends Controller {
         }
       });
 
-      // Execute all invites
       await Promise.all(invitePromises);
 
-      // Determine overall success status
       const hasSuccess = results.successful.length > 0;
-      const hasPartialSuccess =
-        hasSuccess &&
-        (results.failed.length > 0 || results.alreadyInvited.length > 0);
 
       let statusCode = 200;
       let message = "";
 
       if (results.successful.length === users.length) {
-        // All successful
         message = `Successfully invited ${results.successful.length} user(s)`;
         statusCode = 200;
       } else if (results.successful.length > 0) {
-        // Partial success
         message = `Invited ${results.successful.length} user(s). ${results.alreadyInvited.length} already invited, ${results.failed.length} failed.`;
-        statusCode = 207; // Multi-Status
+        statusCode = 207;
       } else if (results.alreadyInvited.length === users.length) {
-        // All already invited
         message = `All ${results.alreadyInvited.length} user(s) already have active invitations`;
-        statusCode = 409; // Conflict
+        statusCode = 409;
       } else {
-        // All failed
         message = "Failed to send invitations";
         statusCode = 500;
       }
@@ -1499,39 +1445,22 @@ export class OrganizationController extends Controller {
       };
     }
   }
+
   @Get("/fetch-specific-invited-user-by-token/{token}")
   public async FetchInvitedUserByToken(@Path() token: string): Promise<any> {
     try {
-      // Validate token presence
       if (!token || token.trim() === "") {
         this.setStatus(400);
-        return {
-          success: false,
-          message: "Token is required",
-        };
+        return { success: false, message: "Token is required" };
       }
 
-      console.log(
-        `🔍 Fetching invited user by token: ${token.substring(0, 50)}...`,
-      );
-      console.log(`📋 Token length: ${token.length}`);
-
-      // Step 1: Verify and decode the JWT token
       let decodedToken: any;
       try {
         decodedToken = jwt.verify(
           token,
           process.env.BEARERAUTH_SECRET || "secret-key",
         );
-        console.log("✅ Token verified successfully:", {
-          organizationId: decodedToken.organizationId,
-          email: decodedToken.email,
-          userId: decodedToken.userId,
-        });
       } catch (jwtError: any) {
-        console.error("❌ JWT Verification failed:", jwtError.message);
-
-        // Check if it's an expiration error
         if (jwtError.name === "TokenExpiredError") {
           this.setStatus(410);
           return {
@@ -1541,7 +1470,6 @@ export class OrganizationController extends Controller {
             expiredAt: jwtError.expiredAt,
           };
         }
-
         this.setStatus(401);
         return {
           success: false,
@@ -1550,11 +1478,8 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Step 2: Find the invitation in the database
       const invitation = await prisma.inviteUser.findFirst({
-        where: {
-          code: token,
-        },
+        where: { code: token },
         include: {
           organization: {
             select: {
@@ -1570,7 +1495,6 @@ export class OrganizationController extends Controller {
       });
 
       if (!invitation) {
-        console.log("❌ Invitation not found in database for token");
         this.setStatus(404);
         return {
           success: false,
@@ -1579,12 +1503,7 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Step 3: Verify the decoded data matches the database record
       if (invitation.email !== decodedToken.email) {
-        console.log("❌ Email mismatch:", {
-          dbEmail: invitation.email,
-          tokenEmail: decodedToken.email,
-        });
         this.setStatus(403);
         return {
           success: false,
@@ -1593,30 +1512,14 @@ export class OrganizationController extends Controller {
       }
 
       if (invitation.organizationId !== decodedToken.organizationId) {
-        console.log("❌ Organization mismatch:", {
-          dbOrgId: invitation.organizationId,
-          tokenOrgId: decodedToken.organizationId,
-        });
         this.setStatus(403);
-        return {
-          success: false,
-          message: "Organization mismatch",
-        };
+        return { success: false, message: "Organization mismatch" };
       }
 
-      // Step 4: Check if invitation has expired
       const now = new Date();
       const isExpired = invitation.expiresIn < now;
 
       if (isExpired) {
-        console.log("⚠️ Invitation has expired:", {
-          expiresIn: invitation.expiresIn,
-          now: now,
-          daysAgo: Math.floor(
-            (now.getTime() - invitation.expiresIn.getTime()) /
-              (1000 * 60 * 60 * 24),
-          ),
-        });
         this.setStatus(410);
         return {
           success: false,
@@ -1631,11 +1534,11 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Step 5: Check if user has already accepted
+      // ✅ Check if user already accepted — use userType instead of `invited`
       const existingUser = await prisma.user.findFirst({
         where: {
           email_address: invitation.email,
-          invited: true,
+          userType: "INVITED_MEMBER", // ✅ replaces `invited: true`
         },
         select: {
           id: true,
@@ -1643,16 +1546,13 @@ export class OrganizationController extends Controller {
           last_name: true,
           email_address: true,
           role: true,
+          userType: true,
           user_pic: true,
           createdAt: true,
         },
       });
 
       if (existingUser) {
-        console.log(
-          "⚠️ User has already accepted this invitation:",
-          existingUser.email_address,
-        );
         this.setStatus(409);
         return {
           success: false,
@@ -1665,15 +1565,12 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Step 6: Calculate remaining time
       const remainingTime = invitation.expiresIn.getTime() - now.getTime();
       const remainingHours = Math.floor(remainingTime / (1000 * 60 * 60));
       const remainingMinutes = Math.floor(
         (remainingTime % (1000 * 60 * 60)) / (1000 * 60),
       );
 
-      // Step 7: Return success response with invitation details
-      console.log("✅ Invitation found and is valid");
       this.setStatus(200);
       return {
         success: true,
@@ -1699,14 +1596,11 @@ export class OrganizationController extends Controller {
             type: invitation.organization?.organization_type,
             description: invitation.organization?.organization_description,
           },
-          token: {
-            isValid: true,
-            isExpired: false,
-          },
+          token: { isValid: true, isExpired: false },
         },
       };
     } catch (error: any) {
-      console.error("❌ Error fetching invited user by token:", error);
+      console.error("Error fetching invited user by token:", error);
       this.setStatus(500);
       return {
         success: false,
@@ -1717,11 +1611,6 @@ export class OrganizationController extends Controller {
     }
   }
 
-  // In your OrganizationController
-  // In your OrganizationController - Updated GenerateNewTokenForInvitedUser
-
-  // In your OrganizationController - Better version that updates existing invitation
-
   @Security("bearerAuth")
   @Post("/generate-new-token/{organizationId}/{invitedUserId}")
   public async GenerateNewTokenForInvitedUser(
@@ -1730,47 +1619,27 @@ export class OrganizationController extends Controller {
     @Request() req: any,
   ): Promise<any> {
     try {
-      // Get the organization admin/user who is sending the invitation
       const userIdFromOrganization = req.org?.userId;
 
-      console.log(`🔄 Generating new token for invited user: ${invitedUserId}`);
-      console.log(`📋 Organization ID: ${organizationId}`);
-
-      // Check if organization exists
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
-      // Find the invited user by their user ID
       const invitedUser = await prisma.inviteUser.findUnique({
         where: { id: invitedUserId },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          invited: true,
-        },
+        select: { id: true, email: true, role: true, invited: true },
       });
 
       if (!invitedUser) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Invited user not found",
-        };
+        return { success: false, message: "Invited user not found" };
       }
 
-      console.log(`✅ Found invited user: ${invitedUser.email}`);
-
-      // Generate a new unique token
       const tokencode = jwt.sign(
         {
           organizationId: organizationId,
@@ -1781,7 +1650,6 @@ export class OrganizationController extends Controller {
         { expiresIn: "24h" },
       );
 
-      // Check for existing invitation
       const existingInvite = await prisma.inviteUser.findFirst({
         where: {
           email: invitedUser.email,
@@ -1792,20 +1660,17 @@ export class OrganizationController extends Controller {
       let inviteEntry: any;
 
       if (existingInvite) {
-        // UPDATE existing invitation instead of deleting
         inviteEntry = await prisma.inviteUser.update({
           where: { id: existingInvite.id },
           data: {
             code: tokencode,
             role: invitedUser.role || "member",
             sentById: userIdFromOrganization,
-            expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000), // Reset to 24 hours
+            expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
             updatedAt: new Date(),
           },
         });
-        console.log(`✅ Updated existing invitation for: ${invitedUser.email}`);
       } else {
-        // CREATE new invitation if none exists
         inviteEntry = await prisma.inviteUser.create({
           data: {
             email: invitedUser.email,
@@ -1816,17 +1681,14 @@ export class OrganizationController extends Controller {
             expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
           },
         });
-        console.log(`✅ Created new invitation for: ${invitedUser.email}`);
       }
 
-      // Generate the invite link
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const inviteLink = `${baseUrl}/auth/${tokencode}/accept_invite`;
 
-      // Send invitation email using your SendEmail function
       const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-      const userName = `${invitedUser.email || ""}`.trim();
+      const userName = invitedUser.email;
 
       await SendEmail(
         invitedUser.email,
@@ -1838,8 +1700,6 @@ export class OrganizationController extends Controller {
           userName: userName || undefined,
         },
       );
-
-      console.log(`📧 Invitation email sent to: ${invitedUser.email}`);
 
       this.setStatus(200);
       return {
@@ -1857,7 +1717,7 @@ export class OrganizationController extends Controller {
         },
       };
     } catch (error: any) {
-      console.error("❌ Error generating new token:", error);
+      console.error("Error generating new token:", error);
       this.setStatus(500);
       return {
         success: false,
@@ -1866,7 +1726,7 @@ export class OrganizationController extends Controller {
       };
     }
   }
-  // Also add an endpoint to get all invited users for an organization
+
   @Security("bearerAuth")
   @Get("/invited-users/{organizationId}")
   public async GetInvitedUsers(
@@ -1880,20 +1740,12 @@ export class OrganizationController extends Controller {
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Organization not found",
-        };
+        return { success: false, message: "Organization not found" };
       }
 
-      // Get all invitations for this organization
       const invitations = await prisma.inviteUser.findMany({
-        where: {
-          organizationId: organizationId,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
+        where: { organizationId: organizationId },
+        orderBy: { createdAt: "desc" },
         select: {
           id: true,
           email: true,
@@ -1904,10 +1756,10 @@ export class OrganizationController extends Controller {
         },
       });
 
-      // Also get users who have already accepted invitations
+      // ✅ Use userType instead of `invited: true`
       const acceptedUsers = await prisma.user.findMany({
         where: {
-          invited: true,
+          userType: "INVITED_MEMBER",
           email_address: {
             in: invitations.map((i) => i.email),
           },
@@ -1918,7 +1770,17 @@ export class OrganizationController extends Controller {
           first_name: true,
           last_name: true,
           role: true,
+          userType: true, // ✅
           createdAt: true,
+          // ✅ Also return their membership record
+          organizationMemberships: {
+            where: { organizationId },
+            select: {
+              joinedVia: true,
+              joinedAt: true,
+              isActive: true,
+            },
+          },
         },
       });
 
@@ -1943,7 +1805,6 @@ export class OrganizationController extends Controller {
     }
   }
 
-  // Add an endpoint to resend invitation
   @Security("bearerAuth")
   @Post("/resend-invitation/{invitationId}")
   public async ResendInvitation(
@@ -1951,27 +1812,21 @@ export class OrganizationController extends Controller {
     @Request() req: any,
   ): Promise<any> {
     try {
-      // Find the existing invitation
       const existingInvitation = await prisma.inviteUser.findUnique({
         where: { id: invitationId },
-        include: {
-          organization: true,
-        },
+        include: { organization: true },
       });
 
       if (!existingInvitation) {
         this.setStatus(404);
-        return {
-          success: false,
-          message: "Invitation not found",
-        };
+        return { success: false, message: "Invitation not found" };
       }
 
-      // Check if it's already accepted (no user associated yet)
+      // ✅ Use userType to check if already accepted
       const existingUser = await prisma.user.findFirst({
         where: {
           email_address: existingInvitation.email,
-          invited: true,
+          userType: "INVITED_MEMBER", // ✅ replaces `invited: true`
         },
       });
 
@@ -1983,7 +1838,6 @@ export class OrganizationController extends Controller {
         };
       }
 
-      // Generate new token
       const newTokencode = jwt.sign(
         {
           organizationId: existingInvitation.organizationId,
@@ -1993,7 +1847,6 @@ export class OrganizationController extends Controller {
         { expiresIn: "24h" },
       );
 
-      // Update the invitation with new token and expiration
       const updatedInvitation = await prisma.inviteUser.update({
         where: { id: invitationId },
         data: {
@@ -2003,7 +1856,6 @@ export class OrganizationController extends Controller {
         },
       });
 
-      // Send new email
       const baseUrl =
         process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
       const inviteLink = `${baseUrl}/auth/${newTokencode}/accept_invite`;
@@ -2033,23 +1885,19 @@ export class OrganizationController extends Controller {
     }
   }
 
-  // Update your invitations/check endpoint to also verify the token
   @Post("/invitations/check")
   public async CheckInvitation(@Body() body: { token?: string }): Promise<any> {
     try {
       const invitation = await prisma.inviteUser.findFirst({
         where: {
-          code: body.token, // Also check the token matches
-          expiresIn: { gt: new Date() }, // Not expired
+          code: body.token,
+          expiresIn: { gt: new Date() },
         },
       });
 
       if (!invitation) {
         this.setStatus(404);
-        return {
-          exists: false,
-          message: "Invitation not found or expired",
-        };
+        return { exists: false, message: "Invitation not found or expired" };
       }
 
       return {
@@ -2062,10 +1910,7 @@ export class OrganizationController extends Controller {
     } catch (error) {
       console.error(error);
       this.setStatus(500);
-      return {
-        exists: false,
-        error: "Failed to check invitation",
-      };
+      return { exists: false, error: "Failed to check invitation" };
     }
   }
 
@@ -2074,27 +1919,36 @@ export class OrganizationController extends Controller {
   public async FetchInviteUsers(@Path() organizationId: string) {
     try {
       const organization = await prisma.organization.findUnique({
-        where: {
-          id: organizationId,
-        },
+        where: { id: organizationId },
       });
 
       if (!organization) {
         this.setStatus(404);
-        return {
-          message: "Organization not found",
-        };
+        return { message: "Organization not found" };
       }
 
       const fetchInviteusers = await prisma.inviteUser.findMany({
-        where: {
-          organizationId,
-        },
-
+        where: { organizationId },
         select: {
           id: true,
           email: true,
           role: true,
+          // ✅ Also surface whether the user has accepted and their userType
+          members: {
+            select: {
+              userId: true,
+              joinedVia: true,
+              isActive: true,
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  userType: true,
+                },
+              },
+            },
+          },
         },
       });
 
@@ -2105,9 +1959,7 @@ export class OrganizationController extends Controller {
       };
     } catch (error) {
       this.setStatus(500);
-      return {
-        message: "An error occured",
-      };
+      return { message: "An error occurred" };
     }
   }
 
@@ -2115,13 +1967,11 @@ export class OrganizationController extends Controller {
   public async DeleteOrganization(@Path() id: string) {
     try {
       const deleteOrganization = await prisma.organization.delete({
-        where: {
-          id,
-        },
+        where: { id },
       });
 
       return {
-        message: "Organization Deleted succesfully",
+        message: "Organization Deleted successfully",
         data: deleteOrganization,
       };
     } catch (error) {
@@ -2129,252 +1979,209 @@ export class OrganizationController extends Controller {
     }
   }
 
- @Security("bearerAuth")
-@Get("/get-courses-by-organization")
-public async GetCoursesByOrganization(
-  @Request() req: any,
-): Promise<CourseResponse> {
-  // ✅ Use req.user.organizationId directly from the token
-  const organizationId = req.user?.organizationId;
-  const userId = req.user?.id;
-  const userLevel = req.user?.level;
-  const language = req.user?.language;
-  const languageCode = req.user?.languageCode;
+  @Security("bearerAuth")
+  @Get("/get-courses-by-organization")
+  public async GetCoursesByOrganization(
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const organizationId = req.user?.organizationId;
+    const userId = req.user?.id;
+    const userLevel = req.user?.level;
+    const language = req.user?.language;
+    const languageCode = req.user?.languageCode;
 
-  try {
-    // Validate inputs
-    if (!userId) {
-      this.setStatus(400);
-      return {
-        message: "User ID not found",
-        data: null,
-      };
-    }
-
-    if (!organizationId) {
-      this.setStatus(404);
-      return {
-        message: "User is not associated with any organization",
-        data: null,
-      };
-    }
-
-    if (!userLevel) {
-      this.setStatus(400);
-      return {
-        message: "User level not found",
-        data: null,
-      };
-    }
-
-    // Verify the organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { id: true, organization_name: true },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        message: "Organization not found",
-        data: null,
-      };
-    }
-
-    // Normalize level
-    const normalizedLevel = userLevel.toLowerCase();
-    let levelCondition = {};
-
-    if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
-      levelCondition = { course_level: "Beginner" };
-    } else if (normalizedLevel === "intermediate") {
-      levelCondition = { course_level: "Intermediate" };
-    } else if (normalizedLevel === "advanced") {
-      levelCondition = { course_level: "Advanced" };
-    } else {
-      // If level doesn't match, fetch all courses
-      levelCondition = {};
-    }
-
-    // ✅ Fetch courses - filtering by organizationId
-    let organizationCourses;
     try {
-      organizationCourses = await prisma.course.findMany({
-        where: {
-          organizationId: organizationId,
-          ...levelCondition,  
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        include: {
-          module: {
-            select: {
-              _count: {
-                select: {
-                  lesson: true,
-                },
-              },
-              lesson: {
-                select: {
-                  duration: true,
-                },
-              },
-            },
-          },
-          organization: {
-            select: {
-              organization_name: true,
-              organization_type: true,
-            },
-          },
-          enrollment: {
-            where: {
-              userId: userId,
-            },
-            select: {
-              status: true,
-              enrolledAt: true,
-              completedAt: true,
-            },
-          },
-          _count: {
-            select: {
-              enrollment: true,
-            },
-          },
-        },
+      if (!userId) {
+        this.setStatus(400);
+        return { message: "User ID not found", data: null };
+      }
+
+      if (!organizationId) {
+        this.setStatus(404);
+        return {
+          message: "User is not associated with any organization",
+          data: null,
+        };
+      }
+
+      if (!userLevel) {
+        this.setStatus(400);
+        return { message: "User level not found", data: null };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { id: true, organization_name: true },
       });
-    } catch (dbError: any) {
-      console.error("Database error:", dbError);
-      this.setStatus(500);
-      return {
-        message: "Database error while fetching courses: " + dbError.message,
-        data: null,
-      };
-    }
 
-    // Get user's enrollment status for these courses
-    const courseIds = organizationCourses.map((c) => c.id);
-    let userEnrollments = [];
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "Organization not found", data: null };
+      }
 
-    if (courseIds.length > 0 && userId) {
+      const normalizedLevel = userLevel.toLowerCase();
+      let levelCondition = {};
+
+      if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
+        levelCondition = { course_level: "Beginner" };
+      } else if (normalizedLevel === "intermediate") {
+        levelCondition = { course_level: "Intermediate" };
+      } else if (normalizedLevel === "advanced") {
+        levelCondition = { course_level: "Advanced" };
+      }
+
+      let organizationCourses;
       try {
-        userEnrollments = await prisma.enrollment.findMany({
+        organizationCourses = await prisma.course.findMany({
           where: {
-            userId: userId,
-            courseId: { in: courseIds },
+            organizationId: organizationId,
+            ...levelCondition,
           },
-          select: {
-            courseId: true,
-            status: true,
-            enrolledAt: true,
+          orderBy: { createdAt: "desc" },
+          include: {
+            module: {
+              select: {
+                _count: { select: { lesson: true } },
+                lesson: { select: { duration: true } },
+              },
+            },
+            organization: {
+              select: {
+                organization_name: true,
+                organization_type: true,
+              },
+            },
+            enrollment: {
+              where: { userId: userId },
+              select: {
+                status: true,
+                enrolledAt: true,
+                completedAt: true,
+              },
+            },
+            _count: { select: { enrollment: true } },
           },
         });
-      } catch (enrollmentError: any) {
-        console.error("Error fetching enrollments:", enrollmentError);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        this.setStatus(500);
+        return {
+          message: "Database error while fetching courses: " + dbError.message,
+          data: null,
+        };
       }
-    }
 
-    // Create a map for easy lookup
-    const enrollmentMap = new Map(
-      userEnrollments.map((e) => [e.courseId, e]),
-    );
+      const courseIds = organizationCourses.map((c) => c.id);
+      let userEnrollments = [];
 
-    // Format response with enrollment status
-    const formattedCourses = organizationCourses.map((course) => {
-      const userEnrollment = enrollmentMap.get(course.id);
+      if (courseIds.length > 0 && userId) {
+        try {
+          userEnrollments = await prisma.enrollment.findMany({
+            where: {
+              userId: userId,
+              courseId: { in: courseIds },
+            },
+            select: {
+              courseId: true,
+              status: true,
+              enrolledAt: true,
+            },
+          });
+        } catch (enrollmentError: any) {
+          console.error("Error fetching enrollments:", enrollmentError);
+        }
+      }
 
-      return {
-        id: course.id,
-        course_title: course.course_title,
-        course_short_description: course.course_short_description,
-        course_description: course.course_description,
-        course_level: course.course_level,
-        course_image: course.course_image,
-        createdAt: course.createdAt,
-        updatedAt: course.updatedAt,
-        moduleCount: course.module.length,
-        lessonCount: course.module.reduce(
-          (acc, m) => acc + m._count.lesson,
-          0,
-        ),
-        totalDuration: course.module.reduce((acc, m) => {
-          const durationSum = m.lesson.reduce(
-            (sum, l) => sum + (l.duration || 0),
+      const enrollmentMap = new Map(
+        userEnrollments.map((e) => [e.courseId, e]),
+      );
+
+      const formattedCourses = organizationCourses.map((course) => {
+        const userEnrollment = enrollmentMap.get(course.id);
+        return {
+          id: course.id,
+          course_title: course.course_title,
+          course_short_description: course.course_short_description,
+          course_description: course.course_description,
+          course_level: course.course_level,
+          course_image: course.course_image,
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+          moduleCount: course.module.length,
+          lessonCount: course.module.reduce(
+            (acc, m) => acc + m._count.lesson,
             0,
+          ),
+          totalDuration: course.module.reduce((acc, m) => {
+            const durationSum = m.lesson.reduce(
+              (sum, l) => sum + (l.duration || 0),
+              0,
+            );
+            return acc + durationSum;
+          }, 0),
+          enrollmentStatus: userEnrollment?.status || "NOT_ENROLLED",
+          isEnrolled: !!userEnrollment,
+          totalEnrollments: course._count.enrollment,
+          organizationName: course.organization?.organization_name,
+        };
+      });
+
+      let translatedText = null;
+      if (formattedCourses.length > 0 && language && languageCode) {
+        try {
+          translatedText = await TranslateText(
+            formattedCourses[0].course_description,
+            language,
+            languageCode,
           );
-          return acc + durationSum;
-        }, 0),
-        enrollmentStatus: userEnrollment?.status || "NOT_ENROLLED",
-        isEnrolled: !!userEnrollment,
-        totalEnrollments: course._count.enrollment,
-        organizationName: course.organization?.organization_name,
-      };
-    });
-
-    // Handle translation (optional)
-    let translatedText = null;
-    if (formattedCourses.length > 0 && language && languageCode) {
-      try {
-        translatedText = await TranslateText(
-          formattedCourses[0].course_description,
-          language,
-          languageCode,
-        );
-      } catch (translationError) {
-        console.error("Translation error:", translationError);
+        } catch (translationError) {
+          console.error("Translation error:", translationError);
+        }
       }
-    }
 
-    this.setStatus(200);
-    return {
-      message: "Organization courses fetched successfully",
-      data: {
-        courses: formattedCourses,
-        organizationId: organizationId,
-        organizationName: organization.organization_name,
-        level: userLevel,
-        totalCourses: formattedCourses.length,
-        language: language ?? null,
-        languageCode: languageCode ?? null,
-        translatedText: translatedText ?? null,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error details:", {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack,
-    });
-
-    if (error.code === "P2002") {
-      this.setStatus(409);
+      this.setStatus(200);
       return {
-        message: `Unique constraint violation: ${error.meta?.target || "unknown field"}`,
+        message: "Organization courses fetched successfully",
         data: {
-          error: "DUPLICATE_ENTRY",
-          field: error.meta?.target,
+          courses: formattedCourses,
+          organizationId: organizationId,
+          organizationName: organization.organization_name,
+          level: userLevel,
+          totalCourses: formattedCourses.length,
+          language: language ?? null,
+          languageCode: languageCode ?? null,
+          translatedText: translatedText ?? null,
         },
       };
-    }
+    } catch (error: any) {
+      console.error("Error details:", {
+        message: error.message,
+        code: error.code,
+        meta: error.meta,
+        stack: error.stack,
+      });
 
-    if (error.code === "P2025") {
-      this.setStatus(404);
+      if (error.code === "P2002") {
+        this.setStatus(409);
+        return {
+          message: `Unique constraint violation: ${error.meta?.target || "unknown field"}`,
+          data: { error: "DUPLICATE_ENTRY", field: error.meta?.target },
+        };
+      }
+
+      if (error.code === "P2025") {
+        this.setStatus(404);
+        return { message: "Record not found", data: null };
+      }
+
+      this.setStatus(500);
       return {
-        message: "Record not found",
+        message: "Error fetching organization courses: " + error.message,
         data: null,
       };
     }
-
-    this.setStatus(500);
-    return {
-      message: "Error fetching organization courses: " + error.message,
-      data: null,
-    };
   }
-}
+
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
@@ -2398,8 +2205,6 @@ public async GetCoursesByOrganization(
     }
 
     this.setStatus(200);
-    return {
-      message: "Logout successful",
-    };
+    return { message: "Logout successful" };
   }
 }
