@@ -633,7 +633,8 @@ export class OrganizationController extends Controller {
           Church: true,
           school: true,
           Club: true,
-          members: {           // ✅ include membership info
+          members: {
+            // ✅ include membership info
             select: {
               id: true,
               userId: true,
@@ -1171,7 +1172,8 @@ export class OrganizationController extends Controller {
         Church: true,
         school: true,
         Club: true,
-        members: {          // ✅ return membership list
+        members: {
+          // ✅ return membership list
           select: {
             id: true,
             userId: true,
@@ -1237,7 +1239,7 @@ export class OrganizationController extends Controller {
         data: {
           ...body,
           password: hashedPassword,
-          userType: "INVITED_MEMBER",   // ✅ new field
+          userType: "INVITED_MEMBER", // ✅ new field
           form_type: "INVITED",
           level: body.level || "Beginner",
           // ✅ Do NOT connect org here via the one-to-one relation;
@@ -1285,8 +1287,8 @@ export class OrganizationController extends Controller {
           full_name: `${updateUser.first_name} ${updateUser.last_name}`,
           email: updateUser.email_address,
           role: updateUser.role,
-          userType: updateUser.userType,   // ✅ in token
-          organizationId: organizationId,  // ✅ in token so middleware knows their org
+          userType: updateUser.userType, // ✅ in token
+          organizationId: organizationId, // ✅ in token so middleware knows their org
           updateStatus: updateUser.isOnline,
         },
         (process.env.BEARERAUTH_SECRET as string) || "secret-key",
@@ -1984,7 +1986,6 @@ export class OrganizationController extends Controller {
   public async GetCoursesByOrganization(
     @Request() req: any,
   ): Promise<CourseResponse> {
-    const organizationId = req.user?.organizationId;
     const userId = req.user?.id;
     const userLevel = req.user?.level;
     const language = req.user?.language;
@@ -1994,6 +1995,23 @@ export class OrganizationController extends Controller {
       if (!userId) {
         this.setStatus(400);
         return { message: "User ID not found", data: null };
+      }
+
+      // ── Resolve organizationId ─────────────────────────────────────────────
+      // Priority 1: token already carries it (org owners and invited users
+      //             who were signed in via CreateUser).
+      // Priority 2: look it up from OrganizationMember (the authoritative
+      //             table for every user–org relationship).
+      // ──────────────────────────────────────────────────────────────────────
+      let organizationId = req.user?.organizationId ?? req.org?.id ?? null;
+
+      if (!organizationId) {
+        const membership = await prisma.organizationMember.findFirst({
+          where: { userId, isActive: true },
+          select: { organizationId: true },
+          orderBy: { joinedAt: "desc" },
+        });
+        organizationId = membership?.organizationId ?? null;
       }
 
       if (!organizationId) {
@@ -2030,66 +2048,45 @@ export class OrganizationController extends Controller {
         levelCondition = { course_level: "Advanced" };
       }
 
-      let organizationCourses;
-      try {
-        organizationCourses = await prisma.course.findMany({
-          where: {
-            organizationId: organizationId,
-            ...levelCondition,
-          },
-          orderBy: { createdAt: "desc" },
-          include: {
-            module: {
-              select: {
-                _count: { select: { lesson: true } },
-                lesson: { select: { duration: true } },
-              },
-            },
-            organization: {
-              select: {
-                organization_name: true,
-                organization_type: true,
-              },
-            },
-            enrollment: {
-              where: { userId: userId },
-              select: {
-                status: true,
-                enrolledAt: true,
-                completedAt: true,
-              },
-            },
-            _count: { select: { enrollment: true } },
-          },
-        });
-      } catch (dbError: any) {
-        console.error("Database error:", dbError);
-        this.setStatus(500);
-        return {
-          message: "Database error while fetching courses: " + dbError.message,
-          data: null,
-        };
-      }
-
-      const courseIds = organizationCourses.map((c) => c.id);
-      let userEnrollments = [];
-
-      if (courseIds.length > 0 && userId) {
-        try {
-          userEnrollments = await prisma.enrollment.findMany({
-            where: {
-              userId: userId,
-              courseId: { in: courseIds },
-            },
+      const organizationCourses = await prisma.course.findMany({
+        where: {
+          organizationId: organizationId,
+          ...levelCondition,
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          module: {
             select: {
-              courseId: true,
+              _count: { select: { lesson: true } },
+              lesson: { select: { duration: true } },
+            },
+          },
+          organization: {
+            select: {
+              organization_name: true,
+              organization_type: true,
+            },
+          },
+          enrollment: {
+            where: { userId },
+            select: {
               status: true,
               enrolledAt: true,
+              completedAt: true,
             },
-          });
-        } catch (enrollmentError: any) {
-          console.error("Error fetching enrollments:", enrollmentError);
-        }
+          },
+          _count: { select: { enrollment: true } },
+        },
+      });
+
+      const courseIds = organizationCourses.map((c) => c.id);
+      let userEnrollments: any[] = [];
+
+      if (courseIds.length > 0) {
+        userEnrollments = await prisma.enrollment.findMany({
+          where: { userId, courseId: { in: courseIds } },
+          select: { courseId: true, status: true, enrolledAt: true },
+        });
       }
 
       const enrollmentMap = new Map(
@@ -2144,7 +2141,7 @@ export class OrganizationController extends Controller {
         message: "Organization courses fetched successfully",
         data: {
           courses: formattedCourses,
-          organizationId: organizationId,
+          organizationId,
           organizationName: organization.organization_name,
           level: userLevel,
           totalCourses: formattedCourses.length,
@@ -2154,26 +2151,7 @@ export class OrganizationController extends Controller {
         },
       };
     } catch (error: any) {
-      console.error("Error details:", {
-        message: error.message,
-        code: error.code,
-        meta: error.meta,
-        stack: error.stack,
-      });
-
-      if (error.code === "P2002") {
-        this.setStatus(409);
-        return {
-          message: `Unique constraint violation: ${error.meta?.target || "unknown field"}`,
-          data: { error: "DUPLICATE_ENTRY", field: error.meta?.target },
-        };
-      }
-
-      if (error.code === "P2025") {
-        this.setStatus(404);
-        return { message: "Record not found", data: null };
-      }
-
+      console.error("Error in GetCoursesByOrganization:", error);
       this.setStatus(500);
       return {
         message: "Error fetching organization courses: " + error.message,

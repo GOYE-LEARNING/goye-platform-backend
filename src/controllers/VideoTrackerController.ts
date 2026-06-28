@@ -33,7 +33,7 @@ export class VideoTrackerController extends Controller {
     @Request() req: any
   ) {
     const userId = req.user?.id;
-    
+
     try {
       // Check if course exists
       const course = await prisma.course.findUnique({
@@ -84,35 +84,64 @@ export class VideoTrackerController extends Controller {
         });
       }
 
-      // ✅ Use upsert to prevent duplicate video trackers
-      const setVideoTracker = await prisma.videoTracker.upsert({
-        where: {
-          lessonId_progressId: {
-            lessonId: body.lessonId,
-            progressId: progress.id,
+      // ── Upsert video tracker with P2002 fallback ───────────────────────────
+      // The frontend in-flight guard reduces the chance of a race, but under
+      // concurrent requests (e.g. onPause firing while onTimeUpdate is still
+      // in-flight) two POSTs can still race to the DB simultaneously.
+      // If the upsert loses the race (P2002 unique violation on lessonId +
+      // progressId), we fall back to a plain update on the existing row.
+      let setVideoTracker;
+      try {
+        setVideoTracker = await prisma.videoTracker.upsert({
+          where: {
+            lessonId_progressId: {
+              lessonId: body.lessonId,
+              progressId: progress.id,
+            },
           },
-        },
-        update: {
-          videoTrackTime: body.videoTrackTime,
-          videoFinished: body.videoFinished,
-          basedTimeTracking: "SECOND_TIME_TRACKING",
-          updatedAt: new Date(),
-        },
-        create: {
-          videoFinished: body.videoFinished,
-          videoTrackTime: body.videoTrackTime,
-          basedTimeTracking: "FIRST_TIME_TRACKING",
-          progress: { connect: { id: progress.id } },
-          course: { connect: { id: body.courseId } },
-          lesson: { connect: { id: body.lessonId } },
-        },
-      });
+          update: {
+            videoTrackTime: body.videoTrackTime,
+            videoFinished: body.videoFinished,
+            basedTimeTracking: "SECOND_TIME_TRACKING",
+            updatedAt: new Date(),
+          },
+          create: {
+            videoFinished: body.videoFinished,
+            videoTrackTime: body.videoTrackTime,
+            basedTimeTracking: "FIRST_TIME_TRACKING",
+            progress: { connect: { id: progress.id } },
+            course: { connect: { id: body.courseId } },
+            lesson: { connect: { id: body.lessonId } },
+          },
+        });
+      } catch (e: any) {
+        if (e.code === "P2002") {
+          // Another concurrent request already created the row — update it
+          setVideoTracker = await prisma.videoTracker.update({
+            where: {
+              lessonId_progressId: {
+                lessonId: body.lessonId,
+                progressId: progress.id,
+              },
+            },
+            data: {
+              videoTrackTime: body.videoTrackTime,
+              videoFinished: body.videoFinished,
+              basedTimeTracking: "SECOND_TIME_TRACKING",
+              updatedAt: new Date(),
+            },
+          });
+        } else {
+          throw e;
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────
 
       let gamificationResult = null;
 
       // If video is finished, award XP for lesson completion
       if (body.videoFinished) {
-        // ✅ Check if lesson is already completed using unique constraint
+        // Check if lesson is already completed using unique constraint
         const existingLessonProgress = await prisma.progress.findFirst({
           where: {
             userId,
@@ -122,7 +151,7 @@ export class VideoTrackerController extends Controller {
         });
 
         if (!existingLessonProgress) {
-          // ✅ Use upsert for lesson progress to prevent duplicates
+          // Use upsert for lesson progress to prevent duplicates
           await prisma.progress.upsert({
             where: {
               userId_lessonId: {
@@ -150,9 +179,9 @@ export class VideoTrackerController extends Controller {
             { courseId: body.courseId, lessonId: body.lessonId }
           );
 
-          // ✅ Use distinct count for completed lessons
+          // Use distinct count for completed lessons
           const completedLessonsCount = await prisma.progress.groupBy({
-            by: ['lessonId'],
+            by: ["lessonId"],
             where: {
               userId,
               lesson: { module: { courseId: body.courseId } },
@@ -188,14 +217,18 @@ export class VideoTrackerController extends Controller {
 
       this.setStatus(201);
       return {
-        message: body.videoFinished ? "Video completed! Lesson XP awarded!" : "Video tracked",
+        message: body.videoFinished
+          ? "Video completed! Lesson XP awarded!"
+          : "Video tracked",
         data: setVideoTracker,
-        gamification: gamificationResult ? {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
-          badgesEarned: gamificationResult.data?.badgesEarned,
-        } : null,
+        gamification: gamificationResult
+          ? {
+              pointsEarned: gamificationResult.data?.pointsAdded,
+              leveledUp: gamificationResult.data?.leveledUp,
+              newLevel: gamificationResult.data?.newLevel,
+              badgesEarned: gamificationResult.data?.badgesEarned,
+            }
+          : null,
       };
     } catch (error) {
       console.error("Error in TrackVideo:", error);
@@ -276,7 +309,7 @@ export class VideoTrackerController extends Controller {
           });
         }
 
-        // ✅ Check if lesson is already completed using unique constraint
+        // Check if lesson is already completed using unique constraint
         const existingLessonProgress = await prisma.progress.findFirst({
           where: {
             userId,
@@ -286,7 +319,7 @@ export class VideoTrackerController extends Controller {
         });
 
         if (!existingLessonProgress) {
-          // ✅ Use upsert for lesson progress
+          // Use upsert for lesson progress
           await prisma.progress.upsert({
             where: {
               userId_lessonId: {
@@ -311,9 +344,9 @@ export class VideoTrackerController extends Controller {
           gamificationResult = await GamificationService.AddPointsWithGamification(
             userId,
             ActionType.LESSON_COMPLETE,
-            { 
-              courseId: existingVideo.courseId, 
-              lessonId: existingVideo.lessonId 
+            {
+              courseId: existingVideo.courseId,
+              lessonId: existingVideo.lessonId,
             }
           );
 
@@ -325,9 +358,9 @@ export class VideoTrackerController extends Controller {
             },
           });
 
-          // ✅ Use distinct count for completed lessons
+          // Use distinct count for completed lessons
           const completedLessonsCount = await prisma.progress.groupBy({
-            by: ['lessonId'],
+            by: ["lessonId"],
             where: {
               userId,
               lesson: { module: { courseId: existingVideo.courseId } },
@@ -364,16 +397,18 @@ export class VideoTrackerController extends Controller {
 
       this.setStatus(200);
       return {
-        message: body.videoFinished 
-          ? "Video completed! Lesson XP awarded!" 
+        message: body.videoFinished
+          ? "Video completed! Lesson XP awarded!"
           : "Video tracked updated successfully",
         data: updatedVideoTracker,
-        gamification: gamificationResult ? {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
-          badgesEarned: gamificationResult.data?.badgesEarned,
-        } : null,
+        gamification: gamificationResult
+          ? {
+              pointsEarned: gamificationResult.data?.pointsAdded,
+              leveledUp: gamificationResult.data?.leveledUp,
+              newLevel: gamificationResult.data?.newLevel,
+              badgesEarned: gamificationResult.data?.badgesEarned,
+            }
+          : null,
       };
     } catch (error) {
       console.error("Error in UpdateTrackVideo:", error);
@@ -415,12 +450,9 @@ export class VideoTrackerController extends Controller {
 
   @Get("/get-tracker-id/{lessonId}")
   @Security("bearerAuth")
-  public async GetTrackerId(
-    @Path() lessonId: string,
-    @Request() req: any
-  ) {
+  public async GetTrackerId(@Path() lessonId: string, @Request() req: any) {
     const userId = req.user?.id;
-    
+
     try {
       // Find progress by userId
       const progress = await prisma.progress.findFirst({
@@ -430,7 +462,7 @@ export class VideoTrackerController extends Controller {
       if (!progress) {
         return {
           message: "No progress found for user",
-          data: null
+          data: null,
         };
       }
 
@@ -440,7 +472,7 @@ export class VideoTrackerController extends Controller {
           progressId: progress.id,
         },
         orderBy: {
-          updatedAt: 'desc'
+          updatedAt: "desc",
         },
         include: {
           lesson: true,
@@ -449,13 +481,13 @@ export class VideoTrackerController extends Controller {
 
       return {
         message: tracker ? "Tracker found" : "No tracker found",
-        data: tracker
+        data: tracker,
       };
     } catch (error) {
       console.error("Error in GetTrackerId:", error);
       this.setStatus(500);
       return {
-        message: "Error finding tracker"
+        message: "Error finding tracker",
       };
     }
   }
