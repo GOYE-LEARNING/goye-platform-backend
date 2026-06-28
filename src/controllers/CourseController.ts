@@ -655,8 +655,8 @@ export class CourseController extends Controller {
     @Request() req: any,
   ): Promise<CourseResponse> {
     const userLevel = req.user?.level;
-    const language = req.user?.language
-    const languageCode = req.user?.languageCode
+    const language = req.user?.language;
+    const languageCode = req.user?.languageCode;
     try {
       // Validate user level
       if (!userLevel) {
@@ -696,8 +696,11 @@ export class CourseController extends Controller {
           },
         });
 
-
-        const translateText = await TranslateText(getAllCourses[0].course_description, language, languageCode)
+        const translateText = await TranslateText(
+          getAllCourses[0].course_description,
+          language,
+          languageCode,
+        );
         this.setStatus(200);
         return {
           message: "This user course fetched successfully",
@@ -705,7 +708,7 @@ export class CourseController extends Controller {
             getAllCourses,
             language: language ?? null,
             languageCode: languageCode ?? null,
-            translateText: translateText ?? null
+            translateText: translateText ?? null,
           },
         };
       } else if (normalizedLevel === "intermediate") {
@@ -1524,44 +1527,44 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-@Delete("/unsave-course/{courseId}")
-public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
-  const userId = req.user?.id;
-  if (!userId) {
-    return {
-      message: "User is unauthorized",
-    };
-  }
-
-  try {
-    // ✅ FIX: Delete using both userId and courseId, not just courseId
-    const unsaveCourse = await prisma.savedCourses.deleteMany({
-      where: {
-        userId: userId,
-        courseId: courseId,
-      },
-    });
-
-    if (unsaveCourse.count === 0) {
-      this.setStatus(404);
+  @Delete("/unsave-course/{courseId}")
+  public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
+    const userId = req.user?.id;
+    if (!userId) {
       return {
-        message: "Saved course not found",
+        message: "User is unauthorized",
       };
     }
 
-    this.setStatus(200);
-    return {
-      message: "Course unsaved successfully",
-      data: unsaveCourse,
-    };
-  } catch (error) {
-    console.error("Error unsaving course:", error);
-    this.setStatus(500);
-    return {
-      message: "Error unsaving course",
-    };
+    try {
+      // ✅ FIX: Delete using both userId and courseId, not just courseId
+      const unsaveCourse = await prisma.savedCourses.deleteMany({
+        where: {
+          userId: userId,
+          courseId: courseId,
+        },
+      });
+
+      if (unsaveCourse.count === 0) {
+        this.setStatus(404);
+        return {
+          message: "Saved course not found",
+        };
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Course unsaved successfully",
+        data: unsaveCourse,
+      };
+    } catch (error) {
+      console.error("Error unsaving course:", error);
+      this.setStatus(500);
+      return {
+        message: "Error unsaving course",
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Get("/check-saved-course/{courseId}")
@@ -1663,8 +1666,9 @@ public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
       for (const answer of quiz.answers) {
         sumOfPoint += answer.point;
       }
-      const quizScorePercentage = (sumOfPoint / quiz.totalPoint) * 100;
-
+      const quizScorePercentage = Math.round(
+        (sumOfPoint / quiz.totalPoint) * 100,
+      );
       // Check if quiz already attempted and passed
       const existingAttempt = await prisma.quizAttempt.findFirst({
         where: {
@@ -2222,111 +2226,111 @@ public async UnSaveCourse(@Request() req: any, @Path() courseId: string) {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/fetch-activities/{courseId}")
-  public async FetchActivites(
-    @Request() req: any,
-    @Path() courseId: string,
-  ): Promise<any> {
-    const tutorId = req.user?.id; //Id for user
-    const role = req.user?.role; //Role for user
-    const orgId = req.org?.id; //Role for Organization Id
+@Security("bearerAuth")
+@Get("/fetch-activities/{courseId}")
+public async FetchActivites(
+  @Request() req: any,
+  @Path() courseId: string,
+): Promise<any> {
+  const userId = req.user?.id;
+  const role = req.user?.role;
+  const orgId = req.org?.id ?? req.user?.organizationId ?? null;
 
-    try {
-      //For User
-      const user = await prisma.user.findUnique({
-        where: {
-          id: tutorId,
-          role,
-        },
+  try {
+    // ── Resolve org membership if orgId not in token ──────────────────────
+    let resolvedOrgId = orgId;
+    if (!resolvedOrgId && userId) {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId, isActive: true },
+        select: { organizationId: true },
+        orderBy: { joinedAt: "desc" },
       });
+      resolvedOrgId = membership?.organizationId ?? null;
+    }
 
-      if (role !== "instructor") {
-        this.setStatus(401);
-        return {
-          message: "This Role is invalid",
-        };
-      }
+    const isInstructor = role === "instructor" || role === "INSTRUCTOR";
+    const isOrgAdmin =
+      role === "org_admin" ||
+      role === "ORG_ADMIN" ||
+      role === "admin" ||
+      role === "Administrator";
 
-      if (user) {
-        const course = await prisma.course.findUnique({
-          where: {
-            id: courseId,
-          },
-        });
-
-        if (!course) {
-          this.setStatus(404);
-          return {
-            message: "This course does not exist",
-          };
-        }
-
-        const getActivitiesFromNotification =
-          await prisma.notification.findMany({
-            where: {
-              courseId,
-            },
-            take: 30,
-          });
-
-        this.setStatus(200);
-        return {
-          message: "Activities Fetched Successfully",
-          data: getActivitiesFromNotification || null,
-        };
-      }
-
-      //For organization
-      const org = await prisma.organization.findUnique({
-        where: {
-          id: orgId,
-        },
-      });
-      if (org) {
-        const course = await prisma.course.findUnique({
-          where: {
-            id: courseId,
-          },
-        });
-
-        if (!course) {
-          this.setStatus(404);
-          return {
-            message: "This course does not exist",
-          };
-        }
-
-        const getActivitiesFromNotification =
-          await prisma.notification.findMany({
-            where: {
-              courseId,
-              organization: {
-                form_type: "ORGANIZATION",
-              },
-            },
-            take: 30,
-          });
-
-        this.setStatus(200);
-        return {
-          message: "Activities Fetched Successfully",
-          data: getActivitiesFromNotification,
-        };
-      }
-
-      this.setStatus(400);
+    if (!isInstructor && !isOrgAdmin) {
+      this.setStatus(401);
       return {
-        message: "An error occured while fetching the activities.",
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: "An error occured while fetching the activities",
-        error: error.message,
+        message: "Only instructors or organization admins can view activities",
       };
     }
+
+    // ── Verify the course exists ───────────────────────────────────────────
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+    });
+
+    if (!course) {
+      this.setStatus(404);
+      return { message: "This course does not exist" };
+    }
+
+    // ── Org admin path ─────────────────────────────────────────────────────
+    if (isOrgAdmin && resolvedOrgId) {
+      // Verify the course actually belongs to this org
+      if (course.organizationId !== resolvedOrgId) {
+        this.setStatus(403);
+        return {
+          message: "This course does not belong to your organization",
+        };
+      }
+
+      const activities = await prisma.notification.findMany({
+        where: {
+          courseId,
+          organizationId: resolvedOrgId,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Activities fetched successfully",
+        data: activities,
+      };
+    }
+
+    // ── Instructor path ────────────────────────────────────────────────────
+    if (isInstructor) {
+      // Verify the course belongs to this instructor
+      if (course.createdUserId !== userId) {
+        this.setStatus(403);
+        return {
+          message: "You do not have access to this course's activities",
+        };
+      }
+
+      const activities = await prisma.notification.findMany({
+        where: { courseId },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Activities fetched successfully",
+        data: activities,
+      };
+    }
+
+    this.setStatus(400);
+    return { message: "Unable to fetch activities" };
+  } catch (error: any) {
+    this.setStatus(500);
+    return {
+      message: "An error occurred while fetching the activities",
+      error: error.message,
+    };
   }
+}
 
   // In your CourseController.ts, update the fetch-saved-courses endpoint
   @Security("bearerAuth")
