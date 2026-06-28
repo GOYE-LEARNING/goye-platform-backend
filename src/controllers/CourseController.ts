@@ -25,8 +25,7 @@ import {
 } from "../services/gamificationService";
 import { NotificationService, Role } from "../services/notificationServices";
 import { TranslateText } from "../utils/ai_utils/translator";
-import { text } from "body-parser";
-//To determine levels
+import { awardCertificateIfCompleted } from "../services/certificateService"; //To determine levels
 const levels: Record<string, string> = {
   beginner: "Beginner",
   Beginner: "Beginner",
@@ -2009,6 +2008,12 @@ export class CourseController extends Controller {
           },
         });
         courseCompleted = true;
+
+        await awardCertificateIfCompleted(
+          userId,
+          courseId,
+          enrollment.id,
+        );
       }
 
       this.setStatus(200);
@@ -2022,6 +2027,7 @@ export class CourseController extends Controller {
           quizzesCompleted: allQuizzesCompleted ? allQuizzes.length : 0,
           totalQuizzes: allQuizzes.length,
         },
+
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -2226,111 +2232,112 @@ export class CourseController extends Controller {
     }
   }
 
-@Security("bearerAuth")
-@Get("/fetch-activities/{courseId}")
-public async FetchActivites(
-  @Request() req: any,
-  @Path() courseId: string,
-): Promise<any> {
-  const userId = req.user?.id;
-  const role = req.user?.role;
-  const orgId = req.org?.id ?? req.user?.organizationId ?? null;
+  @Security("bearerAuth")
+  @Get("/fetch-activities/{courseId}")
+  public async FetchActivites(
+    @Request() req: any,
+    @Path() courseId: string,
+  ): Promise<any> {
+    const userId = req.user?.id;
+    const role = req.user?.role;
+    const orgId = req.org?.id ?? req.user?.organizationId ?? null;
 
-  try {
-    // ── Resolve org membership if orgId not in token ──────────────────────
-    let resolvedOrgId = orgId;
-    if (!resolvedOrgId && userId) {
-      const membership = await prisma.organizationMember.findFirst({
-        where: { userId, isActive: true },
-        select: { organizationId: true },
-        orderBy: { joinedAt: "desc" },
-      });
-      resolvedOrgId = membership?.organizationId ?? null;
-    }
+    try {
+      // ── Resolve org membership if orgId not in token ──────────────────────
+      let resolvedOrgId = orgId;
+      if (!resolvedOrgId && userId) {
+        const membership = await prisma.organizationMember.findFirst({
+          where: { userId, isActive: true },
+          select: { organizationId: true },
+          orderBy: { joinedAt: "desc" },
+        });
+        resolvedOrgId = membership?.organizationId ?? null;
+      }
 
-    const isInstructor = role === "instructor" || role === "INSTRUCTOR";
-    const isOrgAdmin =
-      role === "org_admin" ||
-      role === "ORG_ADMIN" ||
-      role === "admin" ||
-      role === "Administrator";
+      const isInstructor = role === "instructor" || role === "INSTRUCTOR";
+      const isOrgAdmin =
+        role === "org_admin" ||
+        role === "ORG_ADMIN" ||
+        role === "admin" ||
+        role === "Administrator";
 
-    if (!isInstructor && !isOrgAdmin) {
-      this.setStatus(401);
-      return {
-        message: "Only instructors or organization admins can view activities",
-      };
-    }
-
-    // ── Verify the course exists ───────────────────────────────────────────
-    const course = await prisma.course.findUnique({
-      where: { id: courseId },
-    });
-
-    if (!course) {
-      this.setStatus(404);
-      return { message: "This course does not exist" };
-    }
-
-    // ── Org admin path ─────────────────────────────────────────────────────
-    if (isOrgAdmin && resolvedOrgId) {
-      // Verify the course actually belongs to this org
-      if (course.organizationId !== resolvedOrgId) {
-        this.setStatus(403);
+      if (!isInstructor && !isOrgAdmin) {
+        this.setStatus(401);
         return {
-          message: "This course does not belong to your organization",
+          message:
+            "Only instructors or organization admins can view activities",
         };
       }
 
-      const activities = await prisma.notification.findMany({
-        where: {
-          courseId,
-          organizationId: resolvedOrgId,
-        },
-        orderBy: { createdAt: "desc" },
-        take: 30,
+      // ── Verify the course exists ───────────────────────────────────────────
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
       });
 
-      this.setStatus(200);
-      return {
-        message: "Activities fetched successfully",
-        data: activities,
-      };
-    }
+      if (!course) {
+        this.setStatus(404);
+        return { message: "This course does not exist" };
+      }
 
-    // ── Instructor path ────────────────────────────────────────────────────
-    if (isInstructor) {
-      // Verify the course belongs to this instructor
-      if (course.createdUserId !== userId) {
-        this.setStatus(403);
+      // ── Org admin path ─────────────────────────────────────────────────────
+      if (isOrgAdmin && resolvedOrgId) {
+        // Verify the course actually belongs to this org
+        if (course.organizationId !== resolvedOrgId) {
+          this.setStatus(403);
+          return {
+            message: "This course does not belong to your organization",
+          };
+        }
+
+        const activities = await prisma.notification.findMany({
+          where: {
+            courseId,
+            organizationId: resolvedOrgId,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        });
+
+        this.setStatus(200);
         return {
-          message: "You do not have access to this course's activities",
+          message: "Activities fetched successfully",
+          data: activities,
         };
       }
 
-      const activities = await prisma.notification.findMany({
-        where: { courseId },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      });
+      // ── Instructor path ────────────────────────────────────────────────────
+      if (isInstructor) {
+        // Verify the course belongs to this instructor
+        if (course.createdUserId !== userId) {
+          this.setStatus(403);
+          return {
+            message: "You do not have access to this course's activities",
+          };
+        }
 
-      this.setStatus(200);
+        const activities = await prisma.notification.findMany({
+          where: { courseId },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+        });
+
+        this.setStatus(200);
+        return {
+          message: "Activities fetched successfully",
+          data: activities,
+        };
+      }
+
+      this.setStatus(400);
+      return { message: "Unable to fetch activities" };
+    } catch (error: any) {
+      this.setStatus(500);
       return {
-        message: "Activities fetched successfully",
-        data: activities,
+        message: "An error occurred while fetching the activities",
+        error: error.message,
       };
     }
-
-    this.setStatus(400);
-    return { message: "Unable to fetch activities" };
-  } catch (error: any) {
-    this.setStatus(500);
-    return {
-      message: "An error occurred while fetching the activities",
-      error: error.message,
-    };
   }
-}
 
   // In your CourseController.ts, update the fetch-saved-courses endpoint
   @Security("bearerAuth")
