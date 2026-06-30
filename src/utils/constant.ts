@@ -27,5 +27,6 @@ export const SOCKET_EVENTS = {
   PRIVATE_READ: "private:read",
   PRIVATE_ERROR: "private:error",
   USER_ONLINE: "user:online",
+  USER_OFFLINE: "user:offline",
   USERS_ONLINE_LIST: "users:online:list",
 } as const;

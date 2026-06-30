@@ -11043,135 +11043,226 @@
 													"format": "double"
 												},
 												"data": {
-													"items": {
-														"allOf": [
-															{
-																"properties": {
-																	"group": {
-																		"properties": {
-																			"group_title": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"group_title"
-																		],
-																		"type": "object"
-																	},
-																	"user": {
-																		"properties": {
-																			"user_pic": {
-																				"type": "string"
-																			},
-																			"last_name": {
-																				"type": "string"
-																			},
-																			"first_name": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"user_pic",
-																			"last_name",
-																			"first_name"
-																		],
-																		"type": "object"
-																	},
-																	"course": {
-																		"properties": {
-																			"course_title": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"course_title"
-																		],
-																		"type": "object"
-																	}
+													"properties": {
+														"pagination": {
+															"properties": {
+																"hasMore": {
+																	"type": "boolean"
 																},
-																"required": [
-																	"group",
-																	"user",
-																	"course"
-																],
-																"type": "object"
+																"offset": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"limit": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"total": {
+																	"type": "number",
+																	"format": "double"
+																}
 															},
-															{
-																"properties": {
-																	"replyId": {
-																		"type": "string"
+															"required": [
+																"hasMore",
+																"offset",
+																"limit",
+																"total"
+															],
+															"type": "object"
+														},
+														"data": {
+															"items": {
+																"allOf": [
+																	{
+																		"properties": {
+																			"group": {
+																				"properties": {
+																					"group_image": {
+																						"type": "string"
+																					},
+																					"group_title": {
+																						"type": "string"
+																					},
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"group_image",
+																					"group_title",
+																					"id"
+																				],
+																				"type": "object"
+																			},
+																			"user": {
+																				"properties": {
+																					"user_pic": {
+																						"type": "string"
+																					},
+																					"last_name": {
+																						"type": "string"
+																					},
+																					"first_name": {
+																						"type": "string"
+																					},
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"user_pic",
+																					"last_name",
+																					"first_name",
+																					"id"
+																				],
+																				"type": "object"
+																			},
+																			"organization": {
+																				"properties": {
+																					"organization_image": {
+																						"type": "string"
+																					},
+																					"organization_name": {
+																						"type": "string"
+																					},
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"organization_image",
+																					"organization_name",
+																					"id"
+																				],
+																				"type": "object"
+																			},
+																			"post": {
+																				"properties": {
+																					"title": {
+																						"type": "string"
+																					},
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"title",
+																					"id"
+																				],
+																				"type": "object"
+																			},
+																			"course": {
+																				"properties": {
+																					"course_image": {
+																						"type": "string"
+																					},
+																					"course_title": {
+																						"type": "string"
+																					},
+																					"id": {
+																						"type": "string"
+																					}
+																				},
+																				"required": [
+																					"course_image",
+																					"course_title",
+																					"id"
+																				],
+																				"type": "object"
+																			}
+																		},
+																		"required": [
+																			"group",
+																			"user",
+																			"organization",
+																			"post",
+																			"course"
+																		],
+																		"type": "object"
 																	},
-																	"isRead": {
-																		"type": "boolean"
-																	},
-																	"to": {
-																		"type": "string"
-																	},
-																	"postId": {
-																		"type": "string"
-																	},
-																	"achievementId": {
-																		"type": "string"
-																	},
-																	"groupId": {
-																		"type": "string"
-																	},
-																	"title": {
-																		"type": "string"
-																	},
-																	"type": {
-																		"type": "string"
-																	},
-																	"message": {
-																		"type": "string"
-																	},
-																	"role": {
-																		"type": "string"
-																	},
-																	"userId": {
-																		"type": "string"
-																	},
-																	"organizationId": {
-																		"type": "string"
-																	},
-																	"updatedAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"createdAt": {
-																		"type": "string",
-																		"format": "date-time"
-																	},
-																	"courseId": {
-																		"type": "string"
-																	},
-																	"id": {
-																		"type": "string"
+																	{
+																		"properties": {
+																			"replyId": {
+																				"type": "string"
+																			},
+																			"isRead": {
+																				"type": "boolean"
+																			},
+																			"to": {
+																				"type": "string"
+																			},
+																			"postId": {
+																				"type": "string"
+																			},
+																			"achievementId": {
+																				"type": "string"
+																			},
+																			"groupId": {
+																				"type": "string"
+																			},
+																			"title": {
+																				"type": "string"
+																			},
+																			"type": {
+																				"type": "string"
+																			},
+																			"message": {
+																				"type": "string"
+																			},
+																			"role": {
+																				"type": "string"
+																			},
+																			"userId": {
+																				"type": "string"
+																			},
+																			"organizationId": {
+																				"type": "string"
+																			},
+																			"updatedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"createdAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"courseId": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"replyId",
+																			"isRead",
+																			"to",
+																			"postId",
+																			"achievementId",
+																			"groupId",
+																			"title",
+																			"type",
+																			"message",
+																			"role",
+																			"userId",
+																			"organizationId",
+																			"updatedAt",
+																			"createdAt",
+																			"courseId",
+																			"id"
+																		],
+																		"type": "object"
 																	}
-																},
-																"required": [
-																	"replyId",
-																	"isRead",
-																	"to",
-																	"postId",
-																	"achievementId",
-																	"groupId",
-																	"title",
-																	"type",
-																	"message",
-																	"role",
-																	"userId",
-																	"organizationId",
-																	"updatedAt",
-																	"createdAt",
-																	"courseId",
-																	"id"
-																],
-																"type": "object"
-															}
-														]
+																]
+															},
+															"type": "array"
+														}
 													},
-													"type": "array"
+													"required": [
+														"pagination",
+														"data"
+													],
+													"type": "object"
 												},
 												"message": {
 													"type": "string"
@@ -11265,8 +11356,26 @@
 															"format": "double"
 														},
 														"roleUnread": {
-															"type": "number",
-															"format": "double"
+															"properties": {
+																"totalUnread": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"userUnread": {
+																	"type": "number",
+																	"format": "double"
+																},
+																"roleUnread": {
+																	"type": "number",
+																	"format": "double"
+																}
+															},
+															"required": [
+																"totalUnread",
+																"userUnread",
+																"roleUnread"
+															],
+															"type": "object"
 														}
 													},
 													"required": [

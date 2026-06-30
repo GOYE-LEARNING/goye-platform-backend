@@ -12,37 +12,37 @@ datasource db {
 // ─────────────────────────────────────────────
 
 enum UserType {
-  INDIVIDUAL         // Self-registered, no org
+  INDIVIDUAL // Self-registered, no org
   ORGANIZATION_OWNER // Created an organization
-  INVITED_MEMBER     // Joined via InviteUser link
+  INVITED_MEMBER // Joined via InviteUser link
   ADMIN
 }
 
 enum JoinMethod {
-  CREATED   // This user founded the org
-  INVITE    // Joined via InviteUser
-  WAITLIST  // Joined from waitlist
+  CREATED // This user founded the org
+  INVITE // Joined via InviteUser
+  WAITLIST // Joined from waitlist
 }
 
 enum LanguageCode {
-  unknown  // UNKNOWN language
-  en       // English
-  fr       // French
-  es       // Spanish
-  pt       // Portuguese
-  de       // German
-  it       // Italian
-  nl       // Dutch
-  zh_CN    // Chinese (Simplified)
-  zh_TW    // Chinese (Traditional)
-  ja       // Japanese
-  ko       // Korean
-  hi       // Hindi
-  sw       // Swahili
-  yo       // Yorùbá
-  ig       // Igbo
-  ha       // Hausa
-  am       // Amharic
+  unknown // UNKNOWN language
+  en // English
+  fr // French
+  es // Spanish
+  pt // Portuguese
+  de // German
+  it // Italian
+  nl // Dutch
+  zh_CN // Chinese (Simplified)
+  zh_TW // Chinese (Traditional)
+  ja // Japanese
+  ko // Korean
+  hi // Hindi
+  sw // Swahili
+  yo // Yorùbá
+  ig // Igbo
+  ha // Hausa
+  am // Amharic
 }
 
 enum Provider {
@@ -150,23 +150,23 @@ enum FeedbackType {
 // ─────────────────────────────────────────────
 
 model User {
-  id                String                 @id @default(cuid())
-  firebase_uid      String?                @unique
-  first_name        String
-  last_name         String
-  email_address     String                 @unique
-  paymentCode       String?
-  password          String?
-  country           String
-  state             String
-  phone_number      String
-  language          String?                @default("unknown")
-  languageCode      LanguageCode?          @default(unknown)
-  role              String                 @default("student")
-  level             String
-  point             Int?
-  completed         String                 @default("false")
-  form_type         FormType?              @default(INDIVIDUAL)
+  id            String        @id @default(cuid())
+  firebase_uid  String?       @unique
+  first_name    String
+  last_name     String
+  email_address String        @unique
+  paymentCode   String?
+  password      String?
+  country       String
+  state         String
+  phone_number  String
+  language      String?       @default("unknown")
+  languageCode  LanguageCode? @default(unknown)
+  role          String        @default("student")
+  level         String
+  point         Int?
+  completed     String        @default("false")
+  form_type     FormType?     @default(INDIVIDUAL)
 
   // ── Replaces the old `invited Boolean` flag ──────────────────────────────
   // Use this to distinguish who a user IS at the identity level:
@@ -174,56 +174,56 @@ model User {
   //   ORGANIZATION_OWNER → created an org (Organization.userId = this user)
   //   INVITED_MEMBER     → accepted an InviteUser link
   //   ADMIN              → platform admin
-  userType          UserType               @default(INDIVIDUAL)
+  userType UserType @default(INDIVIDUAL)
   // ─────────────────────────────────────────────────────────────────────────
 
   user_plan         PricingHistory[]
-  createdAt         DateTime               @default(now())
-  isOnline          Boolean                @default(false)
-  lastActive        DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
+  createdAt         DateTime         @default(now())
+  isOnline          Boolean          @default(false)
+  lastActive        DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
   user_pic          String?
-  provider          String?                @default("OTHER")
+  provider          String?          @default("OTHER")
   completedCourses  Int?
   completedLessons  Int?
   completedVideo    Int?
-  isProfileComplete Boolean?               @default(false)
+  isProfileComplete Boolean?         @default(false)
   isFromWaitList    Boolean?
   resetToken        String?
   resetTokenExpires DateTime?
-  isVerified        Boolean                @default(false)
+  isVerified        Boolean          @default(false)
   verifiedAt        DateTime?
 
-  enrollment              Enrollment[]
-  post                    Post[]
-  reply                   Reply[]
-  quizAttempt             QuizAttempt[]
-  likes                   Likes[]
-  Courses                 Course[]
-  Group                   Group[]
-  joinedGroups            JoinedGroup[]
-  notification            Notification[]
-  message                 Message[]
-  organization            Organization?
-  inviteUser              InviteUser[]
-  settings                Settings[]
-  achievement             Achievement[]
-  badgesAndLevel          BadgesAndLevelEarned[]
-  progress                Progress[]
-  badges                  Badges[]
-  userSessions            UserSession[]
-  pointHistory            PointHistory[]
-  discussions             Discussion[]
-  discussionLikes         DiscussionLike[]
-  sentMessages            PrivateMessage[]       @relation("SentMessages")
-  receivedMessages        PrivateMessage[]       @relation("ReceivedMessages")
-  feedBack                Feedback[]
-  certificate             Certificate[]
-  savedCourses            SavedCourses[]
-  adminProfile            AdminProfile?
-  additionalData          UserAdditionalData?
-  waitlists               Waitlist?              @relation(fields: [waitlistId], references: [id])
-  waitlistId              String?                @unique
+  enrollment       Enrollment[]
+  post             Post[]
+  reply            Reply[]
+  quizAttempt      QuizAttempt[]
+  likes            Likes[]
+  Courses          Course[]
+  Group            Group[]
+  joinedGroups     JoinedGroup[]
+  notification     Notification[]
+  message          Message[]
+  organization     Organization?
+  inviteUser       InviteUser[]
+  settings         Settings[]
+  achievement      Achievement[]
+  badgesAndLevel   BadgesAndLevelEarned[]
+  progress         Progress[]
+  badges           Badges[]
+  userSessions     UserSession[]
+  pointHistory     PointHistory[]
+  discussions      Discussion[]
+  discussionLikes  DiscussionLike[]
+  sentMessages     PrivateMessage[]       @relation("SentMessages")
+  receivedMessages PrivateMessage[]       @relation("ReceivedMessages")
+  feedBack         Feedback[]
+  certificate      Certificate[]
+  savedCourses     SavedCourses[]
+  adminProfile     AdminProfile?
+  additionalData   UserAdditionalData?
+  waitlists        Waitlist?              @relation(fields: [waitlistId], references: [id])
+  waitlistId       String?                @unique
 
   // ── Org membership audit trail (which orgs this user belongs to & how) ──
   organizationMemberships OrganizationMember[]
@@ -245,12 +245,12 @@ model OrganizationMember {
   joinedAt       DateTime   @default(now())
   isActive       Boolean    @default(true)
 
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   // Link back to the specific invite that brought this user in (nullable for CREATED)
-  invite         InviteUser?  @relation(fields: [inviteId], references: [id])
-  inviteId       String?
+  invite   InviteUser? @relation(fields: [inviteId], references: [id])
+  inviteId String?
 
   @@unique([userId, organizationId])
   @@index([organizationId])
@@ -371,7 +371,7 @@ model InviteUser {
   expiresIn      DateTime
 
   // ── Back-link to the OrganizationMember created when invite was accepted ─
-  members        OrganizationMember[]
+  members OrganizationMember[]
   // ─────────────────────────────────────────────────────────────────────────
 }
 
@@ -380,12 +380,12 @@ model InviteUser {
 // ─────────────────────────────────────────────
 
 model Organization {
-  id                         String    @id @default(uuid())
-  user                       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userId                     String?   @unique // The owner/creator; nullable to allow deletion
+  id                         String               @id @default(uuid())
+  user                       User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId                     String?              @unique // The owner/creator; nullable to allow deletion
   organization_name          String
-  organization_type          OrgType   @default(OTHER)
-  organization_email         String    @unique
+  organization_type          OrgType              @default(OTHER)
+  organization_email         String               @unique
   organization_phone_number  String
   organization_country       String
   organization_state         String
@@ -427,7 +427,7 @@ model Organization {
   pointHistory               PointHistory[]
 
   // ── All members of this org (owners + invited) ───────────────────────────
-  members                    OrganizationMember[]
+  members OrganizationMember[]
   // ─────────────────────────────────────────────────────────────────────────
 }
 
@@ -529,6 +529,7 @@ model Notification {
 
 model Settings {
   id                       String        @id @default(uuid())
+  isShowAnnoucement        Boolean?      @default(true)
   enable_push_notification Boolean?      @default(true)
   course_updates           Boolean?      @default(true)
   event                    Boolean?      @default(true)

@@ -371,7 +371,7 @@ export class NotificationController extends Controller {
         success: true,
         message: "User notifications fetched successfully",
         data: notifications,
-        count: notifications.length,
+        count: notifications.data.length,
       };
     } catch (error: any) {
       console.error("Error fetching user notifications:", error);
@@ -402,7 +402,7 @@ export class NotificationController extends Controller {
       userRole = userRole.toUpperCase();
 
       const [roleUnread, userUnread] = await Promise.all([
-        NotificationService.getUnreadCount(userRole as Role),
+        NotificationService.getUnreadCount(userId, userRole as Role),
         NotificationService.getUnreadCountForUser(userId),
       ]);
 
@@ -412,7 +412,7 @@ export class NotificationController extends Controller {
         data: {
           roleUnread,
           userUnread,
-          totalUnread: roleUnread + userUnread,
+          totalUnread: roleUnread.roleUnread + userUnread,
         },
       };
     } catch (error: any) {
