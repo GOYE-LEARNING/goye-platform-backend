@@ -1280,52 +1280,7 @@
 													],
 													"type": "object"
 												},
-												"data": {
-													"properties": {
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"courseId": {
-															"type": "string"
-														},
-														"lessonId": {
-															"type": "string"
-														},
-														"progressId": {
-															"type": "string"
-														},
-														"basedTimeTracking": {
-															"$ref": "#/components/schemas/_36_Enums.Tracking"
-														},
-														"videoTrackTime": {
-															"type": "number",
-															"format": "double"
-														},
-														"videoFinished": {
-															"type": "boolean"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"updatedAt",
-														"createdAt",
-														"courseId",
-														"lessonId",
-														"progressId",
-														"basedTimeTracking",
-														"videoTrackTime",
-														"videoFinished",
-														"id"
-													],
-													"type": "object"
-												},
+												"data": {},
 												"message": {
 													"type": "string"
 												}
@@ -3502,12 +3457,12 @@
 																								"title": {
 																									"type": "string"
 																								},
+																								"userId": {
+																									"type": "string"
+																								},
 																								"point": {
 																									"type": "number",
 																									"format": "double"
-																								},
-																								"userId": {
-																									"type": "string"
 																								},
 																								"updatedAt": {
 																									"type": "string",
@@ -3533,8 +3488,8 @@
 																								"totalPoint",
 																								"content",
 																								"title",
-																								"point",
 																								"userId",
+																								"point",
 																								"updatedAt",
 																								"createdAt",
 																								"courseId",
@@ -5851,18 +5806,6 @@
 																				"content": {
 																					"type": "string"
 																				},
-																				"_count": {
-																					"properties": {
-																						"children": {
-																							"type": "number",
-																							"format": "double"
-																						}
-																					},
-																					"required": [
-																						"children"
-																					],
-																					"type": "object"
-																				},
 																				"user": {
 																					"properties": {
 																						"user_pic": {
@@ -5886,6 +5829,18 @@
 																					],
 																					"type": "object"
 																				},
+																				"_count": {
+																					"properties": {
+																						"children": {
+																							"type": "number",
+																							"format": "double"
+																						}
+																					},
+																					"required": [
+																						"children"
+																					],
+																					"type": "object"
+																				},
 																				"createdAt": {
 																					"type": "string",
 																					"format": "date-time"
@@ -5896,31 +5851,14 @@
 																			},
 																			"required": [
 																				"content",
-																				"_count",
 																				"user",
+																				"_count",
 																				"createdAt",
 																				"id"
 																			],
 																			"type": "object"
 																		},
 																		"type": "array"
-																	},
-																	"_count": {
-																		"properties": {
-																			"replies": {
-																				"type": "number",
-																				"format": "double"
-																			},
-																			"likes": {
-																				"type": "number",
-																				"format": "double"
-																			}
-																		},
-																		"required": [
-																			"replies",
-																			"likes"
-																		],
-																		"type": "object"
 																	},
 																	"user": {
 																		"properties": {
@@ -5944,12 +5882,29 @@
 																			"id"
 																		],
 																		"type": "object"
+																	},
+																	"_count": {
+																		"properties": {
+																			"replies": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"likes": {
+																				"type": "number",
+																				"format": "double"
+																			}
+																		},
+																		"required": [
+																			"replies",
+																			"likes"
+																		],
+																		"type": "object"
 																	}
 																},
 																"required": [
 																	"replies",
-																	"_count",
-																	"user"
+																	"user",
+																	"_count"
 																],
 																"type": "object"
 															},
@@ -5961,10 +5916,10 @@
 																	"title": {
 																		"type": "string"
 																	},
-																	"organizationId": {
+																	"userId": {
 																		"type": "string"
 																	},
-																	"userId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"createdAt": {
@@ -5981,8 +5936,8 @@
 																"required": [
 																	"content",
 																	"title",
-																	"organizationId",
 																	"userId",
+																	"organizationId",
 																	"createdAt",
 																	"courseId",
 																	"id"
@@ -6372,6 +6327,18 @@
 																		},
 																		"type": "array"
 																	},
+																	"_count": {
+																		"properties": {
+																			"member": {
+																				"type": "number",
+																				"format": "double"
+																			}
+																		},
+																		"required": [
+																			"member"
+																		],
+																		"type": "object"
+																	},
 																	"createdBy": {
 																		"properties": {
 																			"user_pic": {
@@ -6390,25 +6357,13 @@
 																			"first_name"
 																		],
 																		"type": "object"
-																	},
-																	"_count": {
-																		"properties": {
-																			"member": {
-																				"type": "number",
-																				"format": "double"
-																			}
-																		},
-																		"required": [
-																			"member"
-																		],
-																		"type": "object"
 																	}
 																},
 																"required": [
 																	"member",
 																	"event",
-																	"createdBy",
-																	"_count"
+																	"_count",
+																	"createdBy"
 																],
 																"type": "object"
 															},
@@ -7312,10 +7267,10 @@
 														"type": {
 															"$ref": "#/components/schemas/_36_Enums.MemberPlanType"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"id": {
@@ -7329,8 +7284,8 @@
 														"planDuration",
 														"amountPayed",
 														"type",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"id"
 													],
 													"type": "object"
@@ -9741,6 +9696,72 @@
 				]
 			}
 		},
+		"/organizations/fetch-invited-users-with-access/{organizationId}": {
+			"get": {
+				"operationId": "FetchInvitedUsersWithAccess",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/fetch-invited-users-enhanced/{organizationId}": {
+			"get": {
+				"operationId": "FetchInvitedUsersEnhanced",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/delete-organization/{id}": {
 			"delete": {
 				"operationId": "DeleteOrganization",
@@ -10116,10 +10137,10 @@
 																	"role": {
 																		"type": "string"
 																	},
-																	"organizationId": {
+																	"userId": {
 																		"type": "string"
 																	},
-																	"userId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"updatedAt": {
@@ -10148,8 +10169,8 @@
 																	"type",
 																	"message",
 																	"role",
-																	"organizationId",
 																	"userId",
+																	"organizationId",
 																	"updatedAt",
 																	"createdAt",
 																	"courseId",
@@ -10363,10 +10384,10 @@
 																	"role": {
 																		"type": "string"
 																	},
-																	"organizationId": {
+																	"userId": {
 																		"type": "string"
 																	},
-																	"userId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"updatedAt": {
@@ -10395,8 +10416,8 @@
 																	"type",
 																	"message",
 																	"role",
-																	"organizationId",
 																	"userId",
+																	"organizationId",
 																	"updatedAt",
 																	"createdAt",
 																	"courseId",
@@ -10635,10 +10656,10 @@
 														"role": {
 															"type": "string"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"updatedAt": {
@@ -10667,8 +10688,8 @@
 														"type",
 														"message",
 														"role",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"updatedAt",
 														"createdAt",
 														"courseId",
@@ -10887,10 +10908,10 @@
 														"role": {
 															"type": "string"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"updatedAt": {
@@ -10919,8 +10940,8 @@
 														"type",
 														"message",
 														"role",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"updatedAt",
 														"createdAt",
 														"courseId",
@@ -11107,10 +11128,10 @@
 																	"role": {
 																		"type": "string"
 																	},
-																	"organizationId": {
+																	"userId": {
 																		"type": "string"
 																	},
-																	"userId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"updatedAt": {
@@ -11139,8 +11160,8 @@
 																	"type",
 																	"message",
 																	"role",
-																	"organizationId",
 																	"userId",
+																	"organizationId",
 																	"updatedAt",
 																	"createdAt",
 																	"courseId",
@@ -11366,10 +11387,10 @@
 														"role": {
 															"type": "string"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"updatedAt": {
@@ -11398,8 +11419,8 @@
 														"type",
 														"message",
 														"role",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"updatedAt",
 														"createdAt",
 														"courseId",
@@ -11611,10 +11632,10 @@
 														"achievement": {
 															"type": "boolean"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"updatedAt": {
@@ -11638,8 +11659,8 @@
 														"course_updates",
 														"enable_push_notification",
 														"achievement",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"updatedAt",
 														"createdAt",
 														"id"
@@ -11838,10 +11859,10 @@
 													"role": {
 														"type": "string"
 													},
-													"organizationId": {
+													"userId": {
 														"type": "string"
 													},
-													"userId": {
+													"organizationId": {
 														"type": "string"
 													},
 													"updatedAt": {
@@ -11870,8 +11891,8 @@
 													"type",
 													"message",
 													"role",
-													"organizationId",
 													"userId",
+													"organizationId",
 													"updatedAt",
 													"createdAt",
 													"courseId",
@@ -12494,138 +12515,6 @@
 														"allOf": [
 															{
 																"properties": {
-																	"organization": {
-																		"properties": {
-																			"verificationOTPResendAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"verificationOTPResendCount": {
-																				"type": "number",
-																				"format": "double"
-																			},
-																			"verificationOTPAttempts": {
-																				"type": "number",
-																				"format": "double"
-																			},
-																			"verificationOTPExpires": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"verificationOTP": {
-																				"type": "string"
-																			},
-																			"organization_image": {
-																				"type": "string"
-																			},
-																			"organization_year": {
-																				"type": "string"
-																			},
-																			"organization_password": {
-																				"type": "string"
-																			},
-																			"organization_role": {
-																				"type": "string"
-																			},
-																			"organization_description": {
-																				"type": "string"
-																			},
-																			"organization_state": {
-																				"type": "string"
-																			},
-																			"organization_country": {
-																				"type": "string"
-																			},
-																			"organization_phone_number": {
-																				"type": "string"
-																			},
-																			"organization_email": {
-																				"type": "string"
-																			},
-																			"organization_type": {
-																				"$ref": "#/components/schemas/_36_Enums.OrgType"
-																			},
-																			"organization_name": {
-																				"type": "string"
-																			},
-																			"verifiedAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"isVerified": {
-																				"type": "boolean"
-																			},
-																			"resetTokenExpires": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"resetToken": {
-																				"type": "string"
-																			},
-																			"lastActive": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"isOnline": {
-																				"type": "boolean"
-																			},
-																			"form_type": {
-																				"$ref": "#/components/schemas/_36_Enums.FormType"
-																			},
-																			"languageCode": {
-																				"type": "string"
-																			},
-																			"language": {
-																				"type": "string"
-																			},
-																			"userId": {
-																				"type": "string"
-																			},
-																			"updatedAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"createdAt": {
-																				"type": "string",
-																				"format": "date-time"
-																			},
-																			"id": {
-																				"type": "string"
-																			}
-																		},
-																		"required": [
-																			"verificationOTPResendAt",
-																			"verificationOTPResendCount",
-																			"verificationOTPAttempts",
-																			"verificationOTPExpires",
-																			"verificationOTP",
-																			"organization_image",
-																			"organization_year",
-																			"organization_password",
-																			"organization_role",
-																			"organization_description",
-																			"organization_state",
-																			"organization_country",
-																			"organization_phone_number",
-																			"organization_email",
-																			"organization_type",
-																			"organization_name",
-																			"verifiedAt",
-																			"isVerified",
-																			"resetTokenExpires",
-																			"resetToken",
-																			"lastActive",
-																			"isOnline",
-																			"form_type",
-																			"languageCode",
-																			"language",
-																			"userId",
-																			"updatedAt",
-																			"createdAt",
-																			"id"
-																		],
-																		"type": "object"
-																	},
 																	"user": {
 																		"properties": {
 																			"verifiedAt": {
@@ -12777,11 +12666,143 @@
 																			"id"
 																		],
 																		"type": "object"
+																	},
+																	"organization": {
+																		"properties": {
+																			"verificationOTPResendAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"verificationOTPResendCount": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"verificationOTPAttempts": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"verificationOTPExpires": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"verificationOTP": {
+																				"type": "string"
+																			},
+																			"organization_image": {
+																				"type": "string"
+																			},
+																			"organization_year": {
+																				"type": "string"
+																			},
+																			"organization_password": {
+																				"type": "string"
+																			},
+																			"organization_role": {
+																				"type": "string"
+																			},
+																			"organization_description": {
+																				"type": "string"
+																			},
+																			"organization_state": {
+																				"type": "string"
+																			},
+																			"organization_country": {
+																				"type": "string"
+																			},
+																			"organization_phone_number": {
+																				"type": "string"
+																			},
+																			"organization_email": {
+																				"type": "string"
+																			},
+																			"organization_type": {
+																				"$ref": "#/components/schemas/_36_Enums.OrgType"
+																			},
+																			"organization_name": {
+																				"type": "string"
+																			},
+																			"verifiedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"isVerified": {
+																				"type": "boolean"
+																			},
+																			"resetTokenExpires": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"resetToken": {
+																				"type": "string"
+																			},
+																			"lastActive": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"isOnline": {
+																				"type": "boolean"
+																			},
+																			"form_type": {
+																				"$ref": "#/components/schemas/_36_Enums.FormType"
+																			},
+																			"languageCode": {
+																				"type": "string"
+																			},
+																			"language": {
+																				"type": "string"
+																			},
+																			"userId": {
+																				"type": "string"
+																			},
+																			"updatedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"createdAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"verificationOTPResendAt",
+																			"verificationOTPResendCount",
+																			"verificationOTPAttempts",
+																			"verificationOTPExpires",
+																			"verificationOTP",
+																			"organization_image",
+																			"organization_year",
+																			"organization_password",
+																			"organization_role",
+																			"organization_description",
+																			"organization_state",
+																			"organization_country",
+																			"organization_phone_number",
+																			"organization_email",
+																			"organization_type",
+																			"organization_name",
+																			"verifiedAt",
+																			"isVerified",
+																			"resetTokenExpires",
+																			"resetToken",
+																			"lastActive",
+																			"isOnline",
+																			"form_type",
+																			"languageCode",
+																			"language",
+																			"userId",
+																			"updatedAt",
+																			"createdAt",
+																			"id"
+																		],
+																		"type": "object"
 																	}
 																},
 																"required": [
-																	"organization",
-																	"user"
+																	"user",
+																	"organization"
 																],
 																"type": "object"
 															},
@@ -12793,10 +12814,10 @@
 																	"message": {
 																		"type": "string"
 																	},
-																	"organizationId": {
+																	"userId": {
 																		"type": "string"
 																	},
-																	"userId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"updatedAt": {
@@ -12814,8 +12835,8 @@
 																"required": [
 																	"type",
 																	"message",
-																	"organizationId",
 																	"userId",
+																	"organizationId",
 																	"updatedAt",
 																	"createdAt",
 																	"id"
@@ -14029,6 +14050,18 @@
 																	"allOf": [
 																		{
 																			"properties": {
+																				"_count": {
+																					"properties": {
+																						"post": {
+																							"type": "number",
+																							"format": "double"
+																						}
+																					},
+																					"required": [
+																						"post"
+																					],
+																					"type": "object"
+																				},
 																				"quiz": {
 																					"items": {
 																						"allOf": [
@@ -14326,10 +14359,10 @@
 																							"status": {
 																								"$ref": "#/components/schemas/_36_Enums.EnrollmentStatus"
 																							},
-																							"organizationId": {
+																							"userId": {
 																								"type": "string"
 																							},
-																							"userId": {
+																							"organizationId": {
 																								"type": "string"
 																							},
 																							"createdAt": {
@@ -14349,8 +14382,8 @@
 																							"enrolledAt",
 																							"score",
 																							"status",
-																							"organizationId",
 																							"userId",
+																							"organizationId",
 																							"createdAt",
 																							"courseId",
 																							"id"
@@ -14358,27 +14391,15 @@
 																						"type": "object"
 																					},
 																					"type": "array"
-																				},
-																				"_count": {
-																					"properties": {
-																						"post": {
-																							"type": "number",
-																							"format": "double"
-																						}
-																					},
-																					"required": [
-																						"post"
-																					],
-																					"type": "object"
 																				}
 																			},
 																			"required": [
+																				"_count",
 																				"quiz",
 																				"objectives",
 																				"module",
 																				"material",
-																				"enrollment",
-																				"_count"
+																				"enrollment"
 																			],
 																			"type": "object"
 																		},
@@ -14673,10 +14694,10 @@
 																		"completed": {
 																			"type": "boolean"
 																		},
-																		"organizationId": {
+																		"userId": {
 																			"type": "string"
 																		},
-																		"userId": {
+																		"organizationId": {
 																			"type": "string"
 																		},
 																		"courseId": {
@@ -14697,8 +14718,8 @@
 																		"completedAt",
 																		"score",
 																		"completed",
-																		"organizationId",
 																		"userId",
+																		"organizationId",
 																		"courseId",
 																		"progressId",
 																		"id"
@@ -15761,10 +15782,10 @@
 														"completed": {
 															"type": "boolean"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"courseId": {
@@ -15785,8 +15806,8 @@
 														"completedAt",
 														"score",
 														"completed",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"courseId",
 														"progressId",
 														"id"
@@ -15884,10 +15905,10 @@
 														"completed": {
 															"type": "boolean"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"courseId": {
@@ -15908,8 +15929,8 @@
 														"completedAt",
 														"score",
 														"completed",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"courseId",
 														"progressId",
 														"id"
@@ -16102,10 +16123,10 @@
 																			"completed": {
 																				"type": "boolean"
 																			},
-																			"organizationId": {
+																			"userId": {
 																				"type": "string"
 																			},
-																			"userId": {
+																			"organizationId": {
 																				"type": "string"
 																			},
 																			"courseId": {
@@ -16126,8 +16147,8 @@
 																			"completedAt",
 																			"score",
 																			"completed",
-																			"organizationId",
 																			"userId",
+																			"organizationId",
 																			"courseId",
 																			"progressId",
 																			"id"
@@ -16845,10 +16866,10 @@
 																"certificateType": {
 																	"$ref": "#/components/schemas/_36_Enums.CertificateType"
 																},
-																"organizationId": {
+																"userId": {
 																	"type": "string"
 																},
-																"userId": {
+																"organizationId": {
 																	"type": "string"
 																},
 																"updatedAt": {
@@ -16870,8 +16891,8 @@
 																"enrollmentId",
 																"certificateImageURL",
 																"certificateType",
-																"organizationId",
 																"userId",
+																"organizationId",
 																"updatedAt",
 																"createdAt",
 																"courseId",
@@ -16990,10 +17011,10 @@
 																	"certificateType": {
 																		"$ref": "#/components/schemas/_36_Enums.CertificateType"
 																	},
-																	"organizationId": {
+																	"userId": {
 																		"type": "string"
 																	},
-																	"userId": {
+																	"organizationId": {
 																		"type": "string"
 																	},
 																	"updatedAt": {
@@ -17015,8 +17036,8 @@
 																	"enrollmentId",
 																	"certificateImageURL",
 																	"certificateType",
-																	"organizationId",
 																	"userId",
+																	"organizationId",
 																	"updatedAt",
 																	"createdAt",
 																	"courseId",
@@ -17095,10 +17116,10 @@
 														"certificateType": {
 															"$ref": "#/components/schemas/_36_Enums.CertificateType"
 														},
-														"organizationId": {
+														"userId": {
 															"type": "string"
 														},
-														"userId": {
+														"organizationId": {
 															"type": "string"
 														},
 														"updatedAt": {
@@ -17120,8 +17141,8 @@
 														"enrollmentId",
 														"certificateImageURL",
 														"certificateType",
-														"organizationId",
 														"userId",
+														"organizationId",
 														"updatedAt",
 														"createdAt",
 														"courseId",

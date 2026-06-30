@@ -1965,6 +1965,262 @@ export class OrganizationController extends Controller {
     }
   }
 
+  @Security("bearerAuth")
+@Get("/fetch-invited-users-with-access/{organizationId}")
+public async FetchInvitedUsersWithAccess(
+  @Path() organizationId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    // Verify organization exists
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return { 
+        success: false, 
+        message: "Organization not found" 
+      };
+    }
+
+    // Get all active members who accepted invitations
+    const membersWithAccess = await prisma.organizationMember.findMany({
+      where: {
+        organizationId: organizationId,
+        isActive: true,
+        joinedVia: {
+          in: ["INVITE", "CREATED"] // Include both invited users and creators
+        }
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+            role: true,
+            user_pic: true,
+            userType: true,
+            isOnline: true,
+            lastActive: true,
+            createdAt: true,
+          }
+        }
+      },
+      orderBy: {
+        joinedAt: 'desc'
+      }
+    });
+
+    // Also get the organization owner (creator)
+    const ownerMember = await prisma.organizationMember.findFirst({
+      where: {
+        organizationId: organizationId,
+        role: "org_admin",
+        joinedVia: "CREATED"
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
+            role: true,
+            user_pic: true,
+            userType: true,
+            isOnline: true,
+            lastActive: true,
+            createdAt: true,
+          }
+        }
+      }
+    });
+
+    // Combine and deduplicate users
+    const usersMap = new Map();
+    
+    // Add owner if exists
+    if (ownerMember && ownerMember.user) {
+      usersMap.set(ownerMember.user.id, {
+        ...ownerMember.user,
+        membershipRole: ownerMember.role,
+        joinedAt: ownerMember.joinedAt,
+        joinedVia: ownerMember.joinedVia,
+        isActive: ownerMember.isActive,
+        organizationMemberId: ownerMember.id
+      });
+    }
+
+    // Add members
+    membersWithAccess.forEach(member => {
+      if (member.user && !usersMap.has(member.user.id)) {
+        usersMap.set(member.user.id, {
+          ...member.user,
+          membershipRole: member.role,
+          joinedAt: member.joinedAt,
+          joinedVia: member.joinedVia,
+          isActive: member.isActive,
+          organizationMemberId: member.id
+        });
+      }
+    });
+
+    // Convert to array
+    const usersWithAccess = Array.from(usersMap.values());
+
+    // Get pending invitations count
+    const pendingInvitations = await prisma.inviteUser.count({
+      where: {
+        organizationId: organizationId,
+        expiresIn: { gt: new Date() },
+        // Exclude those who already accepted
+        NOT: {
+          email: {
+            in: usersWithAccess.map(u => u.email_address)
+          }
+        }
+      }
+    });
+
+    // Get total members count
+    const totalMembers = await prisma.organizationMember.count({
+      where: {
+        organizationId: organizationId,
+        isActive: true
+      }
+    });
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Users with access fetched successfully",
+      data: {
+        users: usersWithAccess.map(user => ({
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email_address: user.email_address,
+          role: user.role,
+          user_pic: user.user_pic,
+          userType: user.userType,
+          isOnline: user.isOnline,
+          lastActive: user.lastActive,
+          joinedAt: user.joinedAt,
+          joinedVia: user.joinedVia,
+          membershipRole: user.membershipRole,
+          isActive: user.isActive,
+          createdAt: user.createdAt,
+        })),
+        stats: {
+          totalMembers: totalMembers,
+          activeMembers: usersWithAccess.filter(u => u.isActive).length,
+          pendingInvitations: pendingInvitations,
+          organizationId: organizationId,
+          organizationName: organization.organization_name,
+        }
+      }
+    };
+
+  } catch (error: any) {
+    console.error("Error fetching users with access:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Error fetching users with access",
+      error: error.message,
+    };
+  }
+}
+
+// Enhanced version of fetch-invited-users endpoint
+@Security("bearerAuth")
+@Get("/fetch-invited-users-enhanced/{organizationId}")
+public async FetchInvitedUsersEnhanced(
+  @Path() organizationId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return { success: false, message: "Organization not found" };
+    }
+
+    // Get all invitations
+    const invitations = await prisma.inviteUser.findMany({
+      where: { 
+        organizationId: organizationId,
+        // Only include active invites that haven't been accepted
+        expiresIn: { gt: new Date() }
+      },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        createdAt: true,
+        expiresIn: true,
+        // Check if this user has already accepted
+        members: {
+          where: {
+            isActive: true
+          },
+          select: {
+            id: true,
+            userId: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Filter out invitations that have been accepted
+    const pendingInvitations = invitations.filter(
+      invite => invite.members.length === 0
+    );
+
+    const formattedInvitations = pendingInvitations.map(invite => ({
+      id: invite.id,
+      email: invite.email,
+      role: invite.role,
+      createdAt: invite.createdAt,
+      expiresIn: invite.expiresIn,
+      // Check if invitation is expiring soon (within 24 hours)
+      isExpiringSoon: invite.expiresIn 
+        ? new Date(invite.expiresIn).getTime() - Date.now() < 24 * 60 * 60 * 1000
+        : false,
+      // Time remaining in hours
+      hoursRemaining: invite.expiresIn
+        ? Math.floor((new Date(invite.expiresIn).getTime() - Date.now()) / (1000 * 60 * 60))
+        : 0
+    }));
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Pending invitations fetched successfully",
+      data: formattedInvitations,
+    };
+
+  } catch (error: any) {
+    console.error("Error fetching invited users:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Error fetching invited users",
+      error: error.message,
+    };
+  }
+}
+
   @Delete("/delete-organization/{id}")
   public async DeleteOrganization(@Path() id: string) {
     try {
