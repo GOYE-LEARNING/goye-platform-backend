@@ -529,7 +529,7 @@ model Notification {
 
 model Settings {
   id                       String        @id @default(uuid())
-  isShowAnnoucement        Boolean?      @default(true)
+show_annoucement        Boolean?      @default(true)
   enable_push_notification Boolean?      @default(true)
   course_updates           Boolean?      @default(true)
   event                    Boolean?      @default(true)

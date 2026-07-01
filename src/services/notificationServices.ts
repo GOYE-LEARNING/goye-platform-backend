@@ -1,8 +1,7 @@
-// services/notificationServices.ts - COMPLETE WITH ORGANIZATION SUPPORT
+// services/notificationServices.ts - COMPLETE VERSION
 import prisma from "../db";
 import { SocketService } from "./socketService";
 
-// IMPORTANT: Match your Prisma schema enum exactly
 export enum Role {
   ADMIN = "ADMIN",
   STUDENT = "STUDENT",
@@ -51,9 +50,6 @@ interface NotificationData {
 export class NotificationService {
   private static socketService: SocketService | null = null;
 
-  /**
-   * Initialize Socket Service for real-time broadcasting
-   */
   static initializeSocketService(socketService: SocketService) {
     this.socketService = socketService;
   }
@@ -63,7 +59,6 @@ export class NotificationService {
    */
   static async createNotification(data: NotificationData) {
     try {
-      // First verify the user exists
       const userExists = await prisma.user.findUnique({
         where: { id: data.userId },
         select: { 
@@ -90,11 +85,10 @@ export class NotificationService {
         createdAt: new Date(),
       };
 
-      // Add optional relations if they exist
       if (data.courseId) {
         const courseExists = await prisma.course.findUnique({
           where: { id: data.courseId },
-          select: { id: true, course_title: true },
+          select: { id: true },
         });
         if (courseExists) {
           notificationData.courseId = data.courseId;
@@ -104,7 +98,7 @@ export class NotificationService {
       if (data.groupId) {
         const groupExists = await prisma.group.findUnique({
           where: { id: data.groupId },
-          select: { id: true, group_title: true },
+          select: { id: true },
         });
         if (groupExists) {
           notificationData.groupId = data.groupId;
@@ -114,7 +108,7 @@ export class NotificationService {
       if (data.postId) {
         const postExists = await prisma.post.findUnique({
           where: { id: data.postId },
-          select: { id: true, title: true },
+          select: { id: true },
         });
         if (postExists) {
           notificationData.postId = data.postId;
@@ -141,7 +135,6 @@ export class NotificationService {
         }
       }
 
-      // Create the notification
       const notification = await prisma.notification.create({
         data: notificationData,
         include: {
@@ -183,15 +176,9 @@ export class NotificationService {
         },
       });
 
-      // Broadcast notification via socket
       if (this.socketService) {
         await this.socketService.broadcastNotification(notification);
         await this.socketService.sendUnreadCount(data.userId);
-        
-        // Also broadcast to organization if it exists
-        if (data.organizationId) {
-          await this.socketService.sendUnreadCountToOrganization(data.organizationId);
-        }
       }
 
       return notification;
@@ -223,7 +210,6 @@ export class NotificationService {
     }
 
     try {
-      // Filter out any notifications without userId
       const validNotifications = notifications.filter(
         (n) => n.userId && n.userId.trim() !== "",
       );
@@ -233,7 +219,6 @@ export class NotificationService {
         return { count: 0 };
       }
 
-      // Verify all users exist before creating
       const userIds = [...new Set(validNotifications.map(n => n.userId))];
       const existingUsers = await prisma.user.findMany({
         where: { id: { in: userIds } },
@@ -248,7 +233,6 @@ export class NotificationService {
         return { count: 0 };
       }
 
-      // Add default title if missing
       const notificationsWithDefaults = finalNotifications.map((n) => ({
         title: n.title || "Notification",
         message: n.message,
@@ -268,7 +252,6 @@ export class NotificationService {
         skipDuplicates: true,
       });
 
-      // Broadcast bulk notifications
       if (this.socketService && result.count > 0) {
         const createdNotifications = await prisma.notification.findMany({
           where: {
@@ -300,33 +283,12 @@ export class NotificationService {
                 group_image: true,
               },
             },
-            organization: {
-              select: {
-                id: true,
-                organization_name: true,
-                organization_image: true,
-              },
-            },
           },
         });
 
-        // Group notifications by organization for batch broadcasting
-        const orgNotifications = new Map<string, any[]>();
         for (const notification of createdNotifications) {
           await this.socketService.broadcastNotification(notification);
           await this.socketService.sendUnreadCount(notification.userId);
-          
-          if (notification.organizationId) {
-            if (!orgNotifications.has(notification.organizationId)) {
-              orgNotifications.set(notification.organizationId, []);
-            }
-            orgNotifications.get(notification.organizationId)?.push(notification);
-          }
-        }
-
-        // Send organization-wide unread counts
-        for (const [orgId, notifs] of orgNotifications) {
-          await this.socketService.sendUnreadCountToOrganization(orgId);
         }
       }
 
@@ -399,7 +361,6 @@ export class NotificationService {
    */
   static async getUnreadCountForOrganization(organizationId: string) {
     try {
-      // Get all members of the organization
       const members = await prisma.organizationMember.findMany({
         where: { 
           organizationId: organizationId,
@@ -424,7 +385,7 @@ export class NotificationService {
   }
 
   /**
-   * ARCHIVE: Archive a notification (soft delete - mark as read)
+   * ARCHIVE: Archive a notification
    */
   static async archiveNotification(notificationId: string, userId: string) {
     try {
@@ -441,10 +402,6 @@ export class NotificationService {
 
       if (this.socketService) {
         await this.socketService.sendUnreadCount(userId);
-        
-        if (notification.organizationId) {
-          await this.socketService.sendUnreadCountToOrganization(notification.organizationId);
-        }
       }
 
       return notification;
@@ -472,10 +429,6 @@ export class NotificationService {
 
       if (this.socketService) {
         await this.socketService.sendUnreadCount(userId);
-        
-        if (notification.organizationId) {
-          await this.socketService.sendUnreadCountToOrganization(notification.organizationId);
-        }
       }
 
       return notification;
@@ -490,17 +443,6 @@ export class NotificationService {
    */
   static async markMultipleAsRead(notificationIds: string[], userId: string) {
     try {
-      // Get organization IDs before updating
-      const notifications = await prisma.notification.findMany({
-        where: {
-          id: { in: notificationIds },
-          userId: userId,
-        },
-        select: { organizationId: true },
-      });
-
-      const orgIds = new Set(notifications.map(n => n.organizationId).filter(Boolean));
-
       const result = await prisma.notification.updateMany({
         where: {
           id: { in: notificationIds },
@@ -514,13 +456,6 @@ export class NotificationService {
 
       if (this.socketService) {
         await this.socketService.sendUnreadCount(userId);
-        
-        // Update organization unread counts
-        for (const orgId of orgIds) {
-          if (orgId) {
-            await this.socketService.sendUnreadCountToOrganization(orgId);
-          }
-        }
       }
 
       return result;
@@ -535,17 +470,6 @@ export class NotificationService {
    */
   static async markAllAsRead(userId: string) {
     try {
-      // Get organization IDs before updating
-      const notifications = await prisma.notification.findMany({
-        where: {
-          userId: userId,
-          isRead: false,
-        },
-        select: { organizationId: true },
-      });
-
-      const orgIds = new Set(notifications.map(n => n.organizationId).filter(Boolean));
-
       const result = await prisma.notification.updateMany({
         where: {
           userId: userId,
@@ -559,13 +483,6 @@ export class NotificationService {
 
       if (this.socketService) {
         await this.socketService.sendUnreadCount(userId);
-        
-        // Update organization unread counts
-        for (const orgId of orgIds) {
-          if (orgId) {
-            await this.socketService.sendUnreadCountToOrganization(orgId);
-          }
-        }
       }
 
       return result;
@@ -668,7 +585,6 @@ export class NotificationService {
     filter?: { type?: string; read?: boolean; from?: Date; to?: Date }
   ) {
     try {
-      // Get all members of the organization
       const members = await prisma.organizationMember.findMany({
         where: { 
           organizationId: organizationId,
@@ -804,23 +720,12 @@ export class NotificationService {
    */
   static async deleteNotification(notificationId: string, userId: string) {
     try {
-      const notification = await prisma.notification.findUnique({
-        where: { id: notificationId },
-        select: { organizationId: true },
-      });
-
-      const result = await prisma.notification.delete({
+      return await prisma.notification.delete({
         where: {
           id: notificationId,
           userId: userId,
         },
       });
-
-      if (this.socketService && notification?.organizationId) {
-        await this.socketService.sendUnreadCountToOrganization(notification.organizationId);
-      }
-
-      return result;
     } catch (error) {
       console.error("Error in deleteNotification:", error);
       throw error;
@@ -832,33 +737,12 @@ export class NotificationService {
    */
   static async deleteMultipleNotifications(notificationIds: string[], userId: string) {
     try {
-      // Get organization IDs before deleting
-      const notifications = await prisma.notification.findMany({
-        where: {
-          id: { in: notificationIds },
-          userId: userId,
-        },
-        select: { organizationId: true },
-      });
-
-      const orgIds = new Set(notifications.map(n => n.organizationId).filter(Boolean));
-
-      const result = await prisma.notification.deleteMany({
+      return await prisma.notification.deleteMany({
         where: {
           id: { in: notificationIds },
           userId: userId,
         },
       });
-
-      if (this.socketService) {
-        for (const orgId of orgIds) {
-          if (orgId) {
-            await this.socketService.sendUnreadCountToOrganization(orgId);
-          }
-        }
-      }
-
-      return result;
     } catch (error) {
       console.error("Error in deleteMultipleNotifications:", error);
       throw error;
@@ -866,22 +750,20 @@ export class NotificationService {
   }
 
   /**
-   * GET: Get notification filter based on user settings
+   * GET: Get notification filter based on user settings - FIXED
    */
   static async getNotificationFilter(userId: string, userRole: string) {
-    // Get user's settings
     const userSettings = await prisma.settings.findFirst({
       where: { userId: userId }
     });
     
     const disableCourseNotifications = userSettings?.course_updates === false;
-    const disableGroupNotifications = userSettings?.group_activity === false;
+    const disableGroupNotifications = false;
     
     const baseWhere: any = {
       OR: [{ to: userRole }, { userId: userId }]
     };
     
-    // Build exclusion conditions
     const excludeConditions = [];
     
     if (disableCourseNotifications) {
@@ -892,7 +774,6 @@ export class NotificationService {
       excludeConditions.push({ groupId: { not: null } });
     }
     
-    // Apply the NOT conditions if any exclusions exist
     if (excludeConditions.length > 0) {
       baseWhere.NOT = excludeConditions;
     }
@@ -947,6 +828,60 @@ export class NotificationService {
   }
 
   // ============================================================
+  // SYSTEM ANNOUNCEMENT
+  // ============================================================
+
+  /**
+   * SYSTEM ANNOUNCEMENT: Create announcement for all users of a specific role
+   */
+  static async createSystemAnnouncement(
+    title: string,
+    message: string,
+    to: Role,
+    type: Types = "message",
+    organizationId?: string
+  ) {
+    try {
+      // Get all users of the target role
+      const users = await prisma.user.findMany({
+        where: {
+          role: {
+            equals: to,
+            mode: "insensitive",
+          },
+        },
+        select: { id: true },
+      });
+
+      if (users.length === 0) {
+        console.log(`No users found with role: ${to}`);
+        return { count: 0 };
+      }
+
+      // Prepare notifications for all users
+      const notificationData = users.map((user) => ({
+        title: title,
+        message: message,
+        type: type,
+        role: Role.ADMIN,
+        to: to,
+        userId: user.id,
+        organizationId: organizationId,
+        data: {
+          announcementType: "system",
+          createdAt: new Date(),
+        },
+      }));
+
+      // Create all notifications
+      return await this.createBulkNotifications(notificationData);
+    } catch (error) {
+      console.error("Error in createSystemAnnouncement:", error);
+      throw error;
+    }
+  }
+
+  // ============================================================
   // ORGANIZATION-SPECIFIC NOTIFICATION METHODS
   // ============================================================
 
@@ -973,7 +908,6 @@ export class NotificationService {
         return { success: false, message: "Organization not found" };
       }
 
-      // Get new member details
       const newMember = await prisma.user.findUnique({
         where: { id: newMemberId },
         select: { 
@@ -987,7 +921,6 @@ export class NotificationService {
         ? `${newMember.first_name} ${newMember.last_name}`.trim()
         : "A new member";
 
-      // If adminId is provided, notify the admin
       if (adminId) {
         await this.createNotification({
           title: "New Organization Member",
@@ -1007,7 +940,6 @@ export class NotificationService {
         });
       }
 
-      // Notify all organization admins
       const admins = await prisma.organizationMember.findMany({
         where: {
           organizationId: organizationId,
@@ -1078,7 +1010,6 @@ export class NotificationService {
         ? `${member.first_name} ${member.last_name}`.trim()
         : "A member";
 
-      // If adminId is provided, notify that specific admin
       if (adminId) {
         await this.createNotification({
           title: "Member Left Organization",
@@ -1096,7 +1027,6 @@ export class NotificationService {
         });
       }
 
-      // Notify all organization admins
       const admins = await prisma.organizationMember.findMany({
         where: {
           organizationId: organizationId,
@@ -1169,7 +1099,6 @@ export class NotificationService {
         ? `${user.first_name} ${user.last_name}`.trim()
         : "User";
 
-      // Notify the user whose role changed
       await this.createNotification({
         title: "Organization Role Changed",
         message: `Your role in "${organization.organization_name}" has been changed from ${oldRole} to ${newRole}`,
@@ -1187,7 +1116,6 @@ export class NotificationService {
         },
       });
 
-      // If changed by someone else, notify the admins
       if (changedById && changedById !== userId) {
         const changer = await prisma.user.findUnique({
           where: { id: changedById },
@@ -1198,7 +1126,6 @@ export class NotificationService {
           ? `${changer.first_name} ${changer.last_name}`.trim()
           : "An admin";
 
-        // Notify all organization admins
         const admins = await prisma.organizationMember.findMany({
           where: {
             organizationId: organizationId,
@@ -1275,13 +1202,11 @@ export class NotificationService {
         ? `${sender.first_name} ${sender.last_name}`.trim()
         : "An admin";
 
-      // Find the user if they already have an account
       const invitedUser = await prisma.user.findUnique({
         where: { email_address: invitedEmail },
         select: { id: true },
       });
 
-      // If the user exists, send them a notification
       if (invitedUser) {
         await this.createNotification({
           title: "Organization Invitation",
@@ -1302,7 +1227,6 @@ export class NotificationService {
         });
       }
 
-      // Notify admins
       const admins = await prisma.organizationMember.findMany({
         where: {
           organizationId: organizationId,
@@ -1364,7 +1288,6 @@ export class NotificationService {
         return { success: false, message: "Organization not found" };
       }
 
-      // Get all members of the organization
       const members = await prisma.organizationMember.findMany({
         where: {
           organizationId: organizationId,
@@ -1379,7 +1302,6 @@ export class NotificationService {
         return { count: 0 };
       }
 
-      // Prepare notifications for all members
       const notificationData = members.map((member) => ({
         title: title,
         message: message,
@@ -1404,19 +1326,15 @@ export class NotificationService {
   }
 
   // ============================================================
-  // EXISTING NOTIFICATION METHODS (with organization support)
+  // COURSE/GROUP/LIKE/COMMENT NOTIFICATION METHODS
   // ============================================================
 
-  /**
-   * NOTIFICATION: Student joins a course
-   */
   static async notifyStudentJoinedCourse(
     studentId: string, 
     courseId: string,
     organizationId?: string
   ) {
     try {
-      // Get course with instructor details
       const course = await prisma.course.findUnique({
         where: { id: courseId },
         include: {
@@ -1434,31 +1352,21 @@ export class NotificationService {
 
       if (!course || !course.createdByDetails) {
         console.error("Course or instructor not found");
-        return { success: false, message: "Course or instructor not found" };
+        return { success: false };
       }
 
-      // Check if the creator is an instructor
       const instructorRole = course.createdByDetails.role.toUpperCase();
       if (instructorRole !== Role.INSTRUCTOR && instructorRole !== Role.TUTOR) {
-        console.log("Course creator is not an instructor/tutor, skipping notification");
-        return { success: false, message: "Not an instructor" };
+        return { success: false };
       }
 
-      // Get student details
       const student = await prisma.user.findUnique({
         where: { id: studentId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
+        select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const studentName = student
-        ? `${student.first_name} ${student.last_name}`.trim()
-        : "A student";
+      const studentName = student ? `${student.first_name} ${student.last_name}`.trim() : "A student";
 
-      // Notify instructor
       await this.createNotification({
         title: "New Student Enrolled",
         message: `${studentName} has enrolled in your course "${course.course_title}"`,
@@ -1468,53 +1376,8 @@ export class NotificationService {
         userId: course.createdByDetails.id,
         courseId: courseId,
         organizationId: organizationId,
-        data: {
-          studentId,
-          studentName,
-          studentPic: student?.user_pic,
-          courseTitle: course.course_title,
-          courseImage: course.course_image,
-        },
+        data: { studentId, studentName, courseTitle: course.course_title },
       });
-
-      // Also notify all other students in the course (optional)
-      const enrolledStudents = await prisma.enrollment.findMany({
-        where: {
-          courseId: courseId,
-          userId: { not: studentId },
-          status: { not: "DROPPED" },
-        },
-        select: { 
-          userId: true,
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-            }
-          }
-        },
-        take: 50,
-      });
-
-      if (enrolledStudents.length > 0) {
-        const notifications = enrolledStudents.map((enrollment) => ({
-          title: "New Classmate",
-          message: `${studentName} has joined the course "${course.course_title}"`,
-          type: NotificationType.COURSE_JOIN,
-          role: Role.STUDENT,
-          to: Role.STUDENT,
-          userId: enrollment.userId,
-          courseId: courseId,
-          organizationId: organizationId,
-          data: {
-            studentId,
-            studentName,
-            courseTitle: course.course_title,
-          },
-        }));
-
-        await this.createBulkNotifications(notifications);
-      }
 
       return { success: true };
     } catch (error) {
@@ -1523,16 +1386,12 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Student joins a group
-   */
   static async notifyStudentJoinedGroup(
     studentId: string, 
     groupId: string,
     organizationId?: string
   ) {
     try {
-      // Get group with instructor details
       const group = await prisma.group.findUnique({
         where: { id: groupId },
         include: {
@@ -1550,31 +1409,21 @@ export class NotificationService {
 
       if (!group || !group.createdBy) {
         console.error("Group or instructor not found");
-        return { success: false, message: "Group or instructor not found" };
+        return { success: false };
       }
 
-      // Check if creator is instructor
       const creatorRole = group.createdBy.role.toUpperCase();
       if (creatorRole !== Role.INSTRUCTOR && creatorRole !== Role.TUTOR) {
-        console.log("Group creator is not an instructor/tutor");
-        return { success: false, message: "Not an instructor" };
+        return { success: false };
       }
 
-      // Get student details
       const student = await prisma.user.findUnique({
         where: { id: studentId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
+        select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const studentName = student
-        ? `${student.first_name} ${student.last_name}`.trim()
-        : "A student";
+      const studentName = student ? `${student.first_name} ${student.last_name}`.trim() : "A student";
 
-      // Notify group instructor
       await this.createNotification({
         title: "New Group Member",
         message: `${studentName} has joined your group "${group.group_title}"`,
@@ -1584,53 +1433,8 @@ export class NotificationService {
         userId: group.createdBy.id,
         groupId: groupId,
         organizationId: organizationId,
-        data: {
-          studentId,
-          studentName,
-          studentPic: student?.user_pic,
-          groupTitle: group.group_title,
-          groupImage: group.group_image,
-        },
+        data: { studentId, studentName, groupTitle: group.group_title },
       });
-
-      // Notify other group members
-      const groupMembers = await prisma.joinedGroup.findMany({
-        where: {
-          groupId: groupId,
-          studentId: { not: studentId },
-          isJoined: true,
-        },
-        select: { 
-          studentId: true,
-          student: {
-            select: {
-              first_name: true,
-              last_name: true,
-            }
-          }
-        },
-        take: 50,
-      });
-
-      if (groupMembers.length > 0) {
-        const notifications = groupMembers.map((member) => ({
-          title: "New Group Member",
-          message: `${studentName} has joined the group "${group.group_title}"`,
-          type: NotificationType.GROUP_JOIN,
-          role: Role.STUDENT,
-          to: Role.STUDENT,
-          userId: member.studentId,
-          groupId: groupId,
-          organizationId: organizationId,
-          data: {
-            studentId,
-            studentName,
-            groupTitle: group.group_title,
-          },
-        }));
-
-        await this.createBulkNotifications(notifications);
-      }
 
       return { success: true };
     } catch (error) {
@@ -1639,9 +1443,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Post liked
-   */
   static async notifyPostLiked(
     postId: string,
     likerId: string,
@@ -1650,22 +1451,14 @@ export class NotificationService {
     organizationId?: string
   ) {
     try {
-      if (postAuthorId === likerId) {
-        return { success: false, message: "User liked their own post" };
-      }
+      if (postAuthorId === likerId) return { success: false };
 
       const liker = await prisma.user.findUnique({
         where: { id: likerId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
+        select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const likerName = liker
-        ? `${liker.first_name} ${liker.last_name}`.trim()
-        : "Someone";
+      const likerName = liker ? `${liker.first_name} ${liker.last_name}`.trim() : "Someone";
 
       await this.createNotification({
         title: "Post Liked",
@@ -1676,13 +1469,7 @@ export class NotificationService {
         userId: postAuthorId,
         postId: postId,
         organizationId: organizationId,
-        data: {
-          likerId,
-          likerName,
-          likerPic: liker?.user_pic,
-          postTitle: postTitle || "Post",
-          postId: postId,
-        },
+        data: { likerId, likerName, postTitle: postTitle || "Post" },
       });
 
       return { success: true };
@@ -1692,9 +1479,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Post commented
-   */
   static async notifyPostCommented(
     postId: string,
     commenterId: string,
@@ -1705,22 +1489,14 @@ export class NotificationService {
     replyId?: string
   ) {
     try {
-      if (postAuthorId === commenterId) {
-        return { success: false, message: "User commented on own post" };
-      }
+      if (postAuthorId === commenterId) return { success: false };
 
       const commenter = await prisma.user.findUnique({
         where: { id: commenterId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
+        select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const commenterName = commenter
-        ? `${commenter.first_name} ${commenter.last_name}`.trim()
-        : "Someone";
+      const commenterName = commenter ? `${commenter.first_name} ${commenter.last_name}`.trim() : "Someone";
 
       await this.createNotification({
         title: "New Comment",
@@ -1732,13 +1508,11 @@ export class NotificationService {
         postId: postId,
         replyId: replyId,
         organizationId: organizationId,
-        data: {
-          commenterId,
-          commenterName,
-          commenterPic: commenter?.user_pic,
-          commentText: commentText.substring(0, 100),
-          postTitle: postTitle || "Post",
-          postId: postId,
+        data: { 
+          commenterId, 
+          commenterName, 
+          commentText: commentText.substring(0, 100), 
+          postTitle: postTitle || "Post" 
         },
       });
 
@@ -1749,9 +1523,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: New message received
-   */
   static async notifyNewMessage(
     receiverId: string,
     senderId: string,
@@ -1760,22 +1531,14 @@ export class NotificationService {
     organizationId?: string
   ) {
     try {
-      if (receiverId === senderId) {
-        return { success: false, message: "User sent message to self" };
-      }
+      if (receiverId === senderId) return { success: false };
 
       const sender = await prisma.user.findUnique({
         where: { id: senderId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
+        select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const senderName = sender
-        ? `${sender.first_name} ${sender.last_name}`.trim()
-        : "Someone";
+      const senderName = sender ? `${sender.first_name} ${sender.last_name}`.trim() : "Someone";
 
       await this.createNotification({
         title: "New Message",
@@ -1785,12 +1548,11 @@ export class NotificationService {
         to: Role.STUDENT,
         userId: receiverId,
         organizationId: organizationId,
-        data: {
-          senderId,
-          senderName,
-          senderPic: sender?.user_pic,
-          messageId,
-          messagePreview: message.substring(0, 100),
+        data: { 
+          senderId, 
+          senderName, 
+          messageId, 
+          messagePreview: message.substring(0, 100) 
         },
       });
 
@@ -1827,7 +1589,6 @@ export class NotificationService {
         },
       });
 
-      // Also notify instructor
       const course = await prisma.course.findUnique({
         where: { id: courseId },
         select: { createdByDetails: { select: { id: true } } },
@@ -1969,57 +1730,4 @@ export class NotificationService {
       throw error;
     }
   }
-
-  /**
-   * SYSTEM ANNOUNCEMENT: Create announcement for all users of a specific role
-   */
-  static async createSystemAnnouncement(
-    title: string,
-    message: string,
-    to: Role,
-    type: Types = "message",
-    organizationId?: string
-  ) {
-    try {
-      // Get all users of the target role
-      const users = await prisma.user.findMany({
-        where: {
-          role: {
-            equals: to,
-            mode: "insensitive",
-          },
-        },
-        select: { id: true },
-      });
-
-      if (users.length === 0) {
-        console.log(`No users found with role: ${to}`);
-        return { count: 0 };
-      }
-
-      // Prepare notifications for all users
-      const notificationData = users.map((user) => ({
-        title: title,
-        message: message,
-        type: type,
-        role: Role.ADMIN,
-        to: to,
-        userId: user.id,
-        organizationId: organizationId,
-        data: {
-          announcementType: "system",
-          createdAt: new Date(),
-        },
-      }));
-
-      // Create all notifications
-      return await this.createBulkNotifications(notificationData);
-    } catch (error) {
-      console.error("Error in createSystemAnnouncement:", error);
-      throw error;
-    }
-  }
-
- 
-
 }
