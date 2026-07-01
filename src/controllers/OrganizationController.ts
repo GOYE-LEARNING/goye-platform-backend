@@ -287,6 +287,219 @@ export class OrganizationController extends Controller {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+// ORG OVERVIEW STATS — supports date range filtering + live online count
+// ─────────────────────────────────────────────────────────────────────────
+@Security("bearerAuth")
+@Get("/overview-stats/{organizationId}")
+public async GetOrganizationOverviewStats(
+  @Path() organizationId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return { success: false, message: "Organization not found" };
+    }
+
+    // ── Parse range/date from query string ────────────────────────────────
+    // req.query works because tsoa forwards the raw express req
+    const range = (req.query?.range as string) || "today";
+    const customDate = req.query?.date as string | undefined;
+
+    const { rangeStart, rangeEnd, prevRangeStart, prevRangeEnd } =
+      this.resolveDateRange(range, customDate);
+
+    // ── Active members: all users in the org ────────────────────────────
+    const members = await prisma.organizationMember.findMany({
+      where: { organizationId, isActive: true },
+      select: { userId: true },
+    });
+    const memberIds = members.map((m) => m.userId);
+    const totalMembers = memberIds.length;
+
+    // ── Online count: prefer live socket service if available ──────────
+    let onlineCount = 0;
+    const socketService = (req.app?.get?.("socketService")) as
+      | { getOrganizationOnlineUsers: (id: string) => any[] }
+      | undefined;
+
+    if (socketService) {
+      onlineCount = socketService.getOrganizationOnlineUsers(organizationId).length;
+    } else {
+      // Fallback: DB flag, "online" = active in the last 5 minutes
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+      onlineCount = await prisma.user.count({
+        where: {
+          id: { in: memberIds },
+          isOnline: true,
+          lastActive: { gte: fiveMinAgo },
+        },
+      });
+    }
+
+    // ── New members within the selected range ───────────────────────────
+    const newMembersInRange = await prisma.organizationMember.count({
+      where: {
+        organizationId,
+        isActive: true,
+        joinedAt: { gte: rangeStart, lte: rangeEnd },
+      },
+    });
+
+    const newMembersPrevRange = prevRangeStart
+      ? await prisma.organizationMember.count({
+          where: {
+            organizationId,
+            isActive: true,
+            joinedAt: { gte: prevRangeStart, lte: prevRangeEnd! },
+          },
+        })
+      : 0;
+
+    // ── Courses completed within range (org-scoped) ──────────────────────
+    const completedInRange = await prisma.enrollment.count({
+      where: {
+        userId: { in: memberIds },
+        status: "COMPLETED",
+        completedAt: { gte: rangeStart, lte: rangeEnd },
+      },
+    });
+
+    const totalCompletedAllTime = await prisma.enrollment.count({
+      where: {
+        userId: { in: memberIds },
+        status: "COMPLETED",
+      },
+    });
+
+    const totalEnrollments = await prisma.enrollment.count({
+      where: { userId: { in: memberIds } },
+    });
+
+    const avgCompletion =
+      totalEnrollments > 0
+        ? Math.round((totalCompletedAllTime / totalEnrollments) * 100)
+        : 0;
+
+    // ── % change vs previous equivalent period (for UI trend arrows) ─────
+    const newMembersTrend =
+      newMembersPrevRange > 0
+        ? Math.round(
+            ((newMembersInRange - newMembersPrevRange) / newMembersPrevRange) * 100,
+          )
+        : newMembersInRange > 0
+        ? 100
+        : 0;
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Organization overview stats fetched successfully",
+      data: {
+        total_members: totalMembers,
+        online_members: onlineCount,
+        new_members_in_range: newMembersInRange,
+        new_members_trend_pct: newMembersTrend,
+        courses_completed_in_range: completedInRange,
+        total_courses_completed: totalCompletedAllTime,
+        avg_completion: avgCompletion,
+        range: {
+          type: range,
+          start: rangeStart,
+          end: rangeEnd,
+        },
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching organization overview stats:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to fetch organization overview stats",
+      error: error.message,
+    };
+  }
+}
+
+// ── Helper: resolves a named range or custom date into start/end bounds ──
+private resolveDateRange(
+  range: string,
+  customDate?: string,
+): {
+  rangeStart: Date;
+  rangeEnd: Date;
+  prevRangeStart: Date | null;
+  prevRangeEnd: Date | null;
+} {
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  switch (range) {
+    case "This week": {
+      const dayOfWeek = startOfToday.getDay(); // 0=Sun
+      const start = new Date(startOfToday.getTime() - dayOfWeek * dayMs);
+      const end = endOfToday;
+      const prevStart = new Date(start.getTime() - 7 * dayMs);
+      const prevEnd = new Date(start.getTime() - 1);
+      return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
+    }
+
+    case "Last week": {
+      const dayOfWeek = startOfToday.getDay();
+      const startOfThisWeek = new Date(startOfToday.getTime() - dayOfWeek * dayMs);
+      const start = new Date(startOfThisWeek.getTime() - 7 * dayMs);
+      const end = new Date(startOfThisWeek.getTime() - 1);
+      const prevStart = new Date(start.getTime() - 7 * dayMs);
+      const prevEnd = new Date(start.getTime() - 1);
+      return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
+    }
+
+    case "Last month": {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+      const prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      const prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
+      return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
+    }
+
+    case "Select a date":
+    case "custom": {
+      if (customDate) {
+        const start = new Date(customDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(customDate);
+        end.setHours(23, 59, 59, 999);
+        const prevStart = new Date(start.getTime() - dayMs);
+        const prevEnd = new Date(start.getTime() - 1);
+        return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
+      }
+      // fall through to today if no date supplied
+    }
+
+    case "Today":
+    default: {
+      const prevStart = new Date(startOfToday.getTime() - dayMs);
+      const prevEnd = new Date(startOfToday.getTime() - 1);
+      return {
+        rangeStart: startOfToday,
+        rangeEnd: endOfToday,
+        prevRangeStart: prevStart,
+        prevRangeEnd: prevEnd,
+      };
+    }
+  }
+}
+
   @Post("/auth/send-verification-otp/{organizationId}")
   public async SendVerificationOTP(
     @Path() organizationId: string,

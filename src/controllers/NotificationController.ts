@@ -662,7 +662,7 @@ export class NotificationController extends Controller {
         await NotificationService.createSystemAnnouncement(
           "Greetings",
           "Welcome to Goye",
-          Role.STUDENT,
+          Role.ORG_MEMBER,
           "message",
         );
       return {
