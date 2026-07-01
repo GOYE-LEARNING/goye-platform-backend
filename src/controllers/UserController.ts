@@ -2676,24 +2676,59 @@ export class UserController extends Controller {
     };
   }
 
-  @Security("bearerAuth")
-  @Get("/socket-token")
-  public async GetSocketToken(@Request() req: any): Promise<any> {
-    const userId = req.user?.id;
+@Security("bearerAuth")
+@Get("/socket-token")
+public async GetSocketToken(@Request() req: any): Promise<any> {
+  // ✅ Resolve userId from either auth path — individual users carry
+  // req.user, org admins/invited members carry req.org
+  const userId = req.user?.id ?? req.org?.userId;
 
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "Unauthorized" };
-    }
-
-    const socketToken = jwt.sign({ id: userId }, process.env.ACCESS_SECRET!, {
-      expiresIn: "1h",
-    });
-
-    this.setStatus(200);
-    return { token: socketToken };
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "Unauthorized" };
   }
 
+  // ✅ Resolve organizationId from every possible source, with a DB
+  // fallback via OrganizationMember for anyone the token/middleware
+  // didn't already resolve it for.
+  let organizationId: string | null =
+    req.user?.organizationId ?? req.org?.id ?? null;
+
+  let userType: string | undefined = req.user?.userType;
+
+  if (!organizationId || !userType) {
+    // Try the User table directly first (covers both individual and
+    // invited members, since userType lives on User regardless of path)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { userType: true },
+    });
+
+    userType = userType ?? user?.userType;
+
+    if (!organizationId) {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId, isActive: true },
+        select: { organizationId: true },
+        orderBy: { joinedAt: "desc" },
+      });
+      organizationId = membership?.organizationId ?? null;
+    }
+  }
+
+  const socketToken = jwt.sign(
+    {
+      id: userId,
+      userType: userType,
+      organizationId: organizationId, // ✅ the field that was missing
+    },
+    process.env.ACCESS_SECRET!,
+    { expiresIn: "1h" },
+  );
+
+  this.setStatus(200);
+  return { token: socketToken };
+}
   @Post("/refresh")
   public async RefreshToken(@Request() req: any): Promise<any> {
     const refreshToken = req.cookies?.refreshToken;
