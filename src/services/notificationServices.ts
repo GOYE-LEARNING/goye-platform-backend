@@ -1,4 +1,4 @@
-// services/notificationServices.ts - COMPLETE VERSION
+// services/notificationServices.ts - SIMPLIFIED VERSION (no group_activity)
 import prisma from "../db";
 import { SocketService } from "./socketService";
 
@@ -300,7 +300,7 @@ export class NotificationService {
   }
 
   /**
-   * GET: Get unread count (combined - for backward compatibility)
+   * GET: Get unread count (combined)
    */
   static async getUnreadCount(userId: string, userRole: string) {
     try {
@@ -750,39 +750,38 @@ export class NotificationService {
   }
 
   /**
-   * GET: Get notification filter based on user settings - FIXED
+   * GET: Get notification filter based on user settings - SIMPLIFIED
+   * Removes the problematic group_activity query
    */
   static async getNotificationFilter(userId: string, userRole: string) {
-    const userSettings = await prisma.settings.findFirst({
-      where: { userId: userId }
-    });
+    // Get user's settings - only use fields that exist
+    let disableCourseNotifications = false;
     
-    const disableCourseNotifications = userSettings?.course_updates === false;
-    const disableGroupNotifications = false;
+    try {
+      const userSettings = await prisma.settings.findFirst({
+        where: { userId: userId },
+        select: { course_updates: true },
+      });
+      disableCourseNotifications = userSettings?.course_updates === false;
+    } catch (error) {
+      console.warn('Could not fetch settings, using defaults:', error);
+    }
     
+    // Simple filter without group_activity
     const baseWhere: any = {
       OR: [{ to: userRole }, { userId: userId }]
     };
     
-    const excludeConditions = [];
-    
+    // Only exclude course notifications if disabled
     if (disableCourseNotifications) {
-      excludeConditions.push({ courseId: { not: null } });
-    }
-    
-    if (disableGroupNotifications) {
-      excludeConditions.push({ groupId: { not: null } });
-    }
-    
-    if (excludeConditions.length > 0) {
-      baseWhere.NOT = excludeConditions;
+      baseWhere.NOT = { courseId: { not: null } };
     }
     
     return {
       where: baseWhere,
       settings: { 
-        disableCourseNotifications, 
-        disableGroupNotifications 
+        disableCourseNotifications,
+        disableGroupNotifications: false,
       }
     };
   }
@@ -842,7 +841,6 @@ export class NotificationService {
     organizationId?: string
   ) {
     try {
-      // Get all users of the target role
       const users = await prisma.user.findMany({
         where: {
           role: {
@@ -858,7 +856,6 @@ export class NotificationService {
         return { count: 0 };
       }
 
-      // Prepare notifications for all users
       const notificationData = users.map((user) => ({
         title: title,
         message: message,
@@ -873,7 +870,6 @@ export class NotificationService {
         },
       }));
 
-      // Create all notifications
       return await this.createBulkNotifications(notificationData);
     } catch (error) {
       console.error("Error in createSystemAnnouncement:", error);
@@ -882,458 +878,10 @@ export class NotificationService {
   }
 
   // ============================================================
-  // ORGANIZATION-SPECIFIC NOTIFICATION METHODS
+  // NOTIFICATION METHODS
   // ============================================================
 
-  /**
-   * NOTIFICATION: Organization member joined
-   */
-  static async notifyOrgMemberJoined(
-    newMemberId: string,
-    organizationId: string,
-    adminId?: string
-  ) {
-    try {
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { 
-          id: true,
-          organization_name: true,
-          organization_image: true,
-        },
-      });
-
-      if (!organization) {
-        console.error("Organization not found");
-        return { success: false, message: "Organization not found" };
-      }
-
-      const newMember = await prisma.user.findUnique({
-        where: { id: newMemberId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
-      });
-
-      const memberName = newMember
-        ? `${newMember.first_name} ${newMember.last_name}`.trim()
-        : "A new member";
-
-      if (adminId) {
-        await this.createNotification({
-          title: "New Organization Member",
-          message: `${memberName} has joined your organization "${organization.organization_name}"`,
-          type: NotificationType.ORG_MEMBER_JOINED,
-          role: Role.STUDENT,
-          to: Role.ORG_ADMIN,
-          userId: adminId,
-          organizationId: organizationId,
-          data: {
-            memberId: newMemberId,
-            memberName: memberName,
-            memberPic: newMember?.user_pic,
-            organizationName: organization.organization_name,
-            organizationImage: organization.organization_image,
-          },
-        });
-      }
-
-      const admins = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          role: { in: ["org_admin", "admin"] },
-          userId: { not: newMemberId },
-        },
-        select: { userId: true },
-      });
-
-      if (admins.length > 0) {
-        const notifications = admins.map((admin) => ({
-          title: "New Organization Member",
-          message: `${memberName} has joined "${organization.organization_name}"`,
-          type: NotificationType.ORG_MEMBER_JOINED,
-          role: Role.STUDENT,
-          to: Role.ORG_ADMIN,
-          userId: admin.userId,
-          organizationId: organizationId,
-          data: {
-            memberId: newMemberId,
-            memberName: memberName,
-            organizationName: organization.organization_name,
-          },
-        }));
-
-        await this.createBulkNotifications(notifications);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error in notifyOrgMemberJoined:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * NOTIFICATION: Organization member left
-   */
-  static async notifyOrgMemberLeft(
-    memberId: string,
-    organizationId: string,
-    adminId?: string
-  ) {
-    try {
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { 
-          id: true,
-          organization_name: true,
-        },
-      });
-
-      if (!organization) {
-        console.error("Organization not found");
-        return { success: false, message: "Organization not found" };
-      }
-
-      const member = await prisma.user.findUnique({
-        where: { id: memberId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
-      });
-
-      const memberName = member
-        ? `${member.first_name} ${member.last_name}`.trim()
-        : "A member";
-
-      if (adminId) {
-        await this.createNotification({
-          title: "Member Left Organization",
-          message: `${memberName} has left your organization "${organization.organization_name}"`,
-          type: NotificationType.ORG_MEMBER_LEFT,
-          role: Role.STUDENT,
-          to: Role.ORG_ADMIN,
-          userId: adminId,
-          organizationId: organizationId,
-          data: {
-            memberId: memberId,
-            memberName: memberName,
-            organizationName: organization.organization_name,
-          },
-        });
-      }
-
-      const admins = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          role: { in: ["org_admin", "admin"] },
-          userId: { not: memberId },
-        },
-        select: { userId: true },
-      });
-
-      if (admins.length > 0) {
-        const notifications = admins.map((admin) => ({
-          title: "Member Left Organization",
-          message: `${memberName} has left "${organization.organization_name}"`,
-          type: NotificationType.ORG_MEMBER_LEFT,
-          role: Role.STUDENT,
-          to: Role.ORG_ADMIN,
-          userId: admin.userId,
-          organizationId: organizationId,
-          data: {
-            memberId: memberId,
-            memberName: memberName,
-            organizationName: organization.organization_name,
-          },
-        }));
-
-        await this.createBulkNotifications(notifications);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error in notifyOrgMemberLeft:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * NOTIFICATION: Organization role changed
-   */
-  static async notifyOrgRoleChanged(
-    userId: string,
-    organizationId: string,
-    newRole: string,
-    oldRole: string,
-    changedById?: string
-  ) {
-    try {
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { 
-          id: true,
-          organization_name: true,
-        },
-      });
-
-      if (!organization) {
-        console.error("Organization not found");
-        return { success: false, message: "Organization not found" };
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
-      });
-
-      const userName = user
-        ? `${user.first_name} ${user.last_name}`.trim()
-        : "User";
-
-      await this.createNotification({
-        title: "Organization Role Changed",
-        message: `Your role in "${organization.organization_name}" has been changed from ${oldRole} to ${newRole}`,
-        type: NotificationType.ORG_ROLE_CHANGED,
-        role: Role.STUDENT,
-        to: Role.STUDENT,
-        userId: userId,
-        organizationId: organizationId,
-        data: {
-          userId: userId,
-          userName: userName,
-          oldRole: oldRole,
-          newRole: newRole,
-          organizationName: organization.organization_name,
-        },
-      });
-
-      if (changedById && changedById !== userId) {
-        const changer = await prisma.user.findUnique({
-          where: { id: changedById },
-          select: { first_name: true, last_name: true },
-        });
-
-        const changerName = changer
-          ? `${changer.first_name} ${changer.last_name}`.trim()
-          : "An admin";
-
-        const admins = await prisma.organizationMember.findMany({
-          where: {
-            organizationId: organizationId,
-            role: { in: ["org_admin", "admin"] },
-            userId: { not: userId },
-          },
-          select: { userId: true },
-        });
-
-        if (admins.length > 0) {
-          const notifications = admins.map((admin) => ({
-            title: "Member Role Changed",
-            message: `${changerName} changed ${userName}'s role from ${oldRole} to ${newRole}`,
-            type: NotificationType.ORG_ROLE_CHANGED,
-            role: Role.STUDENT,
-            to: Role.ORG_ADMIN,
-            userId: admin.userId,
-            organizationId: organizationId,
-            data: {
-              userId: userId,
-              userName: userName,
-              oldRole: oldRole,
-              newRole: newRole,
-              changedBy: changerName,
-              organizationName: organization.organization_name,
-            },
-          }));
-
-          await this.createBulkNotifications(notifications);
-        }
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error in notifyOrgRoleChanged:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * NOTIFICATION: Organization invitation sent
-   */
-  static async notifyOrgInvitationSent(
-    invitedEmail: string,
-    organizationId: string,
-    sentById: string,
-    role: string = "member"
-  ) {
-    try {
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { 
-          id: true,
-          organization_name: true,
-          organization_image: true,
-        },
-      });
-
-      if (!organization) {
-        console.error("Organization not found");
-        return { success: false, message: "Organization not found" };
-      }
-
-      const sender = await prisma.user.findUnique({
-        where: { id: sentById },
-        select: { 
-          first_name: true, 
-          last_name: true,
-          user_pic: true 
-        },
-      });
-
-      const senderName = sender
-        ? `${sender.first_name} ${sender.last_name}`.trim()
-        : "An admin";
-
-      const invitedUser = await prisma.user.findUnique({
-        where: { email_address: invitedEmail },
-        select: { id: true },
-      });
-
-      if (invitedUser) {
-        await this.createNotification({
-          title: "Organization Invitation",
-          message: `${senderName} has invited you to join "${organization.organization_name}" as a ${role}`,
-          type: NotificationType.ORG_INVITE,
-          role: Role.STUDENT,
-          to: Role.STUDENT,
-          userId: invitedUser.id,
-          organizationId: organizationId,
-          data: {
-            invitedEmail: invitedEmail,
-            role: role,
-            senderId: sentById,
-            senderName: senderName,
-            organizationName: organization.organization_name,
-            organizationImage: organization.organization_image,
-          },
-        });
-      }
-
-      const admins = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          role: { in: ["org_admin", "admin"] },
-          userId: { not: sentById },
-        },
-        select: { userId: true },
-      });
-
-      if (admins.length > 0) {
-        const notifications = admins.map((admin) => ({
-          title: "New Organization Invitation",
-          message: `${senderName} invited ${invitedEmail} to join "${organization.organization_name}"`,
-          type: NotificationType.ORG_INVITE,
-          role: Role.STUDENT,
-          to: Role.ORG_ADMIN,
-          userId: admin.userId,
-          organizationId: organizationId,
-          data: {
-            invitedEmail: invitedEmail,
-            role: role,
-            senderId: sentById,
-            senderName: senderName,
-            organizationName: organization.organization_name,
-          },
-        }));
-
-        await this.createBulkNotifications(notifications);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Error in notifyOrgInvitationSent:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * NOTIFICATION: Organization announcement
-   */
-  static async notifyOrganizationAnnouncement(
-    organizationId: string,
-    title: string,
-    message: string,
-    sentById: string,
-    targetRole?: string
-  ) {
-    try {
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        select: { 
-          id: true,
-          organization_name: true,
-        },
-      });
-
-      if (!organization) {
-        console.error("Organization not found");
-        return { success: false, message: "Organization not found" };
-      }
-
-      const members = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          isActive: true,
-          ...(targetRole && { role: targetRole }),
-        },
-        select: { userId: true },
-      });
-
-      if (members.length === 0) {
-        console.log(`No members found for organization: ${organizationId}`);
-        return { count: 0 };
-      }
-
-      const notificationData = members.map((member) => ({
-        title: title,
-        message: message,
-        type: "SYSTEM_ANNOUNCEMENT",
-        role: Role.ADMIN,
-        to: Role.STUDENT,
-        userId: member.userId,
-        organizationId: organizationId,
-        data: {
-          announcementType: "organization",
-          sentBy: sentById,
-          organizationName: organization.organization_name,
-          sentAt: new Date(),
-        },
-      }));
-
-      return await this.createBulkNotifications(notificationData);
-    } catch (error) {
-      console.error("Error in notifyOrganizationAnnouncement:", error);
-      throw error;
-    }
-  }
-
-  // ============================================================
-  // COURSE/GROUP/LIKE/COMMENT NOTIFICATION METHODS
-  // ============================================================
-
-  static async notifyStudentJoinedCourse(
-    studentId: string, 
-    courseId: string,
-    organizationId?: string
-  ) {
+  static async notifyStudentJoinedCourse(studentId: string, courseId: string, organizationId?: string) {
     try {
       const course = await prisma.course.findUnique({
         where: { id: courseId },
@@ -1386,11 +934,7 @@ export class NotificationService {
     }
   }
 
-  static async notifyStudentJoinedGroup(
-    studentId: string, 
-    groupId: string,
-    organizationId?: string
-  ) {
+  static async notifyStudentJoinedGroup(studentId: string, groupId: string, organizationId?: string) {
     try {
       const group = await prisma.group.findUnique({
         where: { id: groupId },
@@ -1563,9 +1107,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Course completed
-   */
   static async notifyCourseCompleted(
     userId: string,
     courseId: string,
@@ -1629,9 +1170,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Achievement unlocked
-   */
   static async notifyAchievementUnlocked(
     userId: string,
     achievementTitle: string,
@@ -1661,9 +1199,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Quiz completed
-   */
   static async notifyQuizCompleted(
     userId: string,
     quizId: string,
@@ -1697,9 +1232,6 @@ export class NotificationService {
     }
   }
 
-  /**
-   * NOTIFICATION: Event reminder
-   */
   static async notifyEventReminder(
     userId: string,
     eventName: string,
@@ -1727,6 +1259,181 @@ export class NotificationService {
       return { success: true };
     } catch (error) {
       console.error("Error in notifyEventReminder:", error);
+      throw error;
+    }
+  }
+
+  // ============================================================
+  // ORGANIZATION-SPECIFIC NOTIFICATION METHODS
+  // ============================================================
+
+  static async notifyOrgMemberJoined(
+    newMemberId: string,
+    organizationId: string,
+    adminId?: string
+  ) {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { 
+          id: true,
+          organization_name: true,
+          organization_image: true,
+        },
+      });
+
+      if (!organization) {
+        console.error("Organization not found");
+        return { success: false };
+      }
+
+      const newMember = await prisma.user.findUnique({
+        where: { id: newMemberId },
+        select: { 
+          first_name: true, 
+          last_name: true,
+          user_pic: true 
+        },
+      });
+
+      const memberName = newMember
+        ? `${newMember.first_name} ${newMember.last_name}`.trim()
+        : "A new member";
+
+      if (adminId) {
+        await this.createNotification({
+          title: "New Organization Member",
+          message: `${memberName} has joined your organization "${organization.organization_name}"`,
+          type: NotificationType.ORG_MEMBER_JOINED,
+          role: Role.STUDENT,
+          to: Role.ORG_ADMIN,
+          userId: adminId,
+          organizationId: organizationId,
+          data: {
+            memberId: newMemberId,
+            memberName: memberName,
+            organizationName: organization.organization_name,
+          },
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error in notifyOrgMemberJoined:", error);
+      throw error;
+    }
+  }
+
+  static async notifyOrgMemberLeft(
+    memberId: string,
+    organizationId: string,
+    adminId?: string
+  ) {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { 
+          id: true,
+          organization_name: true,
+        },
+      });
+
+      if (!organization) {
+        console.error("Organization not found");
+        return { success: false };
+      }
+
+      const member = await prisma.user.findUnique({
+        where: { id: memberId },
+        select: { 
+          first_name: true, 
+          last_name: true,
+          user_pic: true 
+        },
+      });
+
+      const memberName = member
+        ? `${member.first_name} ${member.last_name}`.trim()
+        : "A member";
+
+      if (adminId) {
+        await this.createNotification({
+          title: "Member Left Organization",
+          message: `${memberName} has left your organization "${organization.organization_name}"`,
+          type: NotificationType.ORG_MEMBER_LEFT,
+          role: Role.STUDENT,
+          to: Role.ORG_ADMIN,
+          userId: adminId,
+          organizationId: organizationId,
+          data: {
+            memberId: memberId,
+            memberName: memberName,
+            organizationName: organization.organization_name,
+          },
+        });
+      }
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error in notifyOrgMemberLeft:", error);
+      throw error;
+    }
+  }
+
+  static async notifyOrgRoleChanged(
+    userId: string,
+    organizationId: string,
+    newRole: string,
+    oldRole: string,
+    changedById?: string
+  ) {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { 
+          id: true,
+          organization_name: true,
+        },
+      });
+
+      if (!organization) {
+        console.error("Organization not found");
+        return { success: false };
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { 
+          first_name: true, 
+          last_name: true,
+          user_pic: true 
+        },
+      });
+
+      const userName = user
+        ? `${user.first_name} ${user.last_name}`.trim()
+        : "User";
+
+      await this.createNotification({
+        title: "Organization Role Changed",
+        message: `Your role in "${organization.organization_name}" has been changed from ${oldRole} to ${newRole}`,
+        type: NotificationType.ORG_ROLE_CHANGED,
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId: userId,
+        organizationId: organizationId,
+        data: {
+          userId: userId,
+          userName: userName,
+          oldRole: oldRole,
+          newRole: newRole,
+          organizationName: organization.organization_name,
+        },
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error("Error in notifyOrgRoleChanged:", error);
       throw error;
     }
   }
