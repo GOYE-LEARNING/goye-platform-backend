@@ -429,6 +429,544 @@ public async GetOrganizationOverviewStats(
 // Add this to your OrganizationController class
 
 /**
+ * GET: Fetch organization activities (course joins, completions, event joins)
+ * Returns recent activities for the organization dashboard
+ */
+@Security("bearerAuth")
+@Get("/activities/{organizationId}")
+public async GetOrganizationActivities(
+  @Path() organizationId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    // Verify organization exists
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return { 
+        success: false, 
+        message: "Organization not found" 
+      };
+    }
+
+    // Get all active members of the organization
+    const members = await prisma.organizationMember.findMany({
+      where: {
+        organizationId: organizationId,
+        isActive: true,
+      },
+      select: { userId: true },
+    });
+    const memberIds = members.map((m) => m.userId);
+
+    // ── 1. COURSE JOIN ACTIVITIES ──────────────────────────────────────────
+    // Get recent enrollments (course joins)
+    const courseJoins = await prisma.enrollment.findMany({
+      where: {
+        userId: { in: memberIds },
+        enrolledAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        enrolledAt: 'desc',
+      },
+      take: 20,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+            course_image: true,
+          },
+        },
+      },
+    });
+
+    // ── 2. COURSE COMPLETION ACTIVITIES ────────────────────────────────────
+    // Get recent course completions
+    const courseCompletions = await prisma.enrollment.findMany({
+      where: {
+        userId: { in: memberIds },
+        status: "COMPLETED",
+        completedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        completedAt: 'desc',
+      },
+      take: 20,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+            course_image: true,
+          },
+        },
+      },
+    });
+
+    // ── 3. EVENT JOIN ACTIVITIES ───────────────────────────────────────────
+    // Get recent event joins
+    const eventJoins = await prisma.joinedEvent.findMany({
+      where: {
+        group: {
+          createdBy: { id: { in: memberIds } },
+        },
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 20,
+      include: {
+        event: {
+          select: {
+            id: true,
+            event_name: true,
+            event_description: true,
+            event_time: true,
+            event_date: true,
+          },
+        },
+        group: {
+          select: {
+            id: true,
+            group_title: true,
+          },
+        },
+      },
+    });
+
+    // ── 4. GROUP JOIN ACTIVITIES ───────────────────────────────────────────
+    // Get recent group joins
+    const groupJoins = await prisma.joinedGroup.findMany({
+      where: {
+        studentId: { in: memberIds },
+        joinedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        joinedAt: 'desc',
+      },
+      take: 20,
+      include: {
+        student: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        group: {
+          select: {
+            id: true,
+            group_title: true,
+            group_image: true,
+          },
+        },
+      },
+    });
+
+    // ── 5. POST ACTIVITIES ─────────────────────────────────────────────────
+    // Get recent posts from the organization
+    const posts = await prisma.post.findMany({
+      where: {
+        organizationId: organizationId,
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 20,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        replies: {
+          select: {
+            id: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+        likes: {
+          select: {
+            id: true,
+            userId: true,
+          },
+        },
+      },
+    });
+
+    // ── 6. QUIZ COMPLETION ACTIVITIES ──────────────────────────────────────
+    // Get recent quiz completions
+    const quizCompletions = await prisma.quizAttempt.findMany({
+      where: {
+        userId: { in: memberIds },
+        completed: true,
+        completedAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        completedAt: 'desc',
+      },
+      take: 20,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        quiz: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+          },
+        },
+      },
+    });
+
+    // ── 7. ACHIEVEMENT UNLOCKED ACTIVITIES ─────────────────────────────────
+    // Get recent achievements
+    const achievements = await prisma.achievement.findMany({
+      where: {
+        userId: { in: memberIds },
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: 20,
+      include: {
+        user: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        course: {
+          select: {
+            id: true,
+            course_title: true,
+          },
+        },
+        group: {
+          select: {
+            id: true,
+            group_title: true,
+          },
+        },
+      },
+    });
+
+    // ── Combine and format all activities ──────────────────────────────────
+    const activities: any[] = [];
+
+    // Add course joins
+    courseJoins.forEach((enrollment) => {
+      const userName = enrollment.user 
+        ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim() 
+        : 'Someone';
+      activities.push({
+        id: `course_join_${enrollment.id}`,
+        type: 'COURSE_JOIN',
+        user: enrollment.user ? {
+          id: enrollment.user.id,
+          name: userName,
+          first_name: enrollment.user.first_name,
+          last_name: enrollment.user.last_name,
+          user_pic: enrollment.user.user_pic,
+        } : null,
+        course: enrollment.course ? {
+          id: enrollment.course.id,
+          title: enrollment.course.course_title,
+          image: enrollment.course.course_image,
+        } : null,
+        message: `${userName} joined course "${enrollment.course?.course_title || 'a course'}"`,
+        timestamp: enrollment.enrolledAt,
+        icon: '📚',
+      });
+    });
+
+    // Add course completions
+    courseCompletions.forEach((enrollment) => {
+      const userName = enrollment.user 
+        ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim() 
+        : 'Someone';
+      activities.push({
+        id: `course_complete_${enrollment.id}`,
+        type: 'COURSE_COMPLETE',
+        user: enrollment.user ? {
+          id: enrollment.user.id,
+          name: userName,
+          first_name: enrollment.user.first_name,
+          last_name: enrollment.user.last_name,
+          user_pic: enrollment.user.user_pic,
+        } : null,
+        course: enrollment.course ? {
+          id: enrollment.course.id,
+          title: enrollment.course.course_title,
+          image: enrollment.course.course_image,
+        } : null,
+        message: `${userName} completed course "${enrollment.course?.course_title || 'a course'}" 🎉`,
+        timestamp: enrollment.completedAt || enrollment.enrolledAt,
+        icon: '🏆',
+      });
+    });
+
+    // Add event joins
+    eventJoins.forEach((eventJoin) => {
+      const eventName = eventJoin.event?.event_name || 'an event';
+      activities.push({
+        id: `event_join_${eventJoin.id}`,
+        type: 'EVENT_JOIN',
+        event: eventJoin.event ? {
+          id: eventJoin.event.id,
+          name: eventJoin.event.event_name,
+          description: eventJoin.event.event_description,
+          time: eventJoin.event.event_time,
+          date: eventJoin.event.event_date,
+        } : null,
+        group: eventJoin.group ? {
+          id: eventJoin.group.id,
+          title: eventJoin.group.group_title,
+        } : null,
+        message: `Someone joined event "${eventName}"`,
+        timestamp: eventJoin.createdAt,
+        icon: '📅',
+      });
+    });
+
+    // Add group joins
+    groupJoins.forEach((groupJoin) => {
+      const userName = groupJoin.student 
+        ? `${groupJoin.student.first_name} ${groupJoin.student.last_name}`.trim() 
+        : 'Someone';
+      activities.push({
+        id: `group_join_${groupJoin.id}`,
+        type: 'GROUP_JOIN',
+        user: groupJoin.student ? {
+          id: groupJoin.student.id,
+          name: userName,
+          first_name: groupJoin.student.first_name,
+          last_name: groupJoin.student.last_name,
+          user_pic: groupJoin.student.user_pic,
+        } : null,
+        group: groupJoin.group ? {
+          id: groupJoin.group.id,
+          title: groupJoin.group.group_title,
+          image: groupJoin.group.group_image,
+        } : null,
+        message: `${userName} joined group "${groupJoin.group?.group_title || 'a group'}"`,
+        timestamp: groupJoin.joinedAt,
+        icon: '👥',
+      });
+    });
+
+    // Add posts
+    posts.forEach((post) => {
+      const userName = post.user 
+        ? `${post.user.first_name} ${post.user.last_name}`.trim() 
+        : 'Someone';
+      const replyCount = post.replies?.length || 0;
+      const likeCount = post.likes?.length || 0;
+      
+      let message = `${userName} posted: "${post.title}"`;
+      if (replyCount > 0) {
+        message += ` (${replyCount} ${replyCount === 1 ? 'reply' : 'replies'})`;
+      }
+      if (likeCount > 0) {
+        message += ` (${likeCount} ${likeCount === 1 ? 'like' : 'likes'})`;
+      }
+      
+      activities.push({
+        id: `post_${post.id}`,
+        type: 'POST',
+        user: post.user ? {
+          id: post.user.id,
+          name: userName,
+          first_name: post.user.first_name,
+          last_name: post.user.last_name,
+          user_pic: post.user.user_pic,
+        } : null,
+        post: {
+          id: post.id,
+          title: post.title,
+          content: post.content,
+          replyCount,
+          likeCount,
+        },
+        message: message,
+        timestamp: post.createdAt,
+        icon: '💬',
+      });
+    });
+
+    // Add quiz completions
+    quizCompletions.forEach((quizAttempt) => {
+      const userName = quizAttempt.user 
+        ? `${quizAttempt.user.first_name} ${quizAttempt.user.last_name}`.trim() 
+        : 'Someone';
+      const quizTitle = quizAttempt.quiz?.title || 'a quiz';
+      const score = quizAttempt.score || 0;
+      
+      activities.push({
+        id: `quiz_complete_${quizAttempt.id}`,
+        type: 'QUIZ_COMPLETE',
+        user: quizAttempt.user ? {
+          id: quizAttempt.user.id,
+          name: userName,
+          first_name: quizAttempt.user.first_name,
+          last_name: quizAttempt.user.last_name,
+          user_pic: quizAttempt.user.user_pic,
+        } : null,
+        quiz: {
+          id: quizAttempt.quiz?.id,
+          title: quizAttempt.quiz?.title,
+          score: score,
+        },
+        course: quizAttempt.course ? {
+          id: quizAttempt.course.id,
+          title: quizAttempt.course.course_title,
+        } : null,
+        message: `${userName} scored ${score}% on quiz "${quizTitle}"`,
+        timestamp: quizAttempt.completedAt || quizAttempt.startedAt,
+        icon: '📝',
+      });
+    });
+
+    // Add achievements
+    achievements.forEach((achievement) => {
+      const userName = achievement.user 
+        ? `${achievement.user.first_name} ${achievement.user.last_name}`.trim() 
+        : 'Someone';
+      const achievementTitle = achievement.title || 'an achievement';
+      
+      activities.push({
+        id: `achievement_${achievement.id}`,
+        type: 'ACHIEVEMENT',
+        user: achievement.user ? {
+          id: achievement.user.id,
+          name: userName,
+          first_name: achievement.user.first_name,
+          last_name: achievement.user.last_name,
+          user_pic: achievement.user.user_pic,
+        } : null,
+        achievement: {
+          id: achievement.id,
+          title: achievement.title,
+          content: achievement.content,
+          point: achievement.point,
+        },
+        course: achievement.course ? {
+          id: achievement.course.id,
+          title: achievement.course.course_title,
+        } : null,
+        group: achievement.group ? {
+          id: achievement.group.id,
+          title: achievement.group.group_title,
+        } : null,
+        message: `${userName} unlocked achievement "${achievementTitle}"! 🏅`,
+        timestamp: achievement.createdAt,
+        icon: '⭐',
+      });
+    });
+
+    // Sort all activities by timestamp (newest first)
+    activities.sort((a, b) => {
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
+
+    // Limit to the most recent 50 activities
+    const recentActivities = activities.slice(0, 50);
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Organization activities fetched successfully",
+      data: {
+        activities: recentActivities,
+        total: recentActivities.length,
+        summary: {
+          course_joins: courseJoins.length,
+          course_completions: courseCompletions.length,
+          event_joins: eventJoins.length,
+          group_joins: groupJoins.length,
+          posts: posts.length,
+          quiz_completions: quizCompletions.length,
+          achievements: achievements.length,
+        },
+      },
+    };
+
+  } catch (error: any) {
+    console.error("Error fetching organization activities:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to fetch organization activities",
+      error: error.message,
+    };
+  }
+}
+/**
  * GET: Fetch user breakdown for organization dashboard
  * Returns counts for: total members, students, instructors, admins, online users, etc.
  */

@@ -7512,6 +7512,40 @@
 				]
 			}
 		},
+		"/organizations/activities/{organizationId}": {
+			"get": {
+				"operationId": "GetOrganizationActivities",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "GET: Fetch organization activities (course joins, completions, event joins)\r\nReturns recent activities for the organization dashboard",
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/user-breakdown/{organizationId}": {
 			"get": {
 				"operationId": "GetUserBreakdown",
