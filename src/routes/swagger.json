@@ -7512,6 +7512,40 @@
 				]
 			}
 		},
+		"/organizations/user-breakdown/{organizationId}": {
+			"get": {
+				"operationId": "GetUserBreakdown",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "GET: Fetch user breakdown for organization dashboard\r\nReturns counts for: total members, students, instructors, admins, online users, etc.",
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/auth/send-verification-otp/{organizationId}": {
 			"post": {
 				"operationId": "SendVerificationOTP",

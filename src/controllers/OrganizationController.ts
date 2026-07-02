@@ -426,6 +426,201 @@ public async GetOrganizationOverviewStats(
   }
 }
 
+// Add this to your OrganizationController class
+
+/**
+ * GET: Fetch user breakdown for organization dashboard
+ * Returns counts for: total members, students, instructors, admins, online users, etc.
+ */
+@Security("bearerAuth")
+@Get("/user-breakdown/{organizationId}")
+public async GetUserBreakdown(
+  @Path() organizationId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    // Verify organization exists
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return { 
+        success: false, 
+        message: "Organization not found" 
+      };
+    }
+
+    // Get all active members of the organization
+    const members = await prisma.organizationMember.findMany({
+      where: {
+        organizationId: organizationId,
+        isActive: true,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            role: true,
+            email_address: true,
+            userType: true,
+            isOnline: true,
+            lastActive: true,
+          },
+        },
+      },
+    });
+
+    // Get all invited users (pending invitations)
+    const pendingInvitations = await prisma.inviteUser.count({
+      where: {
+        organizationId: organizationId,
+        expiresIn: { gt: new Date() },
+        // Exclude those who already accepted
+        NOT: {
+          email: {
+            in: members.map(m => m.user?.email_address).filter(Boolean) as string[],
+          }
+        }
+      },
+    });
+
+    // Count by role
+    let studentCount = 0;
+    let instructorCount = 0;
+    let adminCount = 0;
+    let orgAdminCount = 0;
+    let invitedMemberCount = 0;
+    let individualCount = 0;
+    let onlineCount = 0;
+
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    for (const member of members) {
+      const user = member.user;
+      if (!user) continue;
+
+      // Count online users
+      if (user.isOnline && user.lastActive && new Date(user.lastActive) > fiveMinutesAgo) {
+        onlineCount++;
+      }
+
+      // Count by role and userType
+      const role = user.role?.toLowerCase() || '';
+      const userType = user.userType || '';
+
+      if (role === 'student') {
+        studentCount++;
+      } else if (role === 'tutor' || role === 'instructor') {
+        instructorCount++;
+      } else if (role === 'admin') {
+        adminCount++;
+      } else if (role === 'org_admin') {
+        orgAdminCount++;
+      }
+
+      // Count by userType
+      if (userType === 'INVITED_MEMBER') {
+        invitedMemberCount++;
+      } else if (userType === 'INDIVIDUAL') {
+        individualCount++;
+      }
+    }
+
+    // Total members (active)
+    const totalMembers = members.length;
+
+    // Get course enrollment stats
+    const totalEnrollments = await prisma.enrollment.count({
+      where: {
+        userId: { in: members.map(m => m.userId) },
+      },
+    });
+
+    const completedCourses = await prisma.enrollment.count({
+      where: {
+        userId: { in: members.map(m => m.userId) },
+        status: "COMPLETED",
+      },
+    });
+
+    const inProgressCourses = await prisma.enrollment.count({
+      where: {
+        userId: { in: members.map(m => m.userId) },
+        status: "IN_PROGRESS",
+      },
+    });
+
+    // Get socket service for real-time online count (if available)
+    let socketOnlineCount = 0;
+    try {
+      const socketService = (req.app?.get?.("socketService")) as
+        | { getOrganizationOnlineUsers: (id: string) => any[] }
+        | undefined;
+
+      if (socketService) {
+        socketOnlineCount = socketService.getOrganizationOnlineUsers(organizationId).length;
+      }
+    } catch (error) {
+      // Fallback to database count
+      socketOnlineCount = onlineCount;
+    }
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "User breakdown fetched successfully",
+      data: {
+        // Main stats for the UI cards
+        total_members: totalMembers,
+        students: studentCount,
+        instructors: instructorCount,
+        admins: adminCount + orgAdminCount,
+        online_members: socketOnlineCount || onlineCount,
+        pending_invitations: pendingInvitations,
+
+        // Detailed breakdown
+        breakdown: {
+          by_role: {
+            student: studentCount,
+            instructor: instructorCount,
+            admin: adminCount,
+            org_admin: orgAdminCount,
+          },
+          by_user_type: {
+            invited_member: invitedMemberCount,
+            individual: individualCount,
+            organization_owner: totalMembers - invitedMemberCount - individualCount,
+          },
+        },
+
+        // Activity stats
+        activity: {
+          total_enrollments: totalEnrollments,
+          completed_courses: completedCourses,
+          in_progress_courses: inProgressCourses,
+          completion_rate: totalEnrollments > 0 
+            ? Math.round((completedCourses / totalEnrollments) * 100) 
+            : 0,
+        },
+
+        // Timestamp
+        fetched_at: new Date().toISOString(),
+      },
+    };
+
+  } catch (error: any) {
+    console.error("Error fetching user breakdown:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to fetch user breakdown",
+      error: error.message,
+    };
+  }
+}
+
 // ── Helper: resolves a named range or custom date into start/end bounds ──
 private resolveDateRange(
   range: string,
