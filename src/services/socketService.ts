@@ -142,6 +142,9 @@ export class SocketService {
           full_name?: string;
         };
 
+        // ✅ DEBUG LOG — remove once confirmed
+        console.log("🔍 Decoded socket token payload:", JSON.stringify(decoded, null, 2));
+
         if (!decoded || !decoded.id) {
           socket.emit("authenticated", {
             success: false,
@@ -183,6 +186,13 @@ export class SocketService {
         socket.data.authenticated = true;
         socket.data.user = user;
 
+        // ✅ DEBUG LOG — confirms what actually got attached to the socket
+        console.log("🔍 socket.data after assignment:", {
+          userId: socket.data.userId,
+          userType: socket.data.userType,
+          organizationId: socket.data.organizationId,
+        });
+
         // Join user's personal room
         socket.join(`user:${decoded.id}`);
 
@@ -196,6 +206,9 @@ export class SocketService {
         if (decoded.organizationId) {
           socket.join(`org:${decoded.organizationId}`);
           this.userRooms.get(decoded.id)?.add(`org:${decoded.organizationId}`);
+          console.log(`✅ Socket joined org room: org:${decoded.organizationId}`); // ✅ DEBUG LOG
+        } else {
+          console.log(`⚠️ No organizationId in token — socket did NOT join any org room`); // ✅ DEBUG LOG
         }
 
         // Update online users
@@ -223,6 +236,12 @@ export class SocketService {
             userPic: user.user_pic || undefined,
           });
         }
+
+        // ✅ DEBUG LOG — confirms what's actually stored in the in-memory map
+        console.log(
+          "🔍 onlineUsers map entry for this user:",
+          this.onlineUsers.get(decoded.id),
+        );
 
         // Update user in database
         await prisma.user.update({

@@ -1,5 +1,5 @@
 // src/app.ts
-import express, { Request, Response, NextFunction } from "express";
+import express, { Request, Response, NextFunction, Router } from "express";
 import cookieParser from "cookie-parser";
 import { RegisterRoutes } from "./routes/routes";
 import { setupSwagger } from "./config/swagger";
@@ -10,37 +10,33 @@ import helmet from 'helmet'
 import rateLimit from "express-rate-limit";
 import prisma from "./db";
 import dotenv from "dotenv";
+import type { SocketService } from "./services/socketService"; // ✅ ADD (type-only import avoids circular init issues)
 dotenv.config();
 
-// ✅ IMPORTANT: Enable trust proxy BEFORE any middleware
-// This is essential for Render, Heroku, Railway, etc.
 const app = express();
+export const socketRoutes = Router(); // ✅ exported, empty for now
 
-// ✅ Set trust proxy based on environment
+// ...later, inside createApp(), BEFORE RegisterRoutes and BEFORE the 404 handler:
+
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
   console.log('✅ Trust proxy enabled for production (Render)');
 } else {
-  // For local development, you can also enable it to match production behavior
   app.set('trust proxy', 'loopback');
   console.log('✅ Trust proxy enabled for development');
 }
 
-// ✅ Configure rate limiters AFTER trust proxy is set
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // max 100 requests per 15 minutes per IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: {
     status: 429,
     message: "Too many requests, please slow down and try again later.",
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // ✅ Add this to handle proxy headers properly
-  validate: { trustProxy: false }, // Prevent validation errors
-  // ✅ Custom key generator to get real IP
+  validate: { trustProxy: false },
   keyGenerator: (req) => {
-    // Get the real IP from proxy headers
     const forwarded = req.headers['x-forwarded-for'];
     const ip = forwarded ? (Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]) : req.ip;
     return ip || req.socket.remoteAddress || 'unknown';
@@ -56,7 +52,7 @@ const authLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false }, // ✅ Add this
+  validate: { trustProxy: false },
   keyGenerator: (req) => {
     const forwarded = req.headers['x-forwarded-for'];
     const ip = forwarded ? (Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]) : req.ip;
@@ -64,36 +60,30 @@ const authLimiter = rateLimit({
   }
 });
 
-export const createApp = async () => {
+// ✅ CHANGED: accept an optional socketService param so routes that
+// depend on it can be registered BEFORE the 404 catch-all.
+export const createApp = async (socketService?: SocketService) => {
+  app.use(socketRoutes);
   console.log("🔄 Setting up middleware...");
-  
-  // ✅ Apply rate limiters AFTER other middleware
-  // Order matters: trust proxy -> body parsers -> rate limiters -> routes
-  
-  // Basic middleware (these should come before rate limiters)
+
   app.use(express.json({ limit: "15mb" }));
   app.use(cookieParser());
   app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
-  // CORS (this can come before or after body parsers)
   app.use(corsOptions);
   app.options("*", corsOptions);
 
-  // Request logging
   app.use(requestLogger);
   app.use(helmet())
 
-  // ✅ Apply rate limiters AFTER body parsers but BEFORE routes
   app.use(generalLimiter);
   app.use("/api/user/signup", authLimiter);
   app.use("/api/user/login", authLimiter);
 
-  // Health check (exclude from rate limiting)
   app.get("/health", (req: Request, res: Response) => {
     res.json({ status: "OK", timestamp: new Date().toISOString() });
   });
 
-  // Test database connection endpoint (exclude from rate limiting)
   app.get("/api/db-test", async (req: Request, res: Response) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
@@ -104,16 +94,13 @@ export const createApp = async () => {
     }
   });
 
-  // Test endpoint (exclude from rate limiting)
   app.get("/api/test", (req: Request, res: Response) => {
     res.json({ message: "API is working!" });
   });
 
-  // Swagger documentation
   console.log("📚 Setting up Swagger...");
   setupSwagger(app);
 
-  // Register tsoa routes
   console.log("🛣️ Registering routes...");
   try {
     RegisterRoutes(app);
@@ -123,10 +110,36 @@ export const createApp = async () => {
     throw error;
   }
 
+  // ✅ NEW: socket-dependent debug/status routes — registered here,
+  // BEFORE the 404 catch-all, so they're actually reachable.
+  if (socketService) {
+    app.set("socketService", socketService);
+
+    app.get("/api/users/:userId/status", (req: Request, res: Response) => {
+      const { userId } = req.params;
+      res.json(socketService.getUserStatus(userId));
+    });
+
+    app.get("/api/users/online", (req: Request, res: Response) => {
+      res.json({ online: socketService.getOnlineUsers() });
+    });
+
+    app.get(
+      "/api/organizations/:organizationId/online",
+      (req: Request, res: Response) => {
+        const { organizationId } = req.params;
+        const users = socketService.getOrganizationOnlineUsers(organizationId);
+        res.json({ organizationId, onlineCount: users.length, users });
+      },
+    );
+
+    console.log("✅ Socket-dependent routes registered");
+  }
+
   // Error handler (should be last)
   app.use(errorHandler);
 
-  // 404 handler (should be after all routes)
+  // 404 handler (must be absolute last)
   app.use((req: Request, res: Response) => {
     res.status(404).json({ message: "Route not found" });
   });

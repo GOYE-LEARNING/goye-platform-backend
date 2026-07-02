@@ -7479,6 +7479,39 @@
 				}
 			}
 		},
+		"/organizations/overview-stats/{organizationId}": {
+			"get": {
+				"operationId": "GetOrganizationOverviewStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/auth/send-verification-otp/{organizationId}": {
 			"post": {
 				"operationId": "SendVerificationOTP",
