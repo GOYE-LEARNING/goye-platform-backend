@@ -2730,6 +2730,24 @@ public async InviteUsersToOrganization(
           },
         });
 
+        const ifUserExists = await prisma.user.findUnique({
+          where: { email_address: user.email },
+        });
+
+        if (ifUserExists) {
+           results.alreadyMember.push({
+            email: user.email,
+            role: user.role,
+            message: "User already exist",
+            user: existingMember.user ? {
+              id: existingMember.user.id,
+              name: `${existingMember.user.first_name} ${existingMember.user.last_name}`,
+              email: existingMember.user.email_address,
+            } : null,
+          });
+          return;
+        }
+
         // ✅ If user is already a member, skip invitation
         if (existingMember) {
           results.alreadyMember.push({
