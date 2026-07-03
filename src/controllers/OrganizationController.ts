@@ -3650,6 +3650,344 @@ export class OrganizationController extends Controller {
     }
   }
 
+  // Add this to your OrganizationController class
+
+@Security("bearerAuth")
+@Get("/courses-with-stats/{organizationId}")
+public async GetOrganizationCoursesWithStats(
+  @Path() organizationId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    // Verify organization exists
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: {
+        id: true,
+        organization_name: true,
+        organization_type: true,
+        organization_image: true,
+      },
+    });
+
+    if (!organization) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "Organization not found",
+      };
+    }
+
+    // Get all courses for this organization with their modules
+    const courses = await prisma.course.findMany({
+      where: {
+        organizationId: organizationId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      include: {
+        module: {
+          include: {
+            lesson: true,
+          },
+        },
+        createdByDetails: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+          },
+        },
+        enrollment: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email_address: true,
+                user_pic: true,
+              },
+            },
+          },
+        },
+        progress: true,
+        _count: {
+          select: {
+            enrollment: true,
+          },
+        },
+      },
+    });
+
+    // Get all organization members for progress calculation
+    const members = await prisma.organizationMember.findMany({
+      where: {
+        organizationId: organizationId,
+        isActive: true,
+      },
+      select: {
+        userId: true,
+      },
+    });
+    const memberIds = members.map((m) => m.userId);
+
+    // Get total active members count
+    const totalMembers = memberIds.length;
+
+    // Calculate stats for each course
+    const courseStats = await Promise.all(
+      courses.map(async (course) => {
+        // Get all enrollments for this course
+        const enrollments = course.enrollment;
+        const totalEnrolled = enrollments.length;
+
+        // Count completed enrollments
+        const completedEnrollments = enrollments.filter(
+          (e) => e.status === "COMPLETED"
+        ).length;
+
+        // Count in-progress enrollments
+        const inProgressEnrollments = enrollments.filter(
+          (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+        ).length;
+
+        // Calculate completion rate
+        const completionRate = totalEnrolled > 0
+          ? Math.round((completedEnrollments / totalEnrolled) * 100)
+          : 0;
+
+        // Get all lessons in the course
+        const allLessons = course.module.flatMap((m) => m.lesson);
+        const totalLessons = allLessons.length;
+
+        // Calculate progress for each enrolled student
+        const studentProgress = await Promise.all(
+          enrollments.map(async (enrollment) => {
+            // Get completed lessons for this student in this course
+            const completedLessons = await prisma.progress.findMany({
+              where: {
+                userId: enrollment.userId,
+                lesson: {
+                  module: {
+                    courseId: course.id,
+                  },
+                },
+                progressBar: { gte: 100 },
+              },
+              select: {
+                lessonId: true,
+              },
+            });
+
+            // Get video tracking progress
+            const videoProgress = await prisma.videoTracker.findMany({
+              where: {
+                progress: {
+                  userId: enrollment.userId,
+                },
+                lesson: {
+                  module: {
+                    courseId: course.id,
+                  },
+                },
+              },
+              select: {
+                videoTrackTime: true,
+                videoFinished: true,
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
+                },
+              },
+            });
+
+            const completedLessonIds = new Set(
+              completedLessons.map((p) => p.lessonId)
+            );
+            const completedCount = completedLessonIds.size;
+
+            // Calculate video progress
+            let totalVideoProgress = 0;
+            let totalVideoDuration = 0;
+            videoProgress.forEach((vp) => {
+              totalVideoProgress += vp.videoTrackTime || 0;
+              totalVideoDuration += vp.lesson?.duration || 0;
+            });
+
+            const videoPercentage = totalVideoDuration > 0
+              ? Math.min(Math.round((totalVideoProgress / totalVideoDuration) * 100), 100)
+              : 0;
+
+            // Overall progress: 70% lesson completion + 30% video progress
+            const lessonPercentage = totalLessons > 0
+              ? Math.round((completedCount / totalLessons) * 100)
+              : 0;
+
+            const overallProgress = Math.round(
+              (lessonPercentage * 0.7) + (videoPercentage * 0.3)
+            );
+
+            return {
+              userId: enrollment.userId,
+              userName: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
+              userPic: enrollment.user.user_pic,
+              status: enrollment.status,
+              completedLessons: completedCount,
+              totalLessons: totalLessons,
+              lessonProgress: lessonPercentage,
+              videoProgress: videoPercentage,
+              overallProgress: Math.min(overallProgress, 100),
+              startedAt: enrollment.startedAt,
+              completedAt: enrollment.completedAt,
+            };
+          })
+        );
+
+        // Calculate average progress across all students
+        const totalProgress = studentProgress.reduce(
+          (sum, s) => sum + s.overallProgress,
+          0
+        );
+        const averageProgress = studentProgress.length > 0
+          ? Math.round(totalProgress / studentProgress.length)
+          : 0;
+
+        // Count students with progress > 0 (active students)
+        const activeStudents = studentProgress.filter(
+          (s) => s.overallProgress > 0
+        ).length;
+
+        // Count students with 100% progress (completed)
+        const completedStudents = studentProgress.filter(
+          (s) => s.overallProgress === 100
+        ).length;
+
+        // Get module and lesson counts
+        const moduleCount = course.module.length;
+        const lessonCount = allLessons.length;
+
+        return {
+          id: course.id,
+          course_title: course.course_title,
+          course_short_description: course.course_short_description,
+          course_description: course.course_description,
+          course_level: course.course_level,
+          course_image: course.course_image,
+          createdBy: course.createdByDetails
+            ? `${course.createdByDetails.first_name} ${course.createdByDetails.last_name}`
+            : "Unknown",
+          createdByPic: course.createdByDetails?.user_pic || null,
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+          stats: {
+            // Enrollment stats
+            totalEnrollments: totalEnrolled,
+            completedEnrollments: completedEnrollments,
+            inProgressEnrollments: inProgressEnrollments,
+            completionRate: completionRate,
+            dropOutRate: totalEnrolled > 0
+              ? Math.round(((totalEnrolled - completedEnrollments - inProgressEnrollments) / totalEnrolled) * 100)
+              : 0,
+
+            // Course structure
+            moduleCount: moduleCount,
+            lessonCount: lessonCount,
+            totalDuration: course.module.reduce((acc, m) => {
+              const durationSum = m.lesson.reduce(
+                (sum, l) => sum + (l.duration || 0),
+                0
+              );
+              return acc + durationSum;
+            }, 0),
+
+            // Student progress stats
+            totalStudents: totalEnrolled,
+            activeStudents: activeStudents,
+            completedStudents: completedStudents,
+            averageProgress: averageProgress,
+
+            // Student progress details
+            studentProgress: studentProgress,
+
+            // Percentage of students who started
+            engagementRate: totalMembers > 0
+              ? Math.round((totalEnrolled / totalMembers) * 100)
+              : 0,
+          },
+        };
+      })
+    );
+
+    // Calculate overall organization stats
+    const totalCourses = courseStats.length;
+    const totalEnrollmentsAcrossAllCourses = courseStats.reduce(
+      (sum, c) => sum + c.stats.totalEnrollments,
+      0
+    );
+    const totalCompletedAcrossAllCourses = courseStats.reduce(
+      (sum, c) => sum + c.stats.completedEnrollments,
+      0
+    );
+    const totalLessonsAcrossAllCourses = courseStats.reduce(
+      (sum, c) => sum + c.stats.lessonCount,
+      0
+    );
+    const totalModulesAcrossAllCourses = courseStats.reduce(
+      (sum, c) => sum + c.stats.moduleCount,
+      0
+    );
+
+    // Calculate overall average progress
+    const overallAvgProgress = courseStats.length > 0
+      ? Math.round(
+          courseStats.reduce((sum, c) => sum + c.stats.averageProgress, 0) /
+            courseStats.length
+        )
+      : 0;
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Organization courses with stats fetched successfully",
+      data: {
+        organization: {
+          id: organization.id,
+          name: organization.organization_name,
+          type: organization.organization_type,
+          image: organization.organization_image,
+        },
+        summary: {
+          totalCourses: totalCourses,
+          totalEnrollments: totalEnrollmentsAcrossAllCourses,
+          totalCompletions: totalCompletedAcrossAllCourses,
+          totalModules: totalModulesAcrossAllCourses,
+          totalLessons: totalLessonsAcrossAllCourses,
+          overallAverageProgress: overallAvgProgress,
+          overallCompletionRate: totalEnrollmentsAcrossAllCourses > 0
+            ? Math.round(
+                (totalCompletedAcrossAllCourses / totalEnrollmentsAcrossAllCourses) *
+                  100
+              )
+            : 0,
+        },
+        courses: courseStats,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error fetching courses with stats:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to fetch courses with stats",
+      error: error.message,
+    };
+  }
+}
+
   @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
