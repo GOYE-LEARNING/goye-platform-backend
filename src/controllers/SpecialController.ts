@@ -78,8 +78,11 @@ export class SpecialController extends Controller {
           status: "active",
           createdAt: new Date(),
           updatedAt: new Date(),
-        }
+        },
+        
       });
+
+
 
       this.setStatus(201);
       return {

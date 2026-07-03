@@ -597,6 +597,7 @@ export class UserController extends Controller {
         languageCode: body.languageCode as any,
         userType: "INDIVIDUAL", // ✅ explicit on signup
       },
+      
     });
 
     const createSettings = await prisma.settings.create({

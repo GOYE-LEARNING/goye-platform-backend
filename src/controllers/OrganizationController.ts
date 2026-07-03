@@ -2680,58 +2680,124 @@ public async GetUserDetails(
     }
   }
 
-  @Security("bearerAuth")
-  @Post("/invite-users-to-organization/{organizationId}")
-  public async InviteUsersToOrganization(
-    @Path() organizationId: string,
-    @Request() req: any,
-    @Body() body: { users: { email: string; role: string }[] },
-  ): Promise<any> {
-    const userIdFromOrganization = req.org?.userId;
-    try {
-      const { users } = body;
+@Security("bearerAuth")
+@Post("/invite-users-to-organization/{organizationId}")
+public async InviteUsersToOrganization(
+  @Path() organizationId: string,
+  @Request() req: any,
+  @Body() body: { users: { email: string; role: string }[] },
+): Promise<any> {
+  const userIdFromOrganization = req.org?.userId;
+  try {
+    const { users } = body;
 
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-      });
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+    });
 
-      if (!organization) {
-        this.setStatus(404);
-        return { success: false, message: "Organization not found" };
-      }
+    if (!organization) {
+      this.setStatus(404);
+      return { success: false, message: "Organization not found" };
+    }
 
-      const results = {
-        successful: [] as any[],
-        failed: [] as any[],
-        alreadyInvited: [] as any[],
-      };
+    const results = {
+      successful: [] as any[],
+      failed: [] as any[],
+      alreadyInvited: [] as any[],
+      alreadyMember: [] as any[], // ✅ New: Track users already in the organization
+    };
 
-      const invitePromises = users.map(async (user) => {
-        try {
-          const existingInvite = await prisma.inviteUser.findFirst({
-            where: {
-              email: user.email,
-              organizationId: organizationId,
-              expiresIn: { gt: new Date() },
+    const invitePromises = users.map(async (user) => {
+      try {
+        // ✅ Check if user already exists in the organization
+        const existingMember = await prisma.organizationMember.findFirst({
+          where: {
+            organizationId: organizationId,
+            user: {
+              email_address: user.email,
+            },
+            isActive: true,
+          },
+          include: {
+            user: {
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email_address: true,
+              },
+            },
+          },
+        });
+
+        // ✅ If user is already a member, skip invitation
+        if (existingMember) {
+          results.alreadyMember.push({
+            email: user.email,
+            role: user.role,
+            message: "User is already a member of this organization",
+            user: existingMember.user ? {
+              id: existingMember.user.id,
+              name: `${existingMember.user.first_name} ${existingMember.user.last_name}`,
+              email: existingMember.user.email_address,
+            } : null,
+          });
+          return;
+        }
+
+        // Check if there's already an active invitation
+        const existingInvite = await prisma.inviteUser.findFirst({
+          where: {
+            email: user.email,
+            organizationId: organizationId,
+            expiresIn: { gt: new Date() },
+          },
+        });
+
+        if (existingInvite) {
+          results.alreadyInvited.push({
+            email: user.email,
+            role: user.role,
+            message: "User already has an active invitation",
+            inviteId: existingInvite.id,
+            expiresIn: existingInvite.expiresIn,
+          });
+          return;
+        }
+
+        // Check if there's an expired invitation that can be renewed
+        const expiredInvite = await prisma.inviteUser.findFirst({
+          where: {
+            email: user.email,
+            organizationId: organizationId,
+            expiresIn: { lte: new Date() },
+          },
+        });
+
+        // Generate new token
+        const tokencode = jwt.sign(
+          { organizationId, email: user.email },
+          process.env.BEARERAUTH_SECRET || "secret-key",
+          { expiresIn: "24h" },
+        );
+
+        let inviteEntry;
+
+        // If there's an expired invitation, update it instead of creating new
+        if (expiredInvite) {
+          inviteEntry = await prisma.inviteUser.update({
+            where: { id: expiredInvite.id },
+            data: {
+              code: tokencode,
+              role: user.role,
+              sentById: userIdFromOrganization,
+              expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              updatedAt: new Date(),
             },
           });
-
-          if (existingInvite) {
-            results.alreadyInvited.push({
-              email: user.email,
-              role: user.role,
-              message: "User already has an active invitation",
-            });
-            return;
-          }
-
-          const tokencode = jwt.sign(
-            { organizationId, email: user.email },
-            process.env.BEARERAUTH_SECRET || "secret-key",
-            { expiresIn: "24h" },
-          );
-
-          const inviteEntry = await prisma.inviteUser.create({
+        } else {
+          // Create new invitation
+          inviteEntry = await prisma.inviteUser.create({
             data: {
               email: user.email,
               role: user.role,
@@ -2741,69 +2807,96 @@ public async GetUserDetails(
               expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
             },
           });
-
-          const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-          const inviteLink = `http://localhost:3000/auth/${tokencode}/accept_invite`;
-          const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
-
-          await SendEmail(user.email, emailSubject, emailText);
-
-          results.successful.push({
-            email: user.email,
-            role: user.role,
-            inviteId: inviteEntry.id,
-          });
-        } catch (error: any) {
-          results.failed.push({
-            email: user.email,
-            role: user.role,
-            message: error.message || "Failed to send invitation",
-          });
         }
-      });
 
-      await Promise.all(invitePromises);
+        // Send invitation email
+        const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+        const inviteLink = `${baseUrl}/auth/${tokencode}/accept_invite`;
+        const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
 
-      const hasSuccess = results.successful.length > 0;
+        await SendEmail(user.email, emailSubject, emailText);
 
-      let statusCode = 200;
-      let message = "";
+        results.successful.push({
+          email: user.email,
+          role: user.role,
+          inviteId: inviteEntry.id,
+          isRenewal: !!expiredInvite,
+        });
 
-      if (results.successful.length === users.length) {
-        message = `Successfully invited ${results.successful.length} user(s)`;
-        statusCode = 200;
-      } else if (results.successful.length > 0) {
-        message = `Invited ${results.successful.length} user(s). ${results.alreadyInvited.length} already invited, ${results.failed.length} failed.`;
-        statusCode = 207;
-      } else if (results.alreadyInvited.length === users.length) {
-        message = `All ${results.alreadyInvited.length} user(s) already have active invitations`;
-        statusCode = 409;
-      } else {
-        message = "Failed to send invitations";
-        statusCode = 500;
+      } catch (error: any) {
+        console.error(`Error processing invitation for ${user.email}:`, error);
+        results.failed.push({
+          email: user.email,
+          role: user.role,
+          message: error.message || "Failed to send invitation",
+        });
       }
+    });
 
-      this.setStatus(statusCode);
-      return {
-        success: hasSuccess,
-        message: message,
-        data: {
-          totalProcessed: users.length,
-          successful: results.successful,
-          alreadyInvited: results.alreadyInvited,
-          failed: results.failed,
-        },
-      };
-    } catch (error: any) {
-      console.error(error);
-      this.setStatus(500);
-      return {
-        success: false,
-        message: "Error processing bulk invitations",
-        error: error.message,
-      };
+    await Promise.all(invitePromises);
+
+    // Determine response status and message
+    const totalProcessed = users.length;
+    const successful = results.successful.length;
+    const alreadyMembers = results.alreadyMember.length;
+    const alreadyInvited = results.alreadyInvited.length;
+    const failed = results.failed.length;
+
+    let statusCode = 200;
+    let message = "";
+
+    if (successful === totalProcessed) {
+      message = `Successfully invited ${successful} user(s)`;
+      statusCode = 200;
+    } else if (successful > 0) {
+      message = `Invited ${successful} user(s). `;
+      if (alreadyMembers > 0) {
+        message += `${alreadyMembers} user(s) are already members, `;
+      }
+      if (alreadyInvited > 0) {
+        message += `${alreadyInvited} user(s) already have active invitations, `;
+      }
+      if (failed > 0) {
+        message += `${failed} user(s) failed.`;
+      }
+      statusCode = 207; // Multi-status
+    } else if (alreadyMembers === totalProcessed) {
+      message = `All ${alreadyMembers} user(s) are already members of this organization`;
+      statusCode = 409;
+    } else if (alreadyInvited === totalProcessed) {
+      message = `All ${alreadyInvited} user(s) already have active invitations`;
+      statusCode = 409;
+    } else if (failed === totalProcessed) {
+      message = "Failed to send all invitations";
+      statusCode = 500;
+    } else {
+      message = "No invitations were sent";
+      statusCode = 400;
     }
+
+    this.setStatus(statusCode);
+    return {
+      success: successful > 0,
+      message: message,
+      data: {
+        totalProcessed: totalProcessed,
+        successful: results.successful,
+        alreadyMembers: results.alreadyMember,
+        alreadyInvited: results.alreadyInvited,
+        failed: results.failed,
+      },
+    };
+  } catch (error: any) {
+    console.error("Error in InviteUsersToOrganization:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Error processing bulk invitations",
+      error: error.message,
+    };
   }
+}
 
   @Get("/fetch-specific-invited-user-by-token/{token}")
   public async FetchInvitedUserByToken(@Path() token: string): Promise<any> {
