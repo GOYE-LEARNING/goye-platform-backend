@@ -287,6 +287,339 @@ export class OrganizationController extends Controller {
     }
   }
 
+  // Add this to your OrganizationController class
+
+@Security("bearerAuth")
+@Get("/user-details/{userId}")
+public async GetUserDetails(
+  @Path() userId: string,
+  @Request() req: any,
+): Promise<any> {
+  try {
+    // Get the requesting user's organization
+    const requestingOrgId = req.org?.id;
+    
+    if (!requestingOrgId) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "Unauthorized - Organization not found",
+      };
+    }
+
+    // Check if the user belongs to this organization
+    const membership = await prisma.organizationMember.findFirst({
+      where: {
+        userId: userId,
+        organizationId: requestingOrgId,
+        isActive: true,
+      },
+    });
+
+    if (!membership) {
+      this.setStatus(403);
+      return {
+        success: false,
+        message: "User does not belong to this organization",
+      };
+    }
+
+    // Get user details with comprehensive information
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        // Basic user info is included by default
+        organizationMemberships: {
+          where: {
+            organizationId: requestingOrgId,
+          },
+          select: {
+            role: true,
+            joinedAt: true,
+            joinedVia: true,
+            isActive: true,
+          },
+        },
+        // Get courses the user is enrolled in (as student)
+        enrollment: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                course_title: true,
+                course_description: true,
+                course_image: true,
+                course_level: true,
+                createdBy: true,
+                organizationName: true,
+                module: {
+                  select: {
+                    id: true,
+                    module_title: true,
+                    lesson: {
+                      select: {
+                        id: true,
+                        lesson_title: true,
+                        duration: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        // Get courses the user has created (as tutor/instructor)
+        Courses: {
+          select: {
+            id: true,
+            course_title: true,
+            course_description: true,
+            course_image: true,
+            course_level: true,
+            organizationName: true,
+            _count: {
+              select: {
+                enrollment: true,
+              },
+            },
+          },
+        },
+        // Get achievements
+        achievement: {
+          select: {
+            id: true,
+            title: true,
+            content: true,
+            point: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 10,
+        },
+        // Get badges
+        badges: {
+          select: {
+            id: true,
+            badges: true,
+            createdAt: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        },
+        // Get quiz attempts
+        quizAttempt: {
+          select: {
+            id: true,
+            quiz: {
+              select: {
+                id: true,
+                title: true,
+              },
+            },
+            score: true,
+            completed: true,
+            startedAt: true,
+            completedAt: true,
+            timeFinished: true,
+          },
+          orderBy: {
+            startedAt: "desc",
+          },
+          take: 10,
+        },
+        // Get user progress
+        progress: {
+          select: {
+            id: true,
+            progressBar: true,
+            startedJourney: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        // Get settings
+        settings: {
+          select: {
+            darkMode: true,
+            email_notification: true,
+            enable_push_notification: true,
+          },
+        },
+        // Get invitation details if invited
+        inviteUser: {
+          where: {
+            organizationId: requestingOrgId,
+          },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            expiresIn: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      this.setStatus(404);
+      return {
+        success: false,
+        message: "User not found",
+      };
+    }
+
+    // Calculate course statistics
+    const totalEnrolledCourses = user.enrollment.length;
+    const completedCourses = user.enrollment.filter(
+      (e) => e.status === "COMPLETED"
+    ).length;
+    const inProgressCourses = user.enrollment.filter(
+      (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
+    ).length;
+
+    // Calculate total lessons and progress
+    let totalLessons = 0;
+    let completedLessons = 0;
+    let totalQuizScore = 0;
+    let quizCount = 0;
+
+    user.enrollment.forEach((enrollment) => {
+      const courseLessons = enrollment.course.module.flatMap(
+        (m) => m.lesson
+      ).length;
+      totalLessons += courseLessons;
+    });
+
+    // Get completed lessons from progress
+    const userProgress = await prisma.progress.findMany({
+      where: {
+        userId: userId,
+        progressBar: { gte: 100 },
+      },
+      select: {
+        id: true,
+      },
+    });
+    completedLessons = userProgress.length;
+
+    // Calculate average quiz score
+    user.quizAttempt.forEach((attempt) => {
+      if (attempt.completed && attempt.score !== null) {
+        totalQuizScore += attempt.score || 0;
+        quizCount++;
+      }
+    });
+    const averageQuizScore = quizCount > 0 
+      ? Math.round(totalQuizScore / quizCount) 
+      : 0;
+
+    // Calculate overall progress percentage
+    const overallProgress = totalLessons > 0
+      ? Math.round((completedLessons / totalLessons) * 100)
+      : 0;
+
+    // Get user's role from membership
+    const userRole = membership.role || user.role || "member";
+
+    // Format the response
+    const response = {
+      success: true,
+      message: "User details fetched successfully",
+      data: {
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          full_name: `${user.first_name} ${user.last_name}`,
+          email_address: user.email_address,
+          phone_number: user.phone_number,
+          country: user.country,
+          state: user.state,
+          user_pic: user.user_pic || null,
+          role: userRole,
+          userType: user.userType,
+          level: user.level || "Beginner",
+          isOnline: user.isOnline,
+          lastActive: user.lastActive,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+          isProfileComplete: user.isProfileComplete,
+          isVerified: user.isVerified,
+          verifiedAt: user.verifiedAt,
+        },
+        organization: {
+          role: userRole,
+          joinedAt: membership.joinedAt,
+          joinedVia: membership.joinedVia,
+          isActive: membership.isActive,
+        },
+        stats: {
+          totalEnrolledCourses,
+          completedCourses,
+          inProgressCourses,
+          totalLessons,
+          completedLessons,
+          overallProgress,
+          averageQuizScore,
+          totalQuizAttempts: quizCount,
+          totalAchievements: user.achievement.length,
+          totalBadges: user.badges.length,
+          coursesCreated: user.Courses.length,
+        },
+        courses: {
+          enrolled: user.enrollment.map((e) => ({
+            id: e.course.id,
+            title: e.course.course_title,
+            description: e.course.course_description,
+            image: e.course.course_image,
+            level: e.course.course_level,
+            createdBy: e.course.createdBy,
+            status: e.status,
+            enrolledAt: e.enrolledAt,
+            completedAt: e.completedAt,
+            progress: overallProgress,
+            moduleCount: e.course.module.length,
+            lessonCount: e.course.module.reduce(
+              (acc, m) => acc + m.lesson.length,
+              0
+            ),
+          })),
+          created: user.Courses.map((c) => ({
+            id: c.id,
+            title: c.course_title,
+            description: c.course_description,
+            image: c.course_image,
+            level: c.course_level,
+            totalStudents: c._count.enrollment,
+          })),
+        },
+        achievements: user.achievement,
+        badges: user.badges,
+        settings: user.settings,
+        quizHistory: user.quizAttempt,
+        invitation: user.inviteUser[0] || null,
+      },
+    };
+
+    this.setStatus(200);
+    return response;
+
+  } catch (error: any) {
+    console.error("Error fetching user details:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: "Failed to fetch user details",
+      error: error.message,
+    };
+  }
+}
+
   // ─────────────────────────────────────────────────────────────────────────
   // ORG OVERVIEW STATS — supports date range filtering + live online count
   // ─────────────────────────────────────────────────────────────────────────

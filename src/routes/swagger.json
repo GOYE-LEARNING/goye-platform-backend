@@ -7479,6 +7479,39 @@
 				}
 			}
 		},
+		"/organizations/user-details/{userId}": {
+			"get": {
+				"operationId": "GetUserDetails",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
 		"/organizations/overview-stats/{organizationId}": {
 			"get": {
 				"operationId": "GetOrganizationOverviewStats",
@@ -10059,6 +10092,39 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/organizations/courses-with-stats/{organizationId}": {
+			"get": {
+				"operationId": "GetOrganizationCoursesWithStats",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/organizations/logout": {
