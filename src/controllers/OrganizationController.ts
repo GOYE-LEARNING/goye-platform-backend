@@ -288,950 +288,1028 @@ export class OrganizationController extends Controller {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-// ORG OVERVIEW STATS — supports date range filtering + live online count
-// ─────────────────────────────────────────────────────────────────────────
-@Security("bearerAuth")
-@Get("/overview-stats/{organizationId}")
-public async GetOrganizationOverviewStats(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return { success: false, message: "Organization not found" };
-    }
-
-    // ── Parse range/date from query string ────────────────────────────────
-    // req.query works because tsoa forwards the raw express req
-    const range = (req.query?.range as string) || "today";
-    const customDate = req.query?.date as string | undefined;
-
-    const { rangeStart, rangeEnd, prevRangeStart, prevRangeEnd } =
-      this.resolveDateRange(range, customDate);
-
-    // ── Active members: all users in the org ────────────────────────────
-    const members = await prisma.organizationMember.findMany({
-      where: { organizationId, isActive: true },
-      select: { userId: true },
-    });
-    const memberIds = members.map((m) => m.userId);
-    const totalMembers = memberIds.length;
-
-    // ── Online count: prefer live socket service if available ──────────
-    let onlineCount = 0;
-    const socketService = (req.app?.get?.("socketService")) as
-      | { getOrganizationOnlineUsers: (id: string) => any[] }
-      | undefined;
-
-    if (socketService) {
-      onlineCount = socketService.getOrganizationOnlineUsers(organizationId).length;
-    } else {
-      // Fallback: DB flag, "online" = active in the last 5 minutes
-      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-      onlineCount = await prisma.user.count({
-        where: {
-          id: { in: memberIds },
-          isOnline: true,
-          lastActive: { gte: fiveMinAgo },
-        },
-      });
-    }
-
-    // ── New members within the selected range ───────────────────────────
-    const newMembersInRange = await prisma.organizationMember.count({
-      where: {
-        organizationId,
-        isActive: true,
-        joinedAt: { gte: rangeStart, lte: rangeEnd },
-      },
-    });
-
-    const newMembersPrevRange = prevRangeStart
-      ? await prisma.organizationMember.count({
-          where: {
-            organizationId,
-            isActive: true,
-            joinedAt: { gte: prevRangeStart, lte: prevRangeEnd! },
-          },
-        })
-      : 0;
-
-    // ── Courses completed within range (org-scoped) ──────────────────────
-    const completedInRange = await prisma.enrollment.count({
-      where: {
-        userId: { in: memberIds },
-        status: "COMPLETED",
-        completedAt: { gte: rangeStart, lte: rangeEnd },
-      },
-    });
-
-    const totalCompletedAllTime = await prisma.enrollment.count({
-      where: {
-        userId: { in: memberIds },
-        status: "COMPLETED",
-      },
-    });
-
-    const totalEnrollments = await prisma.enrollment.count({
-      where: { userId: { in: memberIds } },
-    });
-
-    const avgCompletion =
-      totalEnrollments > 0
-        ? Math.round((totalCompletedAllTime / totalEnrollments) * 100)
-        : 0;
-
-    // ── % change vs previous equivalent period (for UI trend arrows) ─────
-    const newMembersTrend =
-      newMembersPrevRange > 0
-        ? Math.round(
-            ((newMembersInRange - newMembersPrevRange) / newMembersPrevRange) * 100,
-          )
-        : newMembersInRange > 0
-        ? 100
-        : 0;
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Organization overview stats fetched successfully",
-      data: {
-        total_members: totalMembers,
-        online_members: onlineCount,
-        new_members_in_range: newMembersInRange,
-        new_members_trend_pct: newMembersTrend,
-        courses_completed_in_range: completedInRange,
-        total_courses_completed: totalCompletedAllTime,
-        avg_completion: avgCompletion,
-        range: {
-          type: range,
-          start: rangeStart,
-          end: rangeEnd,
-        },
-      },
-    };
-  } catch (error: any) {
-    console.error("Error fetching organization overview stats:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to fetch organization overview stats",
-      error: error.message,
-    };
-  }
-}
-
-// Add this to your OrganizationController class
-
-/**
- * GET: Fetch organization activities (course joins, completions, event joins)
- * Returns recent activities for the organization dashboard
- */
-@Security("bearerAuth")
-@Get("/activities/{organizationId}")
-public async GetOrganizationActivities(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Verify organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return { 
-        success: false, 
-        message: "Organization not found" 
-      };
-    }
-
-    // Get all active members of the organization
-    const members = await prisma.organizationMember.findMany({
-      where: {
-        organizationId: organizationId,
-        isActive: true,
-      },
-      select: { userId: true },
-    });
-    const memberIds = members.map((m) => m.userId);
-
-    // ── 1. COURSE JOIN ACTIVITIES ──────────────────────────────────────────
-    // Get recent enrollments (course joins)
-    const courseJoins = await prisma.enrollment.findMany({
-      where: {
-        userId: { in: memberIds },
-        enrolledAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        enrolledAt: 'desc',
-      },
-      take: 20,
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        course: {
-          select: {
-            id: true,
-            course_title: true,
-            course_image: true,
-          },
-        },
-      },
-    });
-
-    // ── 2. COURSE COMPLETION ACTIVITIES ────────────────────────────────────
-    // Get recent course completions
-    const courseCompletions = await prisma.enrollment.findMany({
-      where: {
-        userId: { in: memberIds },
-        status: "COMPLETED",
-        completedAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        completedAt: 'desc',
-      },
-      take: 20,
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        course: {
-          select: {
-            id: true,
-            course_title: true,
-            course_image: true,
-          },
-        },
-      },
-    });
-
-    // ── 3. EVENT JOIN ACTIVITIES ───────────────────────────────────────────
-    // Get recent event joins
-    const eventJoins = await prisma.joinedEvent.findMany({
-      where: {
-        group: {
-          createdBy: { id: { in: memberIds } },
-        },
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 20,
-      include: {
-        event: {
-          select: {
-            id: true,
-            event_name: true,
-            event_description: true,
-            event_time: true,
-            event_date: true,
-          },
-        },
-        group: {
-          select: {
-            id: true,
-            group_title: true,
-          },
-        },
-      },
-    });
-
-    // ── 4. GROUP JOIN ACTIVITIES ───────────────────────────────────────────
-    // Get recent group joins
-    const groupJoins = await prisma.joinedGroup.findMany({
-      where: {
-        studentId: { in: memberIds },
-        joinedAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        joinedAt: 'desc',
-      },
-      take: 20,
-      include: {
-        student: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        group: {
-          select: {
-            id: true,
-            group_title: true,
-            group_image: true,
-          },
-        },
-      },
-    });
-
-    // ── 5. POST ACTIVITIES ─────────────────────────────────────────────────
-    // Get recent posts from the organization
-    const posts = await prisma.post.findMany({
-      where: {
-        organizationId: organizationId,
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 20,
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        replies: {
-          select: {
-            id: true,
-            createdAt: true,
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-              },
-            },
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 1,
-        },
-        likes: {
-          select: {
-            id: true,
-            userId: true,
-          },
-        },
-      },
-    });
-
-    // ── 6. QUIZ COMPLETION ACTIVITIES ──────────────────────────────────────
-    // Get recent quiz completions
-    const quizCompletions = await prisma.quizAttempt.findMany({
-      where: {
-        userId: { in: memberIds },
-        completed: true,
-        completedAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        completedAt: 'desc',
-      },
-      take: 20,
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        quiz: {
-          select: {
-            id: true,
-            title: true,
-          },
-        },
-        course: {
-          select: {
-            id: true,
-            course_title: true,
-          },
-        },
-      },
-    });
-
-    // ── 7. ACHIEVEMENT UNLOCKED ACTIVITIES ─────────────────────────────────
-    // Get recent achievements
-    const achievements = await prisma.achievement.findMany({
-      where: {
-        userId: { in: memberIds },
-        createdAt: {
-          gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-      take: 20,
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        course: {
-          select: {
-            id: true,
-            course_title: true,
-          },
-        },
-        group: {
-          select: {
-            id: true,
-            group_title: true,
-          },
-        },
-      },
-    });
-
-    // ── Combine and format all activities ──────────────────────────────────
-    const activities: any[] = [];
-
-    // Add course joins
-    courseJoins.forEach((enrollment) => {
-      const userName = enrollment.user 
-        ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim() 
-        : 'Someone';
-      activities.push({
-        id: `course_join_${enrollment.id}`,
-        type: 'COURSE_JOIN',
-        user: enrollment.user ? {
-          id: enrollment.user.id,
-          name: userName,
-          first_name: enrollment.user.first_name,
-          last_name: enrollment.user.last_name,
-          user_pic: enrollment.user.user_pic,
-        } : null,
-        course: enrollment.course ? {
-          id: enrollment.course.id,
-          title: enrollment.course.course_title,
-          image: enrollment.course.course_image,
-        } : null,
-        message: `${userName} joined course "${enrollment.course?.course_title || 'a course'}"`,
-        timestamp: enrollment.enrolledAt,
-        icon: '📚',
-      });
-    });
-
-    // Add course completions
-    courseCompletions.forEach((enrollment) => {
-      const userName = enrollment.user 
-        ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim() 
-        : 'Someone';
-      activities.push({
-        id: `course_complete_${enrollment.id}`,
-        type: 'COURSE_COMPLETE',
-        user: enrollment.user ? {
-          id: enrollment.user.id,
-          name: userName,
-          first_name: enrollment.user.first_name,
-          last_name: enrollment.user.last_name,
-          user_pic: enrollment.user.user_pic,
-        } : null,
-        course: enrollment.course ? {
-          id: enrollment.course.id,
-          title: enrollment.course.course_title,
-          image: enrollment.course.course_image,
-        } : null,
-        message: `${userName} completed course "${enrollment.course?.course_title || 'a course'}" 🎉`,
-        timestamp: enrollment.completedAt || enrollment.enrolledAt,
-        icon: '🏆',
-      });
-    });
-
-    // Add event joins
-    eventJoins.forEach((eventJoin) => {
-      const eventName = eventJoin.event?.event_name || 'an event';
-      activities.push({
-        id: `event_join_${eventJoin.id}`,
-        type: 'EVENT_JOIN',
-        event: eventJoin.event ? {
-          id: eventJoin.event.id,
-          name: eventJoin.event.event_name,
-          description: eventJoin.event.event_description,
-          time: eventJoin.event.event_time,
-          date: eventJoin.event.event_date,
-        } : null,
-        group: eventJoin.group ? {
-          id: eventJoin.group.id,
-          title: eventJoin.group.group_title,
-        } : null,
-        message: `Someone joined event "${eventName}"`,
-        timestamp: eventJoin.createdAt,
-        icon: '📅',
-      });
-    });
-
-    // Add group joins
-    groupJoins.forEach((groupJoin) => {
-      const userName = groupJoin.student 
-        ? `${groupJoin.student.first_name} ${groupJoin.student.last_name}`.trim() 
-        : 'Someone';
-      activities.push({
-        id: `group_join_${groupJoin.id}`,
-        type: 'GROUP_JOIN',
-        user: groupJoin.student ? {
-          id: groupJoin.student.id,
-          name: userName,
-          first_name: groupJoin.student.first_name,
-          last_name: groupJoin.student.last_name,
-          user_pic: groupJoin.student.user_pic,
-        } : null,
-        group: groupJoin.group ? {
-          id: groupJoin.group.id,
-          title: groupJoin.group.group_title,
-          image: groupJoin.group.group_image,
-        } : null,
-        message: `${userName} joined group "${groupJoin.group?.group_title || 'a group'}"`,
-        timestamp: groupJoin.joinedAt,
-        icon: '👥',
-      });
-    });
-
-    // Add posts
-    posts.forEach((post) => {
-      const userName = post.user 
-        ? `${post.user.first_name} ${post.user.last_name}`.trim() 
-        : 'Someone';
-      const replyCount = post.replies?.length || 0;
-      const likeCount = post.likes?.length || 0;
-      
-      let message = `${userName} posted: "${post.title}"`;
-      if (replyCount > 0) {
-        message += ` (${replyCount} ${replyCount === 1 ? 'reply' : 'replies'})`;
-      }
-      if (likeCount > 0) {
-        message += ` (${likeCount} ${likeCount === 1 ? 'like' : 'likes'})`;
-      }
-      
-      activities.push({
-        id: `post_${post.id}`,
-        type: 'POST',
-        user: post.user ? {
-          id: post.user.id,
-          name: userName,
-          first_name: post.user.first_name,
-          last_name: post.user.last_name,
-          user_pic: post.user.user_pic,
-        } : null,
-        post: {
-          id: post.id,
-          title: post.title,
-          content: post.content,
-          replyCount,
-          likeCount,
-        },
-        message: message,
-        timestamp: post.createdAt,
-        icon: '💬',
-      });
-    });
-
-    // Add quiz completions
-    quizCompletions.forEach((quizAttempt) => {
-      const userName = quizAttempt.user 
-        ? `${quizAttempt.user.first_name} ${quizAttempt.user.last_name}`.trim() 
-        : 'Someone';
-      const quizTitle = quizAttempt.quiz?.title || 'a quiz';
-      const score = quizAttempt.score || 0;
-      
-      activities.push({
-        id: `quiz_complete_${quizAttempt.id}`,
-        type: 'QUIZ_COMPLETE',
-        user: quizAttempt.user ? {
-          id: quizAttempt.user.id,
-          name: userName,
-          first_name: quizAttempt.user.first_name,
-          last_name: quizAttempt.user.last_name,
-          user_pic: quizAttempt.user.user_pic,
-        } : null,
-        quiz: {
-          id: quizAttempt.quiz?.id,
-          title: quizAttempt.quiz?.title,
-          score: score,
-        },
-        course: quizAttempt.course ? {
-          id: quizAttempt.course.id,
-          title: quizAttempt.course.course_title,
-        } : null,
-        message: `${userName} scored ${score}% on quiz "${quizTitle}"`,
-        timestamp: quizAttempt.completedAt || quizAttempt.startedAt,
-        icon: '📝',
-      });
-    });
-
-    // Add achievements
-    achievements.forEach((achievement) => {
-      const userName = achievement.user 
-        ? `${achievement.user.first_name} ${achievement.user.last_name}`.trim() 
-        : 'Someone';
-      const achievementTitle = achievement.title || 'an achievement';
-      
-      activities.push({
-        id: `achievement_${achievement.id}`,
-        type: 'ACHIEVEMENT',
-        user: achievement.user ? {
-          id: achievement.user.id,
-          name: userName,
-          first_name: achievement.user.first_name,
-          last_name: achievement.user.last_name,
-          user_pic: achievement.user.user_pic,
-        } : null,
-        achievement: {
-          id: achievement.id,
-          title: achievement.title,
-          content: achievement.content,
-          point: achievement.point,
-        },
-        course: achievement.course ? {
-          id: achievement.course.id,
-          title: achievement.course.course_title,
-        } : null,
-        group: achievement.group ? {
-          id: achievement.group.id,
-          title: achievement.group.group_title,
-        } : null,
-        message: `${userName} unlocked achievement "${achievementTitle}"! 🏅`,
-        timestamp: achievement.createdAt,
-        icon: '⭐',
-      });
-    });
-
-    // Sort all activities by timestamp (newest first)
-    activities.sort((a, b) => {
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
-    });
-
-    // Limit to the most recent 50 activities
-    const recentActivities = activities.slice(0, 50);
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Organization activities fetched successfully",
-      data: {
-        activities: recentActivities,
-        total: recentActivities.length,
-        summary: {
-          course_joins: courseJoins.length,
-          course_completions: courseCompletions.length,
-          event_joins: eventJoins.length,
-          group_joins: groupJoins.length,
-          posts: posts.length,
-          quiz_completions: quizCompletions.length,
-          achievements: achievements.length,
-        },
-      },
-    };
-
-  } catch (error: any) {
-    console.error("Error fetching organization activities:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to fetch organization activities",
-      error: error.message,
-    };
-  }
-}
-/**
- * GET: Fetch user breakdown for organization dashboard
- * Returns counts for: total members, students, instructors, admins, online users, etc.
- */
-@Security("bearerAuth")
-@Get("/user-breakdown/{organizationId}")
-public async GetUserBreakdown(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Verify organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return { 
-        success: false, 
-        message: "Organization not found" 
-      };
-    }
-
-    // Get all active members of the organization
-    const members = await prisma.organizationMember.findMany({
-      where: {
-        organizationId: organizationId,
-        isActive: true,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            role: true,
-            email_address: true,
-            userType: true,
-            isOnline: true,
-            lastActive: true,
-          },
-        },
-      },
-    });
-
-    // Get all invited users (pending invitations)
-    const pendingInvitations = await prisma.inviteUser.count({
-      where: {
-        organizationId: organizationId,
-        expiresIn: { gt: new Date() },
-        // Exclude those who already accepted
-        NOT: {
-          email: {
-            in: members.map(m => m.user?.email_address).filter(Boolean) as string[],
-          }
-        }
-      },
-    });
-
-    // Count by role
-    let studentCount = 0;
-    let instructorCount = 0;
-    let adminCount = 0;
-    let orgAdminCount = 0;
-    let invitedMemberCount = 0;
-    let individualCount = 0;
-    let onlineCount = 0;
-
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-    for (const member of members) {
-      const user = member.user;
-      if (!user) continue;
-
-      // Count online users
-      if (user.isOnline && user.lastActive && new Date(user.lastActive) > fiveMinutesAgo) {
-        onlineCount++;
-      }
-
-      // Count by role and userType
-      const role = user.role?.toLowerCase() || '';
-      const userType = user.userType || '';
-
-      if (role === 'student') {
-        studentCount++;
-      } else if (role === 'tutor' || role === 'instructor') {
-        instructorCount++;
-      } else if (role === 'admin') {
-        adminCount++;
-      } else if (role === 'org_admin') {
-        orgAdminCount++;
-      }
-
-      // Count by userType
-      if (userType === 'INVITED_MEMBER') {
-        invitedMemberCount++;
-      } else if (userType === 'INDIVIDUAL') {
-        individualCount++;
-      }
-    }
-
-    // Total members (active)
-    const totalMembers = members.length;
-
-    // Get course enrollment stats
-    const totalEnrollments = await prisma.enrollment.count({
-      where: {
-        userId: { in: members.map(m => m.userId) },
-      },
-    });
-
-    const completedCourses = await prisma.enrollment.count({
-      where: {
-        userId: { in: members.map(m => m.userId) },
-        status: "COMPLETED",
-      },
-    });
-
-    const inProgressCourses = await prisma.enrollment.count({
-      where: {
-        userId: { in: members.map(m => m.userId) },
-        status: "IN_PROGRESS",
-      },
-    });
-
-    // Get socket service for real-time online count (if available)
-    let socketOnlineCount = 0;
+  // ORG OVERVIEW STATS — supports date range filtering + live online count
+  // ─────────────────────────────────────────────────────────────────────────
+  @Security("bearerAuth")
+  @Get("/overview-stats/{organizationId}")
+  public async GetOrganizationOverviewStats(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
     try {
-      const socketService = (req.app?.get?.("socketService")) as
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { success: false, message: "Organization not found" };
+      }
+
+      // ── Parse range/date from query string ────────────────────────────────
+      // req.query works because tsoa forwards the raw express req
+      const range = (req.query?.range as string) || "today";
+      const customDate = req.query?.date as string | undefined;
+
+      const { rangeStart, rangeEnd, prevRangeStart, prevRangeEnd } =
+        this.resolveDateRange(range, customDate);
+
+      // ── Active members: all users in the org ────────────────────────────
+      const members = await prisma.organizationMember.findMany({
+        where: { organizationId, isActive: true },
+        select: { userId: true },
+      });
+      const memberIds = members.map((m) => m.userId);
+      const totalMembers = memberIds.length;
+
+      // ── Online count: prefer live socket service if available ──────────
+      let onlineCount = 0;
+      const socketService = req.app?.get?.("socketService") as
         | { getOrganizationOnlineUsers: (id: string) => any[] }
         | undefined;
 
       if (socketService) {
-        socketOnlineCount = socketService.getOrganizationOnlineUsers(organizationId).length;
-      }
-    } catch (error) {
-      // Fallback to database count
-      socketOnlineCount = onlineCount;
-    }
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "User breakdown fetched successfully",
-      data: {
-        // Main stats for the UI cards
-        total_members: totalMembers,
-        students: studentCount,
-        instructors: instructorCount,
-        admins: adminCount + orgAdminCount,
-        online_members: socketOnlineCount || onlineCount,
-        pending_invitations: pendingInvitations,
-
-        // Detailed breakdown
-        breakdown: {
-          by_role: {
-            student: studentCount,
-            instructor: instructorCount,
-            admin: adminCount,
-            org_admin: orgAdminCount,
+        onlineCount =
+          socketService.getOrganizationOnlineUsers(organizationId).length;
+      } else {
+        // Fallback: DB flag, "online" = active in the last 5 minutes
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+        onlineCount = await prisma.user.count({
+          where: {
+            id: { in: memberIds },
+            isOnline: true,
+            lastActive: { gte: fiveMinAgo },
           },
-          by_user_type: {
-            invited_member: invitedMemberCount,
-            individual: individualCount,
-            organization_owner: totalMembers - invitedMemberCount - individualCount,
-          },
-        },
-
-        // Activity stats
-        activity: {
-          total_enrollments: totalEnrollments,
-          completed_courses: completedCourses,
-          in_progress_courses: inProgressCourses,
-          completion_rate: totalEnrollments > 0 
-            ? Math.round((completedCourses / totalEnrollments) * 100) 
-            : 0,
-        },
-
-        // Timestamp
-        fetched_at: new Date().toISOString(),
-      },
-    };
-
-  } catch (error: any) {
-    console.error("Error fetching user breakdown:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to fetch user breakdown",
-      error: error.message,
-    };
-  }
-}
-
-// ── Helper: resolves a named range or custom date into start/end bounds ──
-private resolveDateRange(
-  range: string,
-  customDate?: string,
-): {
-  rangeStart: Date;
-  rangeEnd: Date;
-  prevRangeStart: Date | null;
-  prevRangeEnd: Date | null;
-} {
-  const now = new Date();
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
-  const endOfToday = new Date(now);
-  endOfToday.setHours(23, 59, 59, 999);
-
-  const dayMs = 24 * 60 * 60 * 1000;
-
-  switch (range) {
-    case "This week": {
-      const dayOfWeek = startOfToday.getDay(); // 0=Sun
-      const start = new Date(startOfToday.getTime() - dayOfWeek * dayMs);
-      const end = endOfToday;
-      const prevStart = new Date(start.getTime() - 7 * dayMs);
-      const prevEnd = new Date(start.getTime() - 1);
-      return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
-    }
-
-    case "Last week": {
-      const dayOfWeek = startOfToday.getDay();
-      const startOfThisWeek = new Date(startOfToday.getTime() - dayOfWeek * dayMs);
-      const start = new Date(startOfThisWeek.getTime() - 7 * dayMs);
-      const end = new Date(startOfThisWeek.getTime() - 1);
-      const prevStart = new Date(start.getTime() - 7 * dayMs);
-      const prevEnd = new Date(start.getTime() - 1);
-      return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
-    }
-
-    case "Last month": {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-      const prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-      const prevEnd = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59, 999);
-      return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
-    }
-
-    case "Select a date":
-    case "custom": {
-      if (customDate) {
-        const start = new Date(customDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(customDate);
-        end.setHours(23, 59, 59, 999);
-        const prevStart = new Date(start.getTime() - dayMs);
-        const prevEnd = new Date(start.getTime() - 1);
-        return { rangeStart: start, rangeEnd: end, prevRangeStart: prevStart, prevRangeEnd: prevEnd };
+        });
       }
-      // fall through to today if no date supplied
-    }
 
-    case "Today":
-    default: {
-      const prevStart = new Date(startOfToday.getTime() - dayMs);
-      const prevEnd = new Date(startOfToday.getTime() - 1);
+      // ── New members within the selected range ───────────────────────────
+      const newMembersInRange = await prisma.organizationMember.count({
+        where: {
+          organizationId,
+          isActive: true,
+          joinedAt: { gte: rangeStart, lte: rangeEnd },
+        },
+      });
+
+      const newMembersPrevRange = prevRangeStart
+        ? await prisma.organizationMember.count({
+            where: {
+              organizationId,
+              isActive: true,
+              joinedAt: { gte: prevRangeStart, lte: prevRangeEnd! },
+            },
+          })
+        : 0;
+
+      // ── Courses completed within range (org-scoped) ──────────────────────
+      const completedInRange = await prisma.enrollment.count({
+        where: {
+          userId: { in: memberIds },
+          status: "COMPLETED",
+          completedAt: { gte: rangeStart, lte: rangeEnd },
+        },
+      });
+
+      const totalCompletedAllTime = await prisma.enrollment.count({
+        where: {
+          userId: { in: memberIds },
+          status: "COMPLETED",
+        },
+      });
+
+      const totalEnrollments = await prisma.enrollment.count({
+        where: { userId: { in: memberIds } },
+      });
+
+      const avgCompletion =
+        totalEnrollments > 0
+          ? Math.round((totalCompletedAllTime / totalEnrollments) * 100)
+          : 0;
+
+      // ── % change vs previous equivalent period (for UI trend arrows) ─────
+      const newMembersTrend =
+        newMembersPrevRange > 0
+          ? Math.round(
+              ((newMembersInRange - newMembersPrevRange) /
+                newMembersPrevRange) *
+                100,
+            )
+          : newMembersInRange > 0
+            ? 100
+            : 0;
+
+      this.setStatus(200);
       return {
-        rangeStart: startOfToday,
-        rangeEnd: endOfToday,
-        prevRangeStart: prevStart,
-        prevRangeEnd: prevEnd,
+        success: true,
+        message: "Organization overview stats fetched successfully",
+        data: {
+          total_members: totalMembers,
+          online_members: onlineCount,
+          new_members_in_range: newMembersInRange,
+          new_members_trend_pct: newMembersTrend,
+          courses_completed_in_range: completedInRange,
+          total_courses_completed: totalCompletedAllTime,
+          avg_completion: avgCompletion,
+          range: {
+            type: range,
+            start: rangeStart,
+            end: rangeEnd,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching organization overview stats:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch organization overview stats",
+        error: error.message,
       };
     }
   }
-}
+
+  // Add this to your OrganizationController class
+
+  /**
+   * GET: Fetch organization activities (course joins, completions, event joins)
+   * Returns recent activities for the organization dashboard
+   */
+  @Security("bearerAuth")
+  @Get("/activities/{organizationId}")
+  public async GetOrganizationActivities(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Verify organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // Get all active members of the organization
+      const members = await prisma.organizationMember.findMany({
+        where: {
+          organizationId: organizationId,
+          isActive: true,
+        },
+        select: { userId: true },
+      });
+      const memberIds = members.map((m) => m.userId);
+
+      // ── 1. COURSE JOIN ACTIVITIES ──────────────────────────────────────────
+      // Get recent enrollments (course joins)
+      const courseJoins = await prisma.enrollment.findMany({
+        where: {
+          userId: { in: memberIds },
+          enrolledAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          enrolledAt: "desc",
+        },
+        take: 20,
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          course: {
+            select: {
+              id: true,
+              course_title: true,
+              course_image: true,
+            },
+          },
+        },
+      });
+
+      // ── 2. COURSE COMPLETION ACTIVITIES ────────────────────────────────────
+      // Get recent course completions
+      const courseCompletions = await prisma.enrollment.findMany({
+        where: {
+          userId: { in: memberIds },
+          status: "COMPLETED",
+          completedAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          completedAt: "desc",
+        },
+        take: 20,
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          course: {
+            select: {
+              id: true,
+              course_title: true,
+              course_image: true,
+            },
+          },
+        },
+      });
+
+      // ── 3. EVENT JOIN ACTIVITIES ───────────────────────────────────────────
+      // Get recent event joins
+      const eventJoins = await prisma.joinedEvent.findMany({
+        where: {
+          group: {
+            createdBy: { id: { in: memberIds } },
+          },
+          createdAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+        include: {
+          event: {
+            select: {
+              id: true,
+              event_name: true,
+              event_description: true,
+              event_time: true,
+              event_date: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              group_title: true,
+            },
+          },
+        },
+      });
+
+      // ── 4. GROUP JOIN ACTIVITIES ───────────────────────────────────────────
+      // Get recent group joins
+      const groupJoins = await prisma.joinedGroup.findMany({
+        where: {
+          studentId: { in: memberIds },
+          joinedAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          joinedAt: "desc",
+        },
+        take: 20,
+        include: {
+          student: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              group_title: true,
+              group_image: true,
+            },
+          },
+        },
+      });
+
+      // ── 5. POST ACTIVITIES ─────────────────────────────────────────────────
+      // Get recent posts from the organization
+      const posts = await prisma.post.findMany({
+        where: {
+          organizationId: organizationId,
+          createdAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          replies: {
+            select: {
+              id: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
+          likes: {
+            select: {
+              id: true,
+              userId: true,
+            },
+          },
+        },
+      });
+
+      // ── 6. QUIZ COMPLETION ACTIVITIES ──────────────────────────────────────
+      // Get recent quiz completions
+      const quizCompletions = await prisma.quizAttempt.findMany({
+        where: {
+          userId: { in: memberIds },
+          completed: true,
+          completedAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          completedAt: "desc",
+        },
+        take: 20,
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          quiz: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+          course: {
+            select: {
+              id: true,
+              course_title: true,
+            },
+          },
+        },
+      });
+
+      // ── 7. ACHIEVEMENT UNLOCKED ACTIVITIES ─────────────────────────────────
+      // Get recent achievements
+      const achievements = await prisma.achievement.findMany({
+        where: {
+          userId: { in: memberIds },
+          createdAt: {
+            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 20,
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+            },
+          },
+          course: {
+            select: {
+              id: true,
+              course_title: true,
+            },
+          },
+          group: {
+            select: {
+              id: true,
+              group_title: true,
+            },
+          },
+        },
+      });
+
+      // ── Combine and format all activities ──────────────────────────────────
+      const activities: any[] = [];
+
+      // Add course joins
+      courseJoins.forEach((enrollment) => {
+        const userName = enrollment.user
+          ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim()
+          : "Someone";
+        activities.push({
+          id: `course_join_${enrollment.id}`,
+          type: "COURSE_JOIN",
+          user: enrollment.user
+            ? {
+                id: enrollment.user.id,
+                name: userName,
+                first_name: enrollment.user.first_name,
+                last_name: enrollment.user.last_name,
+                user_pic: enrollment.user.user_pic,
+              }
+            : null,
+          course: enrollment.course
+            ? {
+                id: enrollment.course.id,
+                title: enrollment.course.course_title,
+                image: enrollment.course.course_image,
+              }
+            : null,
+          message: `${userName} joined course "${enrollment.course?.course_title || "a course"}"`,
+          timestamp: enrollment.enrolledAt,
+          icon: "📚",
+        });
+      });
+
+      // Add course completions
+      courseCompletions.forEach((enrollment) => {
+        const userName = enrollment.user
+          ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim()
+          : "Someone";
+        activities.push({
+          id: `course_complete_${enrollment.id}`,
+          type: "COURSE_COMPLETE",
+          user: enrollment.user
+            ? {
+                id: enrollment.user.id,
+                name: userName,
+                first_name: enrollment.user.first_name,
+                last_name: enrollment.user.last_name,
+                user_pic: enrollment.user.user_pic,
+              }
+            : null,
+          course: enrollment.course
+            ? {
+                id: enrollment.course.id,
+                title: enrollment.course.course_title,
+                image: enrollment.course.course_image,
+              }
+            : null,
+          message: `${userName} completed course "${enrollment.course?.course_title || "a course"}" 🎉`,
+          timestamp: enrollment.completedAt || enrollment.enrolledAt,
+          icon: "🏆",
+        });
+      });
+
+      // Add event joins
+      eventJoins.forEach((eventJoin) => {
+        const eventName = eventJoin.event?.event_name || "an event";
+        activities.push({
+          id: `event_join_${eventJoin.id}`,
+          type: "EVENT_JOIN",
+          event: eventJoin.event
+            ? {
+                id: eventJoin.event.id,
+                name: eventJoin.event.event_name,
+                description: eventJoin.event.event_description,
+                time: eventJoin.event.event_time,
+                date: eventJoin.event.event_date,
+              }
+            : null,
+          group: eventJoin.group
+            ? {
+                id: eventJoin.group.id,
+                title: eventJoin.group.group_title,
+              }
+            : null,
+          message: `Someone joined event "${eventName}"`,
+          timestamp: eventJoin.createdAt,
+          icon: "📅",
+        });
+      });
+
+      // Add group joins
+      groupJoins.forEach((groupJoin) => {
+        const userName = groupJoin.student
+          ? `${groupJoin.student.first_name} ${groupJoin.student.last_name}`.trim()
+          : "Someone";
+        activities.push({
+          id: `group_join_${groupJoin.id}`,
+          type: "GROUP_JOIN",
+          user: groupJoin.student
+            ? {
+                id: groupJoin.student.id,
+                name: userName,
+                first_name: groupJoin.student.first_name,
+                last_name: groupJoin.student.last_name,
+                user_pic: groupJoin.student.user_pic,
+              }
+            : null,
+          group: groupJoin.group
+            ? {
+                id: groupJoin.group.id,
+                title: groupJoin.group.group_title,
+                image: groupJoin.group.group_image,
+              }
+            : null,
+          message: `${userName} joined group "${groupJoin.group?.group_title || "a group"}"`,
+          timestamp: groupJoin.joinedAt,
+          icon: "👥",
+        });
+      });
+
+      // Add posts
+      posts.forEach((post) => {
+        const userName = post.user
+          ? `${post.user.first_name} ${post.user.last_name}`.trim()
+          : "Someone";
+        const replyCount = post.replies?.length || 0;
+        const likeCount = post.likes?.length || 0;
+
+        let message = `${userName} posted: "${post.title}"`;
+        if (replyCount > 0) {
+          message += ` (${replyCount} ${replyCount === 1 ? "reply" : "replies"})`;
+        }
+        if (likeCount > 0) {
+          message += ` (${likeCount} ${likeCount === 1 ? "like" : "likes"})`;
+        }
+
+        activities.push({
+          id: `post_${post.id}`,
+          type: "POST",
+          user: post.user
+            ? {
+                id: post.user.id,
+                name: userName,
+                first_name: post.user.first_name,
+                last_name: post.user.last_name,
+                user_pic: post.user.user_pic,
+              }
+            : null,
+          post: {
+            id: post.id,
+            title: post.title,
+            content: post.content,
+            replyCount,
+            likeCount,
+          },
+          message: message,
+          timestamp: post.createdAt,
+          icon: "💬",
+        });
+      });
+
+      // Add quiz completions
+      quizCompletions.forEach((quizAttempt) => {
+        const userName = quizAttempt.user
+          ? `${quizAttempt.user.first_name} ${quizAttempt.user.last_name}`.trim()
+          : "Someone";
+        const quizTitle = quizAttempt.quiz?.title || "a quiz";
+        const score = quizAttempt.score || 0;
+
+        activities.push({
+          id: `quiz_complete_${quizAttempt.id}`,
+          type: "QUIZ_COMPLETE",
+          user: quizAttempt.user
+            ? {
+                id: quizAttempt.user.id,
+                name: userName,
+                first_name: quizAttempt.user.first_name,
+                last_name: quizAttempt.user.last_name,
+                user_pic: quizAttempt.user.user_pic,
+              }
+            : null,
+          quiz: {
+            id: quizAttempt.quiz?.id,
+            title: quizAttempt.quiz?.title,
+            score: score,
+          },
+          course: quizAttempt.course
+            ? {
+                id: quizAttempt.course.id,
+                title: quizAttempt.course.course_title,
+              }
+            : null,
+          message: `${userName} scored ${score}% on quiz "${quizTitle}"`,
+          timestamp: quizAttempt.completedAt || quizAttempt.startedAt,
+          icon: "📝",
+        });
+      });
+
+      // Add achievements
+      achievements.forEach((achievement) => {
+        const userName = achievement.user
+          ? `${achievement.user.first_name} ${achievement.user.last_name}`.trim()
+          : "Someone";
+        const achievementTitle = achievement.title || "an achievement";
+
+        activities.push({
+          id: `achievement_${achievement.id}`,
+          type: "ACHIEVEMENT",
+          user: achievement.user
+            ? {
+                id: achievement.user.id,
+                name: userName,
+                first_name: achievement.user.first_name,
+                last_name: achievement.user.last_name,
+                user_pic: achievement.user.user_pic,
+              }
+            : null,
+          achievement: {
+            id: achievement.id,
+            title: achievement.title,
+            content: achievement.content,
+            point: achievement.point,
+          },
+          course: achievement.course
+            ? {
+                id: achievement.course.id,
+                title: achievement.course.course_title,
+              }
+            : null,
+          group: achievement.group
+            ? {
+                id: achievement.group.id,
+                title: achievement.group.group_title,
+              }
+            : null,
+          message: `${userName} unlocked achievement "${achievementTitle}"! 🏅`,
+          timestamp: achievement.createdAt,
+          icon: "⭐",
+        });
+      });
+
+      // Sort all activities by timestamp (newest first)
+      activities.sort((a, b) => {
+        return (
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+      });
+
+      // Limit to the most recent 50 activities
+      const recentActivities = activities.slice(0, 50);
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Organization activities fetched successfully",
+        data: {
+          activities: recentActivities,
+          total: recentActivities.length,
+          summary: {
+            course_joins: courseJoins.length,
+            course_completions: courseCompletions.length,
+            event_joins: eventJoins.length,
+            group_joins: groupJoins.length,
+            posts: posts.length,
+            quiz_completions: quizCompletions.length,
+            achievements: achievements.length,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching organization activities:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch organization activities",
+        error: error.message,
+      };
+    }
+  }
+  /**
+   * GET: Fetch user breakdown for organization dashboard
+   * Returns counts for: total members, students, instructors, admins, online users, etc.
+   */
+  @Security("bearerAuth")
+  @Get("/user-breakdown/{organizationId}")
+  public async GetUserBreakdown(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Verify organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // Get all active members of the organization
+      const members = await prisma.organizationMember.findMany({
+        where: {
+          organizationId: organizationId,
+          isActive: true,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              role: true,
+              email_address: true,
+              userType: true,
+              isOnline: true,
+              lastActive: true,
+            },
+          },
+        },
+      });
+
+      // Get all invited users (pending invitations)
+      const pendingInvitations = await prisma.inviteUser.count({
+        where: {
+          organizationId: organizationId,
+          expiresIn: { gt: new Date() },
+          // Exclude those who already accepted
+          NOT: {
+            email: {
+              in: members
+                .map((m) => m.user?.email_address)
+                .filter(Boolean) as string[],
+            },
+          },
+        },
+      });
+
+      // Count by role
+      let studentCount = 0;
+      let instructorCount = 0;
+      let adminCount = 0;
+      let orgAdminCount = 0;
+      let invitedMemberCount = 0;
+      let individualCount = 0;
+      let onlineCount = 0;
+
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+      for (const member of members) {
+        const user = member.user;
+        if (!user) continue;
+
+        // Count online users
+        if (
+          user.isOnline &&
+          user.lastActive &&
+          new Date(user.lastActive) > fiveMinutesAgo
+        ) {
+          onlineCount++;
+        }
+
+        // Count by role and userType
+        const role = user.role?.toLowerCase() || "";
+        const userType = user.userType || "";
+
+        if (role === "student") {
+          studentCount++;
+        } else if (role === "tutor" || role === "instructor") {
+          instructorCount++;
+        } else if (role === "admin") {
+          adminCount++;
+        } else if (role === "org_admin") {
+          orgAdminCount++;
+        }
+
+        // Count by userType
+        if (userType === "INVITED_MEMBER") {
+          invitedMemberCount++;
+        } else if (userType === "INDIVIDUAL") {
+          individualCount++;
+        }
+      }
+
+      // Total members (active)
+      const totalMembers = members.length;
+
+      // Get course enrollment stats
+      const totalEnrollments = await prisma.enrollment.count({
+        where: {
+          userId: { in: members.map((m) => m.userId) },
+        },
+      });
+
+      const completedCourses = await prisma.enrollment.count({
+        where: {
+          userId: { in: members.map((m) => m.userId) },
+          status: "COMPLETED",
+        },
+      });
+
+      const inProgressCourses = await prisma.enrollment.count({
+        where: {
+          userId: { in: members.map((m) => m.userId) },
+          status: "IN_PROGRESS",
+        },
+      });
+
+      // Get socket service for real-time online count (if available)
+      let socketOnlineCount = 0;
+      try {
+        const socketService = req.app?.get?.("socketService") as
+          | { getOrganizationOnlineUsers: (id: string) => any[] }
+          | undefined;
+
+        if (socketService) {
+          socketOnlineCount =
+            socketService.getOrganizationOnlineUsers(organizationId).length;
+        }
+      } catch (error) {
+        // Fallback to database count
+        socketOnlineCount = onlineCount;
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "User breakdown fetched successfully",
+        data: {
+          // Main stats for the UI cards
+          total_members: totalMembers,
+          students: studentCount,
+          instructors: instructorCount,
+          admins: adminCount + orgAdminCount,
+          online_members: socketOnlineCount || onlineCount,
+          pending_invitations: pendingInvitations,
+
+          // Detailed breakdown
+          breakdown: {
+            by_role: {
+              student: studentCount,
+              instructor: instructorCount,
+              admin: adminCount,
+              org_admin: orgAdminCount,
+            },
+            by_user_type: {
+              invited_member: invitedMemberCount,
+              individual: individualCount,
+              organization_owner:
+                totalMembers - invitedMemberCount - individualCount,
+            },
+          },
+
+          // Activity stats
+          activity: {
+            total_enrollments: totalEnrollments,
+            completed_courses: completedCourses,
+            in_progress_courses: inProgressCourses,
+            completion_rate:
+              totalEnrollments > 0
+                ? Math.round((completedCourses / totalEnrollments) * 100)
+                : 0,
+          },
+
+          // Timestamp
+          fetched_at: new Date().toISOString(),
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching user breakdown:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch user breakdown",
+        error: error.message,
+      };
+    }
+  }
+
+  // ── Helper: resolves a named range or custom date into start/end bounds ──
+  private resolveDateRange(
+    range: string,
+    customDate?: string,
+  ): {
+    rangeStart: Date;
+    rangeEnd: Date;
+    prevRangeStart: Date | null;
+    prevRangeEnd: Date | null;
+  } {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(now);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    switch (range) {
+      case "This week": {
+        const dayOfWeek = startOfToday.getDay(); // 0=Sun
+        const start = new Date(startOfToday.getTime() - dayOfWeek * dayMs);
+        const end = endOfToday;
+        const prevStart = new Date(start.getTime() - 7 * dayMs);
+        const prevEnd = new Date(start.getTime() - 1);
+        return {
+          rangeStart: start,
+          rangeEnd: end,
+          prevRangeStart: prevStart,
+          prevRangeEnd: prevEnd,
+        };
+      }
+
+      case "Last week": {
+        const dayOfWeek = startOfToday.getDay();
+        const startOfThisWeek = new Date(
+          startOfToday.getTime() - dayOfWeek * dayMs,
+        );
+        const start = new Date(startOfThisWeek.getTime() - 7 * dayMs);
+        const end = new Date(startOfThisWeek.getTime() - 1);
+        const prevStart = new Date(start.getTime() - 7 * dayMs);
+        const prevEnd = new Date(start.getTime() - 1);
+        return {
+          rangeStart: start,
+          rangeEnd: end,
+          prevRangeStart: prevStart,
+          prevRangeEnd: prevEnd,
+        };
+      }
+
+      case "Last month": {
+        const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const end = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+        const prevStart = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        const prevEnd = new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+        return {
+          rangeStart: start,
+          rangeEnd: end,
+          prevRangeStart: prevStart,
+          prevRangeEnd: prevEnd,
+        };
+      }
+
+      case "Select a date":
+      case "custom": {
+        if (customDate) {
+          const start = new Date(customDate);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(customDate);
+          end.setHours(23, 59, 59, 999);
+          const prevStart = new Date(start.getTime() - dayMs);
+          const prevEnd = new Date(start.getTime() - 1);
+          return {
+            rangeStart: start,
+            rangeEnd: end,
+            prevRangeStart: prevStart,
+            prevRangeEnd: prevEnd,
+          };
+        }
+        // fall through to today if no date supplied
+      }
+
+      case "Today":
+      default: {
+        const prevStart = new Date(startOfToday.getTime() - dayMs);
+        const prevEnd = new Date(startOfToday.getTime() - 1);
+        return {
+          rangeStart: startOfToday,
+          rangeEnd: endOfToday,
+          prevRangeStart: prevStart,
+          prevRangeEnd: prevEnd,
+        };
+      }
+    }
+  }
 
   @Post("/auth/send-verification-otp/{organizationId}")
   public async SendVerificationOTP(
@@ -2912,260 +2990,262 @@ private resolveDateRange(
   }
 
   @Security("bearerAuth")
-@Get("/fetch-invited-users-with-access/{organizationId}")
-public async FetchInvitedUsersWithAccess(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Verify organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return { 
-        success: false, 
-        message: "Organization not found" 
-      };
-    }
-
-    // Get all active members who accepted invitations
-    const membersWithAccess = await prisma.organizationMember.findMany({
-      where: {
-        organizationId: organizationId,
-        isActive: true,
-        joinedVia: {
-          in: ["INVITE", "CREATED"] // Include both invited users and creators
-        }
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-            role: true,
-            user_pic: true,
-            userType: true,
-            isOnline: true,
-            lastActive: true,
-            createdAt: true,
-          }
-        }
-      },
-      orderBy: {
-        joinedAt: 'desc'
-      }
-    });
-
-    // Also get the organization owner (creator)
-    const ownerMember = await prisma.organizationMember.findFirst({
-      where: {
-        organizationId: organizationId,
-        role: "org_admin",
-        joinedVia: "CREATED"
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-            role: true,
-            user_pic: true,
-            userType: true,
-            isOnline: true,
-            lastActive: true,
-            createdAt: true,
-          }
-        }
-      }
-    });
-
-    // Combine and deduplicate users
-    const usersMap = new Map();
-    
-    // Add owner if exists
-    if (ownerMember && ownerMember.user) {
-      usersMap.set(ownerMember.user.id, {
-        ...ownerMember.user,
-        membershipRole: ownerMember.role,
-        joinedAt: ownerMember.joinedAt,
-        joinedVia: ownerMember.joinedVia,
-        isActive: ownerMember.isActive,
-        organizationMemberId: ownerMember.id
+  @Get("/fetch-invited-users-with-access/{organizationId}")
+  public async FetchInvitedUsersWithAccess(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Verify organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
       });
-    }
 
-    // Add members
-    membersWithAccess.forEach(member => {
-      if (member.user && !usersMap.has(member.user.id)) {
-        usersMap.set(member.user.id, {
-          ...member.user,
-          membershipRole: member.role,
-          joinedAt: member.joinedAt,
-          joinedVia: member.joinedVia,
-          isActive: member.isActive,
-          organizationMemberId: member.id
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      // Get all active members who accepted invitations
+      const membersWithAccess = await prisma.organizationMember.findMany({
+        where: {
+          organizationId: organizationId,
+          isActive: true,
+          joinedVia: {
+            in: ["INVITE", "CREATED"], // Include both invited users and creators
+          },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              role: true,
+              user_pic: true,
+              userType: true,
+              isOnline: true,
+              lastActive: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: {
+          joinedAt: "desc",
+        },
+      });
+
+      // Also get the organization owner (creator)
+      const ownerMember = await prisma.organizationMember.findFirst({
+        where: {
+          organizationId: organizationId,
+          role: "org_admin",
+          joinedVia: "CREATED",
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              role: true,
+              user_pic: true,
+              userType: true,
+              isOnline: true,
+              lastActive: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      // Combine and deduplicate users
+      const usersMap = new Map();
+
+      // Add owner if exists
+      if (ownerMember && ownerMember.user) {
+        usersMap.set(ownerMember.user.id, {
+          ...ownerMember.user,
+          membershipRole: ownerMember.role,
+          joinedAt: ownerMember.joinedAt,
+          joinedVia: ownerMember.joinedVia,
+          isActive: ownerMember.isActive,
+          organizationMemberId: ownerMember.id,
         });
       }
-    });
 
-    // Convert to array
-    const usersWithAccess = Array.from(usersMap.values());
-
-    // Get pending invitations count
-    const pendingInvitations = await prisma.inviteUser.count({
-      where: {
-        organizationId: organizationId,
-        expiresIn: { gt: new Date() },
-        // Exclude those who already accepted
-        NOT: {
-          email: {
-            in: usersWithAccess.map(u => u.email_address)
-          }
+      // Add members
+      membersWithAccess.forEach((member) => {
+        if (member.user && !usersMap.has(member.user.id)) {
+          usersMap.set(member.user.id, {
+            ...member.user,
+            membershipRole: member.role,
+            joinedAt: member.joinedAt,
+            joinedVia: member.joinedVia,
+            isActive: member.isActive,
+            organizationMemberId: member.id,
+          });
         }
-      }
-    });
+      });
 
-    // Get total members count
-    const totalMembers = await prisma.organizationMember.count({
-      where: {
-        organizationId: organizationId,
-        isActive: true
-      }
-    });
+      // Convert to array
+      const usersWithAccess = Array.from(usersMap.values());
 
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Users with access fetched successfully",
-      data: {
-        users: usersWithAccess.map(user => ({
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          email_address: user.email_address,
-          role: user.role,
-          user_pic: user.user_pic,
-          userType: user.userType,
-          isOnline: user.isOnline,
-          lastActive: user.lastActive,
-          joinedAt: user.joinedAt,
-          joinedVia: user.joinedVia,
-          membershipRole: user.membershipRole,
-          isActive: user.isActive,
-          createdAt: user.createdAt,
-        })),
-        stats: {
-          totalMembers: totalMembers,
-          activeMembers: usersWithAccess.filter(u => u.isActive).length,
-          pendingInvitations: pendingInvitations,
+      // Get pending invitations count
+      const pendingInvitations = await prisma.inviteUser.count({
+        where: {
           organizationId: organizationId,
-          organizationName: organization.organization_name,
-        }
-      }
-    };
-
-  } catch (error: any) {
-    console.error("Error fetching users with access:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Error fetching users with access",
-      error: error.message,
-    };
-  }
-}
-
-// Enhanced version of fetch-invited-users endpoint
-@Security("bearerAuth")
-@Get("/fetch-invited-users-enhanced/{organizationId}")
-public async FetchInvitedUsersEnhanced(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return { success: false, message: "Organization not found" };
-    }
-
-    // Get all invitations
-    const invitations = await prisma.inviteUser.findMany({
-      where: { 
-        organizationId: organizationId,
-        // Only include active invites that haven't been accepted
-        expiresIn: { gt: new Date() }
-      },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        createdAt: true,
-        expiresIn: true,
-        // Check if this user has already accepted
-        members: {
-          where: {
-            isActive: true
+          expiresIn: { gt: new Date() },
+          // Exclude those who already accepted
+          NOT: {
+            email: {
+              in: usersWithAccess.map((u) => u.email_address),
+            },
           },
-          select: {
-            id: true,
-            userId: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+        },
+      });
 
-    // Filter out invitations that have been accepted
-    const pendingInvitations = invitations.filter(
-      invite => invite.members.length === 0
-    );
+      // Get total members count
+      const totalMembers = await prisma.organizationMember.count({
+        where: {
+          organizationId: organizationId,
+          isActive: true,
+        },
+      });
 
-    const formattedInvitations = pendingInvitations.map(invite => ({
-      id: invite.id,
-      email: invite.email,
-      role: invite.role,
-      createdAt: invite.createdAt,
-      expiresIn: invite.expiresIn,
-      // Check if invitation is expiring soon (within 24 hours)
-      isExpiringSoon: invite.expiresIn 
-        ? new Date(invite.expiresIn).getTime() - Date.now() < 24 * 60 * 60 * 1000
-        : false,
-      // Time remaining in hours
-      hoursRemaining: invite.expiresIn
-        ? Math.floor((new Date(invite.expiresIn).getTime() - Date.now()) / (1000 * 60 * 60))
-        : 0
-    }));
-
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Pending invitations fetched successfully",
-      data: formattedInvitations,
-    };
-
-  } catch (error: any) {
-    console.error("Error fetching invited users:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Error fetching invited users",
-      error: error.message,
-    };
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Users with access fetched successfully",
+        data: {
+          users: usersWithAccess.map((user) => ({
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            email_address: user.email_address,
+            role: user.role,
+            user_pic: user.user_pic,
+            userType: user.userType,
+            isOnline: user.isOnline,
+            lastActive: user.lastActive,
+            joinedAt: user.joinedAt,
+            joinedVia: user.joinedVia,
+            membershipRole: user.membershipRole,
+            isActive: user.isActive,
+            createdAt: user.createdAt,
+          })),
+          stats: {
+            totalMembers: totalMembers,
+            activeMembers: usersWithAccess.filter((u) => u.isActive).length,
+            pendingInvitations: pendingInvitations,
+            organizationId: organizationId,
+            organizationName: organization.organization_name,
+          },
+        },
+      };
+    } catch (error: any) {
+      console.error("Error fetching users with access:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Error fetching users with access",
+        error: error.message,
+      };
+    }
   }
-}
+
+  // Enhanced version of fetch-invited-users endpoint
+  @Security("bearerAuth")
+  @Get("/fetch-invited-users-enhanced/{organizationId}")
+  public async FetchInvitedUsersEnhanced(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { success: false, message: "Organization not found" };
+      }
+
+      // Get all invitations
+      const invitations = await prisma.inviteUser.findMany({
+        where: {
+          organizationId: organizationId,
+          // Only include active invites that haven't been accepted
+          expiresIn: { gt: new Date() },
+        },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          createdAt: true,
+          expiresIn: true,
+          // Check if this user has already accepted
+          members: {
+            where: {
+              isActive: true,
+            },
+            select: {
+              id: true,
+              userId: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      });
+
+      // Filter out invitations that have been accepted
+      const pendingInvitations = invitations.filter(
+        (invite) => invite.members.length === 0,
+      );
+
+      const formattedInvitations = pendingInvitations.map((invite) => ({
+        id: invite.id,
+        email: invite.email,
+        role: invite.role,
+        createdAt: invite.createdAt,
+        expiresIn: invite.expiresIn,
+        // Check if invitation is expiring soon (within 24 hours)
+        isExpiringSoon: invite.expiresIn
+          ? new Date(invite.expiresIn).getTime() - Date.now() <
+            24 * 60 * 60 * 1000
+          : false,
+        // Time remaining in hours
+        hoursRemaining: invite.expiresIn
+          ? Math.floor(
+              (new Date(invite.expiresIn).getTime() - Date.now()) /
+                (1000 * 60 * 60),
+            )
+          : 0,
+      }));
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Pending invitations fetched successfully",
+        data: formattedInvitations,
+      };
+    } catch (error: any) {
+      console.error("Error fetching invited users:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Error fetching invited users",
+        error: error.message,
+      };
+    }
+  }
 
   @Delete("/delete-organization/{id}")
   public async DeleteOrganization(@Path() id: string) {
@@ -3184,352 +3264,391 @@ public async FetchInvitedUsersEnhanced(
   }
 
   @Security("bearerAuth")
-@Get("/get-courses-by-organization")
-public async GetCoursesByOrganization(
-  @Request() req: any,
-): Promise<CourseResponse> {
-  const userId = req.user?.id;
-  const userLevel = req.user?.level;
-  const language = req.user?.language;
-  const languageCode = req.user?.languageCode;
+  @Get("/get-courses-by-organization")
+  public async GetCoursesByOrganization(
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const userId = req.user?.id;
+    const userLevel = req.user?.level;
+    const language = req.user?.language;
+    const languageCode = req.user?.languageCode;
 
-  try {
-    if (!userId) {
-      this.setStatus(400);
-      return { message: "User ID not found", data: null };
-    }
+    try {
+      if (!userId) {
+        this.setStatus(400);
+        return { message: "User ID not found", data: null };
+      }
 
-    // ── Resolve organizationId ─────────────────────────────────────────────
-    let organizationId = req.user?.organizationId ?? req.org?.id ?? null;
+      // ── Resolve organizationId ─────────────────────────────────────────────
+      let organizationId = req.user?.organizationId ?? req.org?.id ?? null;
 
-    if (!organizationId) {
-      const membership = await prisma.organizationMember.findFirst({
-        where: { userId, isActive: true },
-        select: { organizationId: true },
-        orderBy: { joinedAt: "desc" },
+      if (!organizationId) {
+        const membership = await prisma.organizationMember.findFirst({
+          where: { userId, isActive: true },
+          select: { organizationId: true },
+          orderBy: { joinedAt: "desc" },
+        });
+        organizationId = membership?.organizationId ?? null;
+      }
+
+      if (!organizationId) {
+        this.setStatus(404);
+        return {
+          message: "User is not associated with any organization",
+          data: null,
+        };
+      }
+
+      if (!userLevel) {
+        this.setStatus(400);
+        return { message: "User level not found", data: null };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: { id: true, organization_name: true },
       });
-      organizationId = membership?.organizationId ?? null;
-    }
 
-    if (!organizationId) {
-      this.setStatus(404);
-      return {
-        message: "User is not associated with any organization",
-        data: null,
-      };
-    }
+      if (!organization) {
+        this.setStatus(404);
+        return { message: "Organization not found", data: null };
+      }
 
-    if (!userLevel) {
-      this.setStatus(400);
-      return { message: "User level not found", data: null };
-    }
+      const normalizedLevel = userLevel.toLowerCase();
+      let levelCondition = {};
 
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: { id: true, organization_name: true },
-    });
+      if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
+        levelCondition = { course_level: "Beginner" };
+      } else if (normalizedLevel === "intermediate") {
+        levelCondition = { course_level: "Intermediate" };
+      } else if (normalizedLevel === "advanced") {
+        levelCondition = { course_level: "Advanced" };
+      }
 
-    if (!organization) {
-      this.setStatus(404);
-      return { message: "Organization not found", data: null };
-    }
+      const organizationCourses = await prisma.course.findMany({
+        where: {
+          organizationId: organizationId,
+          ...levelCondition,
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          createdByDetails: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              user_pic: true,
+            },
+          },
+          module: {
+            select: {
+              id: true,
+              module_title: true,
+              _count: { select: { lesson: true } },
+              lesson: {
+                select: {
+                  id: true,
+                  duration: true,
+                },
+              },
+            },
+          },
+          organization: {
+            select: {
+              organization_name: true,
+              organization_type: true,
+            },
+          },
+          enrollment: {
+            where: { userId },
+            select: {
+              status: true,
+              enrolledAt: true,
+              completedAt: true,
+            },
+          },
+          _count: { select: { enrollment: true } },
+        },
+      });
 
-    const normalizedLevel = userLevel.toLowerCase();
-    let levelCondition = {};
+      const courseIds = organizationCourses.map((c) => c.id);
+      let userEnrollments: any[] = [];
 
-    if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
-      levelCondition = { course_level: "Beginner" };
-    } else if (normalizedLevel === "intermediate") {
-      levelCondition = { course_level: "Intermediate" };
-    } else if (normalizedLevel === "advanced") {
-      levelCondition = { course_level: "Advanced" };
-    }
+      if (courseIds.length > 0) {
+        userEnrollments = await prisma.enrollment.findMany({
+          where: { userId, courseId: { in: courseIds } },
+          select: { courseId: true, status: true, enrolledAt: true },
+        });
+      }
 
-    const organizationCourses = await prisma.course.findMany({
-      where: {
-        organizationId: organizationId,
-        ...levelCondition,
-      },
-      orderBy: { createdAt: "desc" },
-      include: {
-        module: {
-          select: {
-            id: true,
-            module_title: true,
-            _count: { select: { lesson: true } },
-            lesson: { 
-              select: { 
-                id: true,
-                duration: true 
-              } 
+      const enrollmentMap = new Map(
+        userEnrollments.map((e) => [e.courseId, e]),
+      );
+
+      // ── Get completed lessons for progress calculation ────────────────────
+      const completedLessons = await prisma.progress.findMany({
+        where: {
+          userId,
+          progressBar: { gte: 100 },
+          lesson: {
+            module: {
+              courseId: { in: courseIds },
             },
           },
         },
-        organization: {
-          select: {
-            organization_name: true,
-            organization_type: true,
+        select: {
+          lessonId: true,
+          lesson: {
+            select: {
+              module: {
+                select: {
+                  courseId: true,
+                },
+              },
+            },
           },
         },
-        enrollment: {
-          where: { userId },
-          select: {
-            status: true,
-            enrolledAt: true,
-            completedAt: true,
-          },
-        },
-        _count: { select: { enrollment: true } },
-      },
-    });
-
-    const courseIds = organizationCourses.map((c) => c.id);
-    let userEnrollments: any[] = [];
-
-    if (courseIds.length > 0) {
-      userEnrollments = await prisma.enrollment.findMany({
-        where: { userId, courseId: { in: courseIds } },
-        select: { courseId: true, status: true, enrolledAt: true },
       });
-    }
 
-    const enrollmentMap = new Map(
-      userEnrollments.map((e) => [e.courseId, e]),
-    );
-
-    // ── Get completed lessons for progress calculation ────────────────────
-    const completedLessons = await prisma.progress.findMany({
-      where: {
-        userId,
-        progressBar: { gte: 100 },
-        lesson: {
-          module: {
-            courseId: { in: courseIds }
+      // Group completed lessons by courseId
+      const completedLessonsByCourse = new Map<string, Set<string>>();
+      completedLessons.forEach((progress) => {
+        const courseId = progress.lesson?.module?.courseId;
+        if (courseId) {
+          if (!completedLessonsByCourse.has(courseId)) {
+            completedLessonsByCourse.set(courseId, new Set());
           }
+          completedLessonsByCourse.get(courseId)?.add(progress.lessonId);
         }
-      },
-      select: {
-        lessonId: true,
-        lesson: {
-          select: {
+      });
+
+      // ── Get video tracking progress for each lesson ───────────────────────
+      const videoTrackers = await prisma.videoTracker.findMany({
+        where: {
+          lesson: {
             module: {
-              select: {
-                courseId: true
-              }
-            }
-          }
-        }
-      },
-    });
-
-    // Group completed lessons by courseId
-    const completedLessonsByCourse = new Map<string, Set<string>>();
-    completedLessons.forEach((progress) => {
-      const courseId = progress.lesson?.module?.courseId;
-      if (courseId) {
-        if (!completedLessonsByCourse.has(courseId)) {
-          completedLessonsByCourse.set(courseId, new Set());
-        }
-        completedLessonsByCourse.get(courseId)?.add(progress.lessonId);
-      }
-    });
-
-    // ── Get video tracking progress for each lesson ───────────────────────
-    const videoTrackers = await prisma.videoTracker.findMany({
-      where: {
-        lesson: {
-          module: {
-            courseId: { in: courseIds }
-          }
+              courseId: { in: courseIds },
+            },
+          },
+          progress: {
+            userId: userId,
+          },
         },
-        progress: {
-          userId: userId
+        select: {
+          lessonId: true,
+          videoTrackTime: true,
+          videoFinished: true,
+          lesson: {
+            select: {
+              duration: true,
+              module: {
+                select: {
+                  courseId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Group video progress by courseId
+      const videoProgressByCourse = new Map<
+        string,
+        {
+          totalWatched: number;
+          totalDuration: number;
+          lessonsWithProgress: number;
         }
-      },
-      select: {
-        lessonId: true,
-        videoTrackTime: true,
-        videoFinished: true,
-        lesson: {
-          select: {
-            duration: true,
-            module: {
-              select: {
-                courseId: true
-              }
-            }
+      >();
+
+      videoTrackers.forEach((tracker) => {
+        const courseId = tracker.lesson?.module?.courseId;
+        if (courseId) {
+          if (!videoProgressByCourse.has(courseId)) {
+            videoProgressByCourse.set(courseId, {
+              totalWatched: 0,
+              totalDuration: 0,
+              lessonsWithProgress: 0,
+            });
+          }
+          const courseData = videoProgressByCourse.get(courseId)!;
+          courseData.totalWatched += tracker.videoTrackTime || 0;
+          courseData.totalDuration += tracker.lesson?.duration || 0;
+          if (tracker.videoTrackTime > 0) {
+            courseData.lessonsWithProgress += 1;
           }
         }
-      },
-    });
+      });
 
-    // Group video progress by courseId
-    const videoProgressByCourse = new Map<string, { 
-      totalWatched: number, 
-      totalDuration: number,
-      lessonsWithProgress: number 
-    }>();
-    
-    videoTrackers.forEach((tracker) => {
-      const courseId = tracker.lesson?.module?.courseId;
-      if (courseId) {
-        if (!videoProgressByCourse.has(courseId)) {
-          videoProgressByCourse.set(courseId, { 
-            totalWatched: 0, 
-            totalDuration: 0,
-            lessonsWithProgress: 0 
-          });
+      const formattedCourses = organizationCourses.map((course) => {
+        const userEnrollment = enrollmentMap.get(course.id);
+        const allLessons = course.module.flatMap((m) => m.lesson);
+        const totalLessons = allLessons.length;
+
+        // Calculate lesson completion progress
+        const completedLessonIds =
+          completedLessonsByCourse.get(course.id) || new Set();
+        const completedLessonsCount = completedLessonIds.size;
+
+        // Calculate video progress
+        const videoData = videoProgressByCourse.get(course.id) || {
+          totalWatched: 0,
+          totalDuration: 0,
+          lessonsWithProgress: 0,
+        };
+
+        // Calculate overall progress percentage
+        let progressPercentage = 0;
+        if (totalLessons > 0) {
+          // Weight: 70% lesson completion, 30% video progress
+          const lessonProgress = (completedLessonsCount / totalLessons) * 70;
+          const videoProgress =
+            videoData.totalDuration > 0
+              ? Math.min(
+                  (videoData.totalWatched / videoData.totalDuration) * 30,
+                  30,
+                )
+              : 0;
+          progressPercentage = Math.round(lessonProgress + videoProgress);
         }
-        const courseData = videoProgressByCourse.get(courseId)!;
-        courseData.totalWatched += tracker.videoTrackTime || 0;
-        courseData.totalDuration += tracker.lesson?.duration || 0;
-        if (tracker.videoTrackTime > 0) {
-          courseData.lessonsWithProgress += 1;
+
+        // Get total duration in minutes
+        const totalDurationMinutes = Math.round(
+          course.module.reduce((acc, m) => {
+            const durationSum = m.lesson.reduce(
+              (sum, l) => sum + (l.duration || 0),
+              0,
+            );
+            return acc + durationSum;
+          }, 0) / 60,
+        );
+
+        // Calculate average video progress per lesson
+        const averageVideoProgress =
+          videoData.lessonsWithProgress > 0
+            ? Math.round(
+                videoData.totalWatched / videoData.lessonsWithProgress / 60,
+              )
+            : 0;
+
+        // Determine enrollment status with progress
+        let enrollmentStatus = userEnrollment?.status || "NOT_ENROLLED";
+
+        // Auto-update to IN_PROGRESS if they've started watching
+        if (
+          enrollmentStatus === "ENROLLED" &&
+          progressPercentage > 0 &&
+          progressPercentage < 100
+        ) {
+          enrollmentStatus = "IN_PROGRESS";
         }
-      }
-    });
 
-    const formattedCourses = organizationCourses.map((course) => {
-      const userEnrollment = enrollmentMap.get(course.id);
-      const allLessons = course.module.flatMap(m => m.lesson);
-      const totalLessons = allLessons.length;
-      
-      // Calculate lesson completion progress
-      const completedLessonIds = completedLessonsByCourse.get(course.id) || new Set();
-      const completedLessonsCount = completedLessonIds.size;
-      
-      // Calculate video progress
-      const videoData = videoProgressByCourse.get(course.id) || { 
-        totalWatched: 0, 
-        totalDuration: 0,
-        lessonsWithProgress: 0 
-      };
-      
-      // Calculate overall progress percentage
-      let progressPercentage = 0;
-      if (totalLessons > 0) {
-        // Weight: 70% lesson completion, 30% video progress
-        const lessonProgress = (completedLessonsCount / totalLessons) * 70;
-        const videoProgress = videoData.totalDuration > 0 
-          ? Math.min((videoData.totalWatched / videoData.totalDuration) * 30, 30)
-          : 0;
-        progressPercentage = Math.round(lessonProgress + videoProgress);
-      }
+        // Auto-complete if all lessons are done
+        if (
+          enrollmentStatus !== "COMPLETED" &&
+          completedLessonsCount === totalLessons &&
+          totalLessons > 0
+        ) {
+          enrollmentStatus = "COMPLETED";
+        }
 
-      // Get total duration in minutes
-      const totalDurationMinutes = Math.round(
-        course.module.reduce((acc, m) => {
-          const durationSum = m.lesson.reduce(
-            (sum, l) => sum + (l.duration || 0),
-            0,
-          );
-          return acc + durationSum;
-        }, 0) / 60
+        return {
+          id: course.id,
+          course_title: course.course_title,
+          course_short_description: course.course_short_description,
+          course_description: course.course_description,
+          course_level: course.course_level,
+          course_image: course.course_image,
+          createdBy:
+            course.createdByDetails.first_name +
+            " " +
+            course.createdByDetails.last_name,
+          user_pic: course.createdByDetails.user_pic,
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+          moduleCount: course.module.length,
+          lessonCount: totalLessons,
+          totalDuration: totalDurationMinutes,
+          enrollmentStatus: enrollmentStatus,
+          isEnrolled: !!userEnrollment,
+          totalEnrollments: course._count.enrollment,
+          organizationName: course.organization?.organization_name,
+          // ── New progress fields ──
+          progress: {
+            percentage: progressPercentage,
+            completedLessons: completedLessonsCount,
+            totalLessons: totalLessons,
+            totalDurationMinutes: totalDurationMinutes,
+            watchedDurationMinutes: Math.round(videoData.totalWatched / 60),
+            averageVideoProgressPerLesson: averageVideoProgress,
+            isCompleted:
+              completedLessonsCount === totalLessons && totalLessons > 0,
+          },
+          lastAccessed: userEnrollment?.enrolledAt || null,
+          completedAt: userEnrollment?.completedAt || null,
+        };
+      });
+
+      // ── Calculate overall organization progress ────────────────────────────
+      const totalCourses = formattedCourses.length;
+      const enrolledCourses = formattedCourses.filter((c) => c.isEnrolled);
+      const completedCourses = formattedCourses.filter(
+        (c) => c.progress.isCompleted,
       );
 
-      // Calculate average video progress per lesson
-      const averageVideoProgress = videoData.lessonsWithProgress > 0
-        ? Math.round((videoData.totalWatched / videoData.lessonsWithProgress) / 60)
-        : 0;
-
-      // Determine enrollment status with progress
-      let enrollmentStatus = userEnrollment?.status || "NOT_ENROLLED";
-      
-      // Auto-update to IN_PROGRESS if they've started watching
-      if (enrollmentStatus === "ENROLLED" && progressPercentage > 0 && progressPercentage < 100) {
-        enrollmentStatus = "IN_PROGRESS";
-      }
-      
-      // Auto-complete if all lessons are done
-      if (enrollmentStatus !== "COMPLETED" && completedLessonsCount === totalLessons && totalLessons > 0) {
-        enrollmentStatus = "COMPLETED";
-      }
-
-      return {
-        id: course.id,
-        course_title: course.course_title,
-        course_short_description: course.course_short_description,
-        course_description: course.course_description,
-        course_level: course.course_level,
-        course_image: course.course_image,
-        createdAt: course.createdAt,
-        updatedAt: course.updatedAt,
-        moduleCount: course.module.length,
-        lessonCount: totalLessons,
-        totalDuration: totalDurationMinutes,
-        enrollmentStatus: enrollmentStatus,
-        isEnrolled: !!userEnrollment,
-        totalEnrollments: course._count.enrollment,
-        organizationName: course.organization?.organization_name,
-        // ── New progress fields ──
-        progress: {
-          percentage: progressPercentage,
-          completedLessons: completedLessonsCount,
-          totalLessons: totalLessons,
-          totalDurationMinutes: totalDurationMinutes,
-          watchedDurationMinutes: Math.round(videoData.totalWatched / 60),
-          averageVideoProgressPerLesson: averageVideoProgress,
-          isCompleted: completedLessonsCount === totalLessons && totalLessons > 0,
-        },
-        lastAccessed: userEnrollment?.enrolledAt || null,
-        completedAt: userEnrollment?.completedAt || null,
-      };
-    });
-
-    // ── Calculate overall organization progress ────────────────────────────
-    const totalCourses = formattedCourses.length;
-    const enrolledCourses = formattedCourses.filter(c => c.isEnrolled);
-    const completedCourses = formattedCourses.filter(c => c.progress.isCompleted);
-    
-    let overallProgress = 0;
-    if (totalCourses > 0) {
-      const totalProgress = formattedCourses.reduce((sum, c) => sum + c.progress.percentage, 0);
-      overallProgress = Math.round(totalProgress / totalCourses);
-    }
-
-    let translatedText = null;
-    if (formattedCourses.length > 0 && language && languageCode) {
-      try {
-        translatedText = await TranslateText(
-          formattedCourses[0].course_description,
-          language,
-          languageCode,
+      let overallProgress = 0;
+      if (totalCourses > 0) {
+        const totalProgress = formattedCourses.reduce(
+          (sum, c) => sum + c.progress.percentage,
+          0,
         );
-      } catch (translationError) {
-        console.error("Translation error:", translationError);
+        overallProgress = Math.round(totalProgress / totalCourses);
       }
-    }
 
-    this.setStatus(200);
-    return {
-      message: "Organization courses fetched successfully",
-      data: {
-        courses: formattedCourses,
-        organizationId,
-        organizationName: organization.organization_name,
-        level: userLevel,
-        totalCourses: totalCourses,
-        language: language ?? null,
-        languageCode: languageCode ?? null,
-        translatedText: translatedText ?? null,
-        // ── Overall progress stats ──
-        overallProgress: {
-          percentage: overallProgress,
-          enrolledCourses: enrolledCourses.length,
-          completedCourses: completedCourses.length,
+      let translatedText = null;
+      if (formattedCourses.length > 0 && language && languageCode) {
+        try {
+          translatedText = await TranslateText(
+            formattedCourses[0].course_description,
+            language,
+            languageCode,
+          );
+        } catch (translationError) {
+          console.error("Translation error:", translationError);
+        }
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Organization courses fetched successfully",
+        data: {
+          courses: formattedCourses,
+          organizationId,
+          organizationName: organization.organization_name,
+          level: userLevel,
           totalCourses: totalCourses,
+          language: language ?? null,
+          languageCode: languageCode ?? null,
+          translatedText: translatedText ?? null,
+          // ── Overall progress stats ──
+          overallProgress: {
+            percentage: overallProgress,
+            enrolledCourses: enrolledCourses.length,
+            completedCourses: completedCourses.length,
+            totalCourses: totalCourses,
+          },
         },
-      },
-    };
-  } catch (error: any) {
-    console.error("Error in GetCoursesByOrganization:", error);
-    this.setStatus(500);
-    return {
-      message: "Error fetching organization courses: " + error.message,
-      data: null,
-    };
+      };
+    } catch (error: any) {
+      console.error("Error in GetCoursesByOrganization:", error);
+      this.setStatus(500);
+      return {
+        message: "Error fetching organization courses: " + error.message,
+        data: null,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Post("/logout")
