@@ -2704,51 +2704,46 @@ public async InviteUsersToOrganization(
       successful: [] as any[],
       failed: [] as any[],
       alreadyInvited: [] as any[],
-      alreadyMember: [] as any[], // ✅ New: Track users already in the organization
+      alreadyMember: [] as any[],
     };
 
     const invitePromises = users.map(async (user) => {
       try {
-        // ✅ Check if user already exists in the organization
-        const existingMember = await prisma.organizationMember.findFirst({
-          where: {
-            organizationId: organizationId,
-            user: {
-              email_address: user.email,
-            },
-            isActive: true,
+        // ✅ First check if user exists in the system
+        const existingUser = await prisma.user.findUnique({
+          where: { email_address: user.email },
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            email_address: true,
           },
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                email_address: true,
+        });
+
+        // ✅ If user exists, check if they are already a member
+        let existingMember = null;
+        if (existingUser) {
+          existingMember = await prisma.organizationMember.findFirst({
+            where: {
+              organizationId: organizationId,
+              userId: existingUser.id,
+              isActive: true,
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                },
               },
             },
-          },
-        });
-
-        const ifUserExists = await prisma.user.findUnique({
-          where: { email_address: user.email },
-        });
-
-        if (ifUserExists) {
-           results.alreadyMember.push({
-            email: user.email,
-            role: user.role,
-            message: "User already exist",
-            user: existingMember.user ? {
-              id: existingMember.user.id,
-              name: `${existingMember.user.first_name} ${existingMember.user.last_name}`,
-              email: existingMember.user.email_address,
-            } : null,
           });
-          return;
         }
 
-        // ✅ If user is already a member, skip invitation
+        // ✅ If user exists in the system but not in the organization, they can be invited
+        // But we should still check if they are already a member
         if (existingMember) {
           results.alreadyMember.push({
             email: user.email,
@@ -2762,6 +2757,9 @@ public async InviteUsersToOrganization(
           });
           return;
         }
+
+        // ✅ If user exists in the system but is not a member, they can be invited
+        // No need to return here - continue with invitation flow
 
         // Check if there's already an active invitation
         const existingInvite = await prisma.inviteUser.findFirst({
@@ -2878,7 +2876,7 @@ public async InviteUsersToOrganization(
       if (failed > 0) {
         message += `${failed} user(s) failed.`;
       }
-      statusCode = 207; // Multi-status
+      statusCode = 207;
     } else if (alreadyMembers === totalProcessed) {
       message = `All ${alreadyMembers} user(s) are already members of this organization`;
       statusCode = 409;
