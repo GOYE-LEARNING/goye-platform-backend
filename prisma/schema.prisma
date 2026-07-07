@@ -329,6 +329,10 @@ model AdminProfile {
 // USER SESSION
 // ─────────────────────────────────────────────
 
+// ─────────────────────────────────────────────
+// USER SESSION
+// ─────────────────────────────────────────────
+
 model UserSession {
   id           String   @id @default(cuid())
   userId       String
@@ -344,12 +348,18 @@ model UserSession {
   userAgent    String?
   ipAddress    String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // ── Added organizationId for org sessions ──
+  organizationId String?
+  // ────────────────────────────────────────────
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([deviceId])
   @@index([expiresAt])
   @@index([refreshToken])
+  @@index([organizationId])
 }
 
 // ─────────────────────────────────────────────
@@ -427,8 +437,9 @@ model Organization {
   pointHistory               PointHistory[]
 
   // ── All members of this org (owners + invited) ───────────────────────────
-  members OrganizationMember[]
+  members      OrganizationMember[]
   // ─────────────────────────────────────────────────────────────────────────
+  userSessions UserSession[]
 }
 
 // ─────────────────────────────────────────────
@@ -529,7 +540,7 @@ model Notification {
 
 model Settings {
   id                       String        @id @default(uuid())
-show_annoucement        Boolean?      @default(true)
+  show_annoucement         Boolean?      @default(true)
   enable_push_notification Boolean?      @default(true)
   course_updates           Boolean?      @default(true)
   event                    Boolean?      @default(true)

@@ -9,18 +9,14 @@ export class UserVerificationController extends Controller {
   @Post("/refresh-token")
   public async RefreshToken(@Request() req: any): Promise<any> {
     try {
-      // Determine environment for cookie settings
       const isProduction = process.env.NODE_ENV === "production";
       
-      // Get refresh token from cookie or header
-      const refreshToken =
-        req.cookies?.refreshToken || req.headers["x-refresh-token"];
+      const refreshToken = req.cookies?.refreshToken || req.headers["x-refresh-token"];
       const deviceId = req.cookies?.deviceId || req.headers["x-device-id"];
 
       console.log("Refresh token request:", { 
         hasRefreshToken: !!refreshToken, 
         hasDeviceId: !!deviceId,
-        cookies: req.cookies,
         isProduction 
       });
 
@@ -50,7 +46,19 @@ export class UserVerificationController extends Controller {
           isRevoked: false,
           expiresAt: { gt: new Date() },
         },
-        include: { user: true },
+        include: { 
+          user: {
+            include: {
+              organization: true,
+              adminProfile: true,
+              organizationMemberships: {
+                include: {
+                  organization: true
+                }
+              }
+            }
+          }
+        },
       });
 
       if (!userSession) {
@@ -61,52 +69,55 @@ export class UserVerificationController extends Controller {
         };
       }
 
-      // Get progress and plan
-      const progress = await prisma.progress.findFirst({
-        where: { userId: userSession.user.id },
-      });
+      const user = userSession.user;
 
-      const plan = await prisma.pricingHistory.findFirst({
-        where: { userId: userSession.user.id },
-      });
+      // Get progress and plan
+      const [progress, plan] = await Promise.all([
+        prisma.progress.findFirst({
+          where: { userId: user.id },
+        }),
+        prisma.pricingHistory.findFirst({
+          where: { userId: user.id },
+          orderBy: { planActivatedAt: 'desc' }
+        }),
+      ]);
 
       // Prepare token payload with all necessary data
       const tokenPayload: any = {
-        id: userSession.user.id,
-        email: userSession.user.email_address,
-        role: userSession.user.role,
-        level: userSession.user.level,
+        id: user.id,
+        email: user.email_address,
+        role: user.role,
+        level: user.level,
         deviceId: deviceId,
         deviceType: userSession.deviceType,
-        type: userSession.userType,
+        type: user.userType, // ✓ Fixed: use the actual UserType enum value
         progressId: progress?.id,
         planId: plan?.id,
-        full_name: `${userSession.user.first_name} ${userSession.user.last_name}`,
-        updateStatus: userSession.user.isOnline,
+        full_name: `${user.first_name} ${user.last_name}`,
+        updateStatus: user.isOnline,
+        userType: user.userType, // Include for consistency
       };
 
-      // Add type-specific data
-      if (userSession.userType === "ADMIN") {
-        const adminProfile = await prisma.adminProfile.findUnique({
-          where: { userId: userSession.user.id },
-        });
+      // Add type-specific data based on userType
+      if (user.userType === "ADMIN") {
+        const adminProfile = user.adminProfile;
         tokenPayload.adminRole = adminProfile?.role || "super_admin";
-      }
-
-      if (userSession.userType === "ORGANIZATION") {
-        const organization = await prisma.organization.findFirst({
-          where: { userId: userSession.user.id },
-        });
-        tokenPayload.organizationId = organization?.id;
-        tokenPayload.organization_name = organization?.organization_name;
-        tokenPayload.organization_email = organization?.organization_email;
-      }
-
-      if (userSession.userType === "INVITED_USER") {
-        const invitation = await prisma.inviteUser.findFirst({
-          where: { email: userSession.user.email_address },
-        });
-        tokenPayload.organizationId = invitation?.organizationId || null;
+      } 
+      else if (user.userType === "ORGANIZATION_OWNER") { // ✓ Fixed: use correct enum value
+        const organization = user.organization;
+        if (organization) {
+          tokenPayload.organizationId = organization.id;
+          tokenPayload.organization_name = organization.organization_name;
+          tokenPayload.organization_email = organization.organization_email;
+        }
+      } 
+      else if (user.userType === "INVITED_MEMBER") { // ✓ Fixed: use correct enum value
+        // Get the organization this user was invited to
+        const membership = user.organizationMemberships?.[0];
+        if (membership) {
+          tokenPayload.organizationId = membership.organizationId;
+          tokenPayload.organization_name = membership.organization?.organization_name;
+        }
       }
 
       // Generate new access token
@@ -125,17 +136,16 @@ export class UserVerificationController extends Controller {
         },
       });
 
-      // ✅ FIX: Set new access token cookie with environment-aware settings
+      // Set cookies
       if (req.res) {
         req.res.cookie("accessToken", newAccessToken, {
           httpOnly: true,
-          secure: isProduction,      // false in development, true in production
+          secure: isProduction,
           sameSite: isProduction ? "none" : "lax",
           path: "/",
-          maxAge: 15 * 60 * 1000, // 15 minutes
+          maxAge: 15 * 60 * 1000,
         });
 
-        // Also update progress_id and plan_id cookies if they exist in payload
         if (progress?.id) {
           req.res.cookie("progress_id", progress.id, {
             httpOnly: true,
@@ -161,12 +171,12 @@ export class UserVerificationController extends Controller {
       return {
         success: true,
         message: "Token refreshed successfully",
-        accessToken: newAccessToken,  // Return token in body as fallback
+        accessToken: newAccessToken,
         user: {
-          id: userSession.user.id,
-          email: userSession.user.email_address,
-          role: userSession.user.role,
-          type: userSession.userType,
+          id: user.id,
+          email: user.email_address,
+          role: user.role,
+          type: user.userType,
           progressId: progress?.id,
           planId: plan?.id,
         },
