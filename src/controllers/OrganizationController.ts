@@ -2507,47 +2507,60 @@ public async GetUserDetails(
   @Security("bearerAuth")
   @Get("/profile")
   public async GetProfile(@Request() req: any) {
-    const organizationId = req.org?.id;
+    try {
+      const organizationId = req.org?.id;
 
-    if (!organizationId) {
-      this.setStatus(401);
-      return { message: "Unauthorized", status: 401 };
+      if (!organizationId) {
+        this.setStatus(401);
+        return { message: "Unauthorized", status: 401 };
+      }
+
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              userType: true, // ✅
+            },
+          },
+          Church: true,
+          school: true,
+          Club: true,
+          members: {
+            // ✅ return membership list
+            select: {
+              id: true,
+              userId: true,
+              role: true,
+              joinedVia: true,
+              joinedAt: true,
+              isActive: true,
+            },
+          },
+        },
+      });
+
+      this.setStatus(200);
+      return {
+        message: "Profile fetched successfully",
+        organization,
+      };
+    } catch (error: any) {
+      console.error("Error fetching organization profile:", error);
+
+      // Return 401 for authentication errors instead of 500
+      if (error.status === 401 || error.message?.includes("No access token") || error.message?.includes("Unauthorized")) {
+        this.setStatus(401);
+        return { message: "Unauthorized", status: 401 };
+      }
+
+      this.setStatus(500);
+      return { message: "Internal server error", status: 500, error: error.message };
     }
-
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-            userType: true, // ✅
-          },
-        },
-        Church: true,
-        school: true,
-        Club: true,
-        members: {
-          // ✅ return membership list
-          select: {
-            id: true,
-            userId: true,
-            role: true,
-            joinedVia: true,
-            joinedAt: true,
-            isActive: true,
-          },
-        },
-      },
-    });
-
-    this.setStatus(200);
-    return {
-      message: "Profile fetched successfully",
-      organization,
-    };
   }
 
   // ─────────────────────────────────────────────────────────────────────────

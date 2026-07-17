@@ -2082,23 +2082,34 @@ export class UserController extends Controller {
         return { message: "Unauthorized", status: 401 };
       }
 
-      if (userRole === "instructor") {
+      // ✅ Support both "instructor" and "tutor" roles
+      if (userRole === "instructor" || userRole === "tutor") {
         const user = await prisma.user.findUnique({
-          where: { id: userId, role: userRole },
+          where: { id: userId },
+          include: {
+            progress: {
+              include: { achivement: true, badges_and_levels: true, badges: true },
+            },
+          },
         });
 
         if (!user) {
           this.setStatus(404);
-          return { message: "Instructor not found", status: 404 };
+          return { message: "Tutor not found", status: 404 };
         }
 
         this.setStatus(200);
-        return { message: "Profile fetched successfully", user };
+        return {
+          message: "Profile fetched successfully",
+          user,
+          level: userLevel ?? null,
+          progressId,
+        };
       }
 
       if (userRole === "student") {
         const user = await prisma.user.findUnique({
-          where: { id: userId, role: userRole },
+          where: { id: userId },
           include: {
             progress: {
               include: { achivement: true, badges_and_levels: true, badges: true },
@@ -2120,9 +2131,10 @@ export class UserController extends Controller {
         };
       }
 
-      if (userRole === "Member" || userRole === "member") {
+      // ✅ Support both "Member" and "member" roles
+      if (userRole === "Member" || userRole === "member" || userRole === "invited_user") {
         const user = await prisma.user.findUnique({
-          where: { id: userId, role: userRole },
+          where: { id: userId },
           include: {
             progress: {
               include: { achivement: true, badges_and_levels: true, badges: true },
@@ -2185,8 +2197,15 @@ export class UserController extends Controller {
 
       this.setStatus(400);
       return { message: "Invalid user role", status: 400, role: userRole };
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching profile:", error);
+
+      // Return 401 for authentication errors instead of 500
+      if (error.status === 401 || error.message?.includes("No access token") || error.message?.includes("Unauthorized")) {
+        this.setStatus(401);
+        return { message: "Unauthorized", status: 401 };
+      }
+
       this.setStatus(500);
       return { message: "Internal server error", status: 500, error: error.message };
     }

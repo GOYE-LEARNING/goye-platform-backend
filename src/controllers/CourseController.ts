@@ -592,6 +592,22 @@ export class CourseController extends Controller {
         },
       });
 
+      // Notify all enrolled students about course updates
+      try {
+        const { NotificationService } = await import("../services/notificationServices");
+        await NotificationService.notifyCourseUpdated(
+          courseId,
+          existingCourse.createdBy,
+          "general",
+          {
+            description: `Course "${updatedCourse?.course_title}" has been updated with new content`
+          }
+        );
+      } catch (error) {
+        console.error("Failed to send course update notifications:", error);
+        // Don't fail the entire request if notification fails
+      }
+
       this.setStatus(200);
       return {
         message: "Course updated successfully",

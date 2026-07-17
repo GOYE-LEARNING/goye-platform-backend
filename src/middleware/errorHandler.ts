@@ -34,7 +34,24 @@ export const errorHandler = (
     });
   }
 
+  // Preserve error status code if available
+  let statusCode = 500;
+  let message = "Internal Server Error";
+
+  if (error?.status) {
+    statusCode = error.status;
+    message = error.message || message;
+  } else if (error?.statusCode) {
+    statusCode = error.statusCode;
+    message = error.message || message;
+  } else if (error?.statusCode) {
+    statusCode = error.statusCode;
+  } else if (error?.message?.includes("Unauthorized") || error?.message?.includes("No access token")) {
+    statusCode = 401;
+    message = error.message;
+  }
+
   // Default error
-  console.error("❌ Error:", error);
-  res.status(500).json({ message: "Internal Server Error" });
+  console.error(`❌ Error (Status: ${statusCode}):`, error);
+  res.status(statusCode).json({ message, status: statusCode });
 };

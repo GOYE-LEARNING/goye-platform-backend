@@ -13,6 +13,7 @@ export enum Role {
 
 export enum NotificationType {
   COURSE_JOIN = "COURSE_JOIN",
+  COURSE_UPDATE = "COURSE_UPDATE",
   GROUP_JOIN = "GROUP_JOIN",
   MESSAGE = "MESSAGE",
   POST_LIKE = "POST_LIKE",
@@ -1434,6 +1435,116 @@ export class NotificationService {
       return { success: true };
     } catch (error) {
       console.error("Error in notifyOrgRoleChanged:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Notify all students enrolled in a course about updates (new lessons, quizzes, materials)
+   */
+  static async notifyCourseUpdated(
+    courseId: string,
+    tutorId: string,
+    updateType: "lesson" | "quiz" | "material" | "general",
+    updateDetails?: {
+      lessonTitle?: string;
+      quizTitle?: string;
+      materialTitle?: string;
+      description?: string;
+    }
+  ) {
+    try {
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: {
+          id: true,
+          course_title: true,
+          createdBy: true,
+        },
+      });
+
+      if (!course) {
+        console.error("Course not found");
+        return { success: false };
+      }
+
+      const tutor = await prisma.user.findUnique({
+        where: { id: tutorId },
+        select: {
+          first_name: true,
+          last_name: true,
+          user_pic: true,
+        },
+      });
+
+      const tutorName = tutor
+        ? `${tutor.first_name} ${tutor.last_name}`.trim()
+        : "Your Tutor";
+
+      // Get all enrolled students for this course
+      const enrollments = await prisma.enrollment.findMany({
+        where: { course_id: courseId },
+        select: { student_id: true },
+      });
+
+      if (enrollments.length === 0) {
+        return { success: true, notifiedCount: 0 };
+      }
+
+      const studentIds = enrollments.map((e) => e.student_id);
+
+      // Create notification messages based on update type
+      let title = "";
+      let message = "";
+
+      switch (updateType) {
+        case "lesson":
+          title = "New Lesson Added";
+          message = `${tutorName} has added a new lesson "${updateDetails?.lessonTitle || "Untitled Lesson"}" to ${course.course_title}`;
+          break;
+        case "quiz":
+          title = "New Quiz Available";
+          message = `${tutorName} has added a quiz "${updateDetails?.quizTitle || "Untitled Quiz"}" to ${course.course_title}`;
+          break;
+        case "material":
+          title = "New Course Material";
+          message = `${tutorName} has added course material "${updateDetails?.materialTitle || "New Material"}" to ${course.course_title}`;
+          break;
+        default:
+          title = "Course Updated";
+          message = `${tutorName} has updated "${course.course_title}". Check out the latest changes!`;
+      }
+
+      // Batch create notifications for all enrolled students
+      const notificationPromises = studentIds.map((studentId) =>
+        this.createNotification({
+          title: title,
+          message: message,
+          type: NotificationType.COURSE_UPDATE,
+          role: Role.STUDENT,
+          to: Role.STUDENT,
+          userId: studentId,
+          courseId: courseId,
+          data: {
+            courseId: courseId,
+            tutorId: tutorId,
+            tutorName: tutorName,
+            courseName: course.course_title,
+            updateType: updateType,
+            updateDetails: updateDetails,
+          },
+        }).catch((error) => {
+          console.error(`Failed to notify student ${studentId}:`, error);
+          return null;
+        })
+      );
+
+      const results = await Promise.all(notificationPromises);
+      const successCount = results.filter((r) => r !== null).length;
+
+      return { success: true, notifiedCount: successCount };
+    } catch (error) {
+      console.error("Error in notifyCourseUpdated:", error);
       throw error;
     }
   }
