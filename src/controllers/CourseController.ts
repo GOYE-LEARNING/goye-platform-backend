@@ -594,7 +594,7 @@ export class CourseController extends Controller {
 
       // Notify all enrolled students about course updates
       try {
-        const { NotificationService } = await import("../services/notificationServices");
+        const { NotificationService } = await import("../services/notificationServices.js");
         await NotificationService.notifyCourseUpdated(
           courseId,
           existingCourse.createdBy,

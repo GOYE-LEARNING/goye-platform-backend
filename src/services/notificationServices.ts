@@ -1483,15 +1483,15 @@ export class NotificationService {
 
       // Get all enrolled students for this course
       const enrollments = await prisma.enrollment.findMany({
-        where: { course_id: courseId },
-        select: { student_id: true },
+        where: { courseId: courseId },
+        select: { userId: true },
       });
 
       if (enrollments.length === 0) {
         return { success: true, notifiedCount: 0 };
       }
 
-      const studentIds = enrollments.map((e) => e.student_id);
+      const studentIds = enrollments.map((e) => e.userId);
 
       // Create notification messages based on update type
       let title = "";
