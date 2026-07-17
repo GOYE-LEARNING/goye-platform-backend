@@ -4468,4 +4468,307 @@ public async GetOrganizationCoursesWithStats(
     this.setStatus(200);
     return { message: "Logout successful" };
   }
+
+  @Security("bearerAuth")
+  @Delete("/members/{organizationId}/{userId}")
+  public async RemoveMember(
+    @Path() organizationId: string,
+    @Path() userId: string,
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const requesterRole = req.user?.role;
+      if (requesterRole !== "org_admin") {
+        this.setStatus(403);
+        return { success: false, message: "Only organization admins can remove members" };
+      }
+
+      // Delete the organization member relationship
+      await prisma.organizationMember.deleteMany({
+        where: {
+          organizationId: organizationId,
+          userId: userId,
+        },
+      });
+
+      this.setStatus(200);
+      return { success: true, message: "Member removed successfully" };
+    } catch (error: any) {
+      console.error("Error removing member:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to remove member", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Put("/members/{organizationId}/{userId}/suspend")
+  public async SuspendMember(
+    @Path() organizationId: string,
+    @Path() userId: string,
+    @Body() body: { suspend: boolean },
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const requesterRole = req.user?.role;
+      if (requesterRole !== "org_admin") {
+        this.setStatus(403);
+        return { success: false, message: "Only organization admins can suspend members" };
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isSuspended: body.suspend },
+      });
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: body.suspend ? "Member suspended successfully" : "Member restored successfully",
+      };
+    } catch (error: any) {
+      console.error("Error suspending member:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to update member status", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Post("/announcements/{organizationId}")
+  public async CreateAnnouncement(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      title: string;
+      message: string;
+      audience: "all" | "students" | "instructors" | "specific";
+      targetUserIds?: string[];
+    },
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const requesterRole = req.user?.role;
+      if (requesterRole !== "org_admin") {
+        this.setStatus(403);
+        return { success: false, message: "Only organization admins can create announcements" };
+      }
+
+      if (!body.title || !body.message) {
+        this.setStatus(400);
+        return { success: false, message: "Title and message are required" };
+      }
+
+      // Get organization members
+      const members = await prisma.organizationMember.findMany({
+        where: { organizationId },
+        include: { user: true },
+      });
+
+      // Filter members based on audience
+      let targetMembers = members;
+      if (body.audience === "students") {
+        targetMembers = members.filter((m) => m.user.role === "student");
+      } else if (body.audience === "instructors") {
+        targetMembers = members.filter((m) => m.user.role === "instructor");
+      } else if (body.audience === "specific" && body.targetUserIds) {
+        targetMembers = members.filter((m) => body.targetUserIds?.includes(m.userId));
+      }
+
+      // Create announcement notifications for each target member
+      const notifications = targetMembers.map((member) => ({
+        title: body.title,
+        message: body.message,
+        type: "ANNOUNCEMENT",
+        userId: member.userId,
+        organizationId: organizationId,
+        createdAt: new Date(),
+      }));
+
+      if (notifications.length > 0) {
+        await prisma.notification.createMany({ data: notifications as any });
+      }
+
+      this.setStatus(201);
+      return {
+        success: true,
+        message: "Announcement created and sent successfully",
+        data: { recipientCount: targetMembers.length },
+      };
+    } catch (error: any) {
+      console.error("Error creating announcement:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to create announcement", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/announcements/{organizationId}")
+  public async GetAnnouncements(
+    @Path() organizationId: string,
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const announcements = await prisma.notification.findMany({
+        where: {
+          organizationId: organizationId,
+          type: "ANNOUNCEMENT",
+          userId: req.user?.id,
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+
+      this.setStatus(200);
+      return { success: true, data: announcements };
+    } catch (error: any) {
+      console.error("Error fetching announcements:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to fetch announcements", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Post("/events/{organizationId}")
+  public async CreateEvent(
+    @Path() organizationId: string,
+    @Body()
+    body: {
+      name: string;
+      description: string;
+      date: string;
+      time: string;
+      location?: string;
+      capacity?: number;
+      type: string;
+    },
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const requesterRole = req.user?.role;
+      if (requesterRole !== "org_admin") {
+        this.setStatus(403);
+        return { success: false, message: "Only organization admins can create events" };
+      }
+
+      if (!body.name || !body.date || !body.time) {
+        this.setStatus(400);
+        return { success: false, message: "Name, date, and time are required" };
+      }
+
+      const event = await prisma.organizationEvent.create({
+        data: {
+          name: body.name,
+          description: body.description || "",
+          date: new Date(body.date),
+          time: body.time,
+          location: body.location || "",
+          capacity: body.capacity || 100,
+          type: body.type || "general",
+          organizationId: organizationId,
+          createdBy: req.user?.id,
+          status: "upcoming",
+        },
+      });
+
+      this.setStatus(201);
+      return { success: true, message: "Event created successfully", data: event };
+    } catch (error: any) {
+      console.error("Error creating event:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to create event", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Get("/events/{organizationId}")
+  public async GetEvents(
+    @Path() organizationId: string,
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const events = await prisma.organizationEvent.findMany({
+        where: { organizationId },
+        orderBy: { date: "asc" },
+      });
+
+      this.setStatus(200);
+      return { success: true, data: events };
+    } catch (error: any) {
+      console.error("Error fetching events:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to fetch events", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Put("/events/{organizationId}/{eventId}")
+  public async UpdateEvent(
+    @Path() organizationId: string,
+    @Path() eventId: string,
+    @Body()
+    body: {
+      name?: string;
+      description?: string;
+      date?: string;
+      time?: string;
+      location?: string;
+      capacity?: number;
+      status?: string;
+    },
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const requesterRole = req.user?.role;
+      if (requesterRole !== "org_admin") {
+        this.setStatus(403);
+        return { success: false, message: "Only organization admins can update events" };
+      }
+
+      const event = await prisma.organizationEvent.update({
+        where: { id: eventId },
+        data: {
+          ...(body.name && { name: body.name }),
+          ...(body.description && { description: body.description }),
+          ...(body.date && { date: new Date(body.date) }),
+          ...(body.time && { time: body.time }),
+          ...(body.location !== undefined && { location: body.location }),
+          ...(body.capacity && { capacity: body.capacity }),
+          ...(body.status && { status: body.status }),
+        },
+      });
+
+      this.setStatus(200);
+      return { success: true, message: "Event updated successfully", data: event };
+    } catch (error: any) {
+      console.error("Error updating event:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to update event", error: error.message };
+    }
+  }
+
+  @Security("bearerAuth")
+  @Delete("/events/{organizationId}/{eventId}")
+  public async DeleteEvent(
+    @Path() organizationId: string,
+    @Path() eventId: string,
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const requesterRole = req.user?.role;
+      if (requesterRole !== "org_admin") {
+        this.setStatus(403);
+        return { success: false, message: "Only organization admins can delete events" };
+      }
+
+      await prisma.organizationEvent.delete({
+        where: { id: eventId },
+      });
+
+      this.setStatus(200);
+      return { success: true, message: "Event deleted successfully" };
+    } catch (error: any) {
+      console.error("Error deleting event:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to delete event", error: error.message };
+    }
+  }
 }

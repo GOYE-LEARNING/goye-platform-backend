@@ -193,6 +193,7 @@ model User {
   resetTokenExpires DateTime?
   isVerified        Boolean          @default(false)
   verifiedAt        DateTime?
+  isSuspended       Boolean          @default(false)
 
   enrollment       Enrollment[]
   post             Post[]
@@ -228,6 +229,8 @@ model User {
   // ── Org membership audit trail (which orgs this user belongs to & how) ──
   organizationMemberships OrganizationMember[]
   // ─────────────────────────────────────────────────────────────────────────
+  eventsCreated    OrganizationEvent[]
+  eventAttendances EventAttendee[]
 }
 
 // ─────────────────────────────────────────────
@@ -439,6 +442,7 @@ model Organization {
   // ── All members of this org (owners + invited) ───────────────────────────
   members      OrganizationMember[]
   // ─────────────────────────────────────────────────────────────────────────
+  events       OrganizationEvent[]
   userSessions UserSession[]
 }
 
@@ -903,6 +907,41 @@ model JoinedEvent {
   groupId       String?
   event         Event?    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventId       String?
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATION EVENTS
+// ─────────────────────────────────────────────
+
+model OrganizationEvent {
+  id               String       @id @default(cuid())
+  name             String
+  description      String?
+  date             DateTime
+  time             String
+  location         String?
+  capacity         Int          @default(100)
+  type             String       @default("general")
+  status           String       @default("upcoming") // upcoming, ongoing, past, cancelled
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy        String
+  createdByUser    User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  attendees        EventAttendee[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+}
+
+model EventAttendee {
+  id             String           @id @default(cuid())
+  eventId        String
+  event          OrganizationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status         String           @default("registered") // registered, attended, cancelled
+  joinedAt       DateTime         @default(now())
+
+  @@unique([eventId, userId])
 }
 
 // ─────────────────────────────────────────────
