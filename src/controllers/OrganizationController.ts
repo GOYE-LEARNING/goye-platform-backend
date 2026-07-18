@@ -3486,6 +3486,7 @@ public async InviteUsersToOrganization(
               isOnline: true,
               lastActive: true,
               createdAt: true,
+              isSuspended: true,
             },
           },
         },
@@ -3514,6 +3515,7 @@ public async InviteUsersToOrganization(
               isOnline: true,
               lastActive: true,
               createdAt: true,
+              isSuspended: true,
             },
           },
         },
@@ -3593,6 +3595,7 @@ public async InviteUsersToOrganization(
             membershipRole: user.membershipRole,
             isActive: user.isActive,
             createdAt: user.createdAt,
+            isSuspended: user.isSuspended,
           })),
           stats: {
             totalMembers: totalMembers,
@@ -4688,10 +4691,18 @@ public async GetOrganizationCoursesWithStats(
       const events = await prisma.organizationEvent.findMany({
         where: { organizationId },
         orderBy: { date: "asc" },
+        include: {
+          _count: { select: { attendees: true } },
+        },
       });
 
+      const eventsWithAttendeeCount = events.map(({ _count, ...event }) => ({
+        ...event,
+        attendees: _count.attendees,
+      }));
+
       this.setStatus(200);
-      return { success: true, data: events };
+      return { success: true, data: eventsWithAttendeeCount };
     } catch (error: any) {
       console.error("Error fetching events:", error);
       this.setStatus(500);

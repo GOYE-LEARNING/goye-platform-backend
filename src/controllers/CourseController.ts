@@ -279,6 +279,9 @@ export class CourseController extends Controller {
                 ...(moduleData.module_duration && {
                   module_duration: moduleData.module_duration,
                 }),
+                ...(moduleData.order !== undefined && {
+                  order: moduleData.order,
+                }),
               },
             });
 
@@ -308,6 +311,12 @@ export class CourseController extends Controller {
                       }),
                       ...(lessonData.lesson_video && {
                         lesson_video: lessonData.lesson_video,
+                      }),
+                      ...(lessonData.order !== undefined && {
+                        order: lessonData.order,
+                      }),
+                      ...(lessonData.duration !== undefined && {
+                        duration: lessonData.duration,
                       }),
                     },
                   });
