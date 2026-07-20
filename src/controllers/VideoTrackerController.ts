@@ -16,6 +16,7 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
+import { awardCertificateIfCompleted } from "../services/certificateService";
 
 @Tags("Video Tracking Controller")
 @Route("video")
@@ -138,6 +139,8 @@ export class VideoTrackerController extends Controller {
       // ──────────────────────────────────────────────────────────────────────
 
       let gamificationResult = null;
+      let courseJustCompleted = false;
+      let certificateUrl: string | null = null;
 
       // If video is finished, award XP for lesson completion
       if (body.videoFinished) {
@@ -211,6 +214,15 @@ export class VideoTrackerController extends Controller {
                 completedAt: new Date(),
               },
             });
+
+            courseJustCompleted = true;
+
+            const certificateResult = await awardCertificateIfCompleted(
+              userId,
+              body.courseId,
+              enrollment.id,
+            );
+            certificateUrl = certificateResult.certificateUrl;
           }
         }
       }
@@ -221,6 +233,8 @@ export class VideoTrackerController extends Controller {
           ? "Video completed! Lesson XP awarded!"
           : "Video tracked",
         data: setVideoTracker,
+        courseCompleted: courseJustCompleted,
+        certificateUrl,
         gamification: gamificationResult
           ? {
               pointsEarned: gamificationResult.data?.pointsAdded,
@@ -291,6 +305,8 @@ export class VideoTrackerController extends Controller {
       });
 
       let gamificationResult = null;
+      let courseJustCompleted = false;
+      let certificateUrl: string | null = null;
 
       // If video is now finished, award XP for lesson completion
       if (body.videoFinished && !existingVideo.videoFinished) {
@@ -391,6 +407,15 @@ export class VideoTrackerController extends Controller {
                 completedAt: new Date(),
               },
             });
+
+            courseJustCompleted = true;
+
+            const certificateResult = await awardCertificateIfCompleted(
+              userId,
+              existingVideo.courseId,
+              enrollment.id,
+            );
+            certificateUrl = certificateResult.certificateUrl;
           }
         }
       }
@@ -401,6 +426,8 @@ export class VideoTrackerController extends Controller {
           ? "Video completed! Lesson XP awarded!"
           : "Video tracked updated successfully",
         data: updatedVideoTracker,
+        courseCompleted: courseJustCompleted,
+        certificateUrl,
         gamification: gamificationResult
           ? {
               pointsEarned: gamificationResult.data?.pointsAdded,

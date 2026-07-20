@@ -1252,6 +1252,8 @@
 											"properties": {
 												"error": {},
 												"gamification": {},
+												"certificateUrl": {},
+												"courseCompleted": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -1280,6 +1282,12 @@
 													],
 													"type": "object"
 												},
+												"certificateUrl": {
+													"type": "string"
+												},
+												"courseCompleted": {
+													"type": "boolean"
+												},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -1287,6 +1295,8 @@
 											},
 											"required": [
 												"gamification",
+												"certificateUrl",
+												"courseCompleted",
 												"data",
 												"message"
 											],
@@ -1295,6 +1305,8 @@
 										{
 											"properties": {
 												"gamification": {},
+												"certificateUrl": {},
+												"courseCompleted": {},
 												"data": {},
 												"error": {
 													"type": "string"
@@ -1371,6 +1383,8 @@
 											"properties": {
 												"error": {},
 												"gamification": {},
+												"certificateUrl": {},
+												"courseCompleted": {},
 												"data": {},
 												"message": {
 													"type": "string"
@@ -1385,6 +1399,8 @@
 											"properties": {
 												"error": {},
 												"gamification": {},
+												"certificateUrl": {},
+												"courseCompleted": {},
 												"data": {
 													"allOf": [
 														{
@@ -1595,6 +1611,12 @@
 													],
 													"type": "object"
 												},
+												"certificateUrl": {
+													"type": "string"
+												},
+												"courseCompleted": {
+													"type": "boolean"
+												},
 												"data": {
 													"properties": {
 														"updatedAt": {
@@ -1647,6 +1669,8 @@
 											},
 											"required": [
 												"gamification",
+												"certificateUrl",
+												"courseCompleted",
 												"data",
 												"message"
 											],
@@ -1655,6 +1679,8 @@
 										{
 											"properties": {
 												"gamification": {},
+												"certificateUrl": {},
+												"courseCompleted": {},
 												"data": {},
 												"error": {
 													"type": "string"
