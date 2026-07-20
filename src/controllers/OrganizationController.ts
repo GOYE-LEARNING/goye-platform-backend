@@ -21,13 +21,6 @@ import { SendEmail } from "../utils/sendmail";
 import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
 
-enum OrgType {
-  CHURCH,
-  SCHOOL,
-  CLUB,
-  OTHER,
-}
-
 @Route("organizations")
 @Tags("Organization Controllers")
 export class OrganizationController extends Controller {
@@ -35,10 +28,15 @@ export class OrganizationController extends Controller {
   public async CreateOrganization(
     @Body() body: Omit<OrganizationDTO, "id">,
   ): Promise<any> {
-    const orgTypeMap: Record<string, "CHURCH" | "SCHOOL" | "CLUB"> = {
+    // Explicitly mapped rather than left to fall through to Prisma's
+    // schema default — "other" previously had no entry here, so it only
+    // ended up stored as OTHER by coincidence (the default happened to
+    // match), not because this map actually handled it.
+    const orgTypeMap: Record<string, "CHURCH" | "SCHOOL" | "CLUB" | "OTHER"> = {
       church: "CHURCH",
       school: "SCHOOL",
       club: "CLUB",
+      other: "OTHER",
     };
 
     try {

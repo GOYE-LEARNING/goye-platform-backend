@@ -422,6 +422,7 @@ model Organization {
   verificationOTPAttempts    Int                  @default(0)
   verificationOTPResendCount Int                  @default(0)
   verificationOTPResendAt    DateTime?
+  isSuspended                Boolean              @default(false)
   Church                     Church_Organization?
   school                     School_Organization?
   Club                       Club_Organization?

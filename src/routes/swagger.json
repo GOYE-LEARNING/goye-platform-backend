@@ -2906,6 +2906,9 @@
 									"properties": {
 										"user": {
 											"properties": {
+												"isSuspended": {
+													"type": "boolean"
+												},
 												"verifiedAt": {
 													"type": "string",
 													"format": "date-time"
@@ -3019,6 +3022,7 @@
 												}
 											},
 											"required": [
+												"isSuspended",
 												"verifiedAt",
 												"isVerified",
 												"resetTokenExpires",
@@ -3161,175 +3165,6 @@
 											},
 											"required": [
 												"status",
-												"message"
-											],
-											"type": "object"
-										},
-										{
-											"properties": {
-												"error": {},
-												"role": {},
-												"progressId": {},
-												"level": {},
-												"status": {},
-												"user": {
-													"properties": {
-														"verifiedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isVerified": {
-															"type": "boolean"
-														},
-														"resetTokenExpires": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"resetToken": {
-															"type": "string"
-														},
-														"isFromWaitList": {
-															"type": "boolean"
-														},
-														"isProfileComplete": {
-															"type": "boolean"
-														},
-														"completedVideo": {
-															"type": "number",
-															"format": "double"
-														},
-														"completedLessons": {
-															"type": "number",
-															"format": "double"
-														},
-														"completedCourses": {
-															"type": "number",
-															"format": "double"
-														},
-														"provider": {
-															"type": "string"
-														},
-														"user_pic": {
-															"type": "string"
-														},
-														"lastActive": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"isOnline": {
-															"type": "boolean"
-														},
-														"userType": {
-															"$ref": "#/components/schemas/_36_Enums.UserType"
-														},
-														"form_type": {
-															"$ref": "#/components/schemas/_36_Enums.FormType"
-														},
-														"completed": {
-															"type": "string"
-														},
-														"paymentCode": {
-															"type": "string"
-														},
-														"waitlistId": {
-															"type": "string"
-														},
-														"firebase_uid": {
-															"type": "string"
-														},
-														"level": {
-															"type": "string"
-														},
-														"role": {
-															"type": "string"
-														},
-														"languageCode": {
-															"$ref": "#/components/schemas/_36_Enums.LanguageCode"
-														},
-														"language": {
-															"type": "string"
-														},
-														"phone_number": {
-															"type": "string"
-														},
-														"state": {
-															"type": "string"
-														},
-														"country": {
-															"type": "string"
-														},
-														"password": {
-															"type": "string"
-														},
-														"email_address": {
-															"type": "string"
-														},
-														"last_name": {
-															"type": "string"
-														},
-														"first_name": {
-															"type": "string"
-														},
-														"point": {
-															"type": "number",
-															"format": "double"
-														},
-														"updatedAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"createdAt": {
-															"type": "string",
-															"format": "date-time"
-														},
-														"id": {
-															"type": "string"
-														}
-													},
-													"required": [
-														"verifiedAt",
-														"isVerified",
-														"resetTokenExpires",
-														"resetToken",
-														"isFromWaitList",
-														"isProfileComplete",
-														"completedVideo",
-														"completedLessons",
-														"completedCourses",
-														"provider",
-														"user_pic",
-														"lastActive",
-														"isOnline",
-														"userType",
-														"form_type",
-														"completed",
-														"paymentCode",
-														"waitlistId",
-														"firebase_uid",
-														"level",
-														"role",
-														"languageCode",
-														"language",
-														"phone_number",
-														"state",
-														"country",
-														"password",
-														"email_address",
-														"last_name",
-														"first_name",
-														"point",
-														"updatedAt",
-														"createdAt",
-														"id"
-													],
-													"type": "object"
-												},
-												"message": {
-													"type": "string"
-												}
-											},
-											"required": [
-												"user",
 												"message"
 											],
 											"type": "object"
@@ -3558,6 +3393,9 @@
 														},
 														{
 															"properties": {
+																"isSuspended": {
+																	"type": "boolean"
+																},
 																"verifiedAt": {
 																	"type": "string",
 																	"format": "date-time"
@@ -3671,6 +3509,7 @@
 																}
 															},
 															"required": [
+																"isSuspended",
 																"verifiedAt",
 																"isVerified",
 																"resetTokenExpires",
@@ -4529,6 +4368,129 @@
 				},
 				"tags": [
 					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/super-admin/overview": {
+			"get": {
+				"operationId": "GetOverview",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/super-admin/organizations": {
+			"get": {
+				"operationId": "GetAllOrganizations",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/super-admin/organizations/{organizationId}/suspend": {
+			"put": {
+				"operationId": "SuspendOrganization",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"suspend": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"suspend"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/super-admin/activity": {
+			"get": {
+				"operationId": "GetPlatformActivity",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
 				],
 				"security": [
 					{
@@ -7919,6 +7881,9 @@
 																"organization_name": {
 																	"type": "string"
 																},
+																"isSuspended": {
+																	"type": "boolean"
+																},
 																"verifiedAt": {
 																	"type": "string",
 																	"format": "date-time"
@@ -7981,6 +7946,7 @@
 																"organization_email",
 																"organization_type",
 																"organization_name",
+																"isSuspended",
 																"verifiedAt",
 																"isVerified",
 																"resetTokenExpires",
@@ -8525,6 +8491,9 @@
 																},
 																"user": {
 																	"properties": {
+																		"isSuspended": {
+																			"type": "boolean"
+																		},
 																		"verifiedAt": {
 																			"type": "string",
 																			"format": "date-time"
@@ -8638,6 +8607,7 @@
 																		}
 																	},
 																	"required": [
+																		"isSuspended",
 																		"verifiedAt",
 																		"isVerified",
 																		"resetTokenExpires",
@@ -8738,6 +8708,9 @@
 																"organization_name": {
 																	"type": "string"
 																},
+																"isSuspended": {
+																	"type": "boolean"
+																},
 																"verifiedAt": {
 																	"type": "string",
 																	"format": "date-time"
@@ -8800,6 +8773,7 @@
 																"organization_email",
 																"organization_type",
 																"organization_name",
+																"isSuspended",
 																"verifiedAt",
 																"isVerified",
 																"resetTokenExpires",
@@ -8943,6 +8917,7 @@
 									"anyOf": [
 										{
 											"properties": {
+												"error": {},
 												"organization": {},
 												"status": {
 													"type": "number",
@@ -8960,6 +8935,7 @@
 										},
 										{
 											"properties": {
+												"error": {},
 												"status": {},
 												"organization": {
 													"allOf": [
@@ -9278,6 +9254,9 @@
 																"organization_name": {
 																	"type": "string"
 																},
+																"isSuspended": {
+																	"type": "boolean"
+																},
 																"verifiedAt": {
 																	"type": "string",
 																	"format": "date-time"
@@ -9340,6 +9319,7 @@
 																"organization_email",
 																"organization_type",
 																"organization_name",
+																"isSuspended",
 																"verifiedAt",
 																"isVerified",
 																"resetTokenExpires",
@@ -9364,6 +9344,25 @@
 											},
 											"required": [
 												"organization",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"organization": {},
+												"error": {},
+												"status": {
+													"type": "number",
+													"format": "double"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"error",
+												"status",
 												"message"
 											],
 											"type": "object"
@@ -9960,6 +9959,9 @@
 												"organization_name": {
 													"type": "string"
 												},
+												"isSuspended": {
+													"type": "boolean"
+												},
 												"verifiedAt": {
 													"type": "string",
 													"format": "date-time"
@@ -10022,6 +10024,7 @@
 												"organization_email",
 												"organization_type",
 												"organization_name",
+												"isSuspended",
 												"verifiedAt",
 												"isVerified",
 												"resetTokenExpires",
@@ -10149,6 +10152,427 @@
 					}
 				],
 				"parameters": []
+			}
+		},
+		"/organizations/members/{organizationId}/{userId}": {
+			"delete": {
+				"operationId": "RemoveMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/members/{organizationId}/{userId}/suspend": {
+			"put": {
+				"operationId": "SuspendMember",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"suspend": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"suspend"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organizations/announcements/{organizationId}": {
+			"post": {
+				"operationId": "CreateAnnouncement",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"targetUserIds": {
+										"items": {
+											"type": "string"
+										},
+										"type": "array"
+									},
+									"audience": {
+										"type": "string",
+										"enum": [
+											"all",
+											"students",
+											"instructors",
+											"specific"
+										]
+									},
+									"message": {
+										"type": "string"
+									},
+									"title": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"audience",
+									"message",
+									"title"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetAnnouncements",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/events/{organizationId}": {
+			"post": {
+				"operationId": "CreateEvent",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"type": {
+										"type": "string"
+									},
+									"capacity": {
+										"type": "number",
+										"format": "double"
+									},
+									"location": {
+										"type": "string"
+									},
+									"time": {
+										"type": "string"
+									},
+									"date": {
+										"type": "string"
+									},
+									"description": {
+										"type": "string"
+									},
+									"name": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"type",
+									"time",
+									"date",
+									"description",
+									"name"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			},
+			"get": {
+				"operationId": "GetEvents",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/organizations/events/{organizationId}/{eventId}": {
+			"put": {
+				"operationId": "UpdateEvent",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "eventId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"status": {
+										"type": "string"
+									},
+									"capacity": {
+										"type": "number",
+										"format": "double"
+									},
+									"location": {
+										"type": "string"
+									},
+									"time": {
+										"type": "string"
+									},
+									"date": {
+										"type": "string"
+									},
+									"description": {
+										"type": "string"
+									},
+									"name": {
+										"type": "string"
+									}
+								},
+								"type": "object"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "DeleteEvent",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "organizationId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "path",
+						"name": "eventId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
 			}
 		},
 		"/notifications/fetch-all-notification": {
@@ -11905,6 +12329,9 @@
 														"enable_push_notification": {
 															"type": "boolean"
 														},
+														"show_annoucement": {
+															"type": "boolean"
+														},
 														"achievement": {
 															"type": "boolean"
 														},
@@ -11934,6 +12361,7 @@
 														"event",
 														"course_updates",
 														"enable_push_notification",
+														"show_annoucement",
 														"achievement",
 														"userId",
 														"organizationId",
@@ -12793,6 +13221,9 @@
 																"properties": {
 																	"user": {
 																		"properties": {
+																			"isSuspended": {
+																				"type": "boolean"
+																			},
 																			"verifiedAt": {
 																				"type": "string",
 																				"format": "date-time"
@@ -12906,6 +13337,7 @@
 																			}
 																		},
 																		"required": [
+																			"isSuspended",
 																			"verifiedAt",
 																			"isVerified",
 																			"resetTokenExpires",
@@ -12997,6 +13429,9 @@
 																			"organization_name": {
 																				"type": "string"
 																			},
+																			"isSuspended": {
+																				"type": "boolean"
+																			},
 																			"verifiedAt": {
 																				"type": "string",
 																				"format": "date-time"
@@ -13059,6 +13494,7 @@
 																			"organization_email",
 																			"organization_type",
 																			"organization_name",
+																			"isSuspended",
 																			"verifiedAt",
 																			"isVerified",
 																			"resetTokenExpires",
