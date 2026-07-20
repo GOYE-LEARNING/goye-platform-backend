@@ -167,13 +167,21 @@ export class CourseController extends Controller {
         include: {
           module: {
             include: {
-              lesson: true,
+              lesson: {
+                orderBy: {
+                  order: "asc",
+                },
+              },
             },
             orderBy: {
               order: "asc",
             },
           },
-          material: true,
+          material: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
           objectives: true,
           quiz: {
             include: {
@@ -851,7 +859,9 @@ export class CourseController extends Controller {
           },
           module: {
             include: {
-              lesson: true,
+              lesson: {
+                orderBy: { order: "asc" },
+              },
               _count: {
                 select: {
                   lesson: true,
@@ -860,7 +870,9 @@ export class CourseController extends Controller {
             },
             orderBy: { order: "asc" },
           },
-          material: true,
+          material: {
+            orderBy: { createdAt: "asc" },
+          },
           objectives: true,
           quiz: {
             include: {
