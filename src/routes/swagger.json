@@ -4615,6 +4615,338 @@
 				"parameters": []
 			}
 		},
+		"/super-admin/courses": {
+			"get": {
+				"operationId": "GetAllCourses",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/super-admin/courses/{courseId}": {
+			"delete": {
+				"operationId": "DeleteCourse",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "courseId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/super-admin/users": {
+			"get": {
+				"operationId": "GetAllUsers",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/super-admin/users/{userId}": {
+			"get": {
+				"operationId": "GetUserDetail",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/super-admin/users/{userId}/suspend": {
+			"put": {
+				"operationId": "SuspendUser",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "userId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"suspend": {
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"suspend"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/super-admin/events": {
+			"get": {
+				"operationId": "GetAllEvents",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/super-admin/events/{eventId}": {
+			"delete": {
+				"operationId": "DeleteEvent",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "eventId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/super-admin/announcements": {
+			"post": {
+				"operationId": "CreateAnnouncement",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"audience": {
+										"type": "string",
+										"enum": [
+											"all",
+											"students",
+											"tutors",
+											"org_admins"
+										]
+									},
+									"message": {
+										"type": "string"
+									},
+									"title": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"message",
+									"title"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/super-admin/email": {
+			"post": {
+				"operationId": "SendBroadcastEmail",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Super Admin Controllers"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"audience": {
+										"type": "string",
+										"enum": [
+											"all",
+											"students",
+											"tutors",
+											"org_admins"
+										]
+									},
+									"message": {
+										"type": "string"
+									},
+									"subject": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"message",
+									"subject"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/enroll/student-enroll/{courseId}": {
 			"post": {
 				"operationId": "StudentEnroll",

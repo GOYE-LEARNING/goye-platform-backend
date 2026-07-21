@@ -219,13 +219,47 @@ const invitationTemplate = (
   </div>
 </div>`;
 
+// Platform broadcast / announcement template — renders an arbitrary message
+// body (from a super admin) in the branded GOYE style. Unlike the OTP/reset/
+// invite templates, the body text is the actual message, not a code or link.
+const broadcastTemplate = (message: string, heading: string, userName?: string) => `
+<div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
+  <div style="max-width:520px; margin:0 auto;">
+
+    <div style="text-align:center; margin-bottom:28px;">
+      <span style="font-size:18px; font-weight:500; color:#E8EAEF;">GOYE Platform</span>
+    </div>
+
+    <div style="background:#1a1d26; border-radius:16px; border:1px solid #252830; overflow:hidden;">
+
+      <div style="background:linear-gradient(135deg,#FFA500 0%,#FBB041 100%); padding:32px; text-align:center;">
+        <h1 style="margin:0; font-size:22px; color:#121318;">${heading}</h1>
+      </div>
+
+      <div style="padding:32px;">
+        ${userName ? `<p style="margin:0 0 16px; font-size:15px; color:#E8EAEF;">Hi ${userName},</p>` : ""}
+        <div style="font-size:15px; color:#B8BCC8; line-height:1.8; white-space:pre-wrap;">${message}</div>
+
+        <div style="border-top:1px solid #252830; padding-top:20px; margin-top:28px; text-align:center;">
+          <p style="margin:0 0 4px; font-size:13px; color:#9CA3B0;">Need help? Reach us at</p>
+          <a href="mailto:support@goye.com" style="font-size:13px; color:#FFA500;">support@goye.com</a>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align:center; font-size:12px; color:#9CA3B0; margin-top:20px;">
+      &copy; 2026 GOYE Platform. All rights reserved.
+    </p>
+  </div>
+</div>`;
+
 // Updated SendEmail function with organization verification support
 export const SendEmail = async (
   to: string,
   subject: string,
   content: string,
-  type: "otp" | "reset-password" | "invitation" | "org-verification" = "otp",
-  additionalData?: { organizationName?: string; userName?: string },
+  type: "otp" | "reset-password" | "invitation" | "org-verification" | "broadcast" = "otp",
+  additionalData?: { organizationName?: string; userName?: string; heading?: string },
 ) => {
   let html: string;
 
@@ -241,6 +275,12 @@ export const SendEmail = async (
     html = orgVerificationOTPTemplate(
       content, // content is the OTP
       additionalData?.organizationName || "Your Organization",
+    );
+  } else if (type === "broadcast") {
+    html = broadcastTemplate(
+      content, // content is the message body
+      additionalData?.heading || subject,
+      additionalData?.userName,
     );
   } else {
     html = otpTemplate(content);

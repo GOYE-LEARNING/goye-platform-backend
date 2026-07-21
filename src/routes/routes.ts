@@ -1694,6 +1694,292 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_GetAllCourses: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/super-admin/courses',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.GetAllCourses)),
+
+            async function SuperAdminController_GetAllCourses(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_GetAllCourses, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllCourses',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_DeleteCourse: Record<string, TsoaRoute.ParameterSchema> = {
+                courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.delete('/api/super-admin/courses/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.DeleteCourse)),
+
+            async function SuperAdminController_DeleteCourse(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_DeleteCourse, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'DeleteCourse',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_GetAllUsers: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/super-admin/users',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.GetAllUsers)),
+
+            async function SuperAdminController_GetAllUsers(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_GetAllUsers, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllUsers',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_GetUserDetail: Record<string, TsoaRoute.ParameterSchema> = {
+                userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/super-admin/users/:userId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.GetUserDetail)),
+
+            async function SuperAdminController_GetUserDetail(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_GetUserDetail, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'GetUserDetail',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_SuspendUser: Record<string, TsoaRoute.ParameterSchema> = {
+                userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"suspend":{"dataType":"boolean","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.put('/api/super-admin/users/:userId/suspend',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.SuspendUser)),
+
+            async function SuperAdminController_SuspendUser(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_SuspendUser, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'SuspendUser',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_GetAllEvents: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/super-admin/events',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.GetAllEvents)),
+
+            async function SuperAdminController_GetAllEvents(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_GetAllEvents, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'GetAllEvents',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_DeleteEvent: Record<string, TsoaRoute.ParameterSchema> = {
+                eventId: {"in":"path","name":"eventId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.delete('/api/super-admin/events/:eventId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.DeleteEvent)),
+
+            async function SuperAdminController_DeleteEvent(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_DeleteEvent, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'DeleteEvent',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_CreateAnnouncement: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"audience":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["all"]},{"dataType":"enum","enums":["students"]},{"dataType":"enum","enums":["tutors"]},{"dataType":"enum","enums":["org_admins"]}]},"message":{"dataType":"string","required":true},"title":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/super-admin/announcements',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.CreateAnnouncement)),
+
+            async function SuperAdminController_CreateAnnouncement(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_CreateAnnouncement, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'CreateAnnouncement',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsSuperAdminController_SendBroadcastEmail: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"audience":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["all"]},{"dataType":"enum","enums":["students"]},{"dataType":"enum","enums":["tutors"]},{"dataType":"enum","enums":["org_admins"]}]},"message":{"dataType":"string","required":true},"subject":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/super-admin/email',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController)),
+            ...(fetchMiddlewares<RequestHandler>(SuperAdminController.prototype.SendBroadcastEmail)),
+
+            async function SuperAdminController_SendBroadcastEmail(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsSuperAdminController_SendBroadcastEmail, request, response });
+
+                const controller = new SuperAdminController();
+
+              await templateService.apiHandler({
+                methodName: 'SendBroadcastEmail',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsStudentEnrollmentController_StudentEnroll: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
