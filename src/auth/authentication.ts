@@ -161,58 +161,40 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
       { expiresIn: "7d" }
     );
 
-    // Update any revoked sessions for this user and device
-    await prisma.userSession.updateMany({
-      where: {
+    // Create or update session atomically on the unique deviceId column.
+    // Doing this as separate findFirst + create/update calls (the old code)
+    // let two near-simultaneous requests both see "no session" and both try
+    // to create one, tripping the unique constraint on deviceId — and a
+    // revoked session row for the same deviceId caused the exact same
+    // create-time failure even with no concurrency at all, since findFirst
+    // filtered isRevoked:false but the unique constraint doesn't. upsert
+    // keyed on deviceId is a single atomic DB operation, so neither race
+    // exists.
+    const session = await prisma.userSession.upsert({
+      where: { deviceId: deviceId },
+      create: {
         userId: user.id,
         deviceId: deviceId,
-        isRevoked: true
-      },
-      data: {
-        isRevoked: false,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      }
-    });
-
-    // Create or update session
-    const existingSession = await prisma.userSession.findFirst({
-      where: {
+        lastActive: new Date(),
+        isRevoked: false,
+        deviceType: deviceType,
+        userType: userType,
+      },
+      update: {
         userId: user.id,
-        deviceId: deviceId,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        lastActive: new Date(),
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        isRevoked: false,
+        deviceType: deviceType,
+        userType: userType,
       }
     });
-
-    let session;
-    if (existingSession) {
-      // Update existing session
-      session = await prisma.userSession.update({
-        where: { id: existingSession.id },
-        data: {
-          accessToken: newAccessToken,
-          refreshToken: newRefreshToken,
-          lastActive: new Date(),
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          isRevoked: false,
-        }
-      });
-      console.log(`✅ Updated existing session for user: ${user.id}`);
-    } else {
-      // Create new session
-      session = await prisma.userSession.create({
-        data: {
-          userId: user.id,
-          deviceId: deviceId,
-          accessToken: newAccessToken,
-          refreshToken: newRefreshToken,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          lastActive: new Date(),
-          isRevoked: false,
-          deviceType: deviceType,
-          userType: userType,
-        }
-      });
-      console.log(`✅ Created new session for user: ${user.id}`);
-    }
+    console.log(`✅ Session upserted for user: ${user.id}`);
 
     return {
       accessToken: newAccessToken,
@@ -380,43 +362,33 @@ export async function expressAuthentication(
       throw new Error("User not found");
     }
 
-    // CASE 5: Ensure session exists (create if not)
-    let session = await prisma.userSession.findFirst({
-      where: {
+    // CASE 5: Ensure session exists — upsert on the unique deviceId so two
+    // concurrent requests (e.g. /profile and /discussion/private/unread/count
+    // fired back-to-back right after login) can't both see "no session" and
+    // both try to create one, which trips deviceId's unique constraint and
+    // surfaces as a 500 "Unique constraint failed" on a plain GET. A revoked
+    // session row for the same deviceId caused the identical failure with no
+    // concurrency at all, since the old findFirst filtered isRevoked:false
+    // while the unique constraint doesn't care about that flag.
+    await prisma.userSession.upsert({
+      where: { deviceId: deviceId },
+      create: {
         userId: user.id,
         deviceId: deviceId,
+        accessToken: accessToken,
+        refreshToken: refreshToken || '',
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        lastActive: new Date(),
+        isRevoked: false,
+        deviceType: request.headers["user-agent"] ? "web" : "unknown",
+        userType: decoded.type || "USER",
+      },
+      update: {
+        lastActive: new Date(),
+        accessToken: accessToken,
         isRevoked: false,
       }
     });
-
-    if (!session) {
-      console.log("🔄 No session found, creating new session...");
-      
-      session = await prisma.userSession.create({
-        data: {
-          userId: user.id,
-          deviceId: deviceId,
-          accessToken: accessToken,
-          refreshToken: refreshToken || '',
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          lastActive: new Date(),
-          isRevoked: false,
-          deviceType: request.headers["user-agent"] ? "web" : "unknown",
-          userType: decoded.type || "USER",
-        }
-      });
-      
-      console.log(`✅ Created new session for user: ${user.id}`);
-    } else {
-      // Update session
-      await prisma.userSession.update({
-        where: { id: session.id },
-        data: { 
-          lastActive: new Date(),
-          accessToken: accessToken
-        }
-      });
-    }
 
     // Attach data to request
     (request as any).user = user;
