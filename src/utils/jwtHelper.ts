@@ -131,10 +131,16 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
     expiresIn: "15m",
   });
 
-  // Create refresh token payload (lighter)
+  // Create refresh token payload (lighter). Includes role + userType so
+  // clients that decode the refresh token (e.g. the mobile app) can read the
+  // account's role directly. The backend refresh handlers re-read role from
+  // the DB and don't rely on these, but omitting them broke clients that do:
+  // a missing role fell back to "student" and silently failed for instructors.
   const refreshPayload = {
     id: payload.id,
     email: payload.email,
+    role: payload.role,
+    userType: payload.userType ?? payload.type,
     deviceId: payload.deviceId,
     level: payload.level,
     deviceType: payload.deviceType,
