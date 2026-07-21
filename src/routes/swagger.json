@@ -157,6 +157,42 @@
 					"WAITLIST"
 				]
 			},
+			"JsonValue": {
+				"anyOf": [
+					{
+						"type": "string"
+					},
+					{
+						"type": "number",
+						"format": "double"
+					},
+					{
+						"type": "boolean"
+					},
+					{
+						"$ref": "#/components/schemas/JsonObject"
+					},
+					{
+						"$ref": "#/components/schemas/JsonArray"
+					}
+				],
+				"nullable": true,
+				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches any valid JSON value."
+			},
+			"JsonObject": {
+				"properties": {},
+				"additionalProperties": {
+					"$ref": "#/components/schemas/JsonValue"
+				},
+				"type": "object",
+				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches a JSON object.\r\nThis type can be useful to enforce some input to be JSON-compatible or as a super-type to be extended from."
+			},
+			"JsonArray": {
+				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches a JSON array.",
+				"properties": {},
+				"type": "object",
+				"additionalProperties": false
+			},
 			"FormattedCountry": {
 				"properties": {
 					"country": {
@@ -1124,42 +1160,6 @@
 						"type": "array"
 					}
 				},
-				"type": "object",
-				"additionalProperties": false
-			},
-			"JsonValue": {
-				"anyOf": [
-					{
-						"type": "string"
-					},
-					{
-						"type": "number",
-						"format": "double"
-					},
-					{
-						"type": "boolean"
-					},
-					{
-						"$ref": "#/components/schemas/JsonObject"
-					},
-					{
-						"$ref": "#/components/schemas/JsonArray"
-					}
-				],
-				"nullable": true,
-				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches any valid JSON value."
-			},
-			"JsonObject": {
-				"properties": {},
-				"additionalProperties": {
-					"$ref": "#/components/schemas/JsonValue"
-				},
-				"type": "object",
-				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches a JSON object.\r\nThis type can be useful to enforce some input to be JSON-compatible or as a super-type to be extended from."
-			},
-			"JsonArray": {
-				"description": "From https://github.com/sindresorhus/type-fest/\r\nMatches a JSON array.",
-				"properties": {},
 				"type": "object",
 				"additionalProperties": false
 			},
@@ -3596,6 +3596,11 @@
 												"level": {},
 												"user": {
 													"properties": {
+														"permissions": {},
+														"adminRole": {},
+														"isProfileComplete": {},
+														"role": {},
+														"id": {},
 														"memberships": {
 															"items": {
 																"properties": {
@@ -3900,6 +3905,90 @@
 														"email_address",
 														"last_name",
 														"first_name"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"progressId",
+												"level",
+												"user",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"error": {},
+												"role": {},
+												"status": {},
+												"progressId": {},
+												"level": {},
+												"user": {
+													"properties": {
+														"memberships": {},
+														"organization": {},
+														"permissions": {
+															"$ref": "#/components/schemas/JsonValue"
+														},
+														"adminRole": {
+															"type": "string"
+														},
+														"isProfileComplete": {
+															"type": "boolean"
+														},
+														"profile_pic": {
+															"type": "string"
+														},
+														"userType": {
+															"$ref": "#/components/schemas/_36_Enums.UserType"
+														},
+														"level": {
+															"type": "string"
+														},
+														"role": {
+															"type": "string"
+														},
+														"state": {
+															"type": "string"
+														},
+														"country": {
+															"type": "string"
+														},
+														"phone_number": {
+															"type": "string"
+														},
+														"email_address": {
+															"type": "string"
+														},
+														"last_name": {
+															"type": "string"
+														},
+														"first_name": {
+															"type": "string"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"permissions",
+														"adminRole",
+														"isProfileComplete",
+														"profile_pic",
+														"userType",
+														"level",
+														"role",
+														"state",
+														"country",
+														"phone_number",
+														"email_address",
+														"last_name",
+														"first_name",
+														"id"
 													],
 													"type": "object"
 												},

@@ -2195,6 +2195,44 @@ export class UserController extends Controller {
         };
       }
 
+      // ✅ Platform admins (goye_admin) — super_admin / content_admin / user_admin.
+      // Previously fell through to the 400 below, so /api/user/profile was
+      // effectively broken for every admin account.
+      if (userRole === "goye_admin") {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          include: { adminProfile: true },
+        });
+
+        if (!user) {
+          this.setStatus(404);
+          return { message: "Admin not found", status: 404 };
+        }
+
+        this.setStatus(200);
+        return {
+          message: "Profile fetched successfully",
+          user: {
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            email_address: user.email_address,
+            phone_number: user.phone_number,
+            country: user.country,
+            state: user.state,
+            role: user.role,
+            level: user.level,
+            userType: user.userType,
+            profile_pic: user.user_pic,
+            isProfileComplete: true,
+            adminRole: user.adminProfile?.role ?? "super_admin",
+            permissions: user.adminProfile?.permissions ?? null,
+          },
+          level: userLevel ?? null,
+          progressId,
+        };
+      }
+
       this.setStatus(400);
       return { message: "Invalid user role", status: 400, role: userRole };
     } catch (error: any) {
