@@ -146,20 +146,25 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
       payload.settingsId = userSetting.id;
     }
 
-    // Generate new tokens
+    // Generate a new access token only. The refresh token passed in was just
+    // verified as valid above, so it's reused as-is — this function used to
+    // also mint and store a brand-new refresh token on every call, but that
+    // raced with the explicit POST /api/verify/refresh-token endpoint (which
+    // only ever reissues the access token, never rotates the refresh token).
+    // A freshly loaded dashboard fires many parallel bearerAuth-guarded
+    // requests at once; if more than one hit this "no valid access token"
+    // path concurrently, each minted a *different* new refresh token and
+    // overwrote the same session row — last write wins in the DB, but the
+    // client only ever received whichever cookie the browser applied last,
+    // so it frequently ended up holding a refresh token that no longer
+    // matched storage. The next explicit refresh call's exact-string lookup
+    // then found nothing and returned 403 "Invalid session", which the
+    // client treats as an expired session and bounces to login — right
+    // after a successful login, since that's exactly when a dashboard fires
+    // its burst of parallel requests. Reusing the same refresh token here
+    // removes the only place that rotated it outside that one endpoint, so
+    // there's nothing left to race.
     const newAccessToken = jwt.sign(payload, process.env.ACCESS_SECRET!, { expiresIn: "15m" });
-    const newRefreshToken = jwt.sign(
-      {
-        id: user.id,
-        email: user.email_address,
-        deviceId: deviceId,
-        level: normalizedLevel,
-        deviceType: deviceType,
-        type: userType,
-      },
-      process.env.REFRESH_SECRET!,
-      { expiresIn: "7d" }
-    );
 
     // Create or update session atomically on the unique deviceId column.
     // Doing this as separate findFirst + create/update calls (the old code)
@@ -176,7 +181,7 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
         userId: user.id,
         deviceId: deviceId,
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
+        refreshToken: refreshToken,
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         lastActive: new Date(),
         isRevoked: false,
@@ -186,7 +191,6 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
       update: {
         userId: user.id,
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
         lastActive: new Date(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         isRevoked: false,
@@ -198,7 +202,7 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
 
     return {
       accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
+      refreshToken: refreshToken,
       user: user,
       decoded: payload
     };
