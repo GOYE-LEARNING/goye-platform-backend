@@ -7,6 +7,7 @@ export const ALLOWED_ORIGINS = [
   "http://127.0.0.1:3001",
   "http://localhost:3001",
   "https://goye-web-app.vercel.app",
+  "https://goye.vercel.app",
   "https://goye-web-app.onrender.com",
   "https://goye-platform-backend.onrender.com",
   "https://2qm3zg9b-3000.uks1.devtunnels.ms",
