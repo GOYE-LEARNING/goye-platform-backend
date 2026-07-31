@@ -1334,10 +1334,13 @@ export class CourseController extends Controller {
           lesson: {
             create: body.lesson.map((l) => ({
               lesson_video: l.lesson_video,
-              lesson_title: l.lesson_video,
+              lesson_title: l.lesson_title,
             })),
           },
         }),
+      },
+      include: {
+        lesson: true,
       },
     });
     this.setStatus(201);
