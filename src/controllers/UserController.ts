@@ -2565,7 +2565,13 @@ export class UserController extends Controller {
   public async GetAdminDashboardStats(@Request() req: any): Promise<any> {
     const userRole = req.user?.role;
 
-    if (userRole !== "admin" && userRole !== "ADMIN") {
+    // Platform admins are created with role "goye_admin" (prisma/create-admin.ts,
+    // and the admin branch of Login/GoogleAuth above keys off it), so the
+    // previous "admin"/"ADMIN"-only check 403'd every real admin account.
+    // "admin" stays accepted because prisma/create-admin-standalone.ts still
+    // assigns that value — dropping it would lock out accounts the old check let
+    // through. No other role ("student"/"instructor"/"org_admin") is affected.
+    if (userRole !== "goye_admin" && userRole !== "admin") {
       this.setStatus(403);
       return { message: "Only admins can access dashboard statistics" };
     }
@@ -2600,6 +2606,50 @@ export class UserController extends Controller {
       ? Math.round((engagedUserCount / totalUsers) * 100)
       : 0;
 
+    const [recentUsers, recentOrganizations, recentCourses] = await Promise.all([
+      prisma.user.findMany({
+        select: { id: true, first_name: true, last_name: true, email_address: true, role: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+      prisma.organization.findMany({
+        select: { id: true, organization_name: true, organization_type: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+      prisma.course.findMany({
+        select: { id: true, course_title: true, organizationName: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      }),
+    ]);
+
+    const activities = [
+      ...recentUsers.map((u) => ({
+        type: "user_signup" as const,
+        id: u.id,
+        title: `${u.first_name} ${u.last_name}`.trim(),
+        detail: `New ${u.role} account (${u.email_address})`,
+        createdAt: u.createdAt,
+      })),
+      ...recentOrganizations.map((o) => ({
+        type: "organization_created" as const,
+        id: o.id,
+        title: o.organization_name,
+        detail: `New ${o.organization_type.toLowerCase()} organization`,
+        createdAt: o.createdAt,
+      })),
+      ...recentCourses.map((c) => ({
+        type: "course_created" as const,
+        id: c.id,
+        title: c.course_title,
+        detail: c.organizationName ? `New course in ${c.organizationName}` : "New independent course",
+        createdAt: c.createdAt,
+      })),
+    ]
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 10);
+
     this.setStatus(200);
     return {
       message: "Admin dashboard statistics fetched successfully",
@@ -2620,6 +2670,7 @@ export class UserController extends Controller {
           individualUsers,
         },
       },
+      activities,
     };
   }
 
