@@ -11,6 +11,8 @@ import rateLimit from "express-rate-limit";
 import prisma from "./db";
 import dotenv from "dotenv";
 import type { SocketService } from "./services/socketService"; // ✅ ADD (type-only import avoids circular init issues)
+import { VerifyToken } from "./middleware/verifytoken";
+import { speakCourseDraftText } from "./utils/ai_utils/course_draft_client";
 dotenv.config();
 
 const app = express();
@@ -135,6 +137,22 @@ export const createApp = async (socketService?: SocketService) => {
 
     console.log("✅ Socket-dependent routes registered");
   }
+
+  // Raw-binary TTS proxy, kept outside tsoa (its generated handlers always
+  // JSON-serialize the return value, which doesn't fit real audio bytes) —
+  // mirrors the same approach used on ShekiAI's own /voice/speak route.
+  app.post("/api/course-draft/voice/speak", VerifyToken, async (req: Request, res: Response) => {
+    const { text, voice } = req.body as { text?: string; voice?: string };
+    if (!text || !text.trim()) {
+      return res.status(400).json({ message: "text is required" });
+    }
+    const result = await speakCourseDraftText(text, voice);
+    if (!result.ok) {
+      return res.status(502).json({ message: result.error || "TTS failed" });
+    }
+    res.set("Content-Type", "audio/wav");
+    res.send(result.buffer);
+  });
 
   // Error handler (should be last)
   app.use(errorHandler);
