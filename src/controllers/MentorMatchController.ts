@@ -14,7 +14,6 @@ import {
   getMentorMatchSession,
   listMentorMatchSessions,
   sendMentorMatchMessage,
-  sendMentorMatchVoiceMessage,
   startMentorMatch,
   sendMentorMatchDocument,
 } from "../utils/ai_utils/mentor_match_client";
@@ -59,59 +58,85 @@ async function openMentorConnection(studentId: string, studentName: string, matc
   }
 }
 
+// None of these calls had error handling before — any hiccup reaching
+// ShekiAI (including a Render free-tier cold start) surfaced as an opaque
+// Express 500 with the real cause visible nowhere, not even in GOYE's own
+// logs. Every route now logs the real error server-side and returns a
+// message the frontend can actually show someone.
+function proxyFailure(this: Controller, route: string, error: any) {
+  console.error(`[MentorMatch/${route}] proxy call to ShekiAI failed:`, error);
+  this.setStatus(502);
+  return {
+    message: "We couldn't reach the assistant just now — please try again in a moment.",
+    data: [],
+    status: 502,
+    error: [error?.message || String(error)],
+  };
+}
+
 @Security("bearerAuth")
 @Tags("Mentor Match AI")
 @Route("mentor-match")
 export class MentorMatchController extends Controller {
   @Post("start")
   public async Start(@Request() req: any, @Body() body: { message?: string }): Promise<any> {
-    const name = await studentNameFor(req.user.id);
-    const result = await startMentorMatch(req.user.id, name, body?.message);
-    const matchedTutor = result.data[0]?.matchedTutor;
-    if (matchedTutor) await openMentorConnection(req.user.id, name, matchedTutor);
-    this.setStatus(result.status);
-    return result;
+    try {
+      const name = await studentNameFor(req.user.id);
+      const result = await startMentorMatch(req.user.id, name, body?.message);
+      const matchedTutor = result.data[0]?.matchedTutor;
+      if (matchedTutor) await openMentorConnection(req.user.id, name, matchedTutor);
+      this.setStatus(result.status);
+      return result;
+    } catch (error: any) {
+      return proxyFailure.call(this, "start", error);
+    }
   }
 
   @Post("{sessionId}/message")
   public async Message(@Path() sessionId: string, @Request() req: any, @Body() body: { message: string }): Promise<any> {
-    const name = await studentNameFor(req.user.id);
-    const result = await sendMentorMatchMessage(sessionId, req.user.id, name, body.message);
-    const matchedTutor = result.data[0]?.matchedTutor;
-    if (matchedTutor) await openMentorConnection(req.user.id, name, matchedTutor);
-    this.setStatus(result.status);
-    return result;
-  }
-
-  @Post("{sessionId}/voice-message")
-  public async VoiceMessage(@Path() sessionId: string, @Request() req: any, @UploadedFile() audio: Express.Multer.File): Promise<any> {
-    const name = await studentNameFor(req.user.id);
-    const result = await sendMentorMatchVoiceMessage(sessionId, req.user.id, name, audio);
-    const matchedTutor = result.data[0]?.matchedTutor;
-    if (matchedTutor) await openMentorConnection(req.user.id, name, matchedTutor);
-    this.setStatus(result.status);
-    return result;
+    try {
+      const name = await studentNameFor(req.user.id);
+      const result = await sendMentorMatchMessage(sessionId, req.user.id, name, body.message);
+      const matchedTutor = result.data[0]?.matchedTutor;
+      if (matchedTutor) await openMentorConnection(req.user.id, name, matchedTutor);
+      this.setStatus(result.status);
+      return result;
+    } catch (error: any) {
+      return proxyFailure.call(this, "message", error);
+    }
   }
 
   @Get("{sessionId}")
   public async GetSession(@Path() sessionId: string, @Request() req: any): Promise<any> {
-    const result = await getMentorMatchSession(sessionId, req.user.id);
-    this.setStatus(result.status);
-    return result;
+    try {
+      const result = await getMentorMatchSession(sessionId, req.user.id);
+      this.setStatus(result.status);
+      return result;
+    } catch (error: any) {
+      return proxyFailure.call(this, "getSession", error);
+    }
   }
 
   @Get("mine/list")
   public async ListMine(@Request() req: any): Promise<any> {
-    const result = await listMentorMatchSessions(req.user.id);
-    this.setStatus(result.status);
-    return result;
+    try {
+      const result = await listMentorMatchSessions(req.user.id);
+      this.setStatus(result.status);
+      return result;
+    } catch (error: any) {
+      return proxyFailure.call(this, "listMine", error);
+    }
   }
 
   @Post("{sessionId}/abandon")
   public async Abandon(@Path() sessionId: string, @Request() req: any): Promise<any> {
-    const result = await abandonMentorMatch(sessionId, req.user.id);
-    this.setStatus(result.status);
-    return result;
+    try {
+      const result = await abandonMentorMatch(sessionId, req.user.id);
+      this.setStatus(result.status);
+      return result;
+    } catch (error: any) {
+      return proxyFailure.call(this, "abandon", error);
+    }
   }
 
   @Post("{sessionId}/document")
@@ -120,9 +145,12 @@ export class MentorMatchController extends Controller {
     @Request() req: any,
     @UploadedFile() document: Express.Multer.File,
   ): Promise<any> {
-    const result = await sendMentorMatchDocument(sessionId, req.user.id, await studentNameFor(req.user.id), document);
-    this.setStatus(result.status);
-    return result;
+    try {
+      const result = await sendMentorMatchDocument(sessionId, req.user.id, await studentNameFor(req.user.id), document);
+      this.setStatus(result.status);
+      return result;
+    } catch (error: any) {
+      return proxyFailure.call(this, "document", error);
+    }
   }
-
 }

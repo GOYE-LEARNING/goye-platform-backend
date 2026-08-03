@@ -5253,45 +5253,6 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsMentorMatchController_VoiceMessage: Record<string, TsoaRoute.ParameterSchema> = {
-                sessionId: {"in":"path","name":"sessionId","required":true,"dataType":"string"},
-                req: {"in":"request","name":"req","required":true,"dataType":"object"},
-                audio: {"in":"formData","name":"audio","required":true,"dataType":"file"},
-        };
-        app.post('/api/mentor-match/:sessionId/voice-message',
-            authenticateMiddleware([{"bearerAuth":[]}]),
-            upload.fields([
-                {
-                    name: "audio",
-                    maxCount: 1
-                }
-            ]),
-            ...(fetchMiddlewares<RequestHandler>(MentorMatchController)),
-            ...(fetchMiddlewares<RequestHandler>(MentorMatchController.prototype.VoiceMessage)),
-
-            async function MentorMatchController_VoiceMessage(request: ExRequest, response: ExResponse, next: any) {
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            let validatedArgs: any[] = [];
-            try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsMentorMatchController_VoiceMessage, request, response });
-
-                const controller = new MentorMatchController();
-
-              await templateService.apiHandler({
-                methodName: 'VoiceMessage',
-                controller,
-                response,
-                next,
-                validatedArgs,
-                successStatus: undefined,
-              });
-            } catch (err) {
-                return next(err);
-            }
-        });
-        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsMentorMatchController_GetSession: Record<string, TsoaRoute.ParameterSchema> = {
                 sessionId: {"in":"path","name":"sessionId","required":true,"dataType":"string"},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
@@ -6851,45 +6812,6 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'Message',
-                controller,
-                response,
-                next,
-                validatedArgs,
-                successStatus: undefined,
-              });
-            } catch (err) {
-                return next(err);
-            }
-        });
-        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsCourseDraftController_VoiceMessage: Record<string, TsoaRoute.ParameterSchema> = {
-                sessionId: {"in":"path","name":"sessionId","required":true,"dataType":"string"},
-                req: {"in":"request","name":"req","required":true,"dataType":"object"},
-                audio: {"in":"formData","name":"audio","required":true,"dataType":"file"},
-        };
-        app.post('/api/course-draft/:sessionId/voice-message',
-            authenticateMiddleware([{"bearerAuth":[]}]),
-            upload.fields([
-                {
-                    name: "audio",
-                    maxCount: 1
-                }
-            ]),
-            ...(fetchMiddlewares<RequestHandler>(CourseDraftController)),
-            ...(fetchMiddlewares<RequestHandler>(CourseDraftController.prototype.VoiceMessage)),
-
-            async function CourseDraftController_VoiceMessage(request: ExRequest, response: ExResponse, next: any) {
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            let validatedArgs: any[] = [];
-            try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsCourseDraftController_VoiceMessage, request, response });
-
-                const controller = new CourseDraftController();
-
-              await templateService.apiHandler({
-                methodName: 'VoiceMessage',
                 controller,
                 response,
                 next,
