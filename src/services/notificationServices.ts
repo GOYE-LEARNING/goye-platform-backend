@@ -28,6 +28,7 @@ export enum NotificationType {
   ORG_MEMBER_JOINED = "ORG_MEMBER_JOINED",
   ORG_MEMBER_LEFT = "ORG_MEMBER_LEFT",
   ORG_ROLE_CHANGED = "ORG_ROLE_CHANGED",
+  MENTOR_REQUEST = "MENTOR_REQUEST",
 }
 
 type Types = "course" | "group" | "message" | "post" | "organization";

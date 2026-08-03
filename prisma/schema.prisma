@@ -195,6 +195,12 @@ model User {
   verifiedAt        DateTime?
   isSuspended       Boolean          @default(false)
 
+  // ── Tutor onboarding (collected once, at first-time instructor signup) ──
+  bio          String? // "describe yourself"
+  church_name  String?
+  church_role  String? // the tutor's role within that church
+  social_media String? // optional
+
   enrollment       Enrollment[]
   post             Post[]
   reply            Reply[]
@@ -621,7 +627,13 @@ model Course {
 
 model CourseDraftSession {
   id             String               @id @default(cuid())
-  tutorId        String
+  // Despite the name (kept to avoid an invasive rename across already-shipped
+  // code), this is a generic AI-conversation session row — sessionType picks
+  // which system prompt/tool set/draftJson shape applies. "course_draft" is
+  // the original (and default, for existing rows) behavior; "mentor_match"
+  // is the tutor-finding assistant for students.
+  sessionType    String               @default("course_draft")
+  tutorId        String // the OTHER party in a mentor_match session is the student, not a tutor — same column, reused
   status         String               @default("ACTIVE") // ACTIVE | AWAITING_APPROVAL | FINALIZED | ABANDONED
   draftJson      Json
   courseId       String?              @unique

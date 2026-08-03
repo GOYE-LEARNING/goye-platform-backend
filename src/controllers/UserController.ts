@@ -1273,6 +1273,10 @@ export class UserController extends Controller {
       phone_number: string;
       role: string;
       level: string;
+      bio?: string;
+      church_name?: string;
+      church_role?: string;
+      social_media?: string;
     },
   ) {
     const userId = req.user?.id;
@@ -1315,6 +1319,12 @@ export class UserController extends Controller {
           level: userLevel,
           isProfileComplete: true,
           // ✅ userType stays as INDIVIDUAL — no change needed on profile completion
+          // Only ever sent by the frontend for role === "instructor"; stays
+          // null for students since the form doesn't collect it from them.
+          ...(body.bio !== undefined ? { bio: body.bio } : {}),
+          ...(body.church_name !== undefined ? { church_name: body.church_name } : {}),
+          ...(body.church_role !== undefined ? { church_role: body.church_role } : {}),
+          ...(body.social_media !== undefined ? { social_media: body.social_media } : {}),
         },
       });
 
