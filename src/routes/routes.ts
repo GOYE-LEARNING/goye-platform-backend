@@ -5387,6 +5387,45 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsMentorMatchController_Document: Record<string, TsoaRoute.ParameterSchema> = {
+                sessionId: {"in":"path","name":"sessionId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                document: {"in":"formData","name":"document","required":true,"dataType":"file"},
+        };
+        app.post('/api/mentor-match/:sessionId/document',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            upload.fields([
+                {
+                    name: "document",
+                    maxCount: 1
+                }
+            ]),
+            ...(fetchMiddlewares<RequestHandler>(MentorMatchController)),
+            ...(fetchMiddlewares<RequestHandler>(MentorMatchController.prototype.Document)),
+
+            async function MentorMatchController_Document(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsMentorMatchController_Document, request, response });
+
+                const controller = new MentorMatchController();
+
+              await templateService.apiHandler({
+                methodName: 'Document',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsLevelSystem_StartJourney: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
@@ -6978,6 +7017,45 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'Abandon',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsCourseDraftController_Document: Record<string, TsoaRoute.ParameterSchema> = {
+                sessionId: {"in":"path","name":"sessionId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                document: {"in":"formData","name":"document","required":true,"dataType":"file"},
+        };
+        app.post('/api/course-draft/:sessionId/document',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            upload.fields([
+                {
+                    name: "document",
+                    maxCount: 1
+                }
+            ]),
+            ...(fetchMiddlewares<RequestHandler>(CourseDraftController)),
+            ...(fetchMiddlewares<RequestHandler>(CourseDraftController.prototype.Document)),
+
+            async function CourseDraftController_Document(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsCourseDraftController_Document, request, response });
+
+                const controller = new CourseDraftController();
+
+              await templateService.apiHandler({
+                methodName: 'Document',
                 controller,
                 response,
                 next,

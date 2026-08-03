@@ -16,6 +16,7 @@ import {
   sendMentorMatchMessage,
   sendMentorMatchVoiceMessage,
   startMentorMatch,
+  sendMentorMatchDocument,
 } from "../utils/ai_utils/mentor_match_client";
 import { NotificationService, Role, NotificationType } from "../services/notificationServices";
 import { EncryptionUtil } from "../utils/encryption";
@@ -112,4 +113,16 @@ export class MentorMatchController extends Controller {
     this.setStatus(result.status);
     return result;
   }
+
+  @Post("{sessionId}/document")
+  public async Document(
+    @Path() sessionId: string,
+    @Request() req: any,
+    @UploadedFile() document: Express.Multer.File,
+  ): Promise<any> {
+    const result = await sendMentorMatchDocument(sessionId, req.user.id, await studentNameFor(req.user.id), document);
+    this.setStatus(result.status);
+    return result;
+  }
+
 }

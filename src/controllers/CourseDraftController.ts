@@ -13,6 +13,7 @@ import {
   sendCourseDraftMessage,
   sendCourseDraftVoiceMessage,
   startCourseDraft,
+  sendCourseDraftDocument,
 } from "../utils/ai_utils/course_draft_client";
 
 // tsoa's generated auth wiring (routes.ts: `request['user'] = await ...`)
@@ -81,4 +82,16 @@ export class CourseDraftController extends Controller {
     this.setStatus(result.status);
     return result;
   }
+
+  @Post("{sessionId}/document")
+  public async Document(
+    @Path() sessionId: string,
+    @Request() req: any,
+    @UploadedFile() document: Express.Multer.File,
+  ): Promise<any> {
+    const result = await sendCourseDraftDocument(sessionId, req.user.id, await tutorNameFor(req.user.id), document);
+    this.setStatus(result.status);
+    return result;
+  }
+
 }

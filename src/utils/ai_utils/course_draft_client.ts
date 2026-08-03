@@ -123,3 +123,22 @@ export async function speakCourseDraftText(text: string, voice?: string): Promis
   const arrayBuffer = await res.arrayBuffer();
   return { ok: true, buffer: Buffer.from(arrayBuffer) };
 }
+
+export async function sendCourseDraftDocument(
+  sessionId: string,
+  tutorId: string,
+  tutorName: string,
+  file: Express.Multer.File,
+): Promise<AIResponse> {
+  const form = new FormData();
+  form.append("tutorId", tutorId);
+  form.append("tutorName", tutorName);
+  form.append("document", new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname || "document");
+
+  const res = await fetch(`${baseUrl()}/${sessionId}/document`, {
+    method: "POST",
+    headers: { "X-Service-Key": process.env.SHEKIAI_SERVICE_KEY || "" },
+    body: form,
+  });
+  return parse(res);
+}
