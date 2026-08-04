@@ -382,25 +382,42 @@ export async function expressAuthentication(
     // session row for the same deviceId caused the identical failure with no
     // concurrency at all, since the old findFirst filtered isRevoked:false
     // while the unique constraint doesn't care about that flag.
-    await prisma.userSession.upsert({
-      where: { deviceId: deviceId },
-      create: {
-        userId: user.id,
-        deviceId: deviceId,
-        accessToken: accessToken,
-        refreshToken: refreshToken || '',
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        lastActive: new Date(),
-        isRevoked: false,
-        deviceType: request.headers["user-agent"] ? "web" : "unknown",
-        userType: decoded.type || "USER",
-      },
-      update: {
-        lastActive: new Date(),
-        accessToken: accessToken,
-        isRevoked: false,
-      }
-    });
+    // Only create a session row when we actually have a refresh token to put
+    // in it. This used to write `refreshToken: ''` as a fallback, and such a
+    // row is worse than no row at all: the refresh endpoint finds a session
+    // by exact (refreshToken, deviceId) match, so an empty one can never
+    // match and every refresh against that device returns "Invalid session"
+    // — which clients correctly treat as an expired session and bounce to
+    // login. Login already creates the real row; a request that arrives
+    // without a refresh token has nothing to record here.
+    if (refreshToken) {
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        create: {
+          userId: user.id,
+          deviceId: deviceId,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          lastActive: new Date(),
+          isRevoked: false,
+          deviceType: request.headers["user-agent"] ? "web" : "unknown",
+          userType: decoded.type || "USER",
+        },
+        update: {
+          lastActive: new Date(),
+          accessToken: accessToken,
+          isRevoked: false,
+        }
+      });
+    } else {
+      // Keep lastActive/accessToken fresh if a row for this device exists,
+      // but never conjure a new one from a tokenless request.
+      await prisma.userSession.updateMany({
+        where: { deviceId: deviceId },
+        data: { lastActive: new Date(), accessToken: accessToken, isRevoked: false },
+      });
+    }
 
     // Attach data to request
     (request as any).user = user;
