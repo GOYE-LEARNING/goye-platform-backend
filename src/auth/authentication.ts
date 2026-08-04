@@ -219,16 +219,24 @@ export async function expressAuthentication(
   scopes?: string[],
 ): Promise<any> {
   if (securityName === "bearerAuth") {
-    // Get tokens from multiple sources
-    let accessToken = request.cookies?.accessToken;
+    // An explicit Authorization header WINS over the cookie. This used to be
+    // the other way round, and it silently broke every native client:
+    // React Native's fetch keeps a native cookie jar, so the Set-Cookie
+    // headers we send on login get stored on the device too. The app then
+    // sends both its fresh AsyncStorage token (header) and whatever stale
+    // cookie the jar still holds — and we picked the cookie. Clearing the
+    // app's stored session doesn't touch that jar, so a stale cookie token
+    // outlived every logout and kept failing signature verification
+    // ("invalid signature") while the header token beside it was perfectly
+    // valid. A client that bothers to send a bearer token is telling us which
+    // credential to use; honour that.
     const tokenFromHeader = request.headers["authorization"]?.split(" ")[1];
-    const refreshToken = request.cookies?.refreshToken;
-    const deviceId = request.cookies?.deviceId || request.headers["x-device-id"] || `device_${Date.now()}_${Math.random()}`;
-    
-    // Use token from header if available and no cookie token
-    if (!accessToken && tokenFromHeader) {
-      accessToken = tokenFromHeader;
-    }
+    let accessToken = tokenFromHeader || request.cookies?.accessToken;
+    // Same precedence for the refresh token — mobile sends it as a header
+    // since it has no cookie it can trust.
+    const refreshToken =
+      (request.headers["x-refresh-token"] as string | undefined) || request.cookies?.refreshToken;
+    const deviceId = request.headers["x-device-id"] || request.cookies?.deviceId || `device_${Date.now()}_${Math.random()}`;
 
     console.log("🔐 Authentication check:", {
       hasAccessToken: !!accessToken,

@@ -11,8 +11,14 @@ export class UserVerificationController extends Controller {
     try {
       const isProduction = process.env.NODE_ENV === "production";
       
-      const refreshToken = req.cookies?.refreshToken || req.headers["x-refresh-token"];
-      const deviceId = req.cookies?.deviceId || req.headers["x-device-id"];
+      // Headers win over cookies. Mobile sends both (React Native's fetch
+      // keeps a native cookie jar, so our login Set-Cookie headers land on
+      // the device as well), and preferring the cookie meant a stale cookie
+      // refresh token was verified instead of the fresh header one the app
+      // deliberately sent — failing with "invalid signature" and forcing a
+      // full logout. See the note in auth/authentication.ts.
+      const refreshToken = req.headers["x-refresh-token"] || req.cookies?.refreshToken;
+      const deviceId = req.headers["x-device-id"] || req.cookies?.deviceId;
 
       console.log("Refresh token request:", { 
         hasRefreshToken: !!refreshToken, 

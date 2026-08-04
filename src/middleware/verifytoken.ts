@@ -30,14 +30,18 @@ export async function VerifyToken(
   next: NextFunction,
 ) {
   try {
-    // Try to get access token from cookie or header
+    // Header wins over cookie — see the long note in auth/authentication.ts:
+    // native clients carry a stale cookie in RN's cookie jar alongside a
+    // fresh bearer token, and preferring the cookie made those requests fail
+    // signature verification for no good reason.
     const accessTokenFromCookie = req.cookies?.accessToken;
     const accessTokenFromHeader = req.headers.authorization?.split(" ")[1];
-    let accessToken = accessTokenFromCookie || accessTokenFromHeader;
+    let accessToken = accessTokenFromHeader || accessTokenFromCookie;
 
     // If no access token, check for refresh token
     if (!accessToken) {
-      const refreshToken = req.cookies?.refreshToken;
+      const refreshToken =
+        (req.headers["x-refresh-token"] as string | undefined) || req.cookies?.refreshToken;
 
       if (!refreshToken) {
         return res.status(401).json({ message: "No tokens found" });
