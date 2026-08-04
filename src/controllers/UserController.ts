@@ -1372,7 +1372,12 @@ export class UserController extends Controller {
         });
       }
 
-      const deviceId = req.cookies?.deviceId || generateDeviceId();
+      // Mobile has no cookie jar and sends its stable device id as a header
+      // instead — reading only the cookie meant every mobile profile
+      // completion invented a brand-new deviceId and orphaned that device's
+      // real session row.
+      const deviceId =
+        req.cookies?.deviceId || req.headers["x-device-id"] || generateDeviceId();
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = getDeviceType(userAgent);
 
@@ -1394,9 +1399,34 @@ export class UserController extends Controller {
         isProfileComplete: true,
       });
 
-      await prisma.userSession.updateMany({
-        where: { userId },
-        data: { refreshToken, accessToken, lastActive: new Date() },
+      // Scoped to THIS device only. This used to be an updateMany over every
+      // session belonging to the user, which stamped the one new refreshToken
+      // onto every other device's row too — and since the refresh endpoint
+      // looks a session up by exact (refreshToken, deviceId) match, every
+      // other logged-in device instantly stopped being able to refresh and
+      // got bounced to login. upsert keyed on the unique deviceId leaves
+      // other devices' sessions untouched, matching how Login already works.
+      await prisma.userSession.upsert({
+        where: { deviceId },
+        update: {
+          userId,
+          refreshToken,
+          accessToken,
+          lastActive: new Date(),
+          isRevoked: false,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        create: {
+          userId,
+          deviceId,
+          deviceType,
+          refreshToken,
+          accessToken,
+          userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          isRevoked: false,
+        },
       });
 
       await NotificationService.createNotification({

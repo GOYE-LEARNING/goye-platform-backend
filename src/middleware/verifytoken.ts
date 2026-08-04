@@ -143,12 +143,18 @@ export async function VerifyToken(
           maxAge: 15 * 60 * 1000,
         });
 
-        // Also update the session in database
+        // Also update the session in database — scoped to the device this
+        // request actually came from. An updateMany over every session for
+        // the user stamped one device's access token onto all the others.
         try {
-          await prisma.userSession.updateMany({
-            where: { userId: decoded.id },
-            data: { accessToken: newAccessToken },
-          });
+          const requestDeviceId =
+            req.cookies?.deviceId || (req.headers["x-device-id"] as string | undefined);
+          if (requestDeviceId) {
+            await prisma.userSession.updateMany({
+              where: { userId: decoded.id, deviceId: requestDeviceId },
+              data: { accessToken: newAccessToken },
+            });
+          }
         } catch (sessionError) {
           console.log("Could not update session, but continuing...");
         }
