@@ -644,6 +644,14 @@ export class CourseController extends Controller {
   public async GetAllCourses(): Promise<CourseResponse> {
     try {
       const getAllCourses = await prisma.course.findMany({
+        // AI-drafted courses start as status: "DRAFT" (no lesson videos yet —
+        // see course_draft_finalize_functions.ts) and are meant to only be
+        // visible to the tutor who's still building them (get-courses-by-tutor
+        // is intentionally unfiltered). Nothing here filtered by status at
+        // all, so every draft — an empty shell with no playable content —
+        // was showing up in the public browse list right alongside real
+        // courses.
+        where: { status: "PUBLISHED" },
         orderBy: {
           createdAt: "desc",
         },
@@ -706,6 +714,7 @@ export class CourseController extends Controller {
         const getAllCourses = await prisma.course.findMany({
           where: {
             course_level: "Beginner",
+            status: "PUBLISHED",
           },
           orderBy: {
             createdAt: "desc",
@@ -747,6 +756,7 @@ export class CourseController extends Controller {
         const getAllCourses = await prisma.course.findMany({
           where: {
             course_level: "Intermediate",
+            status: "PUBLISHED",
           },
           orderBy: {
             createdAt: "desc",
