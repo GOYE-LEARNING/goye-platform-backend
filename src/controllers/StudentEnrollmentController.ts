@@ -499,9 +499,13 @@ export class StudentEnrollmentController extends Controller {
         };
       }
 
-      // Determine if user is authorized (instructor OR org admin)
+      // Determine if user is authorized (instructor OR org admin).
+      // "tutor" is a legacy alias for "instructor" still in use on some
+      // accounts (see UserController.ts:2126, OrganizationController.ts:1422,
+      // NotificationController.ts:696) — omitting it here 401'd those tutors
+      // out of their own students list.
       const isInstructor =
-        userRole === "instructor" || userRole == "INSTRUCTOR";
+        userRole === "instructor" || userRole == "INSTRUCTOR" || userRole === "tutor";
       const isOrgAdmin =
         orgRole === "admin" ||
         orgRole === "owner" ||
