@@ -56,6 +56,9 @@ export class SuperAdminController extends Controller {
         organizationsByType,
         recentUsers,
         suspendedOrganizations,
+        recentEnrollments,
+        topCourses,
+        recentOrganizations,
       ] = await Promise.all([
         prisma.organization.count(),
         prisma.course.count(),
@@ -79,6 +82,32 @@ export class SuperAdminController extends Controller {
           },
         }),
         prisma.organization.count({ where: { isSuspended: true } }),
+        // Enrollment trend — same 30-day window as signups, so the two can
+        // be plotted on one chart for a growth-vs-activation comparison.
+        prisma.enrollment.findMany({
+          select: { enrolledAt: true },
+          where: {
+            enrolledAt: {
+              gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+            },
+          },
+        }),
+        // Top 5 courses by enrollment count.
+        prisma.enrollment.groupBy({
+          by: ["courseId"],
+          _count: { courseId: true },
+          orderBy: { _count: { courseId: "desc" } },
+          take: 5,
+        }),
+        // Organization signups for the last 6 months, bucketed by month.
+        prisma.organization.findMany({
+          select: { createdAt: true },
+          where: {
+            createdAt: {
+              gte: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000),
+            },
+          },
+        }),
       ]);
 
       const totalUsers = usersByRole.reduce((sum, r) => sum + r._count.role, 0);
@@ -97,6 +126,40 @@ export class SuperAdminController extends Controller {
         const day = u.createdAt.toISOString().slice(0, 10);
         if (day in signupsByDay) signupsByDay[day]++;
       });
+
+      const enrollmentsByDay: Record<string, number> = {};
+      for (let i = 29; i >= 0; i--) {
+        const day = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        enrollmentsByDay[day] = 0;
+      }
+      recentEnrollments.forEach((e) => {
+        const day = e.enrolledAt.toISOString().slice(0, 10);
+        if (day in enrollmentsByDay) enrollmentsByDay[day]++;
+      });
+
+      // Bucket organization signups into the last 6 calendar months.
+      const orgsByMonth: Record<string, number> = {};
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        orgsByMonth[d.toISOString().slice(0, 7)] = 0;
+      }
+      recentOrganizations.forEach((o) => {
+        const month = o.createdAt.toISOString().slice(0, 7);
+        if (month in orgsByMonth) orgsByMonth[month]++;
+      });
+
+      const topCourseIds = topCourses.map((c) => c.courseId);
+      const topCourseRecords = topCourseIds.length
+        ? await prisma.course.findMany({
+            where: { id: { in: topCourseIds } },
+            select: { id: true, course_title: true },
+          })
+        : [];
+      const courseTitleById = new Map(topCourseRecords.map((c) => [c.id, c.course_title]));
 
       this.setStatus(200);
       return {
@@ -120,6 +183,19 @@ export class SuperAdminController extends Controller {
           signupsLast30Days: Object.entries(signupsByDay).map(([date, count]) => ({
             date,
             count,
+          })),
+          enrollmentsLast30Days: Object.entries(enrollmentsByDay).map(([date, count]) => ({
+            date,
+            count,
+          })),
+          organizationGrowthLast6Months: Object.entries(orgsByMonth).map(([month, count]) => ({
+            month,
+            count,
+          })),
+          topCoursesByEnrollment: topCourses.map((c) => ({
+            courseId: c.courseId,
+            title: courseTitleById.get(c.courseId) || "Untitled course",
+            enrollments: c._count.courseId,
           })),
         },
       };
