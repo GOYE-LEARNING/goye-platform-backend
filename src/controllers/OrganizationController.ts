@@ -1361,6 +1361,190 @@ public async GetUserDetails(
     }
   }
   /**
+   * GET: Chart-ready analytics for an organization's admin dashboard.
+   *
+   * The existing /overview-stats and /user-breakdown endpoints return point-in-time
+   * totals only — nothing in this controller was time-bucketed, so there was no
+   * series to plot. This adds the shapes the dashboard's line/bar/pie charts need.
+   *
+   * Enrollments are resolved through member ids rather than `Enrollment.organizationId`:
+   * that column is nullable and is not consistently populated, whereas every other
+   * aggregate in this file already goes via OrganizationMember. Using it here would
+   * silently under-count.
+   */
+  @Security("bearerAuth")
+  @Get("/analytics/{organizationId}")
+  public async GetOrganizationAnalytics(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return { success: false, message: "Organization not found" };
+      }
+
+      const members = await prisma.organizationMember.findMany({
+        where: { organizationId, isActive: true },
+        select: {
+          userId: true,
+          role: true,
+          joinedAt: true,
+          joinedVia: true,
+          user: { select: { id: true, role: true, isOnline: true } },
+        },
+      });
+
+      const memberIds = members.map((m) => m.userId);
+
+      const [courses, enrollments] = await Promise.all([
+        prisma.course.findMany({
+          where: { organizationId },
+          select: { id: true, course_title: true, status: true, createdAt: true },
+        }),
+        memberIds.length
+          ? prisma.enrollment.findMany({
+              where: { userId: { in: memberIds } },
+              select: {
+                id: true,
+                status: true,
+                enrolledAt: true,
+                completedAt: true,
+                courseId: true,
+              },
+            })
+          : Promise.resolve([] as any[]),
+      ]);
+
+      // ── Member growth, last 6 calendar months ──────────────────────────
+      const memberGrowth: { month: string; count: number }[] = [];
+      const monthKeys: string[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1);
+        d.setHours(0, 0, 0, 0);
+        d.setMonth(d.getMonth() - i);
+        const key = d.toISOString().slice(0, 7);
+        monthKeys.push(key);
+        memberGrowth.push({ month: key, count: 0 });
+      }
+      members.forEach((m) => {
+        const key = m.joinedAt.toISOString().slice(0, 7);
+        const bucket = memberGrowth.find((b) => b.month === key);
+        if (bucket) bucket.count++;
+      });
+
+      // ── Enrollments vs completions, last 30 days ───────────────────────
+      const dayKeys: string[] = [];
+      const enrolledByDay: Record<string, number> = {};
+      const completedByDay: Record<string, number> = {};
+      for (let i = 29; i >= 0; i--) {
+        const key = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+          .toISOString()
+          .slice(0, 10);
+        dayKeys.push(key);
+        enrolledByDay[key] = 0;
+        completedByDay[key] = 0;
+      }
+      enrollments.forEach((e) => {
+        const eKey = e.enrolledAt?.toISOString().slice(0, 10);
+        if (eKey && eKey in enrolledByDay) enrolledByDay[eKey]++;
+        const cKey = e.completedAt?.toISOString().slice(0, 10);
+        if (cKey && cKey in completedByDay) completedByDay[cKey]++;
+      });
+
+      // ── Composition breakdowns (pie/donut) ─────────────────────────────
+      const roleCounts: Record<string, number> = {};
+      members.forEach((m) => {
+        // The membership role is the authoritative one inside an org; the
+        // user's global role is only a fallback for older rows.
+        const role = (m.role || m.user?.role || "member").toLowerCase();
+        roleCounts[role] = (roleCounts[role] || 0) + 1;
+      });
+
+      const statusCounts: Record<string, number> = {};
+      enrollments.forEach((e) => {
+        statusCounts[e.status] = (statusCounts[e.status] || 0) + 1;
+      });
+
+      const joinMethodCounts: Record<string, number> = {};
+      members.forEach((m) => {
+        const via = m.joinedVia || "INVITE";
+        joinMethodCounts[via] = (joinMethodCounts[via] || 0) + 1;
+      });
+
+      // ── Top courses by enrollment (horizontal bars) ────────────────────
+      const enrollmentsByCourse: Record<string, number> = {};
+      enrollments.forEach((e) => {
+        enrollmentsByCourse[e.courseId] = (enrollmentsByCourse[e.courseId] || 0) + 1;
+      });
+      const courseTitleById = new Map(courses.map((c) => [c.id, c.course_title]));
+      const topCourses = Object.entries(enrollmentsByCourse)
+        // Only this org's own courses — members may also enrol in public ones.
+        .filter(([courseId]) => courseTitleById.has(courseId))
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([courseId, count]) => ({
+          courseId,
+          title: courseTitleById.get(courseId) || "Untitled course",
+          enrollments: count,
+        }));
+
+      const completedEnrollments = enrollments.filter(
+        (e) => e.status === "COMPLETED",
+      ).length;
+
+      this.setStatus(200);
+      return {
+        success: true,
+        data: {
+          summary: {
+            totalMembers: members.length,
+            onlineMembers: members.filter((m) => m.user?.isOnline).length,
+            totalCourses: courses.length,
+            publishedCourses: courses.filter((c) => c.status === "PUBLISHED").length,
+            totalEnrollments: enrollments.length,
+            completedEnrollments,
+            completionRate:
+              enrollments.length > 0
+                ? Math.round((completedEnrollments / enrollments.length) * 100)
+                : 0,
+          },
+          memberGrowthLast6Months: memberGrowth,
+          enrollmentsLast30Days: dayKeys.map((date) => ({
+            date,
+            count: enrolledByDay[date],
+          })),
+          completionsLast30Days: dayKeys.map((date) => ({
+            date,
+            count: completedByDay[date],
+          })),
+          membersByRole: Object.entries(roleCounts).map(([label, value]) => ({
+            label,
+            value,
+          })),
+          enrollmentsByStatus: Object.entries(statusCounts).map(([label, value]) => ({
+            label,
+            value,
+          })),
+          membersByJoinMethod: Object.entries(joinMethodCounts).map(
+            ([label, value]) => ({ label, value }),
+          ),
+          topCoursesByEnrollment: topCourses,
+        },
+      };
+    } catch (error: any) {
+      console.error("[OrganizationAnalytics] error:", error.message);
+      this.setStatus(500);
+      return { success: false, message: "Failed to fetch organization analytics" };
+    }
+  }
+
+  /**
    * GET: Fetch user breakdown for organization dashboard
    * Returns counts for: total members, students, instructors, admins, online users, etc.
    */
