@@ -32,6 +32,7 @@ import {
 } from "../utils/jwtHelper";
 import { firebaseAuthService } from "../services/firebaseService";
 import { otpRateLimit } from "../utils/otp";
+import { normalizeEmail, findUserByEmail } from "../utils/email";
 import { WeirdService } from "../services/weridService";
 
 const forgotPasswordRateLimit = new Map<string, number[]>();
@@ -572,9 +573,9 @@ export class UserController extends Controller {
     const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
     const isProduction = process.env.NODE_ENV === "production";
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email_address: body.email_address },
-    });
+    // Case-insensitive: the DB unique index is case-sensitive, so an exact
+    // findUnique let "Sean@x.com" slip past an existing "sean@x.com".
+    const existingUser = await findUserByEmail(body.email_address);
 
     if (existingUser) {
       this.setStatus(400);
@@ -591,13 +592,15 @@ export class UserController extends Controller {
     const user = await prisma.user.create({
       data: {
         ...body,
+        // Stored normalized so no future duplicate can differ only by case.
+        email_address: normalizeEmail(body.email_address),
         password: hashedPassword,
         level: body.level,
         language: body.language,
         languageCode: body.languageCode as any,
         userType: "INDIVIDUAL", // ✅ explicit on signup
       },
-      
+
     });
 
     const createSettings = await prisma.settings.create({
@@ -760,9 +763,11 @@ export class UserController extends Controller {
       const deviceId = credentials.deviceId || generateDeviceId();
       const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
 
-      const user = await prisma.user.findUnique({
-        where: { email_address: credentials.email },
-        include: { adminProfile: true },
+      // Case-insensitive on purpose: accounts created before email
+      // normalization may be stored with capitals, and an exact-match lookup
+      // would lock those users out of their own accounts.
+      const user = await findUserByEmail(credentials.email, {
+        adminProfile: true,
       });
 
       // ─── ADMIN ──────────────────────────────────────────────────────────

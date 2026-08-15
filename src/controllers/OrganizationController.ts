@@ -20,6 +20,7 @@ import { MediaService } from "../services/mediaServices";
 import { SendEmail } from "../utils/sendmail";
 import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
+import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
 
 @Route("organizations")
 @Tags("Organization Controllers")
@@ -42,9 +43,11 @@ export class OrganizationController extends Controller {
     try {
       if (
         (body.church?.church_email &&
-          body.church.church_email === body.user_email_address) ||
+          normalizeEmail(body.church.church_email) ===
+            normalizeEmail(body.user_email_address)) ||
         (body.school?.school_email &&
-          body.school.school_email === body.user_email_address)
+          normalizeEmail(body.school.school_email) ===
+            normalizeEmail(body.user_email_address))
       ) {
         return {
           errorType: "SAME_EMAIL_ISSUE",
@@ -53,10 +56,38 @@ export class OrganizationController extends Controller {
         };
       }
 
+      // This path nested a `user: { create: ... }` with no existing-account
+      // check, so a registered address reached user creation directly and
+      // surfaced as a raw Prisma P2002 rather than a usable message.
+      if (await emailAlreadyRegistered(body.user_email_address)) {
+        this.setStatus(409);
+        return {
+          errorType: "EMAIL_ALREADY_REGISTERED",
+          message:
+            "An account with this email already exists. Please log in instead, or use a different email for the organization owner.",
+        };
+      }
+
+      const existingOrgEmail = await prisma.organization.findFirst({
+        where: {
+          organization_email: {
+            equals: normalizeEmail(body.organization_email),
+            mode: "insensitive",
+          },
+        },
+      });
+      if (existingOrgEmail) {
+        this.setStatus(409);
+        return {
+          errorType: "ORG_EMAIL_TAKEN",
+          message: "An organization is already registered with this email address.",
+        };
+      }
+
       const createOrganization = await prisma.organization.create({
         data: {
           organization_name: body.organization_name,
-          organization_email: body.organization_email,
+          organization_email: normalizeEmail(body.organization_email),
           lastActive: new Date(),
           organization_role: body.organization_role,
           organization_description: body.organization_description,
@@ -73,7 +104,7 @@ export class OrganizationController extends Controller {
             create: {
               first_name: body.user_first_name,
               last_name: body.user_last_name,
-              email_address: body.user_email_address,
+              email_address: normalizeEmail(body.user_email_address),
               country: body.user_country,
               state: body.user_state,
               phone_number: body.user_phone_number,
@@ -2585,15 +2616,33 @@ public async GetUserDetails(
     try {
       const hashedPassword = await bcrypt.hash(body.password, 10);
 
-      // ✅ Find the invitation by email
+      // ✅ Find the invitation by email — scoped to THIS organization, since
+      // the same address can legitimately hold invites from several orgs and
+      // an unscoped findFirst could match a different org's invite entirely.
       const invitation = await prisma.inviteUser.findFirst({
-        where: { email: body.email_address },
+        where: {
+          email: { equals: normalizeEmail(body.email_address), mode: "insensitive" },
+          organizationId,
+        },
       });
 
       if (!invitation) {
         this.setStatus(403);
         return {
           message: "No invitation found for this email address.",
+        };
+      }
+
+      // This path created an account with no existing-user check at all, so
+      // an already-registered address could be pushed straight into
+      // user.create — only the (case-sensitive) DB constraint stood in the
+      // way. Someone already on GOYE should sign in and accept the invite,
+      // not register a second account.
+      if (await emailAlreadyRegistered(body.email_address)) {
+        this.setStatus(409);
+        return {
+          message:
+            "An account with this email already exists. Please log in to accept your invitation.",
         };
       }
 
@@ -2606,6 +2655,7 @@ public async GetUserDetails(
       const user = await prisma.user.create({
         data: {
           ...body,
+          email_address: normalizeEmail(body.email_address),
           password: hashedPassword,
           userType: "INVITED_MEMBER", // ✅ new field
           form_type: "INVITED",
@@ -2720,9 +2770,17 @@ public async InviteUsersToOrganization(
 
     const invitePromises = users.map(async (user) => {
       try {
-        // ✅ First check if user exists in the system
-        const existingUser = await prisma.user.findUnique({
-          where: { email_address: user.email },
+        // ✅ First check if user exists in the system.
+        // Case-insensitive: an exact match missed pre-normalization accounts
+        // stored with capitals, so an existing member could be re-invited as
+        // though they were a stranger.
+        const existingUser = await prisma.user.findFirst({
+          where: {
+            email_address: {
+              equals: normalizeEmail(user.email),
+              mode: "insensitive",
+            },
+          },
           select: {
             id: true,
             first_name: true,
@@ -2775,7 +2833,7 @@ public async InviteUsersToOrganization(
         // Check if there's already an active invitation
         const existingInvite = await prisma.inviteUser.findFirst({
           where: {
-            email: user.email,
+            email: { equals: normalizeEmail(user.email), mode: "insensitive" },
             organizationId: organizationId,
             expiresIn: { gt: new Date() },
           },
@@ -2826,7 +2884,7 @@ public async InviteUsersToOrganization(
           // Create new invitation
           inviteEntry = await prisma.inviteUser.create({
             data: {
-              email: user.email,
+              email: normalizeEmail(user.email),
               role: user.role,
               code: tokencode,
               organizationId: organizationId,
