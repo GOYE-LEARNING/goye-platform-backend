@@ -148,7 +148,7 @@ export class MediaService {
           folder: `lesson_videos/${courseId}/${moduleId}`,
           public_id: `video_${Date.now()}`,
           resource_type: "video",
-          chunk_size: 20000000, // 20MB chunks
+          chunk_size: 50000000, // 50MB chunks
           timeout: 300000, // 5 minutes timeout
           eager: [
             { streaming_profile: "hd", format: "m3u8" },
