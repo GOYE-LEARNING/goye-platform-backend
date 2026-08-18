@@ -185,12 +185,21 @@ export async function expressAuthentication(
     const refreshToken =
       (request.headers["x-refresh-token"] as string | undefined) || request.cookies?.refreshToken;
     
-    // ✅ FIX: Read deviceId from BODY, HEADERS, or COOKIES
-    const deviceId = 
-      request.body?.deviceId || 
-      request.headers["x-device-id"] || 
-      request.cookies?.deviceId || 
-      `device_${Date.now()}_${Math.random()}`;
+// Header is the primary source — it's the only channel that reliably
+// reaches the backend cross-domain regardless of browser cookie/privacy
+// settings. Body and cookie are kept only as legacy fallbacks. We no
+// longer silently invent a random deviceId: doing so guaranteed a
+// mismatch against any stored session, which is what caused
+// "session expired" on devices where the cookie never made it through.
+const deviceId = 
+  (request.headers["x-device-id"] as string | undefined) ||
+  request.body?.deviceId || 
+  request.cookies?.deviceId;
+
+if (!deviceId) {
+  console.error("❌ No deviceId provided in header, body, or cookie for path:", request.path);
+  throw new Error("Device identification missing — please refresh and log in again");
+}
 
     console.log("🔐 Authentication check:", {
       hasAccessToken: !!accessToken,
