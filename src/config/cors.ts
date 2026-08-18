@@ -20,5 +20,7 @@ export const corsOptions = cors({
     "X-Requested-With",
     "Cache-Control",
     "Pragma",
+    "X-Device-Id",
+    "x-refresh-token",
   ],
 });
