@@ -248,7 +248,7 @@ export class MediaService {
               public_id: `material_${courseId}_${Date.now()}_${
                 fileName.split(".")[0]
               }`,
-              resource_type: "auto",
+              resource_type: "raw",
             },
             (error, result) => {
               if (error) {

@@ -17,12 +17,12 @@
     "routesDir": "src/routes",
     "basePath": "/api",
     "authenticationModule": "./src/auth/authentication.ts",
-    "multerOpts": {
-      "limits": {
-        "fileSize": 10485760,
-        "files": 1
-      },
-      "fileFilter": null
-    }
+"multerOpts": {
+  "limits": {
+    "fileSize": 104857600,
+    "files": 1
+  },
+  "fileFilter": null
+}
   }
 }

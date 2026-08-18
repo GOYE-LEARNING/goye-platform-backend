@@ -1103,13 +1103,13 @@ export class CourseController extends Controller {
       }
 
       // Check file size manually as a backup
-      const maxSize = 500 * 1024 * 1024; // 500MB
-      if (file.size > maxSize) {
-        this.setStatus(413);
-        return {
-          message: `File too large. Maximum size is 500MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`,
-        };
-      }
+const maxSize = 95 * 1024 * 1024; // ~95MB, matching free-plan 100MB cap with headroom
+if (file.size > maxSize) {
+  this.setStatus(413);
+  return {
+    message: `File too large. Maximum size is 95MB on the current plan. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+  };
+}
 
       const module = await prisma.module.findFirst({
         where: {
