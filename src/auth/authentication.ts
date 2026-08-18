@@ -1,4 +1,4 @@
-// auth/authentication.ts
+// auth/authentication.ts - FIXED VERSION
 import { Request } from "express";
 import jwt from "jsonwebtoken";
 import prisma from "../db";
@@ -12,7 +12,7 @@ interface DecodedToken {
   type?: string;
   level?: string;
   deviceId?: string;
-  organizationId?: string;
+  organizationId?: string;  
   progressId?: string;
   planId?: string;
   settingsId?: string;
@@ -62,7 +62,6 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
     let userPricingHistory = null;
 
     try {
-      // Try to get organization if it exists
       const organization = await prisma.organization.findFirst({
         where: { userId: user.id }
       });
@@ -72,7 +71,6 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
     }
 
     try {
-      // Try to get progress if it exists
       const progress = await prisma.progress.findFirst({
         where: { userId: user.id }
       });
@@ -82,7 +80,6 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
     }
 
     try {
-      // Try to get settings if it exists
       const settings = await prisma.settings.findFirst({
         where: { userId: user.id }
       });
@@ -92,7 +89,6 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
     }
 
     try {
-      // Try to get pricing history if it exists
       const pricingHistory = await prisma.pricingHistory.findFirst({
         where: { userId: user.id },
         orderBy: { planActivatedAt: 'desc' }
@@ -102,18 +98,14 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
       console.log("No pricingHistory relation found");
     }
 
-    // Get or create device info
     const deviceType = request.headers["user-agent"] ? "web" : "unknown";
     
-    // Determine user type
     const userType = decodedRefresh.type || 
                      (userOrganization ? "ORGANIZATION" : 
                       user.userType ? "INVITED_USER" : "USER");
 
-    // Normalize level
     const normalizedLevel = normalizeLevel(user.level || "Beginners");
 
-    // Prepare payload for new tokens
     const payload: any = {
       id: user.id,
       email: user.email_address,
@@ -124,57 +116,26 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
       type: userType,
     };
 
-    // Add organization data if exists
     if (userOrganization) {
       payload.organizationId = userOrganization.id;
       payload.userId = user.id;
       payload.organization_name = userOrganization.organization_name;
     }
 
-    // Add progress data for regular users
     if (userProgress && userProgress.id) {
       payload.progressId = userProgress.id;
     }
     
-    // Add pricing history data
     if (userPricingHistory && userPricingHistory.id) {
       payload.planId = userPricingHistory.id;
     }
     
-    // Add settings data
     if (userSetting && userSetting.id) {
       payload.settingsId = userSetting.id;
     }
 
-    // Generate a new access token only. The refresh token passed in was just
-    // verified as valid above, so it's reused as-is — this function used to
-    // also mint and store a brand-new refresh token on every call, but that
-    // raced with the explicit POST /api/verify/refresh-token endpoint (which
-    // only ever reissues the access token, never rotates the refresh token).
-    // A freshly loaded dashboard fires many parallel bearerAuth-guarded
-    // requests at once; if more than one hit this "no valid access token"
-    // path concurrently, each minted a *different* new refresh token and
-    // overwrote the same session row — last write wins in the DB, but the
-    // client only ever received whichever cookie the browser applied last,
-    // so it frequently ended up holding a refresh token that no longer
-    // matched storage. The next explicit refresh call's exact-string lookup
-    // then found nothing and returned 403 "Invalid session", which the
-    // client treats as an expired session and bounces to login — right
-    // after a successful login, since that's exactly when a dashboard fires
-    // its burst of parallel requests. Reusing the same refresh token here
-    // removes the only place that rotated it outside that one endpoint, so
-    // there's nothing left to race.
     const newAccessToken = jwt.sign(payload, process.env.ACCESS_SECRET!, { expiresIn: "15m" });
 
-    // Create or update session atomically on the unique deviceId column.
-    // Doing this as separate findFirst + create/update calls (the old code)
-    // let two near-simultaneous requests both see "no session" and both try
-    // to create one, tripping the unique constraint on deviceId — and a
-    // revoked session row for the same deviceId caused the exact same
-    // create-time failure even with no concurrency at all, since findFirst
-    // filtered isRevoked:false but the unique constraint doesn't. upsert
-    // keyed on deviceId is a single atomic DB operation, so neither race
-    // exists.
     const session = await prisma.userSession.upsert({
       where: { deviceId: deviceId },
       create: {
@@ -219,30 +180,24 @@ export async function expressAuthentication(
   scopes?: string[],
 ): Promise<any> {
   if (securityName === "bearerAuth") {
-    // An explicit Authorization header WINS over the cookie. This used to be
-    // the other way round, and it silently broke every native client:
-    // React Native's fetch keeps a native cookie jar, so the Set-Cookie
-    // headers we send on login get stored on the device too. The app then
-    // sends both its fresh AsyncStorage token (header) and whatever stale
-    // cookie the jar still holds — and we picked the cookie. Clearing the
-    // app's stored session doesn't touch that jar, so a stale cookie token
-    // outlived every logout and kept failing signature verification
-    // ("invalid signature") while the header token beside it was perfectly
-    // valid. A client that bothers to send a bearer token is telling us which
-    // credential to use; honour that.
     const tokenFromHeader = request.headers["authorization"]?.split(" ")[1];
     let accessToken = tokenFromHeader || request.cookies?.accessToken;
-    // Same precedence for the refresh token — mobile sends it as a header
-    // since it has no cookie it can trust.
     const refreshToken =
       (request.headers["x-refresh-token"] as string | undefined) || request.cookies?.refreshToken;
-    const deviceId = request.headers["x-device-id"] || request.cookies?.deviceId || `device_${Date.now()}_${Math.random()}`;
+    
+    // ✅ FIX: Read deviceId from BODY, HEADERS, or COOKIES
+    const deviceId = 
+      request.body?.deviceId || 
+      request.headers["x-device-id"] || 
+      request.cookies?.deviceId || 
+      `device_${Date.now()}_${Math.random()}`;
 
     console.log("🔐 Authentication check:", {
       hasAccessToken: !!accessToken,
       hasRefreshToken: !!refreshToken,
       deviceId: deviceId,
-      path: request.path
+      path: request.path,
+      deviceIdSource: request.body?.deviceId ? 'body' : request.headers["x-device-id"] ? 'header' : request.cookies?.deviceId ? 'cookie' : 'generated'
     });
 
     // CASE 1: No access token - try to generate from refresh token
@@ -254,18 +209,15 @@ export async function expressAuthentication(
         throw new Error("No access token or refresh token provided");
       }
 
-      // Try to regenerate from refresh token
       const regenerated = await regenerateFromRefreshToken(refreshToken, deviceId, request);
       
       if (regenerated && request.res) {
-        // Set new cookies
         setSecureCookie(request.res, "accessToken", regenerated.accessToken, 15 * 60 * 1000);
         setSecureCookie(request.res, "refreshToken", regenerated.refreshToken, 7 * 24 * 60 * 60 * 1000);
         setSecureCookie(request.res, "deviceId", deviceId, 365 * 24 * 60 * 60 * 1000);
         
         accessToken = regenerated.accessToken;
         
-        // Attach user and org to request
         (request as any).user = regenerated.user;
         (request as any).deviceId = deviceId;
         
@@ -293,7 +245,6 @@ export async function expressAuthentication(
       if (!decoded || !decoded.id) {
         console.log("⚠️ Access token invalid, attempting to refresh...");
         
-        // Try to refresh using refresh token
         if (refreshToken) {
           const regenerated = await regenerateFromRefreshToken(refreshToken, deviceId, request);
           
@@ -329,7 +280,6 @@ export async function expressAuthentication(
       throw new Error("Invalid or expired token");
     }
 
-    // Ensure we have a valid decoded token at this point
     if (!decoded || !decoded.id) {
       throw new Error("Invalid token payload");
     }
@@ -346,7 +296,6 @@ export async function expressAuthentication(
         const normalizedLevel = normalizeLevel(userFromDb.level);
         decoded.level = normalizedLevel;
         
-        // Generate new token with level
         const newAccessToken = jwt.sign(
           { ...decoded },
           process.env.ACCESS_SECRET!,
@@ -374,22 +323,7 @@ export async function expressAuthentication(
       throw new Error("User not found");
     }
 
-    // CASE 5: Ensure session exists — upsert on the unique deviceId so two
-    // concurrent requests (e.g. /profile and /discussion/private/unread/count
-    // fired back-to-back right after login) can't both see "no session" and
-    // both try to create one, which trips deviceId's unique constraint and
-    // surfaces as a 500 "Unique constraint failed" on a plain GET. A revoked
-    // session row for the same deviceId caused the identical failure with no
-    // concurrency at all, since the old findFirst filtered isRevoked:false
-    // while the unique constraint doesn't care about that flag.
-    // Only create a session row when we actually have a refresh token to put
-    // in it. This used to write `refreshToken: ''` as a fallback, and such a
-    // row is worse than no row at all: the refresh endpoint finds a session
-    // by exact (refreshToken, deviceId) match, so an empty one can never
-    // match and every refresh against that device returns "Invalid session"
-    // — which clients correctly treat as an expired session and bounce to
-    // login. Login already creates the real row; a request that arrives
-    // without a refresh token has nothing to record here.
+    // CASE 5: Ensure session exists
     if (refreshToken) {
       await prisma.userSession.upsert({
         where: { deviceId: deviceId },
@@ -411,15 +345,12 @@ export async function expressAuthentication(
         }
       });
     } else {
-      // Keep lastActive/accessToken fresh if a row for this device exists,
-      // but never conjure a new one from a tokenless request.
       await prisma.userSession.updateMany({
         where: { deviceId: deviceId },
         data: { lastActive: new Date(), accessToken: accessToken, isRevoked: false },
       });
     }
 
-    // Attach data to request
     (request as any).user = user;
     (request as any).deviceId = deviceId;
 
@@ -430,7 +361,6 @@ export async function expressAuthentication(
       (request as any).planId = decoded.planId;
     }
 
-    // Attach organization if exists
     if (decoded.organizationId) {
       const organization = await prisma.organization.findUnique({
         where: { id: decoded.organizationId },
@@ -440,7 +370,6 @@ export async function expressAuthentication(
       }
     }
 
-    // Update user online status
     await prisma.user.update({
       where: { id: user.id },
       data: { isOnline: true, lastActive: new Date() },
