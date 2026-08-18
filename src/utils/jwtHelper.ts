@@ -1,4 +1,4 @@
-// jwtHelper.ts
+// jwtHelper.ts - FIXED TYPO
 import jwt from "jsonwebtoken";
 import prisma from "../db";
 import crypto from "crypto";
@@ -46,7 +46,6 @@ export const normalizeLevel = (level: string): string => {
   if (lowerLevel === "intermediate") return "Intermediate";
   if (lowerLevel === "organization") return "ORGANIZATION";
 
-  // If already in correct format
   if (
     level === "Beginners" ||
     level === "Intermediate" ||
@@ -66,7 +65,6 @@ export const isValidLevel = (level: string): boolean => {
 };
 
 export const generateTokens = (payload: TokenPayload): Tokens => {
-  // Check if level exists
   if (!payload.level) {
     console.error("ERROR: Level is missing from token payload!", {
       userId: payload.id,
@@ -75,22 +73,18 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
       type: payload.type,
     });
 
-    // Set default level instead of throwing error
     payload.level = "Beginners";
     console.log(`⚠️ Set default level "Beginners" for user ${payload.id}`);
   }
 
-  // Normalize level
   const normalizedLevel = normalizeLevel(payload.level);
 
-  // Validate level is valid
   if (!isValidLevel(normalizedLevel)) {
     console.error("ERROR: Invalid level value!", {
       userId: payload.id,
       originalLevel: payload.level,
       normalizedLevel,
     });
-    // Use default level
     payload.level = "Beginners";
   } else {
     payload.level = normalizedLevel;
@@ -100,7 +94,6 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
     `✅ Generating token with level: ${payload.level} for user: ${payload.id}`,
   );
 
-  // Create access token payload with essential fields
   const accessPayload: any = {
     id: payload.id,
     email: payload.email,
@@ -112,7 +105,6 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
     deviceId: payload.deviceId,
   };
 
-  // Add optional fields if they exist
   if (payload.organizationId)
     accessPayload.organizationId = payload.organizationId;
   if (payload.userId) accessPayload.userId = payload.userId;
@@ -122,8 +114,9 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
   if (payload.full_name) accessPayload.full_name = payload.full_name;
   if (payload.adminRole) accessPayload.adminRole = payload.adminRole;
   if (payload.user_pic) accessPayload.user_pic = payload.user_pic;
-  if (payload.language) accessPayload.language = payload.language
-    if (payload.language) accessPayload.languageCode = payload.languageCode
+  if (payload.language) accessPayload.language = payload.language;
+  // ✅ FIXED: This was the typo - LanguageCode should be languageCode
+  if (payload.languageCode) accessPayload.languageCode = payload.languageCode;
   if (payload.isProfileComplete !== undefined)
     accessPayload.isProfileComplete = payload.isProfileComplete;
 
@@ -131,11 +124,6 @@ export const generateTokens = (payload: TokenPayload): Tokens => {
     expiresIn: "15m",
   });
 
-  // Create refresh token payload (lighter). Includes role + userType so
-  // clients that decode the refresh token (e.g. the mobile app) can read the
-  // account's role directly. The backend refresh handlers re-read role from
-  // the DB and don't rely on these, but omitting them broke clients that do:
-  // a missing role fell back to "student" and silently failed for instructors.
   const refreshPayload = {
     id: payload.id,
     email: payload.email,
@@ -158,7 +146,6 @@ export const verifyAccessToken = (token: string): any => {
   try {
     const decoded = jwt.verify(token, process.env.ACCESS_SECRET!);
 
-    // Log if level is missing in decoded token
     if (decoded && typeof decoded === "object") {
       if (!decoded.level) {
         console.warn("⚠️ Warning: Decoded token has no level field!", {
@@ -196,14 +183,12 @@ export const refreshTokens = async (
   deviceId: string,
 ): Promise<{ accessToken: string; refreshToken: string } | null> => {
   try {
-    // Verify refresh token
     const decoded = verifyRefreshToken(refreshToken);
     if (!decoded) {
       console.error("Invalid refresh token");
       return null;
     }
 
-    // Find session
     const userSession = await prisma.userSession.findFirst({
       where: {
         refreshToken: refreshToken,
@@ -218,7 +203,6 @@ export const refreshTokens = async (
       return null;
     }
 
-    // Get user
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
     });
@@ -228,23 +212,20 @@ export const refreshTokens = async (
       return null;
     }
 
-    // Get normalized level
     let normalizedLevel = normalizeLevel(user.level || "Beginners");
 
-    // Prepare payload for new tokens
     const payload: TokenPayload = {
       id: user.id,
       email: user.email_address,
       role: user.role,
       language: user.language,
-      LanguageCode: user.languageCode,
+      languageCode: user.languageCode, // ✅ FIXED: Use languageCode not LanguageCode
       deviceId: deviceId,
       level: normalizedLevel,
       deviceType: userSession.deviceType,
       type: userSession.userType || "USER",
     };
 
-    // Add type-specific fields
     if (userSession.userType === "ADMIN") {
       const adminProfile = await prisma.adminProfile.findUnique({
         where: { userId: user.id },
@@ -293,11 +274,9 @@ export const refreshTokens = async (
       }
     }
 
-    // Generate new tokens
     const { accessToken, refreshToken: newRefreshToken } =
       generateTokens(payload);
 
-    // Update session with new tokens
     await prisma.userSession.update({
       where: { id: userSession.id },
       data: {
@@ -318,7 +297,6 @@ export const refreshTokens = async (
   }
 };
 
-// Legacy function for backward compatibility
 export const refreshAccessToken = async (
   refreshToken: string,
   deviceId: string,
@@ -342,7 +320,6 @@ export const getDeviceType = (userAgent: string): string => {
   return "web";
 };
 
-// Helper function to get user from token
 export const getUserFromToken = async (token: string): Promise<any | null> => {
   try {
     const decoded = verifyAccessToken(token);
@@ -359,7 +336,6 @@ export const getUserFromToken = async (token: string): Promise<any | null> => {
   }
 };
 
-// Helper function to get organization from token
 export const getOrganizationFromToken = async (
   token: string,
 ): Promise<any | null> => {
@@ -378,7 +354,6 @@ export const getOrganizationFromToken = async (
   }
 };
 
-// Helper function to decode token without verification (for debugging only)
 export const decodeToken = (token: string): any => {
   try {
     return jwt.decode(token);
