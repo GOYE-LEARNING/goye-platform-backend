@@ -10,15 +10,13 @@ import helmet from 'helmet'
 import rateLimit from "express-rate-limit";
 import prisma from "./db";
 import dotenv from "dotenv";
-import type { SocketService } from "./services/socketService"; // ✅ ADD (type-only import avoids circular init issues)
+import type { SocketService } from "./services/socketService";
 import { VerifyToken } from "./middleware/verifytoken";
 import { speakCourseDraftText } from "./utils/ai_utils/course_draft_client";
 dotenv.config();
 
 const app = express();
-export const socketRoutes = Router(); // ✅ exported, empty for now
-
-// ...later, inside createApp(), BEFORE RegisterRoutes and BEFORE the 404 handler:
+export const socketRoutes = Router();
 
 if (process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
@@ -28,42 +26,67 @@ if (process.env.NODE_ENV === 'production') {
   console.log('✅ Trust proxy enabled for development');
 }
 
+// ---- Shared key generator ----
+// With `trust proxy` set correctly above, Express's own req.ip already
+// resolves the real client IP from X-Forwarded-For safely — it trusts
+// exactly one hop (Render) and reads the entry Render appended, ignoring
+// anything a client tries to prepend/spoof. No manual header parsing needed.
+const ipKey = (req: Request) => req.ip || req.socket.remoteAddress || 'unknown';
+
+// Per-user key: falls back to IP if the request isn't authenticated yet.
+// Requires VerifyToken (or similar) to have already attached req.user
+// upstream — for routes where that's not guaranteed, this safely degrades
+// to IP-based limiting instead of throwing.
+const userOrIpKey = (req: Request & { user?: { id?: string } }) =>
+  req.user?.id ? `user:${req.user.id}` : `ip:${ipKey(req)}`;
+
+// ---- General limiter (IP-based, catches anonymous + pre-auth traffic) ----
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: {
-    status: 429,
-    message: "Too many requests, please slow down and try again later.",
-  },
+  message: { status: 429, message: "Too many requests, please slow down and try again later." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
-  keyGenerator: (req) => {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = forwarded ? (Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]) : req.ip;
-    return ip || req.socket.remoteAddress || 'unknown';
-  }
+  keyGenerator: ipKey,
 });
 
+// ---- Auth limiter (unchanged logic, fixed key) ----
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  message: {
-    status: 429,
-    message: "Too many login attempts, please try again in 15 minutes.",
-  },
+  message: { status: 429, message: "Too many login attempts, please try again in 15 minutes." },
   standardHeaders: true,
   legacyHeaders: false,
-  validate: { trustProxy: false },
-  keyGenerator: (req) => {
-    const forwarded = req.headers['x-forwarded-for'];
-    const ip = forwarded ? (Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0]) : req.ip;
-    return ip || req.socket.remoteAddress || 'unknown';
-  }
+  keyGenerator: ipKey,
 });
 
-// ✅ CHANGED: accept an optional socketService param so routes that
-// depend on it can be registered BEFORE the 404 catch-all.
+// ---- Per-user limiter for authenticated, higher-value actions ----
+// Sits alongside generalLimiter, not instead of it. Prevents one user
+// from consuming a shared IP's whole budget (e.g. same church wifi),
+// while still keeping an IP-level ceiling as a backstop against abuse
+// from anonymous/unauthenticated traffic.
+const perUserLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30, // tune against real usage data once you have it
+  message: { status: 429, message: "You're doing that a bit fast — please slow down." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+});
+
+// ---- Dedicated limiter for the AI/TTS endpoint ----
+// Keeps this feature's usage from eating into the shared 100/15min
+// general budget, and keeps it separate from your provider-side
+// rate limit handling (queueing/backoff), which still applies on top.
+const aiFeatureLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 6,
+  message: { status: 429, message: "Please wait a moment before generating more audio." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+});
+
 export const createApp = async (socketService?: SocketService) => {
   app.use(socketRoutes);
   console.log("🔄 Setting up middleware...");
@@ -112,8 +135,6 @@ export const createApp = async (socketService?: SocketService) => {
     throw error;
   }
 
-  // ✅ NEW: socket-dependent debug/status routes — registered here,
-  // BEFORE the 404 catch-all, so they're actually reachable.
   if (socketService) {
     app.set("socketService", socketService);
 
@@ -138,26 +159,28 @@ export const createApp = async (socketService?: SocketService) => {
     console.log("✅ Socket-dependent routes registered");
   }
 
-  // Raw-binary TTS proxy, kept outside tsoa (its generated handlers always
-  // JSON-serialize the return value, which doesn't fit real audio bytes) —
-  // mirrors the same approach used on ShekiAI's own /voice/speak route.
-  app.post("/api/course-draft/voice/speak", VerifyToken, async (req: Request, res: Response) => {
-    const { text, voice } = req.body as { text?: string; voice?: string };
-    if (!text || !text.trim()) {
-      return res.status(400).json({ message: "text is required" });
+  // Raw-binary TTS proxy — now with its own dedicated limiter,
+  // in addition to (not instead of) generalLimiter above.
+  app.post(
+    "/api/course-draft/voice/speak",
+    VerifyToken,
+    aiFeatureLimiter,
+    async (req: Request, res: Response) => {
+      const { text, voice } = req.body as { text?: string; voice?: string };
+      if (!text || !text.trim()) {
+        return res.status(400).json({ message: "text is required" });
+      }
+      const result = await speakCourseDraftText(text, voice);
+      if (!result.ok) {
+        return res.status(502).json({ message: result.error || "TTS failed" });
+      }
+      res.set("Content-Type", "audio/wav");
+      res.send(result.buffer);
     }
-    const result = await speakCourseDraftText(text, voice);
-    if (!result.ok) {
-      return res.status(502).json({ message: result.error || "TTS failed" });
-    }
-    res.set("Content-Type", "audio/wav");
-    res.send(result.buffer);
-  });
+  );
 
-  // Error handler (should be last)
   app.use(errorHandler);
 
-  // 404 handler (must be absolute last)
   app.use((req: Request, res: Response) => {
     res.status(404).json({ message: "Route not found" });
   });
