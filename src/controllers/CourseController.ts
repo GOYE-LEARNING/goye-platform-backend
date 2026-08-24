@@ -721,6 +721,7 @@ export class CourseController extends Controller {
             createdAt: "desc",
           },
           include: {
+            enrollment: true,
             module: {
               select: {
                 _count: {
@@ -763,6 +764,8 @@ export class CourseController extends Controller {
             createdAt: "desc",
           },
           include: {
+                        enrollment: true,
+
             module: {
               select: {
                 _count: {
