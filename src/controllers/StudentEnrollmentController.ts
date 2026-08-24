@@ -263,6 +263,8 @@ export class StudentEnrollmentController extends Controller {
       },
     });
 
+    const courseIds = studentEnrollments.map((e) => e.course.id);
+
     // Get completed lessons for progress calculation
     const completedLessons = await prisma.progress.findMany({
       where: {
@@ -276,6 +278,28 @@ export class StudentEnrollmentController extends Controller {
 
     const completedLessonIds = new Set(completedLessons.map((l) => l.lessonId));
 
+    // Get completed quizzes for progress calculation, scoped to these
+    // enrolled courses. distinct on [courseId, quizId] so repeated
+    // attempts on the same quiz don't inflate the count.
+    const completedQuizAttempts = await prisma.quizAttempt.findMany({
+      where: {
+        userId,
+        completed: true,
+        courseId: { in: courseIds },
+      },
+      select: { courseId: true, quizId: true },
+      distinct: ["courseId", "quizId"],
+    });
+
+    // Group completed quiz ids by course for quick lookup below
+    const completedQuizzesByCourse = new Map<string, Set<string>>();
+    for (const attempt of completedQuizAttempts) {
+      if (!completedQuizzesByCourse.has(attempt.courseId)) {
+        completedQuizzesByCourse.set(attempt.courseId, new Set());
+      }
+      completedQuizzesByCourse.get(attempt.courseId)!.add(attempt.quizId);
+    }
+
     // Calculate progress for each course
     const coursesWithProgress = studentEnrollments.map((enrollment) => {
       const allLessons = enrollment.course.module.flatMap((m) => m.lesson);
@@ -284,8 +308,16 @@ export class StudentEnrollmentController extends Controller {
         completedLessonIds.has(l.id),
       ).length;
 
+      const totalQuizzes = enrollment.course.quiz.length;
+      const completedQuizzesInCourse =
+        completedQuizzesByCourse.get(enrollment.course.id)?.size || 0;
+
+      // Combine lessons + quizzes into one progress pool. Courses with
+      // zero quizzes naturally fall back to lesson-only progress.
+      const totalItems = totalLessons + totalQuizzes;
+      const completedItems = completedInCourse + completedQuizzesInCourse;
       const progressPercentage =
-        totalLessons > 0 ? (completedInCourse / totalLessons) * 100 : 0;
+        totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
       return {
         enrollment_id: enrollment.id,
@@ -298,13 +330,15 @@ export class StudentEnrollmentController extends Controller {
           percentage: Math.round(progressPercentage),
           completed_lessons: completedInCourse,
           total_lessons: totalLessons,
+          completed_quizzes: completedQuizzesInCourse,
+          total_quizzes: totalQuizzes,
         },
         course: {
           ...enrollment.course,
           total_materials: enrollment.course.material.length,
           total_modules: enrollment.course.module.length,
           total_lessons: totalLessons,
-          total_quizzes: enrollment.course.quiz.length,
+          total_quizzes: totalQuizzes,
         },
       };
     });
@@ -890,7 +924,7 @@ export class StudentEnrollmentController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
+   @Security("bearerAuth")
   @Get("/check-if-enrolled/{courseId}")
   public async FetchCheckIfStudentEnrolled(
     @Request() req: any,
@@ -950,11 +984,33 @@ export class StudentEnrollmentController extends Controller {
           },
         });
 
+        const totalQuizzes = await prisma.quiz.count({
+          where: { courseId },
+        });
+
+        // distinct quizId so repeated attempts on the same quiz don't
+        // inflate the completed count
+        const completedQuizAttempts = await prisma.quizAttempt.findMany({
+          where: {
+            userId,
+            courseId,
+            completed: true,
+          },
+          select: { quizId: true },
+          distinct: ["quizId"],
+        });
+        const completedQuizzes = completedQuizAttempts.length;
+
+        const totalItems = totalLessons + totalQuizzes;
+        const completedItems = completedLessons + completedQuizzes;
+
         progress = {
           completed_lessons: completedLessons,
           total_lessons: totalLessons,
+          completed_quizzes: completedQuizzes,
+          total_quizzes: totalQuizzes,
           percentage:
-            totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0,
+            totalItems > 0 ? (completedItems / totalItems) * 100 : 0,
         };
       }
 

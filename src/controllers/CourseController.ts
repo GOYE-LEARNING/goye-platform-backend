@@ -611,14 +611,15 @@ export class CourseController extends Controller {
 
       // Notify all enrolled students about course updates
       try {
-        const { NotificationService } = await import("../services/notificationServices.js");
+        const { NotificationService } =
+          await import("../services/notificationServices.js");
         await NotificationService.notifyCourseUpdated(
           courseId,
           existingCourse.createdBy,
           "general",
           {
-            description: `Course "${updatedCourse?.course_title}" has been updated with new content`
-          }
+            description: `Course "${updatedCourse?.course_title}" has been updated with new content`,
+          },
         );
       } catch (error) {
         console.error("Failed to send course update notifications:", error);
@@ -1103,13 +1104,13 @@ export class CourseController extends Controller {
       }
 
       // Check file size manually as a backup
-const maxSize = 95 * 1024 * 1024; // ~95MB, matching free-plan 100MB cap with headroom
-if (file.size > maxSize) {
-  this.setStatus(413);
-  return {
-    message: `File too large. Maximum size is 95MB on the current plan. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`,
-  };
-}
+      const maxSize = 95 * 1024 * 1024; // ~95MB, matching free-plan 100MB cap with headroom
+      if (file.size > maxSize) {
+        this.setStatus(413);
+        return {
+          message: `File too large. Maximum size is 95MB on the current plan. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB`,
+        };
+      }
 
       const module = await prisma.module.findFirst({
         where: {
@@ -2059,11 +2060,7 @@ if (file.size > maxSize) {
         });
         courseCompleted = true;
 
-        await awardCertificateIfCompleted(
-          userId,
-          courseId,
-          enrollment.id,
-        );
+        await awardCertificateIfCompleted(userId, courseId, enrollment.id);
       }
 
       this.setStatus(200);
@@ -2215,7 +2212,12 @@ if (file.size > maxSize) {
       });
 
       const allLessons = courseModules.flatMap((m) => m.lesson);
-      const totalLessons = allLessons.length;
+
+      // Get all quizzes in the course
+      const allQuizzes = await prisma.quiz.findMany({
+        where: { courseId },
+        select: { id: true },
+      });
 
       // Get completed lessons
       const completedProgress = await prisma.progress.findMany({
@@ -2227,9 +2229,28 @@ if (file.size > maxSize) {
         select: { lessonId: true },
       });
 
+      // Get completed quizzes (distinct quizId — a user can have multiple
+      // attempts, but each quiz should only count once toward progress)
+      const completedQuizAttempts = await prisma.quizAttempt.findMany({
+        where: {
+          userId,
+          courseId,
+          completed: true,
+          quizId: { in: allQuizzes.map((q) => q.id) },
+        },
+        select: { quizId: true },
+        distinct: ["quizId"],
+      });
+
       const completedLessons = completedProgress.length;
+      const completedQuizzes = completedQuizAttempts.length;
+
+      // Combine lessons + quizzes into one progress pool. If a course has
+      // zero quizzes, this naturally falls back to lesson-only progress.
+      const totalItems = allLessons.length + allQuizzes.length;
+      const completedItems = completedLessons + completedQuizzes;
       const progressPercentage =
-        totalLessons > 0 ? (completedLessons / totalLessons) * 100 : 0;
+        totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
       // Get user's gamification data
       const gamificationData =
@@ -2250,8 +2271,10 @@ if (file.size > maxSize) {
           },
           progress: {
             completedLessons,
-            totalLessons,
-            percentage: progressPercentage,
+            totalLessons: allLessons.length,
+            completedQuizzes,
+            totalQuizzes: allQuizzes.length,
+            percentage: progressPercentage, // now reflects lessons + quizzes
           },
           modules: courseModules.map((module) => ({
             id: module.id,
