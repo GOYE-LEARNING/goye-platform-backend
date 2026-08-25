@@ -724,37 +724,42 @@ export class GamificationService {
   /**
    * Calculate user's level based on total XP
    */
-  static calculateLevel(totalXP: number): {
-    level: number;
-    name: string;
-    nextLevelXP: number;
-    progressToNext: number;
-  } {
-    let currentLevel = LEVEL_CONFIG[0];
-    let nextLevel = LEVEL_CONFIG[1];
+ // gamificationService.ts
+static calculateLevel(totalXP: number): {
+  level: number;
+  name: string;
+  nextLevelXP: number;
+  progressToNext: number;
+  currentLevelXP: number;      // new: XP earned within the current level
+  xpForCurrentLevel: number;   // new: total width of the current level band
+} {
+  let currentLevel = LEVEL_CONFIG[0];
+  let nextLevel = LEVEL_CONFIG[1];
 
-    for (let i = LEVEL_CONFIG.length - 1; i >= 0; i--) {
-      if (totalXP >= LEVEL_CONFIG[i].requiredXP) {
-        currentLevel = LEVEL_CONFIG[i];
-        nextLevel = LEVEL_CONFIG[i + 1] || LEVEL_CONFIG[i];
-        break;
-      }
+  for (let i = LEVEL_CONFIG.length - 1; i >= 0; i--) {
+    if (totalXP >= LEVEL_CONFIG[i].requiredXP) {
+      currentLevel = LEVEL_CONFIG[i];
+      nextLevel = LEVEL_CONFIG[i + 1] || LEVEL_CONFIG[i];
+      break;
     }
-
-    const xpNeededForNext = nextLevel.requiredXP - currentLevel.requiredXP;
-    const xpGainedInCurrent = totalXP - currentLevel.requiredXP;
-    const progressToNext =
-      xpNeededForNext > 0 ? (xpGainedInCurrent / xpNeededForNext) * 100 : 100;
-
-    const nextLevelXP = nextLevel.requiredXP - totalXP;
-
-    return {
-      level: currentLevel.level,
-      name: currentLevel.name,
-      nextLevelXP: nextLevelXP > 0 ? nextLevelXP : 0,
-      progressToNext: Math.min(progressToNext, 100),
-    };
   }
+
+  const xpNeededForNext = nextLevel.requiredXP - currentLevel.requiredXP;
+  const xpGainedInCurrent = totalXP - currentLevel.requiredXP;
+  const progressToNext =
+    xpNeededForNext > 0 ? (xpGainedInCurrent / xpNeededForNext) * 100 : 100;
+
+  const nextLevelXP = nextLevel.requiredXP - totalXP;
+
+  return {
+    level: currentLevel.level,
+    name: currentLevel.name,
+    nextLevelXP: nextLevelXP > 0 ? nextLevelXP : 0,
+    progressToNext: Math.min(progressToNext, 100),
+    currentLevelXP: Math.max(xpGainedInCurrent, 0),
+    xpForCurrentLevel: xpNeededForNext,
+  };
+}
 
   /**
    * Add points with full gamification logic (levels, badges, streaks)

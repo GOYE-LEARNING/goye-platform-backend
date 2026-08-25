@@ -422,6 +422,8 @@ export class LevelSystem extends Controller {
             levelNumber: levelInfo.level,
             nextLevelXP: levelInfo.nextLevelXP,
             progressToNextLevel: levelInfo.progressToNext,
+            currentLevelXP: levelInfo.currentLevelXP, // new
+            xpForCurrentLevel: levelInfo.xpForCurrentLevel, // new
           },
           journey: {
             startedAt: fetchGrowth.createdAt,
