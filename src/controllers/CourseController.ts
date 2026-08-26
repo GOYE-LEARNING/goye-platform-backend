@@ -2541,48 +2541,156 @@ public async GetAllCoursesByLevel(
   }
 
   // In your CourseController.ts, update the fetch-saved-courses endpoint
-  @Security("bearerAuth")
-  @Get("/fetch-saved-courses")
-  public async FetchSavedCourse(@Request() req: any) {
-    const userId = req.user?.id;
-    if (!userId) {
-      return {
-        message: "User is unauthorized",
-      };
-    }
+ @Security("bearerAuth")
+@Get("/fetch-saved-courses")
+public async FetchSavedCourse(@Request() req: any) {
+  const userId = req.user?.id;
+  if (!userId) {
+    this.setStatus(401);
+    return {
+      message: "User is unauthorized",
+      data: [],
+    };
+  }
 
-    try {
-      const savedCourses = await prisma.savedCourses.findMany({
-        where: {
-          userId,
-          courses: {
-            isNot: null, // ✅ Only get saved courses that still exist
+  try {
+    const savedCourses = await prisma.savedCourses.findMany({
+      where: {
+        userId,
+        courses: {
+          isNot: null, // ✅ Only get saved courses that still exist
+        },
+      },
+      include: {
+        courses: {
+          include: {
+            enrollment: {
+              where: {
+                userId: userId,
+              },
+              select: {
+                userId: true,
+                status: true,
+                startedAt: true,
+                completedAt: true,
+                score: true,
+                enrolledAt: true,
+              },
+            },
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
+                },
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
+                },
+              },
+            },
+            createdByDetails: {
+              select: {
+                user_pic: true,
+              },
+            },
           },
         },
-        include: {
-          courses: true,
-        },
-      });
+      },
+    });
 
-      // Filter out any records where courses is null (just in case)
-      const validSavedCourses = savedCourses.filter(
-        (item) => item.courses !== null,
-      );
+    // Filter out any records where courses is null (just in case)
+    const validSavedCourses = savedCourses.filter(
+      (item) => item.courses !== null,
+    );
 
-      this.setStatus(200);
+    // Transform the data to include enrollment status and total minutes
+    const transformedCourses = validSavedCourses.map((item) => {
+      const course = item.courses;
+      
+      // Check if the user is enrolled in this course
+      const userEnrollment = course?.enrollment?.[0] || null;
+      const isEnrolled = !!userEnrollment;
+      const enrollmentStatus = userEnrollment?.status || "NOT_ENROLLED";
+
+      // Calculate total lessons and duration
+      let totalLessons = 0;
+      let totalDurationMinutes = 0;
+      
+      if (course?.module) {
+        course.module.forEach((module) => {
+          totalLessons += module._count?.lesson || 0;
+          if (module.lesson) {
+            module.lesson.forEach((lesson) => {
+              totalDurationMinutes += lesson.duration || 0;
+            });
+          }
+        });
+      }
+
+      // Get enrollment count (total students)
+      const enrollmentCount = course?.enrollment?.length || 0;
+
+      // Get progress if enrolled
+      let progress = null;
+      if (isEnrolled && userEnrollment) {
+        // You might want to fetch progress from a separate query here
+        // For now, we'll return null and let the frontend fetch it separately
+        progress = null;
+      }
+
       return {
-        message: "Saved courses fetched successfully",
-        data: validSavedCourses,
+        id: course.id,
+        course_title: course.course_title,
+        course_description: course.course_description,
+        course_short_description: course.course_short_description,
+        course_image: course.course_image,
+        course_level: course.course_level,
+        createdBy: course.createdBy,
+        createdUserId: course.createdUserId,
+        organizationId: course.organizationId,
+        organizationName: course.organizationName,
+        point: course.point || 0,
+        status: course.status,
+        aiGenerated: course.aiGenerated || false,
+        pendingMaterials: course.pendingMaterials,
+        progressId: course.progressId,
+        createdAt: course.createdAt,
+        updatedAt: course.updatedAt,
+        // ✅ Enrollment information
+        isEnrolled: isEnrolled,
+        enrollmentStatus: enrollmentStatus,
+        enrollmentCount: enrollmentCount,
+        // ✅ Progress if enrolled
+        progress: progress,
+        // ✅ Course statistics
+        moduleCount: course?.module?.length || 0,
+        totalLessons: totalLessons,
+        totalDurationMinutes: totalDurationMinutes, // ✅ Total minutes
+        totalDuration: totalDurationMinutes, // For backward compatibility
+        // ✅ Include module data
+        module: course?.module || [],
+        // ✅ Include created by details
+        createdByDetails: course?.createdByDetails || null,
       };
-    } catch (error) {
-      console.error("Error fetching saved courses:", error);
-      this.setStatus(500);
-      return {
-        message: "Error fetching saved courses",
-        data: [],
-      };
-    }
+    });
+
+    this.setStatus(200);
+    return {
+      message: "Saved courses fetched successfully",
+      data: transformedCourses,
+    };
+  } catch (error) {
+    console.error("Error fetching saved courses:", error);
+    this.setStatus(500);
+    return {
+      message: "Error fetching saved courses",
+      data: [],
+    };
   }
+}
   @Security("bearerAuth")
   @Get("/tutor-overview")
   public async GetTutorOverview(@Request() req: any): Promise<any> {
