@@ -901,7 +901,7 @@ export class CourseController extends Controller {
       return {
         message: "Courses fetched successfully",
         data: {
-          courses: transformedCourses,
+          getAllCourses: transformedCourses,
           total: transformedCourses.length,
           userLevel: userLevel,
           language: language ?? null,
