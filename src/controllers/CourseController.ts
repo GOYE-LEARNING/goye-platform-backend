@@ -695,9 +695,11 @@ export class CourseController extends Controller {
   public async GetAllCoursesByLevel(
     @Request() req: any,
   ): Promise<CourseResponse> {
+    const userId = req.user?.id;
     const userLevel = req.user?.level;
     const language = req.user?.language;
     const languageCode = req.user?.languageCode;
+
     try {
       // Validate user level
       if (!userLevel) {
@@ -711,93 +713,202 @@ export class CourseController extends Controller {
       // Normalize level to proper case
       const normalizedLevel = userLevel.toLowerCase();
 
-      if (normalizedLevel === "beginners") {
-        const getAllCourses = await prisma.course.findMany({
-          where: {
-            course_level: "Beginner",
-            status: "PUBLISHED",
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          include: {
-            enrollment: true,
-            module: {
-              select: {
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
-                },
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        const translateText = await TranslateText(
-          getAllCourses[0].course_description,
-          language,
-          languageCode,
-        );
-        this.setStatus(200);
-        return {
-          message: "This user course fetched successfully",
-          data: {
-            getAllCourses,
-            language: language ?? null,
-            languageCode: languageCode ?? null,
-            translateText: translateText ?? null,
-          },
-        };
+      // Determine which level to fetch
+      let levelToFetch = "";
+      if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
+        levelToFetch = "Beginner";
       } else if (normalizedLevel === "intermediate") {
-        const getAllCourses = await prisma.course.findMany({
-          where: {
-            course_level: "Intermediate",
-            status: "PUBLISHED",
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          include: {
-                        enrollment: true,
-
-            module: {
-              select: {
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
-                },
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            },
-          },
-        });
-
-        this.setStatus(200);
-        return {
-          message: "This user course fetched successfully",
-          data: {
-            getAllCourses,
-          },
-        };
+        levelToFetch = "Intermediate";
       } else {
-        // Handle any other level values
         this.setStatus(400);
         return {
           message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
           data: null,
         };
       }
+
+      // Fetch courses for the user's level
+      const getAllCourses = await prisma.course.findMany({
+        where: {
+          course_level: levelToFetch,
+          status: "PUBLISHED",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        include: {
+          enrollment: {
+            where: {
+              userId: userId, // ✅ Only get the current user's enrollment
+            },
+            select: {
+              userId: true,
+              status: true,
+              startedAt: true,
+              completedAt: true,
+              score: true,
+              enrolledAt: true,
+            },
+          },
+          module: {
+            select: {
+              _count: {
+                select: {
+                  lesson: true,
+                },
+              },
+              lesson: {
+                select: {
+                  duration: true,
+                },
+              },
+            },
+          },
+          createdByDetails: {
+            select: {
+              user_pic: true,
+            },
+          },
+          progress: {
+            select: {
+              progressBar: true,
+              videoTracker: {
+                select: {
+                  videoFinished: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Transform the data to match the required format
+      const transformedCourses = getAllCourses.map(async (course) => {
+        // Get the user's enrollment (should be only one since we filtered by userId)
+        const userEnrollment = course.enrollment[0];
+
+        // Determine enrollment status
+        let enrollmentStatus = "NOT_ENROLLED";
+        let isEnrolled = false;
+        let progress = null;
+
+        if (userEnrollment) {
+          isEnrolled = true;
+          enrollmentStatus = userEnrollment.status || "ENROLLED";
+
+          // Calculate progress from the course's progress and video trackers
+          const courseProgress = course.progress;
+          if (courseProgress) {
+            const totalVideos = course.module.reduce((acc, mod) => {
+              return acc + (mod._count?.lesson || 0);
+            }, 0);
+
+            const completedVideos =
+              courseProgress.videoTracker?.filter(
+                (tracker) => tracker.videoFinished === true,
+              ).length || 0;
+
+            const percentage =
+              totalVideos > 0
+                ? Math.round((completedVideos / totalVideos) * 100)
+                : 0;
+
+            progress = {
+              percentage: percentage,
+              completed_lessons: completedVideos,
+              total_lessons: totalVideos,
+              is_completed: percentage >= 100,
+            };
+          }
+        }
+
+        // Get enrollment count (total students)
+        const enrollmentCount = await prisma.enrollment.count({
+          where: {
+            courseId: course.id,
+            status: {
+              in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
+            },
+          },
+        });
+
+        // Calculate total lessons and duration
+        let totalLessons = 0;
+        let totalDuration = 0;
+
+        if (course.module) {
+          course.module.forEach((module) => {
+            totalLessons += module._count?.lesson || 0;
+            if (module.lesson) {
+              module.lesson.forEach((lesson) => {
+                totalDuration += lesson.duration || 0;
+              });
+            }
+          });
+        }
+
+        return {
+          id: course.id,
+          course_title: course.course_title,
+          course_description: course.course_description,
+          course_short_description: course.course_short_description,
+          course_image: course.course_image,
+          course_level: course.course_level,
+          createdBy: course.createdBy,
+          createdUserId: course.createdUserId,
+          organizationId: course.organizationId,
+          organizationName: course.organizationName,
+          point: course.point || 0,
+          status: course.status,
+          aiGenerated: course.aiGenerated || false,
+          pendingMaterials: course.pendingMaterials,
+          savedCoursesId: course.savedCoursesId,
+          progressId: course.progressId,
+          createdAt: course.createdAt,
+          updatedAt: course.updatedAt,
+          // ✅ Enrollment information
+          enrollmentStatus: enrollmentStatus,
+          isEnrolled: isEnrolled,
+          enrollmentCount: enrollmentCount,
+          // ✅ Progress if enrolled
+          progress: progress,
+          // ✅ Course statistics
+          moduleCount: course.module?.length || 0,
+          totalLessons: totalLessons,
+          totalDuration: totalDuration,
+          // ✅ Include module data
+          module: course.module || [],
+          // ✅ Include created by details
+          createdByDetails: course.createdByDetails || null,
+        };
+      });
+
+      // Translate if needed
+      let translateText = null;
+      if (language && languageCode && transformedCourses.length > 0) {
+        try {
+          translateText = await TranslateText(
+            (await transformedCourses[0]).course_description,
+            language,
+            languageCode,
+          );
+        } catch (error) {
+          console.error("Translation error:", error);
+        }
+      }
+
+      this.setStatus(200);
+      return {
+        message: "Courses fetched successfully",
+        data: {
+          courses: transformedCourses,
+          total: transformedCourses.length,
+          userLevel: userLevel,
+          language: language ?? null,
+          languageCode: languageCode ?? null,
+          translateText: translateText ?? null,
+        },
+      };
     } catch (error: any) {
       console.error("Error fetching courses by level:", error);
       this.setStatus(500);
@@ -807,7 +918,6 @@ export class CourseController extends Controller {
       };
     }
   }
-
   @Security("bearerAuth")
   @Get("/get-courses-by-tutor")
   public async GetUserCourse(@Request() req: any) {

@@ -229,13 +229,16 @@ export class DiscussionController extends Controller {
     }
   }
 
-  @Get("/public")
+    @Get("/public")
   public async GetPublicDiscussions(
     @Request() req: any,
     @Query() sort: "latest" | "popular" = "latest",
+    @Query() page: number = 1,
+    @Query() limit: number = 10,
   ): Promise<any> {
     try {
       const userId = req.user?.id; // Get current user ID
+      const skip = (page - 1) * limit;
 
       let orderBy: any = { createdAt: "desc" };
       if (sort === "popular") {
@@ -270,6 +273,8 @@ export class DiscussionController extends Controller {
           },
         },
         orderBy,
+        skip,
+        take: limit,
       });
 
       // DECRYPT each discussion content and add liked status
@@ -293,7 +298,11 @@ export class DiscussionController extends Controller {
         data: {
           discussions: decryptedDiscussions,
           pagination: {
+            page,
+            limit,
             total: totalCount,
+            totalPages: Math.ceil(totalCount / limit),
+            hasMore: skip + discussions.length < totalCount,
           },
         },
       };
