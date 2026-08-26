@@ -924,7 +924,7 @@ export class StudentEnrollmentController extends Controller {
     }
   }
 
-   @Security("bearerAuth")
+  @Security("bearerAuth")
   @Get("/check-if-enrolled/{courseId}")
   public async FetchCheckIfStudentEnrolled(
     @Request() req: any,
@@ -966,21 +966,25 @@ export class StudentEnrollmentController extends Controller {
       // Also get user's progress in the course
       let progress = null;
       if (enrollmentCount > 0) {
-        const completedLessons = await prisma.progress.count({
-          where: {
-            userId,
-            courses: {
-              some: { id: courseId },
-            },
-            progressBar: { gte: 100 },
-          },
-        });
-
-        const totalLessons = await prisma.lesson.count({
+        // Get this course's lesson IDs explicitly, then count completed
+        // progress against THAT list — not via the "courses" relation,
+        // which doesn't reliably scope to a single course's lessons.
+        const courseLessons = await prisma.lesson.findMany({
           where: {
             module: {
               courseId,
             },
+          },
+          select: { id: true },
+        });
+        const courseLessonIds = courseLessons.map((l) => l.id);
+        const totalLessons = courseLessonIds.length;
+
+        const completedLessons = await prisma.progress.count({
+          where: {
+            userId,
+            lessonId: { in: courseLessonIds },
+            progressBar: { gte: 100 },
           },
         });
 
