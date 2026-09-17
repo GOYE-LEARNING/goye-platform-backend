@@ -26,6 +26,7 @@ import {
 import { NotificationService, Role } from "../services/notificationServices";
 import { TranslateText } from "../utils/ai_utils/translator";
 import { awardCertificateIfCompleted } from "../services/certificateService"; //To determine levels
+import { useCacheAside, CacheKeys, TTL, invalidateCourseCaches, updateDataWithRedis } from "../utils/redis";
 const levels: Record<string, string> = {
   beginner: "Beginner",
   Beginner: "Beginner",
@@ -201,6 +202,10 @@ export class CourseController extends Controller {
         Role.STUDENT,
         "course",
       );
+
+      // A new course has to show up in the shared catalogue and in every
+      // user's cached per-level listing straight away, not an hour later.
+      await invalidateCourseCaches(course.id);
 
       this.setStatus(201);
       return {
@@ -626,6 +631,11 @@ export class CourseController extends Controller {
         // Don't fail the entire request if notification fails
       }
 
+      // The tutor just changed course content; every cached copy — catalogue,
+      // per-level listings and each student's course-detail view — is now
+      // stale and would keep serving the old version for up to an hour.
+      await invalidateCourseCaches(courseId);
+
       this.setStatus(200);
       return {
         message: "Course updated successfully",
@@ -691,247 +701,227 @@ export class CourseController extends Controller {
   }
 
   @Security("bearerAuth")
-@Get("/get-all-courses-level")
-public async GetAllCoursesByLevel(
-  @Request() req: any,
-): Promise<CourseResponse> {
-  const userId = req.user?.id;
-  const userLevel = req.user?.level;
-  const language = req.user?.language;
-  const languageCode = req.user?.languageCode;
+  @Get("/get-all-courses-level")
+  public async GetAllCoursesByLevel(
+    @Request() req: any,
+  ): Promise<CourseResponse> {
+    const userId = req.user?.id;
+    const userLevel = req.user?.level;
+    const language = req.user?.language;
+    const languageCode = req.user?.languageCode;
 
-  try {
-    // Validate user level
-    if (!userLevel) {
-      this.setStatus(400);
-      return {
-        message: "User level not found",
-        data: null,
-      };
-    }
+    try {
+      // Validate user level
+      if (!userLevel) {
+        this.setStatus(400);
+        return { message: "User level not found", data: null };
+      }
 
-    // Normalize level to proper case
-    const normalizedLevel = userLevel.toLowerCase();
+      // Normalize level to proper case
+      const normalizedLevel = userLevel.toLowerCase();
 
-    // Determine which level to fetch
-    let levelToFetch = "";
-    if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
-      levelToFetch = "Beginner";
-    } else if (normalizedLevel === "intermediate") {
-      levelToFetch = "Intermediate";
-    } else {
-      this.setStatus(400);
-      return {
-        message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
-        data: null,
-      };
-    }
+      // Determine which level to fetch
+      let levelToFetch = "";
+      if (normalizedLevel === "beginners" || normalizedLevel === "beginner") {
+        levelToFetch = "Beginner";
+      } else if (normalizedLevel === "intermediate") {
+        levelToFetch = "Intermediate";
+      } else {
+        this.setStatus(400);
+        return {
+          message: `Invalid user level: ${userLevel}. Valid levels are: beginner, intermediate`,
+          data: null,
+        };
+      }
 
-    console.log("Fetching courses for level:", levelToFetch);
-    console.log("User ID:", userId);
+      // Unique user-scoped cache key format
+      const cacheKey = `user:${userId}:courses:${levelToFetch.toLowerCase()}`;
 
-    // Fetch courses for the user's level
-    const getAllCourses = await prisma.course.findMany({
-      where: {
-        course_level: levelToFetch,
-        status: "PUBLISHED",
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        enrollment: {
-          where: {
-            userId: userId,
-          },
-          select: {
-            userId: true,
-            status: true,
-            startedAt: true,
-            completedAt: true,
-            score: true,
-            enrolledAt: true,
-          },
-        },
-        module: {
-          select: {
-            _count: {
-              select: {
-                lesson: true,
-              },
-            },
-            lesson: {
-              select: {
-                duration: true,
-              },
-            },
-          },
-        },
-        createdByDetails: {
-          select: {
-            user_pic: true,
-          },
-        },
-      },
-    });
+      // Pass the entire execution sequence into our type-safe cache helper
+      // We use a 1-hour expiration (3600 seconds) since progress data evolves
+      const responseData = await useCacheAside<CourseResponse>(
+        cacheKey,
+        3600,
+        async () => {
+          console.log(
+            `[Cache MISS] Rebuilding course catalog for user ${userId} and level ${levelToFetch}`,
+          );
 
-    console.log("Raw courses from DB:", getAllCourses.length);
-
-    // ✅ FIX: Use Promise.all to resolve all async operations
-    const transformedCourses = await Promise.all(
-      getAllCourses.map(async (course) => {
-        // Get the user's enrollment (should be only one since we filtered by userId)
-        const userEnrollment = course.enrollment?.[0];
-
-        // Determine enrollment status
-        let enrollmentStatus = "NOT_ENROLLED";
-        let isEnrolled = false;
-        let progress = null;
-
-        if (userEnrollment) {
-          isEnrolled = true;
-          enrollmentStatus = userEnrollment.status || "ENROLLED";
-
-          // Get progress from the database
-          const courseProgress = await prisma.progress.findFirst({
+          // Fetch courses for the user's level
+          const getAllCourses = await prisma.course.findMany({
             where: {
-              userId: userId,
-              courses: {
-                some: {
-                  id: course.id,
-                },
-              },
+              course_level: levelToFetch,
+              status: "PUBLISHED",
+            },
+            orderBy: {
+              createdAt: "desc",
             },
             include: {
-              videoTracker: true,
+              enrollment: {
+                where: { userId: userId },
+                select: {
+                  userId: true,
+                  status: true,
+                  startedAt: true,
+                  completedAt: true,
+                  score: true,
+                  enrolledAt: true,
+                },
+              },
+              module: {
+                select: {
+                  _count: { select: { lesson: true } },
+                  lesson: { select: { duration: true } },
+                },
+              },
+              createdByDetails: {
+                select: { user_pic: true },
+              },
             },
           });
 
-          if (courseProgress) {
-            const totalVideos = course.module?.reduce((acc, mod) => {
-              return acc + (mod._count?.lesson || 0);
-            }, 0) || 0;
+          // Map loop handling the sub-queries safely inside the asynchronous fallback
+          const transformedCourses = await Promise.all(
+            getAllCourses.map(async (course) => {
+              const userEnrollment = course.enrollment?.[0];
+              let enrollmentStatus = "NOT_ENROLLED";
+              let isEnrolled = false;
+              let progress = null;
 
-            const completedVideos = courseProgress.videoTracker?.filter(
-              (tracker) => tracker.videoFinished === true,
-            ).length || 0;
+              if (userEnrollment) {
+                isEnrolled = true;
+                enrollmentStatus = userEnrollment.status || "ENROLLED";
 
-            const percentage = totalVideos > 0
-              ? Math.round((completedVideos / totalVideos) * 100)
-              : 0;
+                const courseProgress = await prisma.progress.findFirst({
+                  where: {
+                    userId: userId,
+                    courses: { some: { id: course.id } },
+                  },
+                  include: { videoTracker: true },
+                });
 
-            progress = {
-              percentage: percentage,
-              completed_lessons: completedVideos,
-              total_lessons: totalVideos,
-              is_completed: percentage >= 100,
-            };
-          }
-        }
+                if (courseProgress) {
+                  const totalVideos =
+                    course.module?.reduce((acc, mod) => {
+                      return acc + (mod._count?.lesson || 0);
+                    }, 0) || 0;
 
-        // Get enrollment count (total students)
-        const enrollmentCount = await prisma.enrollment.count({
-          where: {
-            courseId: course.id,
-            status: {
-              in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
-            },
-          },
-        });
+                  const completedVideos =
+                    courseProgress.videoTracker?.filter(
+                      (tracker) => tracker.videoFinished === true,
+                    ).length || 0;
 
-        // Calculate total lessons and duration
-        let totalLessons = 0;
-        let totalDuration = 0;
+                  const percentage =
+                    totalVideos > 0
+                      ? Math.round((completedVideos / totalVideos) * 100)
+                      : 0;
 
-        if (course.module) {
-          course.module.forEach((module) => {
-            totalLessons += module._count?.lesson || 0;
-            if (module.lesson) {
-              module.lesson.forEach((lesson) => {
-                totalDuration += lesson.duration || 0;
+                  progress = {
+                    percentage: percentage,
+                    completedLessons: completedVideos,
+                    totalLessons: totalVideos,
+                    isCompleted: percentage >= 100,
+                  };
+                }
+              }
+
+              const enrollmentCount = await prisma.enrollment.count({
+                where: {
+                  courseId: course.id,
+                  status: { in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"] },
+                },
               });
+
+              let totalLessons = 0;
+              let totalDuration = 0;
+
+              if (course.module) {
+                course.module.forEach((module) => {
+                  totalLessons += module._count?.lesson || 0;
+                  if (module.lesson) {
+                    module.lesson.forEach((lesson) => {
+                      totalDuration += lesson.duration || 0;
+                    });
+                  }
+                });
+              }
+
+              return {
+                id: course.id,
+                course_title: course.course_title,
+                course_description: course.course_description,
+                course_short_description: course.course_short_description,
+                course_image: course.course_image,
+                course_level: course.course_level,
+                createdBy: course.createdBy,
+                createdUserId: course.createdUserId,
+                organizationId: course.organizationId,
+                organizationName: course.organizationName,
+                point: course.point || 0,
+                status: course.status,
+                aiGenerated: course.aiGenerated || false,
+                pendingMaterials: course.pendingMaterials,
+                savedCoursesId: course.savedCoursesId,
+                progressId: course.progressId,
+                createdAt: course.createdAt,
+                updatedAt: course.updatedAt,
+                enrollmentStatus: enrollmentStatus,
+                isEnrolled: isEnrolled,
+                enrollmentCount: enrollmentCount,
+                progress: progress,
+                moduleCount: course.module?.length || 0,
+                totalLessons: totalLessons,
+                totalDuration: totalDuration,
+                module: course.module || [],
+                createdByDetails: course.createdByDetails || null,
+              };
+            }),
+          );
+
+          // Handle translation calculations safely within the isolated query block
+          let translateText = null;
+          if (language && languageCode && transformedCourses.length > 0) {
+            try {
+              translateText = await TranslateText(
+                transformedCourses[0].course_description,
+                language,
+                languageCode,
+              );
+            } catch (error) {
+              console.error("Translation error during cache building:", error);
             }
-          });
-        }
+          }
 
-        // ✅ Return the transformed course object
-        return {
-          id: course.id,
-          course_title: course.course_title,
-          course_description: course.course_description,
-          course_short_description: course.course_short_description,
-          course_image: course.course_image,
-          course_level: course.course_level,
-          createdBy: course.createdBy,
-          createdUserId: course.createdUserId,
-          organizationId: course.organizationId,
-          organizationName: course.organizationName,
-          point: course.point || 0,
-          status: course.status,
-          aiGenerated: course.aiGenerated || false,
-          pendingMaterials: course.pendingMaterials,
-          savedCoursesId: course.savedCoursesId,
-          progressId: course.progressId,
-          createdAt: course.createdAt,
-          updatedAt: course.updatedAt,
-          // ✅ Enrollment information
-          enrollmentStatus: enrollmentStatus,
-          isEnrolled: isEnrolled,
-          enrollmentCount: enrollmentCount,
-          // ✅ Progress if enrolled
-          progress: progress,
-          // ✅ Course statistics
-          moduleCount: course.module?.length || 0,
-          totalLessons: totalLessons,
-          totalDuration: totalDuration,
-          // ✅ Include module data
-          module: course.module || [],
-          // ✅ Include created by details
-          createdByDetails: course.createdByDetails || null,
-        };
-      }),
-    );
+          return {
+            message: "Courses fetched successfully",
+            data: {
+              getAllCourses: transformedCourses,
+              total: transformedCourses.length,
+              userLevel: userLevel,
+              language: language ?? null,
+              languageCode: languageCode ?? null,
+              translateText: translateText ?? null,
+            },
+          };
+        },
+      );
 
-    console.log("Transformed courses count:", transformedCourses.length);
-    if (transformedCourses.length > 0) {
-      console.log("First course:", transformedCourses[0]);
-    }
-
-    // Translate if needed
-    let translateText = null;
-    if (language && languageCode && transformedCourses.length > 0) {
-      try {
-        translateText = await TranslateText(
-          transformedCourses[0].course_description,
-          language,
-          languageCode,
-        );
-      } catch (error) {
-        console.error("Translation error:", error);
+      if (!responseData) {
+        this.setStatus(404);
+        return { message: "Failed to generate course lists", data: null };
       }
-    }
 
-    this.setStatus(200);
-    return {
-      message: "Courses fetched successfully",
-      data: {
-        getAllCourses: transformedCourses,
-        total: transformedCourses.length,
-        userLevel: userLevel,
-        language: language ?? null,
-        languageCode: languageCode ?? null,
-        translateText: translateText ?? null,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error fetching courses by level:", error);
-    this.setStatus(500);
-    return {
-      message: "Error fetching courses: " + error.message,
-      data: null,
-    };
+      this.setStatus(200);
+      return responseData;
+    } catch (error: any) {
+      console.error("Error fetching courses by level:", error);
+      this.setStatus(500);
+      return {
+        message: "Error fetching courses: " + error.message,
+        data: null,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Get("/get-courses-by-tutor")
@@ -985,29 +975,39 @@ public async GetAllCoursesByLevel(
     }
   }
 
-  @Get("/get-course/{courseId}")
-  public async GetCourseById(@Path() courseId: string): Promise<any> {
-    try {
+
+@Get("/get-course/{courseId}")
+@Security("bearerAuth") // Ensure this has user context to get the userId safely
+public async GetCourseById(
+  @Path() courseId: string,
+  @Request() req: any // Added request context to identify who is looking
+): Promise<any> {
+  const userId = req.user?.id;
+
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User is unauthorized", data: null };
+  }
+
+  // ✅ CRITICAL SECURITY FIX: Scope the cache key directly to the viewing user
+  const cacheKey = `user:${userId}:course-detail:${courseId}`;
+
+  try {
+    const responseData = await useCacheAside<any>(cacheKey, 3600, async () => {
+      console.log(`[Cache MISS] Securely fetching course tree ${courseId} for user ${userId}`);
+
       const course = await prisma.course.findUnique({
         where: { id: courseId },
         include: {
           createdByDetails: {
-            select: {
-              user_pic: true,
-            },
+            select: { user_pic: true },
           },
           module: {
             include: {
-              lesson: {
-                orderBy: { order: "asc" },
-              },
-              _count: {
-                select: {
-                  lesson: true,
-                },
-              },
+              lesson: { orderBy: { createdAt: "asc" } },
+              _count: { select: { lesson: true } },
             },
-            orderBy: { order: "asc" },
+            orderBy: { createdAt: "desc" },
           },
           material: {
             orderBy: { createdAt: "asc" },
@@ -1015,14 +1015,12 @@ public async GetAllCoursesByLevel(
           objectives: true,
           quiz: {
             include: {
-              questions: {
-                orderBy: { order: "asc" },
-              },
+              questions: { orderBy: { order: "asc" } },
               QuizAttempt: true,
             },
           },
-
           enrollment: {
+            // This stays secure because it is isolated within this user's private cache snapshot
             include: {
               user: {
                 select: {
@@ -1035,37 +1033,37 @@ public async GetAllCoursesByLevel(
             },
           },
           _count: {
-            select: {
-              post: true,
-              enrollment: true,
-              quizAttempt: true,
-            },
+            select: { post: true, enrollment: true, quizAttempt: true },
           },
         },
       });
 
-      if (!course) {
-        this.setStatus(404);
-        return {
-          message: "Course not found",
-          data: null,
-        };
-      }
+      if (!course) return "NOT_FOUND";
 
-      this.setStatus(200);
       return {
         message: "Course fetched successfully",
         data: course,
         progress: 0,
       };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        message: "Error fetching course: " + error.message,
-        data: null,
-      };
+    });
+
+    if (responseData === "NOT_FOUND") {
+      this.setStatus(404);
+      return { message: "Course not found", data: null };
     }
+
+    this.setStatus(200);
+    return responseData;
+
+  } catch (error: any) {
+    console.error("Error fetching course:", error);
+    this.setStatus(500);
+    return {
+      message: "Error fetching course: " + error.message,
+      data: null,
+    };
   }
+}
 
   @Get("/fetch-quizzes/{courseId}")
   public async FetchQuizzes(@Request() req: any, @Path() courseId: string) {
@@ -1135,6 +1133,11 @@ public async GetAllCoursesByLevel(
         where: { id: courseId },
       });
 
+      // A deleted course must disappear from the shared catalogue and from
+      // every user's cached listing/detail view, or students keep seeing and
+      // clicking a course that no longer exists.
+      await invalidateCourseCaches(courseId);
+
       this.setStatus(200);
       return {
         message: "Course deleted successfully",
@@ -1189,6 +1192,8 @@ public async GetAllCoursesByLevel(
         where: { id: courseId },
         data: { course_image: url },
       });
+
+      await invalidateCourseCaches(courseId);
 
       this.setStatus(200);
       return {
@@ -1691,6 +1696,10 @@ public async GetAllCoursesByLevel(
         },
       });
 
+      // Without this the saved-courses list stays cached for an hour, so the
+      // course the user just saved doesn't appear until the TTL expires.
+      await updateDataWithRedis(userId, ["saved-courses"]);
+
       this.setStatus(200);
       return {
         message: "Course saved successfully",
@@ -1729,6 +1738,10 @@ public async GetAllCoursesByLevel(
           message: "Saved course not found",
         };
       }
+
+      // Mirror of SaveCourse — otherwise an unsaved course lingers in the
+      // cached list for the remainder of its TTL.
+      await updateDataWithRedis(userId, ["saved-courses"]);
 
       this.setStatus(200);
       return {
@@ -2273,6 +2286,17 @@ public async GetAllCoursesByLevel(
           { courseId },
         );
 
+      // Enrolling changes the user's enrolled list, this course's detail view
+      // (it now shows as enrolled) and their XP/growth totals. Without this
+      // the student enrols and the course is missing from "My Courses" until
+      // the hour-long TTL expires.
+      await updateDataWithRedis(userId, [
+        "enrolled-courses",
+        "course-detail",
+        "courses",
+        "growth",
+      ]);
+
       this.setStatus(201);
       return {
         message: "Successfully enrolled in course",
@@ -2541,156 +2565,161 @@ public async GetAllCoursesByLevel(
   }
 
   // In your CourseController.ts, update the fetch-saved-courses endpoint
- @Security("bearerAuth")
-@Get("/fetch-saved-courses")
-public async FetchSavedCourse(@Request() req: any) {
-  const userId = req.user?.id;
-  if (!userId) {
-    this.setStatus(401);
-    return {
-      message: "User is unauthorized",
-      data: [],
-    };
-  }
 
-  try {
-    const savedCourses = await prisma.savedCourses.findMany({
-      where: {
-        userId,
-        courses: {
-          isNot: null, // ✅ Only get saved courses that still exist
-        },
-      },
-      include: {
-        courses: {
-          include: {
-            enrollment: {
-              where: {
-                userId: userId,
-              },
-              select: {
-                userId: true,
-                status: true,
-                startedAt: true,
-                completedAt: true,
-                score: true,
-                enrolledAt: true,
-              },
-            },
-            module: {
-              select: {
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
-                },
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            },
-            createdByDetails: {
-              select: {
-                user_pic: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    // Filter out any records where courses is null (just in case)
-    const validSavedCourses = savedCourses.filter(
-      (item) => item.courses !== null,
-    );
-
-    // Transform the data to include enrollment status and total minutes
-    const transformedCourses = validSavedCourses.map((item) => {
-      const course = item.courses;
-      
-      // Check if the user is enrolled in this course
-      const userEnrollment = course?.enrollment?.[0] || null;
-      const isEnrolled = !!userEnrollment;
-      const enrollmentStatus = userEnrollment?.status || "NOT_ENROLLED";
-
-      // Calculate total lessons and duration
-      let totalLessons = 0;
-      let totalDurationMinutes = 0;
-      
-      if (course?.module) {
-        course.module.forEach((module) => {
-          totalLessons += module._count?.lesson || 0;
-          if (module.lesson) {
-            module.lesson.forEach((lesson) => {
-              totalDurationMinutes += lesson.duration || 0;
-            });
-          }
-        });
-      }
-
-      // Get enrollment count (total students)
-      const enrollmentCount = course?.enrollment?.length || 0;
-
-      // Get progress if enrolled
-      let progress = null;
-      if (isEnrolled && userEnrollment) {
-        // You might want to fetch progress from a separate query here
-        // For now, we'll return null and let the frontend fetch it separately
-        progress = null;
-      }
-
+  @Security("bearerAuth")
+  @Get("/fetch-saved-courses")
+  public async FetchSavedCourse(@Request() req: any) {
+    const userId = req.user?.id;
+    if (!userId) {
+      this.setStatus(401);
       return {
-        id: course.id,
-        course_title: course.course_title,
-        course_description: course.course_description,
-        course_short_description: course.course_short_description,
-        course_image: course.course_image,
-        course_level: course.course_level,
-        createdBy: course.createdBy,
-        createdUserId: course.createdUserId,
-        organizationId: course.organizationId,
-        organizationName: course.organizationName,
-        point: course.point || 0,
-        status: course.status,
-        aiGenerated: course.aiGenerated || false,
-        pendingMaterials: course.pendingMaterials,
-        progressId: course.progressId,
-        createdAt: course.createdAt,
-        updatedAt: course.updatedAt,
-        // ✅ Enrollment information
-        isEnrolled: isEnrolled,
-        enrollmentStatus: enrollmentStatus,
-        enrollmentCount: enrollmentCount,
-        // ✅ Progress if enrolled
-        progress: progress,
-        // ✅ Course statistics
-        moduleCount: course?.module?.length || 0,
-        totalLessons: totalLessons,
-        totalDurationMinutes: totalDurationMinutes, // ✅ Total minutes
-        totalDuration: totalDurationMinutes, // For backward compatibility
-        // ✅ Include module data
-        module: course?.module || [],
-        // ✅ Include created by details
-        createdByDetails: course?.createdByDetails || null,
+        message: "User is unauthorized",
+        data: [],
       };
-    });
+    }
 
-    this.setStatus(200);
-    return {
-      message: "Saved courses fetched successfully",
-      data: transformedCourses,
-    };
-  } catch (error) {
-    console.error("Error fetching saved courses:", error);
-    this.setStatus(500);
-    return {
-      message: "Error fetching saved courses",
-      data: [],
-    };
+    // Create a highly unique user-scoped key for saved items
+    const cacheKey = `user:${userId}:saved-courses`;
+
+    try {
+      // Wrap the Prisma operations and transformations inside the 1-hour cache
+      const responseData = await useCacheAside<any>(
+        cacheKey,
+        3600,
+        async () => {
+          console.log(
+            `[Cache MISS] Rebuilding saved course list for user: ${userId}`,
+          );
+
+          const savedCourses = await prisma.savedCourses.findMany({
+            where: {
+              userId,
+              courses: {
+                isNot: null, // ✅ Only get saved courses that still exist
+              },
+            },
+            include: {
+              courses: {
+                include: {
+                  enrollment: {
+                    where: { userId: userId },
+                    select: {
+                      userId: true,
+                      status: true,
+                      startedAt: true,
+                      completedAt: true,
+                      score: true,
+                      enrolledAt: true,
+                    },
+                  },
+                  module: {
+                    select: {
+                      _count: { select: { lesson: true } },
+                      lesson: { select: { duration: true } },
+                    },
+                  },
+                  createdByDetails: {
+                    select: { user_pic: true },
+                  },
+                },
+              },
+            },
+          });
+
+          // Filter out any records where courses is null (just in case)
+          const validSavedCourses = savedCourses.filter(
+            (item) => item.courses !== null,
+          );
+
+          // Transform the data to include enrollment status and total minutes
+          const transformedCourses = validSavedCourses.map((item) => {
+            const course = item.courses;
+
+            // Check if the user is enrolled in this course
+            const userEnrollment = course?.enrollment?.[0] || null;
+            const isEnrolled = !!userEnrollment;
+            const enrollmentStatus = userEnrollment?.status || "NOT_ENROLLED";
+
+            // Calculate total lessons and duration
+            let totalLessons = 0;
+            let totalDurationMinutes = 0;
+
+            if (course?.module) {
+              course.module.forEach((module) => {
+                totalLessons += module._count?.lesson || 0;
+                if (module.lesson) {
+                  module.lesson.forEach((lesson) => {
+                    totalDurationMinutes += lesson.duration || 0;
+                  });
+                }
+              });
+            }
+
+            // Get enrollment count (total students)
+            const enrollmentCount = course?.enrollment?.length || 0;
+
+            // Get progress if enrolled
+            let progress = null;
+            if (isEnrolled && userEnrollment) {
+              progress = null;
+            }
+
+            return {
+              id: course.id,
+              course_title: course.course_title,
+              course_description: course.course_description,
+              course_short_description: course.course_short_description,
+              course_image: course.course_image,
+              course_level: course.course_level,
+              createdBy: course.createdBy,
+              createdUserId: course.createdUserId,
+              organizationId: course.organizationId,
+              organizationName: course.organizationName,
+              point: course.point || 0,
+              status: course.status,
+              aiGenerated: course.aiGenerated || false,
+              pendingMaterials: course.pendingMaterials,
+              progressId: course.progressId,
+              createdAt: course.createdAt,
+              updatedAt: course.updatedAt,
+              isEnrolled: isEnrolled,
+              enrollmentStatus: enrollmentStatus,
+              enrollmentCount: enrollmentCount,
+              progress: progress,
+              moduleCount: course?.module?.length || 0,
+              totalLessons: totalLessons,
+              totalDurationMinutes: totalDurationMinutes,
+              totalDuration: totalDurationMinutes,
+              module: course?.module || [],
+              createdByDetails: course?.createdByDetails || null,
+            };
+          });
+
+          // Wrap it up inside the standard envelope structure
+          return {
+            message: "Saved courses fetched successfully",
+            data: transformedCourses,
+          };
+        },
+      );
+
+      if (!responseData) {
+        this.setStatus(404);
+        return { message: "Saved cache build failed", data: [] };
+      }
+
+      this.setStatus(200);
+      return responseData;
+    } catch (error) {
+      console.error("Error fetching saved courses:", error);
+      this.setStatus(500);
+      return {
+        message: "Error fetching saved courses",
+        data: [],
+      };
+    }
   }
-}
+
   @Security("bearerAuth")
   @Get("/tutor-overview")
   public async GetTutorOverview(@Request() req: any): Promise<any> {

@@ -19,7 +19,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { SendEmail } from "../utils/sendmail";
-
+import { updateDataWithRedis, useCacheAside, CacheKeys, TTL } from "../utils/redis";
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
 import { GrowthService } from "../services/growthService";
@@ -1959,6 +1959,8 @@ export class UserController extends Controller {
       data: updateData,
     });
 
+    await updateDataWithRedis(user.id,  ["profile"],)
+
     this.setStatus(200);
     return { message: "User updated successfully", data: user };
   }
@@ -2113,163 +2115,102 @@ export class UserController extends Controller {
     }
   }
 
-  @Security("bearerAuth")
-  @Get("/profile")
-  public async GetProfile(@Request() req: any) {
-    try {
-      const userId = req.user?.id;
-      const userRole = req.user?.role;
-      const userLevel = req.user?.level;
-      const progressId = req.progressId;
 
-      if (!userId) {
-        this.setStatus(401);
-        return { message: "Unauthorized", status: 401 };
-      }
 
-      // ✅ Support both "instructor" and "tutor" roles
+@Security("bearerAuth")
+@Get("/profile")
+public async GetProfile(@Request() req: any) {
+  try {
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
+    const userLevel = req.user?.level;
+    const progressId = req.progressId;
+
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "Unauthorized", status: 401 };
+    }
+
+    const cacheKey = `user:${userId}`;
+
+    // Pass the execution block directly into your clean helper
+    const responseData = await useCacheAside(cacheKey, 3600, async () => {
+      
+      // --- ALL YOUR PRISMA BLOCKS LIVE INSIDE HERE NOW ---
       if (userRole === "instructor" || userRole === "tutor") {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           include: {
-            progress: {
-              include: { achivement: true, badges_and_levels: true, badges: true },
-            },
+            progress: { include: { achivement: true, badges_and_levels: true, badges: true } },
           },
         });
+        if (!user) return null;
 
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Tutor not found", status: 404 };
-        }
-
-        this.setStatus(200);
-        return {
-          message: "Profile fetched successfully",
-          user,
-          level: userLevel ?? null,
-          progressId,
-        };
+        return { message: "Profile fetched successfully", user, level: userLevel ?? null, progressId };
       }
 
       if (userRole === "student") {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           include: {
-            progress: {
-              include: { achivement: true, badges_and_levels: true, badges: true },
-            },
+            progress: { include: { achivement: true, badges_and_levels: true, badges: true } },
           },
         });
+        if (!user) return null;
 
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Student not found", status: 404 };
-        }
-
-        this.setStatus(200);
-        return {
-          message: "Profile fetched successfully",
-          user,
-          level: userLevel ?? null,
-          progressId,
-        };
+        return { message: "Profile fetched successfully", user, level: userLevel ?? null, progressId };
       }
 
-      // ✅ Support both "Member" and "member" roles
       if (userRole === "Member" || userRole === "member" || userRole === "invited_user") {
         const user = await prisma.user.findUnique({
-          where: { id: userId },
+          where: {
+            id: userId,
+          },
           include: {
-            progress: {
-              include: { achivement: true, badges_and_levels: true, badges: true },
-            },
+            progress: { include: { achivement: true, badges_and_levels: true, badges: true } },
             organization: {
               select: {
-                organization_name: true,
-                organization_email: true,
-                organization_phone_number: true,
-                organization_image: true,
-                organization_country: true,
-                organization_description: true,
-                organization_state: true,
-                organization_role: true,
-                organization_year: true,
-                organization_type: true,
-                Church: true,
-                school: true,
-                Club: true,
+                organization_name: true, organization_email: true, organization_phone_number: true,
+                organization_image: true, organization_country: true, organization_description: true,
+                organization_state: true, organization_role: true, organization_year: true,
+                organization_type: true, Church: true, school: true, Club: true,
               },
             },
-            // ✅ Also include their membership record for richer context
             organizationMemberships: {
               where: { isActive: true },
-              select: {
-                organizationId: true,
-                role: true,
-                joinedVia: true,
-                joinedAt: true,
-              },
+              select: { organizationId: true, role: true, joinedVia: true, joinedAt: true },
             },
           },
         });
+        if (!user) return null;
 
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Member not found", status: 404 };
-        }
-
-        this.setStatus(200);
         return {
           message: "Profile fetched successfully",
           user: {
-            first_name: user.first_name,
-            last_name: user.last_name,
-            email_address: user.email_address,
-            phone_number: user.phone_number,
-            country: user.country,
-            state: user.state,
-            level: user.level,
-            userType: user.userType,               // ✅
-            profile_pic: user.user_pic,
-            organization: user.organization,
-            memberships: user.organizationMemberships, // ✅
+            first_name: user.first_name, last_name: user.last_name, email_address: user.email_address,
+            phone_number: user.phone_number, country: user.country, state: user.state,
+            level: user.level, userType: user.userType, profile_pic: user.user_pic,
+            organization: user.organization, memberships: user.organizationMemberships,
           },
           level: userLevel ?? null,
           progressId,
         };
       }
 
-      // ✅ Platform admins (goye_admin) — super_admin / content_admin / user_admin.
-      // Previously fell through to the 400 below, so /api/user/profile was
-      // effectively broken for every admin account.
       if (userRole === "goye_admin") {
         const user = await prisma.user.findUnique({
           where: { id: userId },
           include: { adminProfile: true },
         });
+        if (!user) return null;
 
-        if (!user) {
-          this.setStatus(404);
-          return { message: "Admin not found", status: 404 };
-        }
-
-        this.setStatus(200);
         return {
           message: "Profile fetched successfully",
           user: {
-            id: user.id,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            email_address: user.email_address,
-            phone_number: user.phone_number,
-            country: user.country,
-            state: user.state,
-            role: user.role,
-            level: user.level,
-            userType: user.userType,
-            profile_pic: user.user_pic,
-            isProfileComplete: true,
+            id: user.id, first_name: user.first_name, last_name: user.last_name,
+            email_address: user.email_address, phone_number: user.phone_number,
+            country: user.country, state: user.state, role: user.role, level: user.level,
+            userType: user.userType, profile_pic: user.user_pic, isProfileComplete: true,
             adminRole: user.adminProfile?.role ?? "super_admin",
             permissions: user.adminProfile?.permissions ?? null,
           },
@@ -2278,21 +2219,35 @@ export class UserController extends Controller {
         };
       }
 
+      return "INVALID_ROLE";
+    });
+
+    // Handle structural response branches based on helper return value
+    if (responseData === "INVALID_ROLE") {
       this.setStatus(400);
       return { message: "Invalid user role", status: 400, role: userRole };
-    } catch (error: any) {
-      console.error("Error fetching profile:", error);
-
-      // Return 401 for authentication errors instead of 500
-      if (error.status === 401 || error.message?.includes("No access token") || error.message?.includes("Unauthorized")) {
-        this.setStatus(401);
-        return { message: "Unauthorized", status: 401 };
-      }
-
-      this.setStatus(500);
-      return { message: "Internal server error", status: 500, error: error.message };
     }
+
+    if (!responseData) {
+      this.setStatus(404);
+      return { message: "Profile record not found", status: 404 };
+    }
+
+    this.setStatus(200);
+    return responseData;
+
+  } catch (error: any) {
+    console.error("Error fetching profile:", error);
+    if (error.status === 401 || error.message?.includes("No access token") || error.message?.includes("Unauthorized")) {
+      this.setStatus(401);
+      return { message: "Unauthorized", status: 401 };
+    }
+    this.setStatus(500);
+    return { message: "Internal server error", status: 500, error: error.message };
   }
+}
+
+
 
   @Post("/forgot-password")
   public async ForgotPassword(

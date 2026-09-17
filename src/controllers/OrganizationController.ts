@@ -21,6 +21,7 @@ import { SendEmail } from "../utils/sendmail";
 import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
 import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
+import { useCacheAside, CacheKeys, TTL, invalidateOrgCaches } from "../utils/redis";
 
 @Route("organizations")
 @Tags("Organization Controllers")
@@ -1388,6 +1389,29 @@ public async GetUserDetails(
         return { success: false, message: "Organization not found" };
       }
 
+      // This endpoint runs several full-table scans and then aggregates in
+      // JS, so it is one of the most expensive reads in the app and is hit on
+      // every dashboard load. Cached for 5 minutes: short enough that an
+      // admin watching numbers move isn't confused, long enough to take the
+      // repeated-refresh load off Postgres entirely.
+      const data = await useCacheAside(
+        CacheKeys.orgAnalytics(organizationId),
+        TTL.medium,
+        async () => this.computeOrganizationAnalytics(organizationId),
+      );
+
+      this.setStatus(200);
+      return { success: true, data };
+    } catch (error: any) {
+      console.error("[OrganizationAnalytics] error:", error.message);
+      this.setStatus(500);
+      return { success: false, message: "Failed to fetch organization analytics" };
+    }
+  }
+
+  /** Heavy aggregation behind GetOrganizationAnalytics, split out so it can sit behind the cache. */
+  private async computeOrganizationAnalytics(organizationId: string) {
+    {
       const members = await prisma.organizationMember.findMany({
         where: { organizationId, isActive: true },
         select: {
@@ -1498,49 +1522,41 @@ public async GetUserDetails(
         (e) => e.status === "COMPLETED",
       ).length;
 
-      this.setStatus(200);
       return {
-        success: true,
-        data: {
-          summary: {
-            totalMembers: members.length,
-            onlineMembers: members.filter((m) => m.user?.isOnline).length,
-            totalCourses: courses.length,
-            publishedCourses: courses.filter((c) => c.status === "PUBLISHED").length,
-            totalEnrollments: enrollments.length,
-            completedEnrollments,
-            completionRate:
-              enrollments.length > 0
-                ? Math.round((completedEnrollments / enrollments.length) * 100)
-                : 0,
-          },
-          memberGrowthLast6Months: memberGrowth,
-          enrollmentsLast30Days: dayKeys.map((date) => ({
-            date,
-            count: enrolledByDay[date],
-          })),
-          completionsLast30Days: dayKeys.map((date) => ({
-            date,
-            count: completedByDay[date],
-          })),
-          membersByRole: Object.entries(roleCounts).map(([label, value]) => ({
-            label,
-            value,
-          })),
-          enrollmentsByStatus: Object.entries(statusCounts).map(([label, value]) => ({
-            label,
-            value,
-          })),
-          membersByJoinMethod: Object.entries(joinMethodCounts).map(
-            ([label, value]) => ({ label, value }),
-          ),
-          topCoursesByEnrollment: topCourses,
+        summary: {
+          totalMembers: members.length,
+          onlineMembers: members.filter((m) => m.user?.isOnline).length,
+          totalCourses: courses.length,
+          publishedCourses: courses.filter((c) => c.status === "PUBLISHED").length,
+          totalEnrollments: enrollments.length,
+          completedEnrollments,
+          completionRate:
+            enrollments.length > 0
+              ? Math.round((completedEnrollments / enrollments.length) * 100)
+              : 0,
         },
+        memberGrowthLast6Months: memberGrowth,
+        enrollmentsLast30Days: dayKeys.map((date) => ({
+          date,
+          count: enrolledByDay[date],
+        })),
+        completionsLast30Days: dayKeys.map((date) => ({
+          date,
+          count: completedByDay[date],
+        })),
+        membersByRole: Object.entries(roleCounts).map(([label, value]) => ({
+          label,
+          value,
+        })),
+        enrollmentsByStatus: Object.entries(statusCounts).map(([label, value]) => ({
+          label,
+          value,
+        })),
+        membersByJoinMethod: Object.entries(joinMethodCounts).map(
+          ([label, value]) => ({ label, value }),
+        ),
+        topCoursesByEnrollment: topCourses,
       };
-    } catch (error: any) {
-      console.error("[OrganizationAnalytics] error:", error.message);
-      this.setStatus(500);
-      return { success: false, message: "Failed to fetch organization analytics" };
     }
   }
 
@@ -2860,6 +2876,11 @@ public async GetUserDetails(
           isActive: true,
         },
       });
+
+      // Member counts and role breakdowns feed the cached admin dashboard,
+      // so a new member has to clear it or the admin keeps seeing the old
+      // headcount after an invite is accepted.
+      await invalidateOrgCaches(organizationId);
 
       // Auto-create settings for the user
       const createSettings = await prisma.settings.create({
@@ -4733,6 +4754,8 @@ public async GetOrganizationCoursesWithStats(
           userId: userId,
         },
       });
+
+      await invalidateOrgCaches(organizationId);
 
       this.setStatus(200);
       return { success: true, message: "Member removed successfully" };

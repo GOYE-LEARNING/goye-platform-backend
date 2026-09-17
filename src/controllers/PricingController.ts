@@ -9,7 +9,6 @@ import {
   Tags,
 } from "tsoa";
 import { PricingService } from "../services/pricingService";
-import { redisClient } from "../utils/redis";
 import prisma from "../db";
 import { MemberPlanType, PlanDuration, Plans } from "@prisma/client";
 @Tags("Pricing API integration")
@@ -39,20 +38,6 @@ export class PricingController extends Controller {
       recipent: code,
       emailCode: email || null,
     };
-  }
-
-  @Security("bearerAuth")
-  @Get("/fetch-code")
-  public async GetCode(@Request() req: any): Promise<any> {
-    const user = req?.user?.id;
-    try {
-      const cachedData = await redisClient.get(`user_${user}_PC`);
-      return {
-        name: cachedData,
-      };
-    } catch (error: any) {
-      console.error(error);
-    }
   }
 
   @Security("bearerAuth")

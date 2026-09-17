@@ -41,6 +41,7 @@ const userOrIpKey = (req: Request & { user?: { id?: string } }) =>
   req.user?.id ? `user:${req.user.id}` : `ip:${ipKey(req)}`;
 
 // ---- General limiter (IP-based, catches anonymous + pre-auth traffic) ----
+/*
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -49,6 +50,7 @@ const generalLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: ipKey,
 });
+*/
 
 // ---- Auth limiter (unchanged logic, fixed key) ----
 const authLimiter = rateLimit({
@@ -101,7 +103,7 @@ export const createApp = async (socketService?: SocketService) => {
   app.use(requestLogger);
   app.use(helmet())
 
-  app.use(generalLimiter);
+  //app.use(generalLimiter);
   app.use("/api/user/signup", authLimiter);
   app.use("/api/user/login", authLimiter);
 

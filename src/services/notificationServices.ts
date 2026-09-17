@@ -1,5 +1,7 @@
 // services/notificationServices.ts - SIMPLIFIED VERSION (no group_activity)
 import prisma from "../db";
+import { updateDataWithRedis, invalidateNotificationCaches } from "../utils/redis";
+import { queueNotification } from "../utils/redis";
 import { SocketService } from "./socketService";
 
 export enum Role {
@@ -63,11 +65,12 @@ export class NotificationService {
     try {
       const userExists = await prisma.user.findUnique({
         where: { id: data.userId },
-        select: { 
-          id: true, 
-          first_name: true, 
+        select: {
+          id: true,
+          first_name: true,
           last_name: true,
-          user_pic: true 
+          user_pic: true,
+          email_address: true,
         },
       });
 
@@ -146,6 +149,7 @@ export class NotificationService {
               first_name: true,
               last_name: true,
               user_pic: true,
+              email_address: true,
             },
           },
           course: {
@@ -181,6 +185,55 @@ export class NotificationService {
       if (this.socketService) {
         await this.socketService.broadcastNotification(notification);
         await this.socketService.sendUnreadCount(data.userId);
+      }
+
+      await updateDataWithRedis(data.userId, [
+        "notifications-all",
+        "notifications-unread",
+        "notifications-counts",
+      ]);
+
+      try {
+        if (userExists.email_address) {
+          let mappedEmailType:
+            | "otp"
+            | "reset-password"
+            | "invitation"
+            | "org-verification"
+            | "broadcast" = "broadcast";
+          const additionalData: any = {
+            userName: `${userExists.first_name} ${userExists.last_name}`,
+          };
+
+          // Map your system's template logic keys seamlessly into Brevo template switches
+          if (data.type === NotificationType.ORG_INVITE) {
+            mappedEmailType = "invitation";
+            additionalData.organizationName =
+              notification.organization?.organization_name ||
+              "Goye Organization";
+          } else if (data.type === NotificationType.SYSTEM_ANNOUNCEMENT) {
+            mappedEmailType = "broadcast";
+            additionalData.heading = notification.title;
+          }
+
+          // Offload the heavy fetch request completely to the worker
+          await queueNotification("send-email", {
+            recipientId: userExists.id,
+            targetAddress: userExists.email_address,
+            title: notification.title,
+            body: data.message, // Passes raw text or invite link directly
+            metadata: {
+              type: mappedEmailType,
+              additionalData: additionalData,
+            },
+          });
+        }
+      } catch (queueErr) {
+        // Enclosed in a private block so queue failures never break your UI notification creations
+        console.error(
+          "[Queue Failure] Failed scheduling out-of-band delivery channel processing:",
+          queueErr,
+        );
       }
 
       return notification;
@@ -221,14 +274,16 @@ export class NotificationService {
         return { count: 0 };
       }
 
-      const userIds = [...new Set(validNotifications.map(n => n.userId))];
+      const userIds = [...new Set(validNotifications.map((n) => n.userId))];
       const existingUsers = await prisma.user.findMany({
         where: { id: { in: userIds } },
         select: { id: true },
       });
-      
-      const existingUserIds = new Set(existingUsers.map(u => u.id));
-      const finalNotifications = validNotifications.filter(n => existingUserIds.has(n.userId));
+
+      const existingUserIds = new Set(existingUsers.map((u) => u.id));
+      const finalNotifications = validNotifications.filter((n) =>
+        existingUserIds.has(n.userId),
+      );
 
       if (finalNotifications.length === 0) {
         console.warn("No valid users found for notifications");
@@ -307,7 +362,7 @@ export class NotificationService {
   static async getUnreadCount(userId: string, userRole: string) {
     try {
       const role = userRole.toUpperCase() as Role;
-      
+
       const [roleUnread, userUnread] = await Promise.all([
         this.getUnreadCountByRole(role),
         this.getUnreadCountForUser(userId),
@@ -364,15 +419,15 @@ export class NotificationService {
   static async getUnreadCountForOrganization(organizationId: string) {
     try {
       const members = await prisma.organizationMember.findMany({
-        where: { 
+        where: {
           organizationId: organizationId,
-          isActive: true 
+          isActive: true,
         },
-        select: { userId: true }
+        select: { userId: true },
       });
 
-      const userIds = members.map(m => m.userId);
-      
+      const userIds = members.map((m) => m.userId);
+
       return await prisma.notification.count({
         where: {
           userId: { in: userIds },
@@ -498,10 +553,16 @@ export class NotificationService {
    * GET: Get notifications by user with filtering
    */
   static async getUserNotifications(
-    userId: string, 
+    userId: string,
     limit: number = 50,
     offset: number = 0,
-    filter?: { type?: string; read?: boolean; from?: Date; to?: Date; organizationId?: string }
+    filter?: {
+      type?: string;
+      read?: boolean;
+      from?: Date;
+      to?: Date;
+      organizationId?: string;
+    },
   ) {
     try {
       const where: any = { userId: userId };
@@ -584,18 +645,18 @@ export class NotificationService {
     organizationId: string,
     limit: number = 50,
     offset: number = 0,
-    filter?: { type?: string; read?: boolean; from?: Date; to?: Date }
+    filter?: { type?: string; read?: boolean; from?: Date; to?: Date },
   ) {
     try {
       const members = await prisma.organizationMember.findMany({
-        where: { 
+        where: {
           organizationId: organizationId,
-          isActive: true 
+          isActive: true,
         },
-        select: { userId: true }
+        select: { userId: true },
       });
 
-      const userIds = members.map(m => m.userId);
+      const userIds = members.map((m) => m.userId);
 
       const where: any = {
         userId: { in: userIds },
@@ -737,7 +798,10 @@ export class NotificationService {
   /**
    * DELETE: Delete multiple notifications
    */
-  static async deleteMultipleNotifications(notificationIds: string[], userId: string) {
+  static async deleteMultipleNotifications(
+    notificationIds: string[],
+    userId: string,
+  ) {
     try {
       return await prisma.notification.deleteMany({
         where: {
@@ -758,7 +822,7 @@ export class NotificationService {
   static async getNotificationFilter(userId: string, userRole: string) {
     // Get user's settings - only use fields that exist
     let disableCourseNotifications = false;
-    
+
     try {
       const userSettings = await prisma.settings.findFirst({
         where: { userId: userId },
@@ -766,25 +830,25 @@ export class NotificationService {
       });
       disableCourseNotifications = userSettings?.course_updates === false;
     } catch (error) {
-      console.warn('Could not fetch settings, using defaults:', error);
+      console.warn("Could not fetch settings, using defaults:", error);
     }
-    
+
     // Simple filter without group_activity
     const baseWhere: any = {
-      OR: [{ to: userRole }, { userId: userId }]
+      OR: [{ to: userRole }, { userId: userId }],
     };
-    
+
     // Only exclude course notifications if disabled
     if (disableCourseNotifications) {
       baseWhere.NOT = { courseId: { not: null } };
     }
-    
+
     return {
       where: baseWhere,
-      settings: { 
+      settings: {
         disableCourseNotifications,
         disableGroupNotifications: false,
-      }
+      },
     };
   }
 
@@ -798,12 +862,12 @@ export class NotificationService {
         prisma.notification.count({ where: { userId, isRead: false } }),
         prisma.notification.count({ where: { userId, isRead: true } }),
         prisma.notification.groupBy({
-          by: ['type'],
+          by: ["type"],
           where: { userId },
           _count: true,
         }),
         prisma.notification.groupBy({
-          by: ['organizationId'],
+          by: ["organizationId"],
           where: { userId, organizationId: { not: null } },
           _count: true,
         }),
@@ -813,11 +877,11 @@ export class NotificationService {
         total,
         unread,
         read,
-        byType: byType.map(item => ({
+        byType: byType.map((item) => ({
           type: item.type,
           count: item._count,
         })),
-        byOrganization: byOrg.map(item => ({
+        byOrganization: byOrg.map((item) => ({
           organizationId: item.organizationId,
           count: item._count,
         })),
@@ -840,7 +904,7 @@ export class NotificationService {
     message: string,
     to: Role,
     type: Types = "message",
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       const users = await prisma.user.findMany({
@@ -883,7 +947,11 @@ export class NotificationService {
   // NOTIFICATION METHODS
   // ============================================================
 
-  static async notifyStudentJoinedCourse(studentId: string, courseId: string, organizationId?: string) {
+  static async notifyStudentJoinedCourse(
+    studentId: string,
+    courseId: string,
+    organizationId?: string,
+  ) {
     try {
       const course = await prisma.course.findUnique({
         where: { id: courseId },
@@ -915,7 +983,9 @@ export class NotificationService {
         select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const studentName = student ? `${student.first_name} ${student.last_name}`.trim() : "A student";
+      const studentName = student
+        ? `${student.first_name} ${student.last_name}`.trim()
+        : "A student";
 
       await this.createNotification({
         title: "New Student Enrolled",
@@ -936,7 +1006,11 @@ export class NotificationService {
     }
   }
 
-  static async notifyStudentJoinedGroup(studentId: string, groupId: string, organizationId?: string) {
+  static async notifyStudentJoinedGroup(
+    studentId: string,
+    groupId: string,
+    organizationId?: string,
+  ) {
     try {
       const group = await prisma.group.findUnique({
         where: { id: groupId },
@@ -968,7 +1042,9 @@ export class NotificationService {
         select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const studentName = student ? `${student.first_name} ${student.last_name}`.trim() : "A student";
+      const studentName = student
+        ? `${student.first_name} ${student.last_name}`.trim()
+        : "A student";
 
       await this.createNotification({
         title: "New Group Member",
@@ -994,7 +1070,7 @@ export class NotificationService {
     likerId: string,
     postAuthorId: string,
     postTitle?: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       if (postAuthorId === likerId) return { success: false };
@@ -1004,11 +1080,13 @@ export class NotificationService {
         select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const likerName = liker ? `${liker.first_name} ${liker.last_name}`.trim() : "Someone";
+      const likerName = liker
+        ? `${liker.first_name} ${liker.last_name}`.trim()
+        : "Someone";
 
       await this.createNotification({
         title: "Post Liked",
-        message: `${likerName} liked your post${postTitle ? `: "${postTitle}"` : ''}`,
+        message: `${likerName} liked your post${postTitle ? `: "${postTitle}"` : ""}`,
         type: NotificationType.POST_LIKE,
         role: Role.STUDENT,
         to: Role.STUDENT,
@@ -1032,7 +1110,7 @@ export class NotificationService {
     commentText: string,
     postTitle?: string,
     organizationId?: string,
-    replyId?: string
+    replyId?: string,
   ) {
     try {
       if (postAuthorId === commenterId) return { success: false };
@@ -1042,11 +1120,13 @@ export class NotificationService {
         select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const commenterName = commenter ? `${commenter.first_name} ${commenter.last_name}`.trim() : "Someone";
+      const commenterName = commenter
+        ? `${commenter.first_name} ${commenter.last_name}`.trim()
+        : "Someone";
 
       await this.createNotification({
         title: "New Comment",
-        message: `${commenterName} commented on your post${postTitle ? `: "${postTitle}"` : ''}`,
+        message: `${commenterName} commented on your post${postTitle ? `: "${postTitle}"` : ""}`,
         type: NotificationType.POST_COMMENT,
         role: Role.STUDENT,
         to: Role.STUDENT,
@@ -1054,11 +1134,11 @@ export class NotificationService {
         postId: postId,
         replyId: replyId,
         organizationId: organizationId,
-        data: { 
-          commenterId, 
-          commenterName, 
-          commentText: commentText.substring(0, 100), 
-          postTitle: postTitle || "Post" 
+        data: {
+          commenterId,
+          commenterName,
+          commentText: commentText.substring(0, 100),
+          postTitle: postTitle || "Post",
         },
       });
 
@@ -1074,7 +1154,7 @@ export class NotificationService {
     senderId: string,
     message: string,
     messageId: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       if (receiverId === senderId) return { success: false };
@@ -1084,7 +1164,9 @@ export class NotificationService {
         select: { first_name: true, last_name: true, user_pic: true },
       });
 
-      const senderName = sender ? `${sender.first_name} ${sender.last_name}`.trim() : "Someone";
+      const senderName = sender
+        ? `${sender.first_name} ${sender.last_name}`.trim()
+        : "Someone";
 
       await this.createNotification({
         title: "New Message",
@@ -1094,11 +1176,11 @@ export class NotificationService {
         to: Role.STUDENT,
         userId: receiverId,
         organizationId: organizationId,
-        data: { 
-          senderId, 
-          senderName, 
-          messageId, 
-          messagePreview: message.substring(0, 100) 
+        data: {
+          senderId,
+          senderName,
+          messageId,
+          messagePreview: message.substring(0, 100),
         },
       });
 
@@ -1113,7 +1195,7 @@ export class NotificationService {
     userId: string,
     courseId: string,
     courseTitle: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       await this.createNotification({
@@ -1176,7 +1258,7 @@ export class NotificationService {
     userId: string,
     achievementTitle: string,
     achievementId: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       await this.createNotification({
@@ -1207,7 +1289,7 @@ export class NotificationService {
     quizTitle: string,
     score: number,
     courseId?: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       await this.createNotification({
@@ -1239,7 +1321,7 @@ export class NotificationService {
     eventName: string,
     eventId: string,
     eventTime: string,
-    organizationId?: string
+    organizationId?: string,
   ) {
     try {
       await this.createNotification({
@@ -1272,12 +1354,12 @@ export class NotificationService {
   static async notifyOrgMemberJoined(
     newMemberId: string,
     organizationId: string,
-    adminId?: string
+    adminId?: string,
   ) {
     try {
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { 
+        select: {
           id: true,
           organization_name: true,
           organization_image: true,
@@ -1291,10 +1373,10 @@ export class NotificationService {
 
       const newMember = await prisma.user.findUnique({
         where: { id: newMemberId },
-        select: { 
-          first_name: true, 
+        select: {
+          first_name: true,
           last_name: true,
-          user_pic: true 
+          user_pic: true,
         },
       });
 
@@ -1329,12 +1411,12 @@ export class NotificationService {
   static async notifyOrgMemberLeft(
     memberId: string,
     organizationId: string,
-    adminId?: string
+    adminId?: string,
   ) {
     try {
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { 
+        select: {
           id: true,
           organization_name: true,
         },
@@ -1347,10 +1429,10 @@ export class NotificationService {
 
       const member = await prisma.user.findUnique({
         where: { id: memberId },
-        select: { 
-          first_name: true, 
+        select: {
+          first_name: true,
           last_name: true,
-          user_pic: true 
+          user_pic: true,
         },
       });
 
@@ -1387,12 +1469,12 @@ export class NotificationService {
     organizationId: string,
     newRole: string,
     oldRole: string,
-    changedById?: string
+    changedById?: string,
   ) {
     try {
       const organization = await prisma.organization.findUnique({
         where: { id: organizationId },
-        select: { 
+        select: {
           id: true,
           organization_name: true,
         },
@@ -1405,10 +1487,10 @@ export class NotificationService {
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: { 
-          first_name: true, 
+        select: {
+          first_name: true,
           last_name: true,
-          user_pic: true 
+          user_pic: true,
         },
       });
 
@@ -1452,7 +1534,7 @@ export class NotificationService {
       quizTitle?: string;
       materialTitle?: string;
       description?: string;
-    }
+    },
   ) {
     try {
       const course = await prisma.course.findUnique({
@@ -1537,7 +1619,7 @@ export class NotificationService {
         }).catch((error) => {
           console.error(`Failed to notify student ${studentId}:`, error);
           return null;
-        })
+        }),
       );
 
       const results = await Promise.all(notificationPromises);

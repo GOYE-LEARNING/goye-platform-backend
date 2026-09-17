@@ -1,7 +1,6 @@
 import crypto from "crypto";
 import prisma from "../db";
 import { response } from "express";
-import { redisClient } from "../utils/redis";
 import { IFlutterwaveTransferPayload } from "../interface/interfaces";
 import { flw } from "../utils/flutterwave";
 import { PLAN_CONFIG } from "../interface/plansDTO";
@@ -332,9 +331,6 @@ public static async FetchPricingDetails(): Promise<PricingData[]> {
         },
       });
 
-      await redisClient.set(`user_${user.id}_PC`, newCode, {
-        EX: 600,
-      });
 
       return updateUserCode.paymentCode;
     } catch (error: any) {

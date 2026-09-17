@@ -5,6 +5,7 @@ import { createApp, socketRoutes } from "./app"; // ✅ import the placeholder r
 import { SocketService } from "./services/socketService";
 import { NotificationService } from "./services/notificationServices";
 import { PORT } from "./utils/constant";
+import { initRedis, closeRedis, startNotificationWorker } from "./utils/redis";
 
 /**
  * Every token this process signs is only verifiable while ACCESS_SECRET /
@@ -37,6 +38,17 @@ const logSecretFingerprints = () => {
 const startServer = async () => {
   try {
     logSecretFingerprints();
+
+    // Warm the cache connection before serving traffic so the first request
+    // isn't the one that pays for it. Never throws — if Redis is unreachable
+    // the API simply runs uncached.
+    await initRedis();
+
+    // The notification queue had no consumer: jobs were enqueued by
+    // notificationServices and then sat in Redis unprocessed forever, so
+    // those emails were never actually delivered.
+    startNotificationWorker();
+
     const app = await createApp(); // socketRoutes is mounted but empty right now
     const httpServer = createServer(app);
     const socketService = new SocketService(httpServer);
@@ -65,8 +77,15 @@ const startServer = async () => {
       console.log(`Server running on port ${PORT}`);
     });
 
-    process.on("SIGTERM", () => { socketService.cleanup(); httpServer.close(() => process.exit(0)); });
-    process.on("SIGINT", () => { socketService.cleanup(); httpServer.close(() => process.exit(0)); });
+    const shutdown = () => {
+      socketService.cleanup();
+      httpServer.close(async () => {
+        await closeRedis();
+        process.exit(0);
+      });
+    };
+    process.on("SIGTERM", shutdown);
+    process.on("SIGINT", shutdown);
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);

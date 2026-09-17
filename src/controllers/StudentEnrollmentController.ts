@@ -15,6 +15,7 @@ import {
   GamificationService,
   XP_CONFIG,
 } from "../services/gamificationService";
+import { useCacheAside, CacheKeys, TTL, updateDataWithRedis } from "../utils/redis";
 
 @Route("enroll")
 @Tags("Student Enrollment Course APIs")
@@ -154,6 +155,16 @@ export class StudentEnrollmentController extends Controller {
       courseId,
     });
 
+    // GetCoursesEnrolledByStudent caches this list for an hour, so without
+    // clearing it here the student completes enrolment and the course is
+    // simply absent from their course list until the TTL expires.
+    await updateDataWithRedis(userId, [
+      "enrolled-courses",
+      "course-detail",
+      "courses",
+      "growth",
+    ]);
+
     this.setStatus(201);
     return {
       message: "Enrollment successful! 🎉",
@@ -167,212 +178,184 @@ export class StudentEnrollmentController extends Controller {
     };
   }
 
-  @Security("bearerAuth")
-  @Get("/get-courses-enrolled-by-student")
-  public async GetCoursesEnrolledByStudent(@Request() req: any) {
-    const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return {
-        message: "User not authenticated",
-      };
-    }
+@Security("bearerAuth")
+@Get("/get-courses-enrolled-by-student")
+public async GetCoursesEnrolledByStudent(@Request() req: any) {
+  const userId = req.user?.id;
 
-    const studentEnrollments = await prisma.enrollment.findMany({
-      where: {
-        userId,
-        status: {
-          in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
+  if (!userId) {
+    this.setStatus(401);
+    return {
+      message: "User not authenticated",
+    };
+  }
+
+  // Create a highly unique user-scoped cache key
+  const cacheKey = `user:${userId}:enrolled-courses`;
+
+  try {
+    // Wrap the entire Prisma computation block inside our 1-hour cache safety net
+    const responseData = await useCacheAside<any>(cacheKey, 3600, async () => {
+      console.log(`[Cache MISS] Fetching and calculating enrolled courses for student: ${userId}`);
+
+      const studentEnrollments = await prisma.enrollment.findMany({
+        where: {
+          userId,
+          status: {
+            in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"],
+          },
         },
-      },
-      select: {
-        id: true,
-        status: true,
-        enrolledAt: true,
-        startedAt: true,
-        completedAt: true,
-        score: true,
-        course: {
-          select: {
-            id: true,
-            course_title: true,
-            course_description: true,
-            course_short_description: true,
-            course_image: true,
-            course_level: true,
-            point: true,
-            material: {
-              select: {
-                id: true,
-                material_title: true,
-                material_description: true,
-                material_document: true,
-                material_pages: true,
+        select: {
+          id: true, status: true, enrolledAt: true, startedAt: true,
+          completedAt: true, score: true,
+          course: {
+            select: {
+              id: true, course_title: true, course_description: true,
+              course_short_description: true, course_image: true, course_level: true, point: true,
+              material: {
+                select: { id: true, material_title: true, material_description: true, material_document: true, material_pages: true },
               },
-            },
-            module: {
-              select: {
-                id: true,
-                module_title: true,
-                module_description: true,
-                module_duration: true,
-                lesson: {
-                  select: {
-                    id: true,
-                    lesson_title: true,
-                    lesson_video: true,
-                    duration: true,
-                  },
-                },
-                _count: {
-                  select: {
-                    lesson: true,
-                  },
+              module: {
+                select: {
+                  id: true, module_title: true, module_description: true, module_duration: true,
+                  lesson: { select: { id: true, lesson_title: true, lesson_video: true, duration: true } },
+                  _count: { select: { lesson: true } },
                 },
               },
-            },
-            quiz: {
-              select: {
-                id: true,
-                title: true,
-                description: true,
-                passingScore: true,
-                _count: {
-                  select: {
-                    questions: true,
-                  },
-                },
+              quiz: {
+                select: { id: true, title: true, description: true, passingScore: true, _count: { select: { questions: true } } },
               },
-            },
-            objectives: {
-              select: {
-                id: true,
-                objective_title1: true,
-                objective_title2: true,
-                objective_title3: true,
-                objective_title4: true,
-                objective_title5: true,
+              objectives: {
+                select: { id: true, objective_title1: true, objective_title2: true, objective_title3: true, objective_title4: true, objective_title5: true },
               },
             },
           },
         },
-      },
-      orderBy: {
-        enrolledAt: "desc",
-      },
-    });
+        orderBy: { enrolledAt: "desc" },
+      });
 
-    const courseIds = studentEnrollments.map((e) => e.course.id);
+      const courseIds = studentEnrollments.map((e) => e.course.id);
 
-    // Get completed lessons for progress calculation
-    const completedLessons = await prisma.progress.findMany({
-      where: {
-        userId,
-        progressBar: { gte: 100 },
-      },
-      select: {
-        lessonId: true,
-      },
-    });
-
-    const completedLessonIds = new Set(completedLessons.map((l) => l.lessonId));
-
-    // Get completed quizzes for progress calculation, scoped to these
-    // enrolled courses. distinct on [courseId, quizId] so repeated
-    // attempts on the same quiz don't inflate the count.
-    const completedQuizAttempts = await prisma.quizAttempt.findMany({
-      where: {
-        userId,
-        completed: true,
-        courseId: { in: courseIds },
-      },
-      select: { courseId: true, quizId: true },
-      distinct: ["courseId", "quizId"],
-    });
-
-    // Group completed quiz ids by course for quick lookup below
-    const completedQuizzesByCourse = new Map<string, Set<string>>();
-    for (const attempt of completedQuizAttempts) {
-      if (!completedQuizzesByCourse.has(attempt.courseId)) {
-        completedQuizzesByCourse.set(attempt.courseId, new Set());
-      }
-      completedQuizzesByCourse.get(attempt.courseId)!.add(attempt.quizId);
-    }
-
-    // Calculate progress for each course
-    const coursesWithProgress = studentEnrollments.map((enrollment) => {
-      const allLessons = enrollment.course.module.flatMap((m) => m.lesson);
-      const totalLessons = allLessons.length;
-      const completedInCourse = allLessons.filter((l) =>
-        completedLessonIds.has(l.id),
-      ).length;
-
-      const totalQuizzes = enrollment.course.quiz.length;
-      const completedQuizzesInCourse =
-        completedQuizzesByCourse.get(enrollment.course.id)?.size || 0;
-
-      // Combine lessons + quizzes into one progress pool. Courses with
-      // zero quizzes naturally fall back to lesson-only progress.
-      const totalItems = totalLessons + totalQuizzes;
-      const completedItems = completedInCourse + completedQuizzesInCourse;
-      const progressPercentage =
-        totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
-
-      return {
-        enrollment_id: enrollment.id,
-        enrollment_status: enrollment.status,
-        enrollment_date: enrollment.enrolledAt,
-        started_at: enrollment.startedAt,
-        completed_at: enrollment.completedAt,
-        course_score: enrollment.score,
-        course_progress: {
-          percentage: Math.round(progressPercentage),
-          completed_lessons: completedInCourse,
-          total_lessons: totalLessons,
-          completed_quizzes: completedQuizzesInCourse,
-          total_quizzes: totalQuizzes,
+      // Get completed lessons for progress calculation
+      const completedLessons = await prisma.progress.findMany({
+        where: {
+          userId,
+          progressBar: { gte: 100 },
         },
-        course: {
-          ...enrollment.course,
-          total_materials: enrollment.course.material.length,
-          total_modules: enrollment.course.module.length,
-          total_lessons: totalLessons,
-          total_quizzes: totalQuizzes,
+        select: { lessonId: true },
+      });
+
+      const completedLessonIds = new Set(completedLessons.map((l) => l.lessonId));
+
+      // Get completed quizzes for progress calculation, scoped to these enrolled courses
+      const completedQuizAttempts = await prisma.quizAttempt.findMany({
+        where: {
+          userId,
+          completed: true,
+          courseId: { in: courseIds },
+        },
+        select: { courseId: true, quizId: true },
+        distinct: ["courseId", "quizId"],
+      });
+
+      // Group completed quiz ids by course for quick lookup below
+      const completedQuizzesByCourse = new Map<string, Set<string>>();
+      for (const attempt of completedQuizAttempts) {
+        if (!completedQuizzesByCourse.has(attempt.courseId)) {
+          completedQuizzesByCourse.set(attempt.courseId, new Set());
+        }
+        completedQuizzesByCourse.get(attempt.courseId)!.add(attempt.quizId);
+      }
+
+      // Calculate progress for each course
+      const coursesWithProgress = studentEnrollments.map((enrollment) => {
+        const allLessons = enrollment.course.module.flatMap((m) => m.lesson);
+        const totalLessons = allLessons.length;
+        const completedInCourse = allLessons.filter((l) => completedLessonIds.has(l.id)).length;
+
+        const totalQuizzes = enrollment.course.quiz.length;
+        const completedQuizzesInCourse = completedQuizzesByCourse.get(enrollment.course.id)?.size || 0;
+
+        const totalItems = totalLessons + totalQuizzes;
+        const completedItems = completedInCourse + completedQuizzesInCourse;
+        const progressPercentage = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
+
+        return {
+          enrollment_id: enrollment.id,
+          enrollment_status: enrollment.status,
+          enrollment_date: enrollment.enrolledAt,
+          started_at: enrollment.startedAt,
+          completed_at: enrollment.completedAt,
+          course_score: enrollment.score,
+          course_progress: {
+            percentage: Math.round(progressPercentage),
+            completed_lessons: completedInCourse,
+            total_lessons: totalLessons,
+            completed_quizzes: completedQuizzesInCourse,
+            total_quizzes: totalQuizzes,
+            
+            // ✅ Added frontend UI support properties matching camelCase expectations
+            completedLessons: completedInCourse,
+            totalLessons: totalLessons,
+            completedQuizzes: completedQuizzesInCourse,
+            totalQuizzes: totalQuizzes,
+          },
+          course: {
+            ...enrollment.course,
+            total_materials: enrollment.course.material.length,
+            total_modules: enrollment.course.module.length,
+            total_lessons: totalLessons,
+            total_quizzes: totalQuizzes,
+          },
+        };
+      });
+
+      // Get user's total XP
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { point: true, level: true },
+      });
+
+      const levelInfo = GamificationService.calculateLevel(user?.point || 0);
+
+      // Return the complete object data container structure
+      return {
+        message: "Student courses fetched successfully",
+        data: {
+          user_stats: {
+            total_xp: user?.point || 0,
+            current_level: user?.level || levelInfo.name,
+            level_number: levelInfo.level,
+            next_level_xp: levelInfo.nextLevelXP,
+            progress_to_next_level: levelInfo.progressToNext,
+          },
+          total_courses: studentEnrollments.length,
+          completed_courses: studentEnrollments.filter((e) => e.status === "COMPLETED").length,
+          in_progress_courses: studentEnrollments.filter((e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED").length,
+          courses: coursesWithProgress,
         },
       };
     });
 
-    // Get user's total XP
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { point: true, level: true },
-    });
-
-    const levelInfo = GamificationService.calculateLevel(user?.point || 0);
+    if (!responseData) {
+      this.setStatus(404);
+      return { message: "No enrollment profiles found", data: null };
+    }
 
     this.setStatus(200);
+    return responseData;
+
+  } catch (error: any) {
+    console.error("Error fetching student enrolled courses:", error);
+    this.setStatus(500);
     return {
-      message: "Student courses fetched successfully",
-      data: {
-        user_stats: {
-          total_xp: user?.point || 0,
-          current_level: user?.level || levelInfo.name,
-          level_number: levelInfo.level,
-          next_level_xp: levelInfo.nextLevelXP,
-          progress_to_next_level: levelInfo.progressToNext,
-        },
-        total_courses: studentEnrollments.length,
-        completed_courses: studentEnrollments.filter(
-          (e) => e.status === "COMPLETED",
-        ).length,
-        in_progress_courses: studentEnrollments.filter(
-          (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
-        ).length,
-        courses: coursesWithProgress,
-      },
+      message: "Error fetching courses: " + error.message,
+      data: null,
     };
   }
+}
+
 
   @Security("bearerAuth")
   @Post("/exit-course/{courseId}")

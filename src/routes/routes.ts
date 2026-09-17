@@ -135,11 +135,6 @@ const models: TsoaRoute.Models = {
         "additionalProperties": false,
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-    "_36_Enums.EnrollmentStatus": {
-        "dataType": "refAlias",
-        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ENROLLED"]},{"dataType":"enum","enums":["IN_PROGRESS"]},{"dataType":"enum","enums":["COMPLETED"]},{"dataType":"enum","enums":["DROPPED"]},{"dataType":"enum","enums":["NOT_ENROLLED"]}],"validators":{}},
-    },
-    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "CreateWaitlistResponse": {
         "dataType": "refObject",
         "properties": {
@@ -468,6 +463,11 @@ const models: TsoaRoute.Models = {
             "quiz": {"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"questions":{"dataType":"array","array":{"dataType":"nestedObjectLiteral","nestedProperties":{"correctAnswer":{"dataType":"string"},"options":{"dataType":"array","array":{"dataType":"string"}},"question_name":{"dataType":"string"},"id":{"dataType":"string"}}}},"quiz_score":{"dataType":"double"},"quiz_duration":{"dataType":"double"},"quiz_description":{"dataType":"string"},"quiz_title":{"dataType":"string"},"id":{"dataType":"string"}}}},
         },
         "additionalProperties": false,
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.EnrollmentStatus": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["ENROLLED"]},{"dataType":"enum","enums":["IN_PROGRESS"]},{"dataType":"enum","enums":["COMPLETED"]},{"dataType":"enum","enums":["DROPPED"]},{"dataType":"enum","enums":["NOT_ENROLLED"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Lesson": {
@@ -3359,37 +3359,6 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'TransferCode',
-                controller,
-                response,
-                next,
-                validatedArgs,
-                successStatus: undefined,
-              });
-            } catch (err) {
-                return next(err);
-            }
-        });
-        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-        const argsPricingController_GetCode: Record<string, TsoaRoute.ParameterSchema> = {
-                req: {"in":"request","name":"req","required":true,"dataType":"object"},
-        };
-        app.get('/api/pricing/fetch-code',
-            authenticateMiddleware([{"bearerAuth":[]}]),
-            ...(fetchMiddlewares<RequestHandler>(PricingController)),
-            ...(fetchMiddlewares<RequestHandler>(PricingController.prototype.GetCode)),
-
-            async function PricingController_GetCode(request: ExRequest, response: ExResponse, next: any) {
-
-            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
-
-            let validatedArgs: any[] = [];
-            try {
-                validatedArgs = templateService.getValidatedArgs({ args: argsPricingController_GetCode, request, response });
-
-                const controller = new PricingController();
-
-              await templateService.apiHandler({
-                methodName: 'GetCode',
                 controller,
                 response,
                 next,
@@ -7180,8 +7149,10 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsCourseController_GetCourseById: Record<string, TsoaRoute.ParameterSchema> = {
                 courseId: {"in":"path","name":"courseId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
         app.get('/api/course/get-course/:courseId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
             ...(fetchMiddlewares<RequestHandler>(CourseController)),
             ...(fetchMiddlewares<RequestHandler>(CourseController.prototype.GetCourseById)),
 

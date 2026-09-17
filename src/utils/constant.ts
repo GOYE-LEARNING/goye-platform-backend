@@ -12,10 +12,10 @@ export const ALLOWED_ORIGINS = [
   "https://goye-web-app.onrender.com",
   "https://goye-platform-backend.onrender.com",
   "https://2qm3zg9b-3000.uks1.devtunnels.ms",
-  "https://goyewaitlist2026.vercel.app"
+  "https://goyewaitlist2026.vercel.app",
 ];
 
-export const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
+export  const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB
 
 export const SOCKET_EVENTS = {
   CONNECTION: "connection",
