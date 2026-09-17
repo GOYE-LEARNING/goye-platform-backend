@@ -349,6 +349,12 @@ export class NotificationService {
         }
       }
 
+      // Bulk sends (announcements, course-update fan-outs) reach many users at
+      // once, and each of those users has a cached unread count. Without this
+      // their badge stays stale until the TTL lapses — the single-notification
+      // path already did this, the bulk path did not.
+      await Promise.all(userIds.map((id) => invalidateNotificationCaches(id)));
+
       return result;
     } catch (error) {
       console.error("Error in createBulkNotifications:", error);

@@ -12,6 +12,7 @@ import {
   Tags,
 } from "tsoa";
 import prisma from "../db";
+import { useCacheAside, CacheKeys, TTL } from "../utils/redis";
 import { SendEmail } from "../utils/sendmail";
 import { NotificationService, Role } from "../services/notificationServices";
 
@@ -46,6 +47,26 @@ export class SuperAdminController extends Controller {
     }
 
     try {
+      // Platform-wide aggregation across users, orgs, courses and enrollments:
+      // the single most expensive read in the app. Admins refresh this
+      // dashboard constantly and a few minutes of lag is invisible to them.
+      const data = await useCacheAside(
+        CacheKeys.superAdminOverview(),
+        TTL.medium,
+        async () => this.computePlatformOverview(),
+      );
+      this.setStatus(200);
+      return { success: true, data };
+    } catch (error: any) {
+      console.error("Error fetching super admin overview:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to fetch overview", error: error.message };
+    }
+  }
+
+  /** Uncached platform aggregation, split out so it can sit behind the cache. */
+  private async computePlatformOverview() {
+    {
       const [
         totalOrganizations,
         totalCourses,
@@ -161,10 +182,7 @@ export class SuperAdminController extends Controller {
         : [];
       const courseTitleById = new Map(topCourseRecords.map((c) => [c.id, c.course_title]));
 
-      this.setStatus(200);
       return {
-        success: true,
-        data: {
           totalOrganizations,
           suspendedOrganizations,
           totalUsers,
@@ -197,12 +215,7 @@ export class SuperAdminController extends Controller {
             title: courseTitleById.get(c.courseId) || "Untitled course",
             enrollments: c._count.courseId,
           })),
-        },
       };
-    } catch (error: any) {
-      console.error("Error fetching super admin overview:", error);
-      this.setStatus(500);
-      return { success: false, message: "Failed to fetch overview", error: error.message };
     }
   }
 

@@ -9,6 +9,7 @@ import {
   Query,
 } from "tsoa";
 import prisma from "../db";
+import { useCacheAside, CacheKeys, TTL } from "../utils/redis";
 import {
   ActionType,
   GamificationService,
@@ -115,6 +116,39 @@ export class LeaderBoardAndGamificationController extends Controller {
     @Query() limit: number = 20
   ): Promise<any> {
     try {
+      // Leaderboards are pure aggregation over every user's XP and are hit on
+      // every dashboard load, but nobody needs rank changes reflected to the
+      // second. A 5-minute cache removes almost all of that query load.
+      const cacheScope = (type || "global") + ":" + (id || "none") + ":" + limit;
+      const result = await useCacheAside(
+        CacheKeys.leaderboard(cacheScope),
+        TTL.medium,
+        async () => this.computeLeaderboard(type, id, limit),
+      );
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: result.title + " fetched successfully",
+        data: result,
+      };
+    } catch (error: any) {
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch leaderboard",
+        error: error.message,
+      };
+    }
+  }
+
+  /** Uncached leaderboard computation, split out so it can sit behind the cache. */
+  private async computeLeaderboard(
+    type: "global" | "course" | "group" | undefined,
+    id: string | undefined,
+    limit: number,
+  ): Promise<any> {
+    {
       let leaderboard;
       let title = "Global Leaderboard";
 
@@ -189,24 +223,12 @@ export class LeaderBoardAndGamificationController extends Controller {
         });
       }
 
-      this.setStatus(200);
       return {
-        success: true,
-        message: `${title} fetched successfully`,
-        data: {
-          title,
-          type: type || "global",
-          id: id || null,
-          leaderboard,
-          total: leaderboard?.length || 0,
-        },
-      };
-    } catch (error: any) {
-      this.setStatus(500);
-      return {
-        success: false,
-        message: "Failed to fetch leaderboard",
-        error: error.message,
+        title,
+        type: type || "global",
+        id: id || null,
+        leaderboard,
+        total: leaderboard?.length || 0,
       };
     }
   }

@@ -13,6 +13,7 @@ import {
   Body,
 } from "tsoa";
 import prisma from "../db";
+import { useCacheAside, CacheKeys, TTL, invalidateNotificationCaches } from "../utils/redis";
 import { NotificationService, Role } from "../services/notificationServices";
 
 @Route("notifications")
@@ -187,17 +188,21 @@ export class NotificationController extends Controller {
       const { where, settings } =
         await NotificationService.getNotificationFilter(userId, userRole);
 
-      const [total, unread] = await Promise.all([
-        prisma.notification.count({
-          where: where, // ✅ FILTERED WHERE CLAUSE
-        }),
-        prisma.notification.count({
-          where: {
-            ...where, // ✅ FILTERED WHERE CLAUSE
-            isRead: false,
-          },
-        }),
-      ]);
+      // The bell badge polls this constantly, so it is one of the highest
+      // frequency reads in the app. Only 60s — a notification count that lags
+      // longer than that feels broken — and it is explicitly invalidated
+      // whenever a notification is created or marked read.
+      const { total, unread } = await useCacheAside(
+        CacheKeys.notificationCounts(userId),
+        TTL.short,
+        async () => {
+          const [t, u] = await Promise.all([
+            prisma.notification.count({ where }),
+            prisma.notification.count({ where: { ...where, isRead: false } }),
+          ]);
+          return { total: t, unread: u };
+        },
+      );
 
       return {
         success: true,
@@ -293,6 +298,10 @@ export class NotificationController extends Controller {
           updatedAt: new Date(),
         },
       });
+
+      // The cached count must clear here or the bell keeps showing unread
+      // badges for notifications the user has just read.
+      await invalidateNotificationCaches(userId);
 
       return {
         success: true,
