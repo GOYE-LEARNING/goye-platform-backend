@@ -12,6 +12,13 @@ import {
 } from "tsoa";
 import prisma from "../db";
 import { generateCertificate } from "../services/bannerService";
+import {
+  CacheKeys,
+  TTL,
+  invalidateKeys,
+  updateDataWithRedis,
+  useCacheAside,
+} from "../utils/redis";
 
 interface GenerateCertificateBody {
   enrollmentId: string;
@@ -108,6 +115,14 @@ export class CertificateController extends Controller {
         },
       });
 
+      // A new certificate changes both the user's list and the per-course
+      // "do I have one?" answer, so clear them together — leaving the check
+      // cached is what makes the UI keep offering "Generate" after it's done.
+      await updateDataWithRedis(userId, ["certificates"]);
+      await invalidateKeys(
+        CacheKeys.userCertificateForCourse(userId, enrollment.courseId),
+      );
+
       this.setStatus(201);
       return {
         success: true,
@@ -190,23 +205,30 @@ export class CertificateController extends Controller {
     }
 
     try {
-      const certificates = await prisma.certificate.findMany({
-        where: {
-          userId: userId,
-        },
-        include: {
-          course: {
-            select: {
-              id: true,
-              course_title: true,
-              course_image: true,
+      // Certificates are immutable once issued and only ever appended to, so
+      // this tolerates a long TTL — and the one write path above clears it.
+      const certificates = await useCacheAside(
+        CacheKeys.userCertificates(userId),
+        TTL.hour,
+        () =>
+          prisma.certificate.findMany({
+            where: {
+              userId: userId,
             },
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+            include: {
+              course: {
+                select: {
+                  id: true,
+                  course_title: true,
+                  course_image: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          }),
+      );
 
       this.setStatus(200);
       return {
@@ -240,12 +262,26 @@ export class CertificateController extends Controller {
     }
 
     try {
-      const certificate = await prisma.certificate.findFirst({
-        where: {
-          userId: userId,
-          courseId: courseId,
-        },
-      });
+      // Polled by the course page on every visit to decide whether to show
+      // the download or the generate button.
+      //
+      // Wrapped in an object on purpose: "no certificate yet" is the common
+      // answer here, and useCacheAside declines to cache a bare null — so
+      // returning the row directly would leave the hot path uncached and save
+      // nothing. The wrapper makes the negative answer cacheable too, and the
+      // generate path above clears this exact key.
+      const { certificate } = await useCacheAside(
+        CacheKeys.userCertificateForCourse(userId, courseId),
+        TTL.hour,
+        async () => ({
+          certificate: await prisma.certificate.findFirst({
+            where: {
+              userId: userId,
+              courseId: courseId,
+            },
+          }),
+        }),
+      );
 
       this.setStatus(200);
       return {

@@ -20,6 +20,7 @@ import {
 } from "../services/gamificationService";
 import { EncryptionUtil } from "../utils/encryption";
 import { MediaService } from "../services/mediaServices";
+import { CacheKeys, TTL, useCacheAside } from "../utils/redis";
 // ==================== INTERFACES ====================
 
 interface MediaItem {
@@ -1951,8 +1952,17 @@ export class DiscussionController extends Controller {
         return { message: "Search query must be at least 2 characters" };
       }
 
-      // Search for users with role instructor/tutor/admin
-      const tutors = await prisma.user.findMany({
+      // Typeahead: three case-insensitive LIKE scans over the user table, and
+      // the frontend fires it as someone types — so the same prefixes get
+      // requested over and over within seconds. A short TTL is enough to
+      // collapse a burst of keystrokes into one query, and keeps a newly
+      // registered tutor from staying invisible for long.
+      //
+      // Keyed per caller because the query excludes the caller's own row.
+      const tutors = await useCacheAside(
+        CacheKeys.tutorDirectory(`${userId}:${query.toLowerCase()}:${limit}`),
+        TTL.short,
+        () => prisma.user.findMany({
         where: {
           AND: [
             {
@@ -1982,7 +1992,8 @@ export class DiscussionController extends Controller {
           role: true,
         },
         take: limit,
-      });
+        }),
+      );
 
       this.setStatus(200);
       return {

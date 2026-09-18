@@ -151,6 +151,16 @@ export async function updateDataWithRedis(
       case "certificates":
         keys.push(CacheKeys.userCertificates(userId));
         break;
+      case "gamification":
+        keys.push(
+          CacheKeys.userGrowth(userId),
+          CacheKeys.userJourneyStatus(userId),
+          CacheKeys.userAchievements(userId),
+          CacheKeys.userSummary(userId),
+        );
+        // A points change also reorders everyone's rank, not just this user's.
+        keys.push(CacheKeys.userRankTable());
+        break;
       case "all":
         // One sweep is cheaper and safer than enumerating every key shape —
         // it can't miss a namespace someone added later.
@@ -186,6 +196,31 @@ export async function invalidateCourseCaches(courseId?: string): Promise<void> {
 export async function invalidateOrgCaches(orgId: string): Promise<void> {
   if (!orgId) return;
   await invalidatePattern(CachePatterns.allForOrg(orgId));
+}
+
+/**
+ * Clears caches affected by a group changing.
+ *
+ * Sweeps every group listing rather than just the one that changed: the
+ * listings are filtered/paginated slices of the same table, so a new or
+ * deleted group can appear in or vanish from any of them.
+ */
+export async function invalidateGroupCaches(groupId?: string, tutorId?: string): Promise<void> {
+  await invalidatePattern(CachePatterns.allGroupLists());
+  if (groupId) await invalidatePattern(CachePatterns.allForGroup(groupId));
+  if (tutorId) await invalidateKeys(CacheKeys.tutorGroups(tutorId));
+}
+
+/**
+ * Clears the tutor/student directories.
+ *
+ * These are cached per query string, so a profile change has to sweep the
+ * whole namespace — there's no way to know which search results contained a
+ * given person without re-running every query.
+ */
+export async function invalidateDirectoryCaches(): Promise<void> {
+  await invalidatePattern(CachePatterns.allTutorDirectories());
+  await invalidatePattern(CachePatterns.allStudentDirectories());
 }
 
 /** Clears a user's notification caches. Used on send/read/delete. */

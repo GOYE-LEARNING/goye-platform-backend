@@ -21,6 +21,12 @@ import {
   ActionType,
   GamificationService,
 } from "../services/gamificationService";
+import {
+  CacheKeys,
+  TTL,
+  invalidateGroupCaches,
+  useCacheAside,
+} from "../utils/redis";
 
 @Route("socials")
 @Tags("Social controllers")
@@ -1263,6 +1269,8 @@ export class SocialController extends Controller {
           { groupId: joinGroup.groupId },
         );
 
+      await invalidateGroupCaches(group.id, userId);
+
       this.setStatus(201);
       return {
         message: "Group created successfully",
@@ -1295,7 +1303,10 @@ export class SocialController extends Controller {
       };
     }
 
-    const group = await prisma.group.findMany({
+    const group = await useCacheAside(
+      CacheKeys.tutorGroups(userId),
+      TTL.medium,
+      () => prisma.group.findMany({
       where: {
         userId,
       },
@@ -1338,7 +1349,8 @@ export class SocialController extends Controller {
           },
         },
       },
-    });
+      }),
+    );
 
     this.setStatus(200);
     return {
@@ -1410,7 +1422,14 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const groups = await prisma.group.findMany({
+      // Cached without the caller's identity in the key on purpose: the query
+      // itself is the same for everyone, and the only per-user part
+      // (`hasJoined`) is derived below from data already in the payload. Keying
+      // this per user would multiply the same rows by the number of students.
+      const groups = await useCacheAside(
+        CacheKeys.groupList("all"),
+        TTL.medium,
+        () => prisma.group.findMany({
         orderBy: { createdAt: "desc" },
         include: {
           createdBy: {
@@ -1452,7 +1471,8 @@ export class SocialController extends Controller {
             },
           },
         },
-      });
+        }),
+      );
 
       const groupsWithStatus = groups.map((group) => {
         const hasJoined = group.member.some(
@@ -1534,6 +1554,8 @@ export class SocialController extends Controller {
           },
         },
       });
+      await invalidateGroupCaches(updateGroup.id, updateGroup.userId);
+
       this.setStatus(200);
       return {
         message: "Group updated successfully",
@@ -1588,6 +1610,10 @@ export class SocialController extends Controller {
           where: { id },
         });
       });
+
+      // A deleted group that stays in a cached listing is worse than a stale
+      // one — members click through to a 404.
+      await invalidateGroupCaches(id);
 
       this.setStatus(200);
       return {
@@ -1826,6 +1852,11 @@ export class SocialController extends Controller {
       );
     }
 
+    // Membership drives `hasJoined` and the member counts in the cached
+    // listings, so a join has to clear them or the student sees "Join" again
+    // on the very next page load.
+    await invalidateGroupCaches(groupId);
+
     this.setStatus(200);
     return {
       message: isJoined
@@ -1953,6 +1984,8 @@ export class SocialController extends Controller {
       });
     }
 
+    await invalidateGroupCaches(groupId);
+
     this.setStatus(200);
     return {
       message: "This user just left the group.",
@@ -1994,6 +2027,8 @@ export class SocialController extends Controller {
           { eventId: createEvent.id, groupId },
         );
       }
+
+      await invalidateGroupCaches(groupId);
 
       this.setStatus(201);
       return { message: "Event created successfully", data: createEvent };
@@ -2212,6 +2247,8 @@ export class SocialController extends Controller {
         where: { id },
         data: { ...body },
       });
+      await invalidateGroupCaches(updateEvent.groupid);
+
       this.setStatus(200);
       return { message: "Event updated successfully", data: updateEvent };
     } catch (error) {
@@ -2224,7 +2261,10 @@ export class SocialController extends Controller {
   @Delete("/delete-event/{id}")
   public async DeleteEvent(@Path() id: string): Promise<any> {
     try {
-      await prisma.event.delete({ where: { id } });
+      const deleted = await prisma.event.delete({ where: { id } });
+
+      await invalidateGroupCaches(deleted.groupid);
+
       this.setStatus(200);
       return { message: "Event deleted successfully" };
     } catch (error) {

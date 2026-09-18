@@ -1,4 +1,24 @@
 import prisma from "../db";
+import { updateDataWithRedis } from "../utils/redis";
+
+/**
+ * Clears every cached view derived from a user's points, badges or progress.
+ *
+ * Called from each path that changes those numbers. Points are the one piece
+ * of state users watch in real time — a student finishes a lesson and looks
+ * straight at their XP — so a stale gamification cache reads as "the platform
+ * didn't count my work", which is far more damaging than the DB read it saved.
+ *
+ * Fire-and-forget on purpose: invalidation must never delay or fail the award
+ * itself. `updateDataWithRedis` already swallows Redis faults internally; the
+ * catch here only covers a programming error in the call itself.
+ */
+function clearGamificationCaches(userId?: string | null): void {
+  if (!userId) return;
+  void updateDataWithRedis(userId, ["gamification"]).catch((err) =>
+    console.error("[Gamification] cache invalidation failed:", err?.message ?? err),
+  );
+}
 
 // ==================== INTERFACES ====================
 interface AddPointData {
@@ -333,6 +353,8 @@ export class GamificationService {
         responseData.enrollmentPoints = result.updatedEnrollment.score;
       }
 
+      clearGamificationCaches(data.userId);
+
       return {
         success: true,
         message: `Successfully added ${Math.abs(data.point)} points${data.reason ? ` for: ${data.reason}` : ""}`,
@@ -628,6 +650,8 @@ export class GamificationService {
         data: { point: 0 },
       });
 
+      clearGamificationCaches(userId);
+
       return {
         success: true,
         message: "User points reset successfully",
@@ -863,6 +887,11 @@ static calculateLevel(totalXP: number): {
       if (currentStreak === 7) {
         await this.AddPointsWithGamification(userId, ActionType.STREAK_7_DAY);
       }
+
+      // AddPoint already cleared once, but level-ups and badge awards land
+      // after that call — clear again so the badge a user just earned isn't
+      // hidden behind a cache entry written moments before they earned it.
+      clearGamificationCaches(userId);
 
       return {
         success: true,
@@ -1576,6 +1605,8 @@ static calculateLevel(totalXP: number): {
         responseData.enrollmentPoints = result.updatedEnrollment.score;
       }
 
+      clearGamificationCaches(pointHistory.userId);
+
       return {
         success: true,
         message: `Successfully removed ${Math.abs(pointHistory.point)} points. ${reason || "Point reversal completed."}`,
@@ -1680,6 +1711,8 @@ static calculateLevel(totalXP: number): {
           totalPointsRemoved: totalPointsToRemove,
         };
       });
+
+      clearGamificationCaches(result.updatedUser?.id);
 
       return {
         success: true,
@@ -1839,6 +1872,8 @@ static calculateLevel(totalXP: number): {
           totalPointsRemoved: totalPointsToRemove,
         };
       });
+
+      clearGamificationCaches(userId);
 
       return {
         success: true,

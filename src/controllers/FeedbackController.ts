@@ -11,6 +11,7 @@ import {
 } from "tsoa";
 import prisma from "../db";
 import { FeedbackType } from "@prisma/client";
+import { CacheKeys, TTL, invalidateKeys, useCacheAside } from "../utils/redis";
 
 @Tags("Feed back Controller")
 @Route("feedback")
@@ -90,6 +91,10 @@ export class FeedbackController extends Controller {
 
       console.log(`✅ Feedback created: ${feedback.id}`);
 
+      // Without this an admin could submit-then-refresh and not see their own
+      // entry for five minutes, which reads as the form being broken.
+      await invalidateKeys(CacheKeys.feedbackList());
+
       this.setStatus(200);
       return {
         success: true,
@@ -114,13 +119,20 @@ export class FeedbackController extends Controller {
     }
 
     try {
-      const feedBacks = await prisma.feedback.findMany({
-        orderBy: { createdAt: "desc" },
-        include: {
-          user: { select: { id: true, first_name: true, last_name: true, email_address: true, role: true } },
-          organization: { select: { id: true, organization_name: true } },
-        },
-      });
+      // Unbounded findMany with two joins — the one query here that gets more
+      // expensive every single day the platform is live.
+      const feedBacks = await useCacheAside(
+        CacheKeys.feedbackList(),
+        TTL.medium,
+        () =>
+          prisma.feedback.findMany({
+            orderBy: { createdAt: "desc" },
+            include: {
+              user: { select: { id: true, first_name: true, last_name: true, email_address: true, role: true } },
+              organization: { select: { id: true, organization_name: true } },
+            },
+          }),
+      );
 
       this.setStatus(200);
       return {

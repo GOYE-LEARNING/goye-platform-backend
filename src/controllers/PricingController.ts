@@ -11,13 +11,22 @@ import {
 import { PricingService } from "../services/pricingService";
 import prisma from "../db";
 import { MemberPlanType, PlanDuration, Plans } from "@prisma/client";
+import { CacheKeys, TTL, useCacheAside } from "../utils/redis";
 @Tags("Pricing API integration")
 @Route("pricing")
 export class PricingController extends Controller {
   @Get("/fetch-pricing-details")
   public async FetchPricingDetails(): Promise<any> {
     try {
-      const pricingDetails = await PricingService.FetchPricingDetails();
+      // Unauthenticated and hit by every visitor who opens the pricing page,
+      // and it's a round trip to the payment provider rather than a DB read —
+      // so the cache is buying latency and third-party rate limit here, not
+      // just Postgres cost. Plans change on the order of months.
+      const pricingDetails = await useCacheAside(
+        CacheKeys.pricingDetails(),
+        TTL.long,
+        () => PricingService.FetchPricingDetails(),
+      );
       return {
         message: "Pricing details fetched successfully",
         data: pricingDetails,
@@ -109,7 +118,9 @@ export class PricingController extends Controller {
   @Get("/test-plans")
   public async TestPlans(): Promise<any> {
     try {
-      const plans = await PricingService.TestPlans();
+      const plans = await useCacheAside(CacheKeys.pricingPlans(), TTL.long, () =>
+        PricingService.TestPlans(),
+      );
       return {
         message: "Plan fetched sucessfully init",
         data: plans,

@@ -31,6 +31,8 @@ export {
   invalidateCourseCaches,
   invalidateOrgCaches,
   invalidateNotificationCaches,
+  invalidateGroupCaches,
+  invalidateDirectoryCaches,
 } from "./cache";
 
 export {

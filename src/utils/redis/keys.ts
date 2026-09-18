@@ -21,6 +21,19 @@ export const CacheKeys = {
     `user:${userId}:course-detail:${courseId}`,
   userGrowth: (userId: string) => `user:${userId}:growth`,
   userCertificates: (userId: string) => `user:${userId}:certificates`,
+  userCertificateForCourse: (userId: string, courseId: string) =>
+    `user:${userId}:certificate-check:${courseId}`,
+
+  // ── Gamification / progress ────────────────────────────────────────────
+  userJourneyStatus: (userId: string) => `user:${userId}:journey-status`,
+  userAchievements: (userId: string) => `user:${userId}:achievements`,
+  userSummary: (userId: string) => `user:${userId}:summary`,
+  /**
+   * Every point-bearing user, ordered — the raw material for rank lookups.
+   * Shared deliberately: the old code ran this full scan once per request per
+   * user purely to find one person's position in the list.
+   */
+  userRankTable: () => `gamification:rank-table`,
 
   // ── Notifications ──────────────────────────────────────────────────────
   notificationsAll: (userId: string) => `user:${userId}:notifications:all`,
@@ -39,9 +52,24 @@ export const CacheKeys = {
   orgCourses: (orgId: string) => `org:${orgId}:courses`,
   orgBreakdown: (orgId: string) => `org:${orgId}:breakdown`,
 
+  // ── Social: groups and events ──────────────────────────────────────────
+  groupList: (scope: string) => `groups:${scope}`,
+  groupDetail: (groupId: string) => `group:${groupId}:detail`,
+  groupEvents: (groupId: string) => `group:${groupId}:events`,
+  tutorGroups: (tutorId: string) => `tutor:${tutorId}:groups`,
+
+  // ── Discussion: people directories ─────────────────────────────────────
+  tutorDirectory: (scope: string) => `directory:tutors:${scope}`,
+  studentDirectory: (scope: string) => `directory:students:${scope}`,
+
+  // ── Pricing (external API responses, not DB rows) ──────────────────────
+  pricingDetails: () => `pricing:details`,
+  pricingPlans: () => `pricing:plans`,
+
   // ── Platform-wide ──────────────────────────────────────────────────────
   leaderboard: (scope: string) => `leaderboard:${scope}`,
   superAdminOverview: () => `admin:overview`,
+  feedbackList: () => `admin:feedback`,
 } as const;
 
 /** Glob patterns for bulk invalidation. Always swept with SCAN, never KEYS. */
@@ -51,6 +79,10 @@ export const CachePatterns = {
   courseDetailAllUsers: (courseId: string) => `user:*:course-detail:${courseId}`,
   courseLevelsAllUsers: () => `user:*:courses:*`,
   allForOrg: (orgId: string) => `org:${orgId}:*`,
+  allGroupLists: () => `groups:*`,
+  allForGroup: (groupId: string) => `group:${groupId}:*`,
+  allTutorDirectories: () => `directory:tutors:*`,
+  allStudentDirectories: () => `directory:students:*`,
 } as const;
 
 /**
@@ -83,4 +115,11 @@ export type CacheScope =
   | "notifications-counts"
   | "growth"
   | "certificates"
+  /**
+   * Everything derived from a user's points/badges/progress. Grouped into one
+   * scope because these four views are all projections of the same underlying
+   * numbers — awarding a single point makes all of them stale at once, and
+   * clearing them individually is how they drift apart.
+   */
+  | "gamification"
   | "all";
