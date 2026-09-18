@@ -41,16 +41,26 @@ const userOrIpKey = (req: Request & { user?: { id?: string } }) =>
   req.user?.id ? `user:${req.user.id}` : `ip:${ipKey(req)}`;
 
 // ---- General limiter (IP-based, catches anonymous + pre-auth traffic) ----
-/*
+//
+// This was commented out, which left every route except login and signup
+// completely unthrottled — confirmed by firing 80 requests at an API endpoint
+// and getting 80 × HTTP 200. That is exactly the condition that lets someone
+// enumerate and probe the API at will.
+//
+// The ceiling is deliberately high: it is a scanner/scraper brake, not a
+// usage quota. A logged-in dashboard can easily fire a dozen requests per
+// page, so a limit tight enough to annoy real users would be traded for
+// almost no extra safety. Tune with RATE_LIMIT_MAX once real traffic exists.
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 60 * 1000,
+  max: Number(process.env.RATE_LIMIT_MAX) || 300,
   message: { status: 429, message: "Too many requests, please slow down and try again later." },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: ipKey,
+  // Uptime pings and CORS preflights shouldn't consume a client's budget.
+  skip: (req) => req.path === "/health" || req.method === "OPTIONS",
 });
-*/
 
 // ---- Auth limiter (unchanged logic, fixed key) ----
 const authLimiter = rateLimit({
@@ -90,7 +100,6 @@ const aiFeatureLimiter = rateLimit({
 });
 
 export const createApp = async (socketService?: SocketService) => {
-  app.use(socketRoutes);
   console.log("🔄 Setting up middleware...");
 
   app.use(express.json({ limit: "15mb" }));
@@ -103,27 +112,39 @@ export const createApp = async (socketService?: SocketService) => {
   app.use(requestLogger);
   app.use(helmet())
 
-  //app.use(generalLimiter);
+  app.use(generalLimiter);
   app.use("/api/user/signup", authLimiter);
   app.use("/api/user/login", authLimiter);
+
+  // Mounted here rather than as the very first middleware. It used to sit
+  // above express.json, cors, helmet and the rate limiter, so the presence
+  // routes attached to it in server.ts bypassed all four. It still precedes
+  // the 404 handler, which is the only ordering this router actually needs.
+  app.use(socketRoutes);
 
   app.get("/health", (req: Request, res: Response) => {
     res.json({ status: "OK", timestamp: new Date().toISOString() });
   });
 
-  app.get("/api/db-test", async (req: Request, res: Response) => {
-    try {
-      await prisma.$queryRaw`SELECT 1`;
-      res.json({ message: "Database connected successfully" });
-    } catch (error) {
-      console.error("Database test failed:", error);
-      res.status(500).json({ error: "Database connection failed" });
-    }
-  });
+  // Diagnostics that reveal infrastructure state. Harmless-looking, but they
+  // let anyone probe whether the database is up — useful only to someone
+  // watching for a window where the service is degraded. Kept for local
+  // debugging, withheld in production.
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/api/db-test", async (req: Request, res: Response) => {
+      try {
+        await prisma.$queryRaw`SELECT 1`;
+        res.json({ message: "Database connected successfully" });
+      } catch (error) {
+        console.error("Database test failed:", error);
+        res.status(500).json({ error: "Database connection failed" });
+      }
+    });
 
-  app.get("/api/test", (req: Request, res: Response) => {
-    res.json({ message: "API is working!" });
-  });
+    app.get("/api/test", (req: Request, res: Response) => {
+      res.json({ message: "API is working!" });
+    });
+  }
 
   console.log("📚 Setting up Swagger...");
   setupSwagger(app);
@@ -139,25 +160,10 @@ export const createApp = async (socketService?: SocketService) => {
 
   if (socketService) {
     app.set("socketService", socketService);
-
-    app.get("/api/users/:userId/status", (req: Request, res: Response) => {
-      const { userId } = req.params;
-      res.json(socketService.getUserStatus(userId));
-    });
-
-    app.get("/api/users/online", (req: Request, res: Response) => {
-      res.json({ online: socketService.getOnlineUsers() });
-    });
-
-    app.get(
-      "/api/organizations/:organizationId/online",
-      (req: Request, res: Response) => {
-        const { organizationId } = req.params;
-        const users = socketService.getOrganizationOnlineUsers(organizationId);
-        res.json({ organizationId, onlineCount: users.length, users });
-      },
-    );
-
+    // The presence routes that used to be declared here were unreachable:
+    // createApp() is always called without a socketService, so this branch
+    // never ran. The routes that actually serve traffic are registered on
+    // `socketRoutes` in server.ts, and are secured there.
     console.log("✅ Socket-dependent routes registered");
   }
 

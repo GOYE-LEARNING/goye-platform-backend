@@ -98,8 +98,34 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
       console.log("No pricingHistory relation found");
     }
 
+    // A revoked session must stay revoked. Without this check, logging out
+    // did nothing at all: nothing in the request path ever read `isRevoked`,
+    // and the upsert below unconditionally wrote `isRevoked: false`, so
+    // replaying a token after logout both succeeded AND silently un-revoked
+    // the session. Verified against the running server before this change:
+    // logout set the flag, the very next request with the same token returned
+    // 200, and the flag was back to false afterwards.
+    const existingSession = await prisma.userSession.findUnique({
+      where: { deviceId },
+      select: { userId: true, isRevoked: true },
+    });
+
+    if (existingSession?.isRevoked) {
+      console.error(`❌ Refresh refused: session for device ${deviceId} is revoked`);
+      return null;
+    }
+
+    // Device IDs arrive from a client-controlled header, so a caller can name
+    // any device they like. Without this check, presenting someone else's
+    // deviceId reassigned their session row to the caller — kicking that
+    // device off and taking over its record.
+    if (existingSession && existingSession.userId !== user.id) {
+      console.error(`❌ Refresh refused: device ${deviceId} belongs to a different user`);
+      return null;
+    }
+
     const deviceType = request.headers["user-agent"] ? "web" : "unknown";
-    
+
     const userType = decodedRefresh.type || 
                      (userOrganization ? "ORGANIZATION" : 
                       user.userType ? "INVITED_USER" : "USER");
@@ -154,7 +180,9 @@ const regenerateFromRefreshToken = async (refreshToken: string, deviceId: string
         accessToken: newAccessToken,
         lastActive: new Date(),
         expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        isRevoked: false,
+        // Deliberately does NOT write isRevoked here. Re-authenticating must
+        // never un-revoke a session that was explicitly ended; only a fresh
+        // login creates a new, unrevoked row.
         deviceType: deviceType,
         userType: userType,
       }
@@ -332,7 +360,31 @@ if (!deviceId) {
       throw new Error("User not found");
     }
 
-    // CASE 5: Ensure session exists
+    // CASE 5: Enforce, then refresh, the session record.
+    //
+    // This is the gate in front of every @Security("bearerAuth") route, and
+    // it previously did the opposite of enforcement: it never read
+    // `isRevoked` and wrote `isRevoked: false` on every request. Logging out
+    // was therefore cosmetic — a stolen access token kept working for its
+    // full lifetime, and a stolen refresh token for seven days, with no way
+    // to cut either off.
+    const sessionForDevice = await prisma.userSession.findUnique({
+      where: { deviceId },
+      select: { userId: true, isRevoked: true },
+    });
+
+    if (sessionForDevice?.isRevoked) {
+      console.error(`❌ Rejected: session for device ${deviceId} was revoked`);
+      throw new Error("Session has been revoked — please log in again");
+    }
+
+    // deviceId is client-supplied, so it can name any device. Reject rather
+    // than write, so one account cannot overwrite another's session row.
+    if (sessionForDevice && sessionForDevice.userId !== user.id) {
+      console.error(`❌ Rejected: device ${deviceId} is registered to a different user`);
+      throw new Error("Device is registered to a different account");
+    }
+
     if (refreshToken) {
       await prisma.userSession.upsert({
         where: { deviceId: deviceId },
@@ -350,13 +402,14 @@ if (!deviceId) {
         update: {
           lastActive: new Date(),
           accessToken: accessToken,
-          isRevoked: false,
         }
       });
     } else {
+      // Scoped to this user as well as the device: an unscoped updateMany let
+      // a caller stamp their own access token onto another user's row.
       await prisma.userSession.updateMany({
-        where: { deviceId: deviceId },
-        data: { lastActive: new Date(), accessToken: accessToken, isRevoked: false },
+        where: { deviceId: deviceId, userId: user.id },
+        data: { lastActive: new Date(), accessToken: accessToken },
       });
     }
 

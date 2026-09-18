@@ -6,6 +6,7 @@ import { SocketService } from "./services/socketService";
 import { NotificationService } from "./services/notificationServices";
 import { PORT } from "./utils/constant";
 import { initRedis, closeRedis, startNotificationWorker } from "./utils/redis";
+import { VerifyToken } from "./middleware/verifytoken";
 
 /**
  * Every token this process signs is only verifiable while ACCESS_SECRET /
@@ -60,15 +61,21 @@ const startServer = async () => {
     // Since socketRoutes was mounted BEFORE the 404 handler, any routes
     // added to it now are still reachable — Express resolves handlers
     // on the Router at request time, not at mount time.
-    socketRoutes.get("/api/users/:userId/status", (req, res) => {
+    // These are the live presence routes (the identical-looking block in
+    // app.ts sits behind an `if (socketService)` that never runs, so it is
+    // dead code and was removed). They were open to the internet: anyone
+    // could poll who was online platform-wide, watch a named user's activity
+    // pattern, or enumerate an organization's membership by walking
+    // organizationId values. Presence is personal data — members only.
+    socketRoutes.get("/api/users/:userId/status", VerifyToken, (req, res) => {
       res.json(socketService.getUserStatus(req.params.userId));
     });
 
-    socketRoutes.get("/api/users/online", (req, res) => {
+    socketRoutes.get("/api/users/online", VerifyToken, (req, res) => {
       res.json({ online: socketService.getOnlineUsers() });
     });
 
-    socketRoutes.get("/api/organizations/:organizationId/online", (req, res) => {
+    socketRoutes.get("/api/organizations/:organizationId/online", VerifyToken, (req, res) => {
       const users = socketService.getOrganizationOnlineUsers(req.params.organizationId);
       res.json({ organizationId: req.params.organizationId, onlineCount: users.length, users });
     });
