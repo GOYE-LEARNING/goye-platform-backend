@@ -12,6 +12,7 @@ import prisma from "./db";
 import dotenv from "dotenv";
 import type { SocketService } from "./services/socketService";
 import { VerifyToken } from "./middleware/verifytoken";
+import { ALLOWED_ORIGINS } from "./utils/constant";
 import { speakCourseDraftText } from "./utils/ai_utils/course_draft_client";
 dotenv.config();
 
@@ -99,15 +100,103 @@ const aiFeatureLimiter = rateLimit({
   keyGenerator: userOrIpKey,
 });
 
+// ---- Body size limits ----
+const DEFAULT_JSON_LIMIT = process.env.JSON_BODY_LIMIT || "1mb";
+const UPLOAD_JSON_LIMIT = process.env.UPLOAD_BODY_LIMIT || "15mb";
+
+// ---- CSRF ----
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Blocks cross-site requests that rely on ambient cookies.
+ *
+ * Why this is needed here: auth accepts `req.cookies.accessToken`, and those
+ * cookies are set `sameSite: "none"` so they can reach the API from the
+ * Vercel frontend. Browsers therefore attach them to cross-site requests too.
+ * CORS does not save us — it decides who may *read* a response, not whether
+ * the request runs, and a form-encoded POST is a "simple request" that skips
+ * the preflight entirely. So any page on the internet could submit a hidden
+ * form to a state-changing endpoint and have it execute as the logged-in
+ * user; the attacker never sees the response, but the write already happened.
+ *
+ * The check is deliberately narrow, to avoid breaking clients on launch:
+ *
+ *  - Safe methods pass. They shouldn't change state.
+ *  - A `Bearer` token passes. A browser never attaches that by itself — our
+ *    own JavaScript has to, and it can only do so same-origin or through an
+ *    allowed CORS preflight. Requests carrying one aren't forgeable this way,
+ *    which is why the mobile app is unaffected.
+ *  - No auth cookie present: nothing to ride on, so nothing to forge.
+ *  - Otherwise the request is authenticated by cookie alone, and we require
+ *    Origin (or Referer, for older clients) to be one of ours.
+ *
+ * Requests with neither Origin nor Referer are allowed through: browsers
+ * always send Origin on POST, so their absence means a native or
+ * server-to-server client, which has no ambient-credential problem. They are
+ * logged so the assumption stays visible rather than silent.
+ */
+const csrfGuard = (req: Request, res: Response, next: NextFunction) => {
+  if (SAFE_METHODS.has(req.method)) return next();
+
+  if (req.headers.authorization?.startsWith("Bearer ")) return next();
+
+  const cookies = (req as any).cookies || {};
+  if (!cookies.accessToken && !cookies.refreshToken) return next();
+
+  let origin = req.headers.origin;
+  if (!origin && req.headers.referer) {
+    try {
+      origin = new URL(req.headers.referer).origin;
+    } catch {
+      /* malformed Referer — treated as absent */
+    }
+  }
+
+  if (!origin) {
+    console.warn(`⚠️ Cookie-authenticated ${req.method} ${req.path} with no Origin/Referer — allowing as a non-browser client`);
+    return next();
+  }
+
+  if (ALLOWED_ORIGINS.includes(origin)) return next();
+
+  console.error(`🛑 CSRF blocked: ${req.method} ${req.path} from origin ${origin}`);
+  return res.status(403).json({
+    status: 403,
+    message: "Cross-site request blocked.",
+  });
+};
+
 export const createApp = async (socketService?: SocketService) => {
   console.log("🔄 Setting up middleware...");
 
-  app.use(express.json({ limit: "15mb" }));
+  // A 15mb JSON body was accepted on *every* route. Only the base64 upload
+  // endpoints need that headroom; everywhere else it just meant one request
+  // could make the server allocate and parse 15mb, and a handful of
+  // concurrent ones could exhaust memory without ever logging in.
+  //
+  // Uploads keep the old ceiling (base64 inflates a payload by ~33%, so a
+  // 10MB image really does arrive as ~13.3MB). Everything else drops to 1mb,
+  // which is still a very large JSON document — the whole request body of a
+  // rich course edit is far below it.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const limit = /\/upload/i.test(req.path) ? UPLOAD_JSON_LIMIT : DEFAULT_JSON_LIMIT;
+    return express.json({ limit })(req, res, next);
+  });
+
   app.use(cookieParser());
-  app.use(express.urlencoded({ extended: true, limit: "15mb" }));
+
+  // Nothing in this API consumes form-encoded bodies — the clients all send
+  // JSON, and real file uploads go through multer as multipart. Keeping the
+  // limit tight costs nothing and removes the cheapest way to make the server
+  // parse a large body.
+  app.use(express.urlencoded({ extended: true, limit: "100kb" }));
 
   app.use(corsOptions);
   app.options("*", corsOptions);
+
+  // CSRF protection must sit after cookieParser (it inspects auth cookies)
+  // and before any route that can change state.
+  app.use(csrfGuard);
 
   app.use(requestLogger);
   app.use(helmet())
