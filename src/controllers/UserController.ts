@@ -2760,10 +2760,54 @@ public async GetProfile(@Request() req: any) {
       data: { isOnline: false, lastActive: new Date() },
     });
 
-    if (req.res) {
-      req.res.clearCookie("token", {
-        httpOnly: true, secure: true, sameSite: "none", path: "/",
+    // Revoke the session for the device that is logging out.
+    //
+    // This handler previously did not touch userSession at all: it flipped
+    // isOnline and cleared a cookie, which meant the tokens it had just
+    // handed out stayed valid until they expired. The `isRevoked: true`
+    // writes elsewhere in this file all live in Login (each role branch
+    // retires the previous session for a device), so nothing in the codebase
+    // revoked anything at logout.
+    //
+    // Scoped by userId as well as deviceId: deviceId arrives from a
+    // client-controlled header, and an unscoped update would let one account
+    // log another one out.
+    const deviceId =
+      req.deviceId ||
+      (req.headers?.["x-device-id"] as string | undefined) ||
+      req.cookies?.deviceId;
+
+    if (deviceId) {
+      await prisma.userSession.updateMany({
+        where: { deviceId, userId },
+        data: { isRevoked: true },
       });
+    } else {
+      // No device to identify: retire every session for this user rather than
+      // silently leaving them all live.
+      console.warn(`[Logout] no deviceId for user ${userId} — revoking all their sessions`);
+      await prisma.userSession.updateMany({
+        where: { userId },
+        data: { isRevoked: true },
+      });
+    }
+
+    if (req.res) {
+      const isProduction = process.env.NODE_ENV === "production";
+      const cookieOptions = {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? ("none" as const) : ("lax" as const),
+        path: "/",
+      };
+
+      // The old code cleared a cookie named "token", which this API never
+      // sets — so the browser kept holding accessToken and refreshToken after
+      // a "successful" logout. deviceId is deliberately left in place: it
+      // identifies the device across logins, and is not a credential.
+      req.res.clearCookie("accessToken", cookieOptions);
+      req.res.clearCookie("refreshToken", cookieOptions);
+
       req.res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       req.res.setHeader("Pragma", "no-cache");
       req.res.setHeader("Expires", "0");
