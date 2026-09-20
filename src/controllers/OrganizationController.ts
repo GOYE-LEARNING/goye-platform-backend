@@ -13,6 +13,7 @@ import {
 } from "tsoa";
 import { CourseResponse, OrganizationDTO, User } from "../interface/interfaces";
 import prisma from "../db";
+import { decodeBase64Upload } from "../utils/uploads";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -2306,7 +2307,14 @@ public async GetUserDetails(
         return { message: "Organization not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
+      // Validates and strips a data-URL prefix before decoding. A raw
+      // Buffer.from here silently produced a corrupt file when the client
+      // sent "data:<type>;base64,..." — see utils/uploads.ts.
+      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      if (!fileBuffer) {
+        this.setStatus(400);
+        return { message: fileBufferDecodeError || "Invalid file content" };
+      }
 
       const { url, error } = await MediaService.UploadOrganizationImage(
         organizationId,
@@ -2356,7 +2364,14 @@ public async GetUserDetails(
         return { message: "Organization not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
+      // Validates and strips a data-URL prefix before decoding. A raw
+      // Buffer.from here silently produced a corrupt file when the client
+      // sent "data:<type>;base64,..." — see utils/uploads.ts.
+      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      if (!fileBuffer) {
+        this.setStatus(400);
+        return { message: fileBufferDecodeError || "Invalid file content" };
+      }
 
       const { url, error } = await MediaService.UploadOrganizationChurchLogo(
         organizationId,
@@ -2415,7 +2430,14 @@ public async GetUserDetails(
         return { message: "Organization not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
+      // Validates and strips a data-URL prefix before decoding. A raw
+      // Buffer.from here silently produced a corrupt file when the client
+      // sent "data:<type>;base64,..." — see utils/uploads.ts.
+      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      if (!fileBuffer) {
+        this.setStatus(400);
+        return { message: fileBufferDecodeError || "Invalid file content" };
+      }
 
       const { url, error } = await MediaService.UploadOrganizationSchoolLogo(
         organizationId,
@@ -2474,7 +2496,14 @@ public async GetUserDetails(
         return { message: "organization not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
+      // Validates and strips a data-URL prefix before decoding. A raw
+      // Buffer.from here silently produced a corrupt file when the client
+      // sent "data:<type>;base64,..." — see utils/uploads.ts.
+      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      if (!fileBuffer) {
+        this.setStatus(400);
+        return { message: fileBufferDecodeError || "Invalid file content" };
+      }
 
       const { url, error } = await MediaService.uploadSchoolMaterial(
         organizationId,
@@ -2537,7 +2566,14 @@ public async GetUserDetails(
         return { message: "organization not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
+      // Validates and strips a data-URL prefix before decoding. A raw
+      // Buffer.from here silently produced a corrupt file when the client
+      // sent "data:<type>;base64,..." — see utils/uploads.ts.
+      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      if (!fileBuffer) {
+        this.setStatus(400);
+        return { message: fileBufferDecodeError || "Invalid file content" };
+      }
 
       const { url, error } = await MediaService.uploadClubMaterial(
         organizationId,

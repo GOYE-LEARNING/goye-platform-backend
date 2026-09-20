@@ -7,7 +7,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { requestLogger } from "./middleware/logger";
 import { corsOptions } from "./config/cors";
 import helmet from 'helmet'
-import rateLimit from "express-rate-limit";
+import rateLimit, { ipKeyGenerator } from "express-rate-limit";
 import prisma from "./db";
 import dotenv from "dotenv";
 import type { SocketService } from "./services/socketService";
@@ -32,7 +32,16 @@ if (process.env.NODE_ENV === 'production') {
 // resolves the real client IP from X-Forwarded-For safely — it trusts
 // exactly one hop (Render) and reads the entry Render appended, ignoring
 // anything a client tries to prepend/spoof. No manual header parsing needed.
-const ipKey = (req: Request) => req.ip || req.socket.remoteAddress || 'unknown';
+// `ipKeyGenerator` is not decoration: a bare req.ip keys an IPv6 client on its
+// full /128 address, and a single IPv6 allocation hands one person effectively
+// unlimited distinct addresses — so they get a fresh rate-limit bucket per
+// request and the limiter does nothing for them. The helper normalises IPv6
+// down to its /56 prefix so the budget applies per subscriber, and leaves IPv4
+// alone. express-rate-limit logs ERR_ERL_KEY_GEN_IPV6 at boot when a custom
+// keyGenerator skips it; that warning was already firing before the limiter
+// was even re-enabled.
+const ipKey = (req: Request) =>
+  ipKeyGenerator(req.ip || req.socket.remoteAddress || "unknown");
 
 // Per-user key: falls back to IP if the request isn't authenticated yet.
 // Requires VerifyToken (or similar) to have already attached req.user

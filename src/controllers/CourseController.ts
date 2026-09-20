@@ -13,6 +13,7 @@ import {
   UploadedFile,
 } from "tsoa";
 import prisma from "../db";
+import { decodeBase64Upload } from "../utils/uploads";
 import { CourseResponse, Module } from "../interface/interfaces";
 import {
   CreateCourseDTO,
@@ -942,7 +943,21 @@ export class CourseController extends Controller {
             include: {
               enrollment: true,
               material: true,
-              module: true,
+              // `module: true` returned modules with no lessons inside, so a
+              // tutor opening their own course saw the module list and an
+              // empty body — no lessons, and therefore no videos. The student
+              // route (GetCourseById) has always nested lessons; this one
+              // didn't, which is why the same course looked complete to a
+              // student and empty to the tutor who built it.
+              module: {
+                include: {
+                  lesson: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+                  _count: { select: { lesson: true } },
+                },
+                // Same ordering as the student view, so a tutor previewing
+                // their course sees it in the sequence a student will.
+                orderBy: [{ order: "asc" }, { createdAt: "asc" }],
+              },
               objectives: true,
               quiz: {
                 include: {
@@ -1002,12 +1017,17 @@ public async GetCourseById(
           createdByDetails: {
             select: { user_pic: true },
           },
+          // Modules were ordered `createdAt: "desc"` — newest first — so a
+          // student opened a course and was shown the last module the tutor
+          // added, then worked backwards to Module 1. Both Module and Lesson
+          // carry an `order` column that nothing was reading; honour it, and
+          // fall back to creation time when a tutor never set one.
           module: {
             include: {
-              lesson: { orderBy: { createdAt: "asc" } },
+              lesson: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
               _count: { select: { lesson: true } },
             },
-            orderBy: { createdAt: "desc" },
+            orderBy: [{ order: "asc" }, { createdAt: "asc" }],
           },
           material: {
             orderBy: { createdAt: "asc" },
@@ -1174,7 +1194,14 @@ public async GetCourseById(
         return { message: "Course not found" };
       }
 
-      const fileBuffer = Buffer.from(body.file, "base64");
+      // Validates and strips a data-URL prefix before decoding. A raw
+      // Buffer.from here silently produced a corrupt file when the client
+      // sent "data:<type>;base64,..." — see utils/uploads.ts.
+      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      if (!fileBuffer) {
+        this.setStatus(400);
+        return { message: fileBufferDecodeError || "Invalid file content" };
+      }
 
       const { url, error } = await MediaService.uploadCourseImage(
         courseId,
@@ -1468,17 +1495,30 @@ public async GetCourseById(
       };
     }
 
+    // Assign the module's position explicitly.
+    //
+    // This handler never set `order`, so every module a tutor created by hand
+    // kept the schema default of 0, while the bulk/AI-draft paths did set it.
+    // A course built through both ends up with a meaningless mix — which is
+    // exactly what the existing data shows: a "Module 2" at order 0 sitting
+    // ahead of a "Module 1" at order 1. Appending at the end keeps the column
+    // trustworthy from here on, so the ordering the read paths now honour
+    // matches the sequence the tutor actually built.
+    const moduleCount = await prisma.module.count({ where: { courseId } });
+
     const createModule = await prisma.module.create({
       data: {
         module_title: body.module_title,
         module_description: body.module_description,
         module_duration: body.module_duration,
         courseId: courseId,
+        order: moduleCount,
         ...((body.lesson as any) && {
           lesson: {
-            create: body.lesson.map((l) => ({
+            create: body.lesson.map((l, index) => ({
               lesson_video: l.lesson_video,
               lesson_title: l.lesson_title,
+              order: index,
             })),
           },
         }),

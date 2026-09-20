@@ -14,6 +14,7 @@ import {
   Patch,
 } from "tsoa";
 import prisma from "../db";
+import { decodeBase64Upload } from "../utils/uploads";
 import { User } from "../interface/interfaces.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
@@ -1739,7 +1740,14 @@ export class UserController extends Controller {
     @Body() body: { file: string; fileName: string; mimeType: string },
   ): Promise<any> {
     const userId = req.user?.id;
-    const fileBuffer = Buffer.from(body.file, "base64");
+    // Validates and strips a data-URL prefix before decoding. A raw
+    // Buffer.from here silently produced a corrupt file when the client
+    // sent "data:<type>;base64,..." — see utils/uploads.ts.
+    const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+    if (!fileBuffer) {
+      this.setStatus(400);
+      return { message: fileBufferDecodeError || "Invalid file content" };
+    }
 
     const { url, error } = await MediaService.uploadUserAvatar(
       userId, fileBuffer, body.fileName, body.mimeType,

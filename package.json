@@ -11,7 +11,8 @@
     "prisma:migrate": "npx prisma migrate deploy",
     "render-build": "npm install && npm run build && npm run prisma:migrate",
     "test:redis": "ts-node src/scripts/test-redis.ts",
-    "test:auth": "tsx src/scripts/smoke-auth.ts"
+    "test:auth": "tsx src/scripts/smoke-auth.ts",
+    "test:course": "tsx src/scripts/smoke-course.ts"
   },
   "dependencies": {
     "@getbrevo/brevo": "^5.0.4",

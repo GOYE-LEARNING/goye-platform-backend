@@ -13,6 +13,7 @@ import {
   Route,
 } from "tsoa";
 import prisma from "../db";
+import { decodeBase64Upload } from "../utils/uploads";
 import { NotificationService, Role } from "../services/notificationServices";
 import {
   ActionType,
@@ -78,7 +79,14 @@ export class DiscussionController extends Controller {
     const userId = req.user?.id;
     const discussionId = `temp_${userId}_${Date.now()}`;
 
-    const buffer = Buffer.from(body.file, "base64");
+    // Validates and strips a data-URL prefix before decoding. A raw
+    // Buffer.from here silently produced a corrupt file when the client
+    // sent "data:<type>;base64,..." — see utils/uploads.ts.
+    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(body.file);
+    if (!buffer) {
+      this.setStatus(400);
+      return { message: bufferDecodeError || "Invalid file content" };
+    }
 
     try {
       const result = await MediaService.uploadPublicMessageImage(
@@ -115,7 +123,14 @@ export class DiscussionController extends Controller {
     const userId = req.user?.id;
     const discussionId = `temp_${userId}_${Date.now()}`;
 
-    const buffer = Buffer.from(body.file, "base64");
+    // Validates and strips a data-URL prefix before decoding. A raw
+    // Buffer.from here silently produced a corrupt file when the client
+    // sent "data:<type>;base64,..." — see utils/uploads.ts.
+    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(body.file);
+    if (!buffer) {
+      this.setStatus(400);
+      return { message: bufferDecodeError || "Invalid file content" };
+    }
 
     try {
       const result = await MediaService.uploadPublicMessageVideos(

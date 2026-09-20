@@ -1,5 +1,79 @@
 import cloudinary from "../utils/cloudinary";
 
+/**
+ * Builds a Cloudinary public_id for a document that keeps its extension.
+ *
+ * The previous `fileName.split(".")[0]` was wrong twice over:
+ *
+ *  - It dropped the extension. Cloudinary delivers a raw asset at exactly the
+ *    public_id you give it, so the URL came out with no ".pdf" on the end.
+ *    With no extension there is no Content-Type, and a browser that is handed
+ *    a typeless blob downloads it instead of rendering it — which is why
+ *    students could not view course documents.
+ *  - It truncated at the FIRST dot, so "week.3.notes.pdf" became "week".
+ *
+ * Also strips characters Cloudinary treats specially in a public_id, so an
+ * upload can't produce a URL that 404s.
+ */
+function documentPublicId(prefix: string, fileName: string): string {
+  const lastDot = fileName.lastIndexOf(".");
+  const hasExtension = lastDot > 0 && lastDot < fileName.length - 1;
+
+  const base = (hasExtension ? fileName.slice(0, lastDot) : fileName)
+    .replace(/[^a-zA-Z0-9-_]/g, "_")
+    .slice(0, 80) || "file";
+
+  const extension = hasExtension
+    ? fileName.slice(lastDot + 1).replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
+    : "";
+
+  const stem = `${prefix}_${Date.now()}_${base}`;
+  return extension ? `${stem}.${extension}` : stem;
+}
+
+/**
+ * Shared options for every document upload.
+ *
+ * `resource_type: "raw"` for all sizes. This used to be "raw" under 10MB and
+ * "auto" over it, inside the same function — so whether a document rendered
+ * for a student depended on how big it happened to be. "raw" is the right
+ * choice for documents generally: "auto" reclassifies PDFs as images (a
+ * different URL shape and subject to Cloudinary's PDF delivery restriction),
+ * and mangles formats it doesn't recognise, such as .docx and .pptx.
+ */
+const DOCUMENT_UPLOAD_OPTIONS = {
+  resource_type: "raw" as const,
+  // Serve inline rather than forcing a download, so a PDF opens in the viewer.
+  type: "upload" as const,
+  overwrite: false,
+};
+
+/**
+ * Rewrites a Cloudinary delivery URL to add `f_auto,q_auto`.
+ *
+ * f_auto is a *delivery* transformation: Cloudinary picks the best format for
+ * the requesting browser (AVIF/WebP where supported, otherwise the original)
+ * and q_auto picks a quality that holds up visually at a smaller size.
+ *
+ * It has to be in the URL to do anything. Passing `fetch_format: "auto"` in an
+ * upload's `transformation` array — which the forum image and video uploads
+ * already did — applies an *incoming* transformation at upload time, when
+ * there is no browser to detect, so it does essentially nothing. That is why
+ * this is a URL rewrite rather than another upload option.
+ *
+ * Deliberately skips `/raw/` URLs: raw assets are served byte-for-byte and
+ * transformations do not apply, so injecting one produces a broken link. This
+ * is the same distinction that made documents fail to render in the first
+ * place, so it is worth being explicit about.
+ */
+function withAutoFormat(url: string): string {
+  if (!url || !url.includes("/upload/")) return url;
+  if (url.includes("/raw/upload/")) return url;
+  // Already carries an f_auto — leave it alone rather than stacking another.
+  if (/\/upload\/[^/]*f_auto/.test(url)) return url;
+  return url.replace("/upload/", "/upload/f_auto,q_auto/");
+}
+
 export class MediaService {
   static async uploadUserAvatar(
     userId: string,
@@ -29,7 +103,7 @@ export class MediaService {
       });
 
       console.log(" Avatar upload successful:", result.secure_url);
-      return { url: result.secure_url, error: null };
+      return { url: withAutoFormat(result.secure_url), error: null };
     } catch (error: any) {
       console.error(" Cloudinary avatar upload error:", error);
       return { url: "", error: error.message };
@@ -60,7 +134,7 @@ export class MediaService {
         ],
       });
       console.log(" Avatar upload successful:", result.secure_url);
-      return { url: result.secure_url, error: null };
+      return { url: withAutoFormat(result.secure_url), error: null };
     } catch (error: any) {
       console.error(" Cloudinary avatar upload error:", error);
       return { url: "", error: error.message };
@@ -91,7 +165,7 @@ export class MediaService {
 
       console.log(" Group image upload successful:", result.secure_url);
       return {
-        url: result.secure_url,
+        url: withAutoFormat(result.secure_url),
         error: null,
       };
     } catch (error: any) {
@@ -124,7 +198,7 @@ export class MediaService {
       });
 
       console.log(" Course image upload successful:", result.secure_url);
-      return { url: result.secure_url, error: null };
+      return { url: withAutoFormat(result.secure_url), error: null };
     } catch (error: any) {
       console.error(" Course image upload error:", error);
       return { url: "", error: error.message };
@@ -163,7 +237,7 @@ export class MediaService {
             return resolve({ url: "", error: error.message });
           }
           console.log(" Video uploaded successfully:", result?.secure_url);
-          resolve({ url: result?.secure_url || "", error: null });
+          resolve({ url: withAutoFormat(result?.secure_url || ""), error: null });
         },
       );
 
@@ -200,72 +274,61 @@ export class MediaService {
     fileName: string,
     mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
+    return MediaService.uploadDocument(
+      "course_materials",
+      `material_${courseId}`,
+      file,
+      fileName,
+    );
+  }
+
+  /**
+   * Uploads any document (PDF, Office file, etc.) to Cloudinary.
+   *
+   * One code path regardless of size. The three material uploaders used to
+   * each carry their own near-identical copy of this logic, which is how they
+   * drifted: course materials ended up using a different resource_type for
+   * small files than for large ones, so a student could open one tutor's
+   * handout and not another's for no reason they could see.
+   *
+   * Streams every file rather than branching on size — streaming is correct
+   * for a 40MB file and harmless for a 40KB one, and base64 inflated each
+   * upload by a third in memory before sending it.
+   */
+  private static uploadDocument(
+    folder: string,
+    idPrefix: string,
+    file: Buffer,
+    fileName: string,
+  ): Promise<{ url: string; error: string | null }> {
     return new Promise((resolve) => {
       try {
-        console.log("📤 Uploading course material to Cloudinary...");
+        const publicId = documentPublicId(idPrefix, fileName);
+        console.log(
+          `📤 Uploading document to ${folder}/${publicId} (${(file.length / 1024 / 1024).toFixed(2)}MB)`,
+        );
 
-        // Check if it's a large file and use streaming
-        const isLargeFile = file.length > 10 * 1024 * 1024; // > 10MB
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            ...DOCUMENT_UPLOAD_OPTIONS,
+            folder,
+            public_id: publicId,
+            chunk_size: 10000000,
+            timeout: 120000,
+          },
+          (error, result) => {
+            if (error) {
+              console.error(`❌ Document upload failed (${folder}):`, error);
+              return resolve({ url: "", error: error.message });
+            }
+            console.log("✅ Document uploaded:", result?.secure_url);
+            resolve({ url: result?.secure_url || "", error: null });
+          },
+        );
 
-        if (isLargeFile) {
-          console.log("📊 Large file detected, using streaming upload...");
-
-          const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: "course_materials",
-              public_id: `material_${courseId}_${Date.now()}_${
-                fileName.split(".")[0]
-              }`,
-              resource_type: "auto", // Handles PDFs, docs, etc.
-              chunk_size: 10000000, // 10MB chunks for large files
-              timeout: 120000, // 2 minutes for large files
-            },
-            (error, result) => {
-              if (error) {
-                console.error(" Course material upload error:", error);
-                resolve({ url: "", error: error.message });
-              } else {
-                console.log(
-                  " Course material upload successful:",
-                  result.secure_url,
-                );
-                resolve({ url: result.secure_url, error: null });
-              }
-            },
-          );
-
-          uploadStream.end(file);
-        } else {
-          // For small files, use base64
-          const base64File = `data:${mimeType};base64,${file.toString(
-            "base64",
-          )}`;
-
-          cloudinary.uploader.upload(
-            base64File,
-            {
-              folder: "course_materials",
-              public_id: `material_${courseId}_${Date.now()}_${
-                fileName.split(".")[0]
-              }`,
-              resource_type: "raw",
-            },
-            (error, result) => {
-              if (error) {
-                console.error(" Course material upload error:", error);
-                resolve({ url: "", error: error.message });
-              } else {
-                console.log(
-                  " Course material upload successful:",
-                  result.secure_url,
-                );
-                resolve({ url: result.secure_url, error: null });
-              }
-            },
-          );
-        }
+        uploadStream.end(file);
       } catch (error: any) {
-        console.error(" Unexpected error in uploadCourseMaterial:", error);
+        console.error(`❌ Unexpected error uploading to ${folder}:`, error);
         resolve({ url: "", error: error.message });
       }
     });
@@ -318,7 +381,7 @@ export class MediaService {
       console.log("Organization Church Logo uploaded successfully.");
 
       return {
-        url: result.secure_url,
+        url: withAutoFormat(result.secure_url),
         error: null,
       };
     } catch (error: any) {
@@ -350,7 +413,7 @@ export class MediaService {
       console.log("Organization School Logo uploaded successfully.");
 
       return {
-        url: result.secure_url,
+        url: withAutoFormat(result.secure_url),
         error: null,
       };
     } catch (error: any) {
@@ -365,75 +428,12 @@ export class MediaService {
     fileName: string,
     mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
-    return new Promise((resolve) => {
-      try {
-        console.log("📤 Uploading school material to Cloudinary...");
-
-        // Check if it's a large file and use streaming
-        const isLargeFile = file.length > 10 * 1024 * 1024; // > 10MB
-
-        if (isLargeFile) {
-          console.log("📊 Large file detected, using streaming upload...");
-
-          const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: "school_materials",
-              public_id: `material_${organizationId}_${Date.now()}_${
-                fileName.split(".")[0]
-              }`,
-              resource_type: "auto", // Handles PDFs, docs, etc.
-              chunk_size: 10000000, // 10MB chunks for large files
-              timeout: 120000, // 2 minutes for large files
-            },
-            (error, result) => {
-              if (error) {
-                console.error(" School material upload error:", error);
-                resolve({ url: "", error: error.message });
-              } else {
-                console.log(
-                  " School material upload successful:",
-                  result.secure_url,
-                );
-                resolve({ url: result.secure_url, error: null });
-              }
-            },
-          );
-
-          uploadStream.end(file);
-        } else {
-          // For small files, use base64
-          const base64File = `data:${mimeType};base64,${file.toString(
-            "base64",
-          )}`;
-
-          cloudinary.uploader.upload(
-            base64File,
-            {
-              folder: "school_materials",
-              public_id: `material_${organizationId}_${Date.now()}_${
-                fileName.split(".")[0]
-              }`,
-              resource_type: "auto",
-            },
-            (error, result) => {
-              if (error) {
-                console.error(" School material upload error:", error);
-                resolve({ url: "", error: error.message });
-              } else {
-                console.log(
-                  " School material upload successful:",
-                  result.secure_url,
-                );
-                resolve({ url: result.secure_url, error: null });
-              }
-            },
-          );
-        }
-      } catch (error: any) {
-        console.error(" Unexpected error in uploadSchoolMaterial:", error);
-        resolve({ url: "", error: error.message });
-      }
-    });
+    return MediaService.uploadDocument(
+      "school_materials",
+      `material_${organizationId}`,
+      file,
+      fileName,
+    );
   }
 
   static async uploadClubMaterial(
@@ -442,76 +442,14 @@ export class MediaService {
     fileName: string,
     mimeType: string,
   ): Promise<{ url: string; error: string | null }> {
-    return new Promise((resolve) => {
-      try {
-        console.log("📤 Uploading club material to Cloudinary...");
-
-        // Check if it's a large file and use streaming
-        const isLargeFile = file.length > 10 * 1024 * 1024; // > 10MB
-
-        if (isLargeFile) {
-          console.log("📊 Large file detected, using streaming upload...");
-
-          const uploadStream = cloudinary.uploader.upload_stream(
-            {
-              folder: "club_materials",
-              public_id: `material_${organizationId}_${Date.now()}_${
-                fileName.split(".")[0]
-              }`,
-              resource_type: "auto", // Handles PDFs, docs, etc.
-              chunk_size: 10000000, // 10MB chunks for large files
-              timeout: 120000, // 2 minutes for large files
-            },
-            (error, result) => {
-              if (error) {
-                console.error(" Club material upload error:", error);
-                resolve({ url: "", error: error.message });
-              } else {
-                console.log(
-                  " Club material upload successful:",
-                  result.secure_url,
-                );
-                resolve({ url: result.secure_url, error: null });
-              }
-            },
-          );
-
-          uploadStream.end(file);
-        } else {
-          // For small files, use base64
-          const base64File = `data:${mimeType};base64,${file.toString(
-            "base64",
-          )}`;
-
-          cloudinary.uploader.upload(
-            base64File,
-            {
-              folder: "club_materials",
-              public_id: `material_${organizationId}_${Date.now()}_${
-                fileName.split(".")[0]
-              }`,
-              resource_type: "auto",
-            },
-            (error, result) => {
-              if (error) {
-                console.error(" Club material upload error:", error);
-                resolve({ url: "", error: error.message });
-              } else {
-                console.log(
-                  " Club material upload successful:",
-                  result.secure_url,
-                );
-                resolve({ url: result.secure_url, error: null });
-              }
-            },
-          );
-        }
-      } catch (error: any) {
-        console.error(" Unexpected error in uploadClubMaterial:", error);
-        resolve({ url: "", error: error.message });
-      }
-    });
+    return MediaService.uploadDocument(
+      "club_materials",
+      `material_${organizationId}`,
+      file,
+      fileName,
+    );
   }
+
 
 static async uploadPublicMessageImage(
   publicId: string,
@@ -542,7 +480,7 @@ static async uploadPublicMessageImage(
     
     // Return media object with metadata
     return { 
-      url: result.secure_url, 
+      url: withAutoFormat(result.secure_url), 
       error: null 
     };
   } catch (error) {
@@ -590,7 +528,7 @@ static async uploadPublicMessageVideos(
         
         // Return media object with metadata
         resolve({ 
-          url: result?.secure_url || "", 
+          url: withAutoFormat(result?.secure_url || ""), 
           error: null,
           metadata: {
             duration: result?.duration,

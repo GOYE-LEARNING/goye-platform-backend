@@ -14,6 +14,7 @@ import {
 } from "tsoa";
 import { EventDTO, Group, PostDTO, ReplyDTO } from "../interface/interfaces";
 import prisma from "../db";
+import { decodeBase64Upload } from "../utils/uploads";
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
 import { GrowthService } from "../services/growthService";
@@ -1645,7 +1646,14 @@ export class SocialController extends Controller {
         id: groupId,
       },
     });
-    const buffer = Buffer.from(body.file, "base64");
+    // Validates and strips a data-URL prefix before decoding. A raw
+    // Buffer.from here silently produced a corrupt file when the client
+    // sent "data:<type>;base64,..." — see utils/uploads.ts.
+    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(body.file);
+    if (!buffer) {
+      this.setStatus(400);
+      return { message: bufferDecodeError || "Invalid file content" };
+    }
     try {
       const uploaded = await MediaService.uploadGroupImage(
         group.id,

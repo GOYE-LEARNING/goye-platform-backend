@@ -7617,7 +7617,7 @@
 						}
 					}
 				},
-				"description": "GET: Fetch organization activities (course joins, completions, event joins)\r\nReturns recent activities for the organization dashboard",
+				"description": "GET: Fetch organization activities (course joins, completions, event joins)\nReturns recent activities for the organization dashboard",
 				"tags": [
 					"Organization Controllers"
 				],
@@ -7651,7 +7651,7 @@
 						}
 					}
 				},
-				"description": "GET: Chart-ready analytics for an organization's admin dashboard.\r\n\r\nThe existing /overview-stats and /user-breakdown endpoints return point-in-time\r\ntotals only — nothing in this controller was time-bucketed, so there was no\r\nseries to plot. This adds the shapes the dashboard's line/bar/pie charts need.\r\n\r\nEnrollments are resolved through member ids rather than `Enrollment.organizationId`:\r\nthat column is nullable and is not consistently populated, whereas every other\r\naggregate in this file already goes via OrganizationMember. Using it here would\r\nsilently under-count.",
+				"description": "GET: Chart-ready analytics for an organization's admin dashboard.\n\nThe existing /overview-stats and /user-breakdown endpoints return point-in-time\ntotals only — nothing in this controller was time-bucketed, so there was no\nseries to plot. This adds the shapes the dashboard's line/bar/pie charts need.\n\nEnrollments are resolved through member ids rather than `Enrollment.organizationId`:\nthat column is nullable and is not consistently populated, whereas every other\naggregate in this file already goes via OrganizationMember. Using it here would\nsilently under-count.",
 				"tags": [
 					"Organization Controllers"
 				],
@@ -7685,7 +7685,7 @@
 						}
 					}
 				},
-				"description": "GET: Fetch user breakdown for organization dashboard\r\nReturns counts for: total members, students, instructors, admins, online users, etc.",
+				"description": "GET: Fetch user breakdown for organization dashboard\nReturns counts for: total members, students, instructors, admins, online users, etc.",
 				"tags": [
 					"Organization Controllers"
 				],
@@ -14070,7 +14070,7 @@
 						}
 					}
 				},
-				"description": "Reply to a specific reply (nested reply)\r\nThis creates a nested comment showing \"User replied to",
+				"description": "Reply to a specific reply (nested reply)\nThis creates a nested comment showing \"User replied to",
 				"tags": [
 					"Discussion & Messaging APIs"
 				],
@@ -14541,7 +14541,7 @@
 						}
 					}
 				},
-				"description": "Get tutors/instructors based on student's enrolled courses and groups\r\nThis returns all instructors/tutors that the student can message",
+				"description": "Get tutors/instructors based on student's enrolled courses and groups\nThis returns all instructors/tutors that the student can message",
 				"tags": [
 					"Discussion & Messaging APIs"
 				],
@@ -14664,7 +14664,7 @@
 						}
 					}
 				},
-				"description": "Get students for tutors/instructors to communicate with\r\nReturns all students enrolled in the tutor's courses or groups",
+				"description": "Get students for tutors/instructors to communicate with\nReturns all students enrolled in the tutor's courses or groups",
 				"tags": [
 					"Discussion & Messaging APIs"
 				],
@@ -15437,50 +15437,131 @@
 																				},
 																				"module": {
 																					"items": {
-																						"properties": {
-																							"pendingLessons": {
-																								"$ref": "#/components/schemas/JsonValue"
+																						"allOf": [
+																							{
+																								"properties": {
+																									"_count": {
+																										"properties": {
+																											"lesson": {
+																												"type": "number",
+																												"format": "double"
+																											}
+																										},
+																										"required": [
+																											"lesson"
+																										],
+																										"type": "object"
+																									},
+																									"lesson": {
+																										"items": {
+																											"properties": {
+																												"duration": {
+																													"type": "number",
+																													"format": "double"
+																												},
+																												"order": {
+																													"type": "number",
+																													"format": "double"
+																												},
+																												"moduleId": {
+																													"type": "string"
+																												},
+																												"lessonScore": {
+																													"type": "number",
+																													"format": "double"
+																												},
+																												"lesson_video": {
+																													"type": "string"
+																												},
+																												"lesson_title": {
+																													"type": "string"
+																												},
+																												"point": {
+																													"type": "number",
+																													"format": "double"
+																												},
+																												"updatedAt": {
+																													"type": "string",
+																													"format": "date-time"
+																												},
+																												"createdAt": {
+																													"type": "string",
+																													"format": "date-time"
+																												},
+																												"id": {
+																													"type": "string"
+																												}
+																											},
+																											"required": [
+																												"duration",
+																												"order",
+																												"moduleId",
+																												"lessonScore",
+																												"lesson_video",
+																												"lesson_title",
+																												"point",
+																												"updatedAt",
+																												"createdAt",
+																												"id"
+																											],
+																											"type": "object"
+																										},
+																										"type": "array"
+																									}
+																								},
+																								"required": [
+																									"_count",
+																									"lesson"
+																								],
+																								"type": "object"
 																							},
-																							"module_duration": {
-																								"type": "string"
-																							},
-																							"module_description": {
-																								"type": "string"
-																							},
-																							"module_title": {
-																								"type": "string"
-																							},
-																							"order": {
-																								"type": "number",
-																								"format": "double"
-																							},
-																							"updatedAt": {
-																								"type": "string",
-																								"format": "date-time"
-																							},
-																							"createdAt": {
-																								"type": "string",
-																								"format": "date-time"
-																							},
-																							"courseId": {
-																								"type": "string"
-																							},
-																							"id": {
-																								"type": "string"
+																							{
+																								"properties": {
+																									"pendingLessons": {
+																										"$ref": "#/components/schemas/JsonValue"
+																									},
+																									"module_duration": {
+																										"type": "string"
+																									},
+																									"module_description": {
+																										"type": "string"
+																									},
+																									"module_title": {
+																										"type": "string"
+																									},
+																									"order": {
+																										"type": "number",
+																										"format": "double"
+																									},
+																									"updatedAt": {
+																										"type": "string",
+																										"format": "date-time"
+																									},
+																									"createdAt": {
+																										"type": "string",
+																										"format": "date-time"
+																									},
+																									"courseId": {
+																										"type": "string"
+																									},
+																									"id": {
+																										"type": "string"
+																									}
+																								},
+																								"required": [
+																									"pendingLessons",
+																									"module_duration",
+																									"module_description",
+																									"module_title",
+																									"order",
+																									"updatedAt",
+																									"createdAt",
+																									"courseId",
+																									"id"
+																								],
+																								"type": "object"
 																							}
-																						},
-																						"required": [
-																							"pendingLessons",
-																							"module_duration",
-																							"module_description",
-																							"module_title",
-																							"order",
-																							"updatedAt",
-																							"createdAt",
-																							"courseId",
-																							"id"
-																						],
-																						"type": "object"
+																						]
 																					},
 																					"type": "array"
 																				},
