@@ -12,7 +12,7 @@ import prisma from "./db";
 import dotenv from "dotenv";
 import type { SocketService } from "./services/socketService";
 import { VerifyToken } from "./middleware/verifytoken";
-import { ALLOWED_ORIGINS } from "./utils/constant";
+import { isOriginAllowed } from "./config/cors";
 import { speakCourseDraftText } from "./utils/ai_utils/course_draft_client";
 dotenv.config();
 
@@ -166,7 +166,7 @@ const csrfGuard = (req: Request, res: Response, next: NextFunction) => {
     return next();
   }
 
-  if (ALLOWED_ORIGINS.includes(origin)) return next();
+  if (isOriginAllowed(origin)) return next();
 
   console.error(`🛑 CSRF blocked: ${req.method} ${req.path} from origin ${origin}`);
   return res.status(403).json({
