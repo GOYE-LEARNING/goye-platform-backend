@@ -1410,9 +1410,19 @@ public async GetCourseById(
         file.mimetype,
       );
 
-      if (error) {
+      // Treat a blank URL as a failure even when Cloudinary reported no
+      // error. Materials are created first and the file is uploaded in a
+      // second step, so `material_document` starts as "" — writing another
+      // empty string over it would look like a successful upload while
+      // leaving the material unopenable. Students then get a viewer pointed
+      // at an empty URL; two materials in the database are already in that
+      // state.
+      if (error || !url || url.trim() === "") {
         this.setStatus(500);
-        return { message: "Upload failed", error };
+        return {
+          message: "Upload failed",
+          error: error || "The upload did not return a file URL. Please try again.",
+        };
       }
 
       // Update the material with the new document URL
