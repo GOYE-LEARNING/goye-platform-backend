@@ -12,7 +12,7 @@ import {
   Tags,
 } from "tsoa";
 import prisma from "../db";
-import { useCacheAside, CacheKeys, TTL } from "../utils/redis";
+import { useCacheAside, CacheKeys, TTL, invalidateKeys } from "../utils/redis";
 import { SendEmail } from "../utils/sendmail";
 import { NotificationService, Role } from "../services/notificationServices";
 
@@ -227,41 +227,46 @@ export class SuperAdminController extends Controller {
     }
 
     try {
-      const organizations = await prisma.organization.findMany({
-        select: {
-          id: true,
-          organization_name: true,
-          organization_type: true,
-          organization_email: true,
-          organization_country: true,
-          isVerified: true,
-          isSuspended: true,
-          isOnline: true,
-          createdAt: true,
-          _count: {
-            select: { members: true, course: true },
-          },
+      const data = await useCacheAside(
+        CacheKeys.superAdminOrganizations(),
+        TTL.medium,
+        async () => {
+          const organizations = await prisma.organization.findMany({
+            select: {
+              id: true,
+              organization_name: true,
+              organization_type: true,
+              organization_email: true,
+              organization_country: true,
+              isVerified: true,
+              isSuspended: true,
+              isOnline: true,
+              createdAt: true,
+              _count: {
+                select: { members: true, course: true },
+              },
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          return organizations.map((org) => ({
+            id: org.id,
+            name: org.organization_name,
+            type: org.organization_type,
+            email: org.organization_email,
+            country: org.organization_country,
+            isVerified: org.isVerified,
+            isSuspended: org.isSuspended,
+            isOnline: org.isOnline,
+            createdAt: org.createdAt,
+            memberCount: org._count.members,
+            courseCount: org._count.course,
+          }));
         },
-        orderBy: { createdAt: "desc" },
-      });
+      );
 
       this.setStatus(200);
-      return {
-        success: true,
-        data: organizations.map((org) => ({
-          id: org.id,
-          name: org.organization_name,
-          type: org.organization_type,
-          email: org.organization_email,
-          country: org.organization_country,
-          isVerified: org.isVerified,
-          isSuspended: org.isSuspended,
-          isOnline: org.isOnline,
-          createdAt: org.createdAt,
-          memberCount: org._count.members,
-          courseCount: org._count.course,
-        })),
-      };
+      return { success: true, data };
     } catch (error: any) {
       console.error("Error fetching organizations:", error);
       this.setStatus(500);
@@ -286,6 +291,8 @@ export class SuperAdminController extends Controller {
         data: { isSuspended: body.suspend },
       });
 
+      await invalidateKeys(CacheKeys.superAdminOrganizations());
+
       this.setStatus(200);
       return {
         success: true,
@@ -309,68 +316,74 @@ export class SuperAdminController extends Controller {
     }
 
     try {
-      const [recentUsers, recentOrganizations, recentCourses] = await Promise.all([
-        prisma.user.findMany({
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-            role: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        }),
-        prisma.organization.findMany({
-          select: {
-            id: true,
-            organization_name: true,
-            organization_type: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        }),
-        prisma.course.findMany({
-          select: {
-            id: true,
-            course_title: true,
-            organizationName: true,
-            createdAt: true,
-          },
-          orderBy: { createdAt: "desc" },
-          take: 20,
-        }),
-      ]);
+      const activity = await useCacheAside(
+        CacheKeys.superAdminActivity(),
+        TTL.short,
+        async () => {
+          const [recentUsers, recentOrganizations, recentCourses] = await Promise.all([
+            prisma.user.findMany({
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                email_address: true,
+                role: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+              take: 20,
+            }),
+            prisma.organization.findMany({
+              select: {
+                id: true,
+                organization_name: true,
+                organization_type: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+              take: 20,
+            }),
+            prisma.course.findMany({
+              select: {
+                id: true,
+                course_title: true,
+                organizationName: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+              take: 20,
+            }),
+          ]);
 
-      const activity = [
-        ...recentUsers.map((u) => ({
-          type: "user_signup" as const,
-          id: u.id,
-          title: `${u.first_name} ${u.last_name}`.trim(),
-          detail: `New ${u.role} account (${u.email_address})`,
-          createdAt: u.createdAt,
-        })),
-        ...recentOrganizations.map((o) => ({
-          type: "organization_created" as const,
-          id: o.id,
-          title: o.organization_name,
-          detail: `New ${o.organization_type.toLowerCase()} organization`,
-          createdAt: o.createdAt,
-        })),
-        ...recentCourses.map((c) => ({
-          type: "course_created" as const,
-          id: c.id,
-          title: c.course_title,
-          detail: c.organizationName
-            ? `New course in ${c.organizationName}`
-            : "New independent course",
-          createdAt: c.createdAt,
-        })),
-      ]
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-        .slice(0, 30);
+          return [
+            ...recentUsers.map((u) => ({
+              type: "user_signup" as const,
+              id: u.id,
+              title: `${u.first_name} ${u.last_name}`.trim(),
+              detail: `New ${u.role} account (${u.email_address})`,
+              createdAt: u.createdAt,
+            })),
+            ...recentOrganizations.map((o) => ({
+              type: "organization_created" as const,
+              id: o.id,
+              title: o.organization_name,
+              detail: `New ${o.organization_type.toLowerCase()} organization`,
+              createdAt: o.createdAt,
+            })),
+            ...recentCourses.map((c) => ({
+              type: "course_created" as const,
+              id: c.id,
+              title: c.course_title,
+              detail: c.organizationName
+                ? `New course in ${c.organizationName}`
+                : "New independent course",
+              createdAt: c.createdAt,
+            })),
+          ]
+            .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+            .slice(0, 30);
+        },
+      );
 
       this.setStatus(200);
       return { success: true, data: activity };
@@ -390,40 +403,45 @@ export class SuperAdminController extends Controller {
     }
 
     try {
-      const courses = await prisma.course.findMany({
-        select: {
-          id: true,
-          course_title: true,
-          course_level: true,
-          course_image: true,
-          organizationName: true,
-          createdAt: true,
-          createdByDetails: {
-            select: { first_name: true, last_name: true, email_address: true },
-          },
-          _count: { select: { enrollment: true, module: true } },
+      const data = await useCacheAside(
+        CacheKeys.superAdminCourses(),
+        TTL.medium,
+        async () => {
+          const courses = await prisma.course.findMany({
+            select: {
+              id: true,
+              course_title: true,
+              course_level: true,
+              course_image: true,
+              organizationName: true,
+              createdAt: true,
+              createdByDetails: {
+                select: { first_name: true, last_name: true, email_address: true },
+              },
+              _count: { select: { enrollment: true, module: true } },
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          return courses.map((c) => ({
+            id: c.id,
+            title: c.course_title,
+            level: c.course_level,
+            image: c.course_image,
+            organizationName: c.organizationName,
+            creator: c.createdByDetails
+              ? `${c.createdByDetails.first_name} ${c.createdByDetails.last_name}`.trim()
+              : "Unknown",
+            creatorEmail: c.createdByDetails?.email_address ?? null,
+            enrollmentCount: c._count.enrollment,
+            moduleCount: c._count.module,
+            createdAt: c.createdAt,
+          }));
         },
-        orderBy: { createdAt: "desc" },
-      });
+      );
 
       this.setStatus(200);
-      return {
-        success: true,
-        data: courses.map((c) => ({
-          id: c.id,
-          title: c.course_title,
-          level: c.course_level,
-          image: c.course_image,
-          organizationName: c.organizationName,
-          creator: c.createdByDetails
-            ? `${c.createdByDetails.first_name} ${c.createdByDetails.last_name}`.trim()
-            : "Unknown",
-          creatorEmail: c.createdByDetails?.email_address ?? null,
-          enrollmentCount: c._count.enrollment,
-          moduleCount: c._count.module,
-          createdAt: c.createdAt,
-        })),
-      };
+      return { success: true, data };
     } catch (error: any) {
       console.error("Error fetching all courses:", error);
       this.setStatus(500);
@@ -443,6 +461,7 @@ export class SuperAdminController extends Controller {
 
     try {
       await prisma.course.delete({ where: { id: courseId } });
+      await invalidateKeys(CacheKeys.superAdminCourses());
       this.setStatus(200);
       return { success: true, message: "Course deleted successfully" };
     } catch (error: any) {
@@ -461,48 +480,53 @@ export class SuperAdminController extends Controller {
     }
 
     try {
-      const users = await prisma.user.findMany({
-        select: {
-          id: true,
-          first_name: true,
-          last_name: true,
-          email_address: true,
-          role: true,
-          userType: true,
-          level: true,
-          user_pic: true,
-          country: true,
-          isOnline: true,
-          isVerified: true,
-          isSuspended: true,
-          lastActive: true,
-          createdAt: true,
-          _count: { select: { enrollment: true, Courses: true } },
+      const data = await useCacheAside(
+        CacheKeys.superAdminUsers(),
+        TTL.medium,
+        async () => {
+          const users = await prisma.user.findMany({
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
+              role: true,
+              userType: true,
+              level: true,
+              user_pic: true,
+              country: true,
+              isOnline: true,
+              isVerified: true,
+              isSuspended: true,
+              lastActive: true,
+              createdAt: true,
+              _count: { select: { enrollment: true, Courses: true } },
+            },
+            orderBy: { createdAt: "desc" },
+          });
+
+          return users.map((u) => ({
+            id: u.id,
+            name: `${u.first_name} ${u.last_name}`.trim(),
+            email: u.email_address,
+            role: u.role,
+            userType: u.userType,
+            level: u.level,
+            profilePic: u.user_pic,
+            country: u.country,
+            isOnline: u.isOnline,
+            isVerified: u.isVerified,
+            isSuspended: u.isSuspended,
+            lastActive: u.lastActive,
+            createdAt: u.createdAt,
+            enrollmentCount: u._count.enrollment,
+            courseCount: u._count.Courses,
+          }));
         },
-        orderBy: { createdAt: "desc" },
-      });
+      );
 
       this.setStatus(200);
-      return {
-        success: true,
-        data: users.map((u) => ({
-          id: u.id,
-          name: `${u.first_name} ${u.last_name}`.trim(),
-          email: u.email_address,
-          role: u.role,
-          userType: u.userType,
-          level: u.level,
-          profilePic: u.user_pic,
-          country: u.country,
-          isOnline: u.isOnline,
-          isVerified: u.isVerified,
-          isSuspended: u.isSuspended,
-          lastActive: u.lastActive,
-          createdAt: u.createdAt,
-          enrollmentCount: u._count.enrollment,
-          courseCount: u._count.Courses,
-        })),
-      };
+      return { success: true, data };
     } catch (error: any) {
       console.error("Error fetching all users:", error);
       this.setStatus(500);
@@ -627,6 +651,7 @@ export class SuperAdminController extends Controller {
         where: { id: userId },
         data: { isSuspended: body.suspend },
       });
+      await invalidateKeys(CacheKeys.superAdminUsers());
       this.setStatus(200);
       return {
         success: true,
@@ -648,32 +673,37 @@ export class SuperAdminController extends Controller {
     }
 
     try {
-      const events = await prisma.organizationEvent.findMany({
-        include: {
-          organization: { select: { organization_name: true } },
-          _count: { select: { attendees: true } },
+      const data = await useCacheAside(
+        CacheKeys.superAdminEvents(),
+        TTL.medium,
+        async () => {
+          const events = await prisma.organizationEvent.findMany({
+            include: {
+              organization: { select: { organization_name: true } },
+              _count: { select: { attendees: true } },
+            },
+            orderBy: { date: "desc" },
+          });
+
+          return events.map((e) => ({
+            id: e.id,
+            name: e.name,
+            description: e.description,
+            date: e.date,
+            time: e.time,
+            location: e.location,
+            type: e.type,
+            status: e.status,
+            capacity: e.capacity,
+            organizationName: e.organization?.organization_name ?? "Unknown",
+            attendees: e._count.attendees,
+            createdAt: e.createdAt,
+          }));
         },
-        orderBy: { date: "desc" },
-      });
+      );
 
       this.setStatus(200);
-      return {
-        success: true,
-        data: events.map((e) => ({
-          id: e.id,
-          name: e.name,
-          description: e.description,
-          date: e.date,
-          time: e.time,
-          location: e.location,
-          type: e.type,
-          status: e.status,
-          capacity: e.capacity,
-          organizationName: e.organization?.organization_name ?? "Unknown",
-          attendees: e._count.attendees,
-          createdAt: e.createdAt,
-        })),
-      };
+      return { success: true, data };
     } catch (error: any) {
       console.error("Error fetching all events:", error);
       this.setStatus(500);
@@ -693,6 +723,7 @@ export class SuperAdminController extends Controller {
 
     try {
       await prisma.organizationEvent.delete({ where: { id: eventId } });
+      await invalidateKeys(CacheKeys.superAdminEvents());
       this.setStatus(200);
       return { success: true, message: "Event deleted successfully" };
     } catch (error: any) {
@@ -736,15 +767,26 @@ export class SuperAdminController extends Controller {
 
       const users = await prisma.user.findMany({
         where: roleFilter as any,
-        select: { id: true },
+        select: { id: true, role: true },
       });
+
+      // `to` used to be hardcoded to STUDENT for every recipient regardless
+      // of their real role — so an announcement sent to "tutors" or
+      // "org_admins" created rows FetchAnnouncementByAdmin's tutor query
+      // (`to: "TUTOR"`) could never match, and those recipients never saw
+      // it. Map each recipient's own role instead.
+      const toRoleForUser = (userRole: string): Role => {
+        if (userRole === "tutor" || userRole === "instructor") return Role.TUTOR;
+        if (userRole === "org_admin") return Role.ORG_ADMIN;
+        return Role.STUDENT;
+      };
 
       const notifications = users.map((u) => ({
         title: body.title,
         message: body.message,
         type: "SYSTEM_ANNOUNCEMENT",
         role: Role.ADMIN,
-        to: Role.STUDENT,
+        to: toRoleForUser(u.role),
         userId: u.id,
       }));
 

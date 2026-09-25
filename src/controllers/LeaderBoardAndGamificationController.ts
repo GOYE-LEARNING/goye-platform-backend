@@ -33,8 +33,12 @@ export class LeaderBoardAndGamificationController extends Controller {
     }
 
     try {
-      const dashboard = await GamificationService.getUserDashboard(userId);
-      
+      const dashboard = await useCacheAside(
+        CacheKeys.userSummary(userId),
+        TTL.medium,
+        async () => GamificationService.getUserDashboard(userId),
+      );
+
       if (!dashboard.success) {
         this.setStatus(500);
         return dashboard;
@@ -271,19 +275,34 @@ export class LeaderBoardAndGamificationController extends Controller {
         userXP = userEnrollment?.score || 0;
       } 
       else {
-        // Global rank
-        const allUsers = await prisma.user.findMany({
-          where: { point: { gt: 0 } },
-          orderBy: { point: 'desc' },
-          select: { id: true, point: true },
-        });
+        // Global rank - cached: this is a full-table scan of every
+        // point-earning user, self-healed by the gamification point-change
+        // invalidation sweep whenever this user's points change.
+        const globalRank = await useCacheAside(
+          CacheKeys.userRank(userId),
+          TTL.medium,
+          async () => {
+            const allUsers = await prisma.user.findMany({
+              where: { point: { gt: 0 } },
+              orderBy: { point: 'desc' },
+              select: { id: true, point: true },
+            });
 
-        totalUsers = allUsers.length;
-        const userIndex = allUsers.findIndex(u => u.id === userId);
-        rank = userIndex !== -1 ? userIndex + 1 : null;
-        
-        const userData = allUsers.find(u => u.id === userId);
-        userXP = userData?.point || 0;
+            const total = allUsers.length;
+            const userIndex = allUsers.findIndex(u => u.id === userId);
+            const userData = allUsers.find(u => u.id === userId);
+
+            return {
+              rank: userIndex !== -1 ? userIndex + 1 : null,
+              totalUsers: total,
+              userXP: userData?.point || 0,
+            };
+          },
+        );
+
+        rank = globalRank.rank;
+        totalUsers = globalRank.totalUsers;
+        userXP = globalRank.userXP;
       }
 
       this.setStatus(200);
@@ -406,28 +425,36 @@ export class LeaderBoardAndGamificationController extends Controller {
     }
 
     try {
-      const badges = await prisma.badges.findMany({
-        where: { userId },
-        include: {
-          achievement: true,
-          badgesAndLevelEarned: true,
+      const data = await useCacheAside(
+        CacheKeys.userBadges(userId),
+        TTL.medium,
+        async () => {
+          const badges = await prisma.badges.findMany({
+            where: { userId },
+            include: {
+              achievement: true,
+              badgesAndLevelEarned: true,
+            },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          return {
+            total_badges: badges.length,
+            badges: badges.map(b => ({
+              id: b.id,
+              name: b.achievement?.title || b.badges,
+              description: b.achievement?.content,
+              type: b.badges,
+              earned_at: b.createdAt,
+            })),
+          };
         },
-        orderBy: { createdAt: 'desc' },
-      });
+      );
 
       this.setStatus(200);
       return {
         success: true,
-        data: {
-          total_badges: badges.length,
-          badges: badges.map(b => ({
-            id: b.id,
-            name: b.achievement?.title || b.badges,
-            description: b.achievement?.content,
-            type: b.badges,
-            earned_at: b.createdAt,
-          })),
-        },
+        data,
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -457,7 +484,12 @@ export class LeaderBoardAndGamificationController extends Controller {
     }
 
     try {
-      const history = await GamificationService.GetPointHistory(userId, limit, offset);
+      const page = Math.floor(offset / limit) + 1;
+      const history = await useCacheAside(
+        CacheKeys.userPointHistory(userId, page, limit),
+        TTL.short,
+        async () => GamificationService.GetPointHistory(userId, limit, offset),
+      );
 
       this.setStatus(200);
       return history;
@@ -489,54 +521,62 @@ export class LeaderBoardAndGamificationController extends Controller {
     }
 
     try {
-      // Get organization members
-      const members = await prisma.user.findMany({
-        where: {
-          OR: [
-            { organization:  { id: orgId } },
-            { Courses: { some: { organizationId: orgId } } },
-          ],
-        },
-        select: {
-          id: true,
-          first_name: true,
-          last_name: true,
-          user_pic: true,
-          point: true,
-          level: true,
-          enrollment: {
-            where: { status: "COMPLETED" },
-            select: { id: true },
-          },
-        },
-        orderBy: { point: 'desc' },
-        take: limit,
-      });
+      const data = await useCacheAside(
+        CacheKeys.leaderboard(`org-${orgId}-${limit}`),
+        TTL.medium,
+        async () => {
+          // Get organization members
+          const members = await prisma.user.findMany({
+            where: {
+              OR: [
+                { organization:  { id: orgId } },
+                { Courses: { some: { organizationId: orgId } } },
+              ],
+            },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              point: true,
+              level: true,
+              enrollment: {
+                where: { status: "COMPLETED" },
+                select: { id: true },
+              },
+            },
+            orderBy: { point: 'desc' },
+            take: limit,
+          });
 
-      const totalXP = members.reduce((sum, m) => sum + (m.point || 0), 0);
-      const totalCourses = members.reduce((sum, m) => sum + m.enrollment.length, 0);
+          const totalXP = members.reduce((sum, m) => sum + (m.point || 0), 0);
+          const totalCourses = members.reduce((sum, m) => sum + m.enrollment.length, 0);
+
+          return {
+            organization_id: orgId,
+            stats: {
+              total_members: members.length,
+              total_xp: totalXP,
+              total_courses_completed: totalCourses,
+              average_xp: members.length > 0 ? Math.round(totalXP / members.length) : 0,
+            },
+            leaderboard: members.map((member, index) => ({
+              rank: index + 1,
+              id: member.id,
+              name: `${member.first_name} ${member.last_name}`,
+              avatar: member.user_pic,
+              total_xp: member.point || 0,
+              level: member.level || "Seeker",
+              courses_completed: member.enrollment.length,
+            })),
+          };
+        },
+      );
 
       this.setStatus(200);
       return {
         success: true,
-        data: {
-          organization_id: orgId,
-          stats: {
-            total_members: members.length,
-            total_xp: totalXP,
-            total_courses_completed: totalCourses,
-            average_xp: members.length > 0 ? Math.round(totalXP / members.length) : 0,
-          },
-          leaderboard: members.map((member, index) => ({
-            rank: index + 1,
-            id: member.id,
-            name: `${member.first_name} ${member.last_name}`,
-            avatar: member.user_pic,
-            total_xp: member.point || 0,
-            level: member.level || "Seeker",
-            courses_completed: member.enrollment.length,
-          })),
-        },
+        data,
       };
     } catch (error: any) {
       this.setStatus(500);
@@ -562,43 +602,51 @@ export class LeaderBoardAndGamificationController extends Controller {
     }
 
     try {
-      // Get point history grouped by reason
-      const history = await prisma.pointHistory.findMany({
-        where: { userId },
-        select: { reason: true, point: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
-      });
+      const data = await useCacheAside(
+        CacheKeys.userXpBreakdown(userId),
+        TTL.short,
+        async () => {
+          // Get point history grouped by reason
+          const history = await prisma.pointHistory.findMany({
+            where: { userId },
+            select: { reason: true, point: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+          });
 
-      // Group by action type
-      const breakdown: Record<string, { total: number; count: number; actions: any[] }> = {};
+          // Group by action type
+          const breakdown: Record<string, { total: number; count: number; actions: any[] }> = {};
 
-      history.forEach(h => {
-        const key = h.reason?.split(' ')[0] || 'Other';
-        if (!breakdown[key]) {
-          breakdown[key] = { total: 0, count: 0, actions: [] };
-        }
-        breakdown[key].total += h.point;
-        breakdown[key].count += 1;
-        breakdown[key].actions.push({
-          reason: h.reason,
-          points: h.point,
-          date: h.createdAt,
-        });
-      });
+          history.forEach(h => {
+            const key = h.reason?.split(' ')[0] || 'Other';
+            if (!breakdown[key]) {
+              breakdown[key] = { total: 0, count: 0, actions: [] };
+            }
+            breakdown[key].total += h.point;
+            breakdown[key].count += 1;
+            breakdown[key].actions.push({
+              reason: h.reason,
+              points: h.point,
+              date: h.createdAt,
+            });
+          });
+
+          return {
+            total_points: history.reduce((sum, h) => sum + h.point, 0),
+            breakdown: Object.entries(breakdown).map(([key, value]) => ({
+              category: key,
+              total_points: value.total,
+              count: value.count,
+              average: value.total / value.count,
+              recent_actions: value.actions.slice(0, 5),
+            })),
+          };
+        },
+      );
 
       this.setStatus(200);
       return {
         success: true,
-        data: {
-          total_points: history.reduce((sum, h) => sum + h.point, 0),
-          breakdown: Object.entries(breakdown).map(([key, value]) => ({
-            category: key,
-            total_points: value.total,
-            count: value.count,
-            average: value.total / value.count,
-            recent_actions: value.actions.slice(0, 5),
-          })),
-        },
+        data,
       };
     } catch (error: any) {
       this.setStatus(500);

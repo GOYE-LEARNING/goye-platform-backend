@@ -664,25 +664,6 @@ export class NotificationController extends Controller {
     }
   }
 
-  @Post("/make-system-announcement")
-  public async MakeSystemAnnouncement() {
-    try {
-      const makeAnnoucement =
-        await NotificationService.createSystemAnnouncement(
-          "Greetings",
-          "Welcome to Goye",
-          Role.ORG_MEMBER,
-          "message",
-        );
-      return {
-        message: "Annoucement changes successfully",
-        data: makeAnnoucement,
-      };
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
   @Security("bearerAuth")
   @Get("/fetch-annocucment-by-admin")
   public async FetchAnnouncementByAdmin(@Request() req: any) {
@@ -717,8 +698,14 @@ export class NotificationController extends Controller {
           data: annocumentForTutors,
         };
       }
+      // Any other role (org admin, invited member, etc.) has no announcement
+      // feed defined yet — an empty list rather than an unhandled fallthrough
+      // (which returned no body at all, breaking the frontend's `data.data`
+      // read for anyone besides student/tutor/instructor).
+      return { message: "No announcements for this role", data: [] };
     } catch (error) {
       console.error(error);
+      return { message: "Failed to fetch announcements", data: [] };
     }
   }
 }

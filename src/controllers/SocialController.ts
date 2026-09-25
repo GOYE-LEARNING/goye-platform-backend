@@ -241,7 +241,7 @@ export class SocialController extends Controller {
 
         if (parentReply && parentReply.userId !== userId) {
           await NotificationService.createNotification({
-            message: `${req.user?.first_name || "Someone"} replied to your comment`,
+            message: `${createReply.user?.first_name || "Someone"} replied to your comment`,
             title: "New Reply",
             type: "reply",
             role: Role.STUDENT,
@@ -417,7 +417,11 @@ export class SocialController extends Controller {
               },
               take: 5,
             },
-            _count: { select: { likes: true } },
+            // Counting `children` here (Prisma folds it into the same query)
+            // replaces what used to be a separate `prisma.reply.count()`
+            // fired for every single reply at every depth of the recursion
+            // below — that scaled as replies × depth on any busy thread.
+            _count: { select: { likes: true, children: true } },
           },
           orderBy: { createdAt: "asc" },
           skip: parentId === null ? skipCount : 0,
@@ -435,10 +439,7 @@ export class SocialController extends Controller {
               5, // Limit nested replies to 5 per parent
             );
 
-            // Check if there are more children
-            const totalChildren = await prisma.reply.count({
-              where: { parentId: reply.id },
-            });
+            const totalChildren = reply._count.children;
 
             return {
               ...reply,
@@ -564,7 +565,10 @@ export class SocialController extends Controller {
               },
               take: 5,
             },
-            _count: { select: { likes: true } },
+            // Same fix as GetPostWithReplies above: counting `children`
+            // in this query replaces a separate `prisma.reply.count()`
+            // that used to fire per child at every depth of the recursion.
+            _count: { select: { likes: true, children: true } },
           },
           orderBy: { createdAt: "asc" },
         });
@@ -573,9 +577,7 @@ export class SocialController extends Controller {
           children.map(async (child) => ({
             ...child,
             children: await fetchChildren(child.id, currentDepth + 1),
-            totalChildrenCount: await prisma.reply.count({
-              where: { parentId: child.id },
-            }),
+            totalChildrenCount: child._count.children,
           })),
         );
 
@@ -878,20 +880,11 @@ export class SocialController extends Controller {
       const skip = page && limit ? (page - 1) * limit : 0;
       const take = limit || 20;
 
-      const posts = await prisma.post.findMany({
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
-            },
-          },
-          replies: {
-            where: { parentId: null },
-            take: 3,
+      const { posts, totalCount } = await useCacheAside(
+        CacheKeys.socialFeedAll("", page || 1, take),
+        TTL.short,
+        async () => {
+          const posts = await prisma.post.findMany({
             include: {
               user: {
                 select: {
@@ -899,25 +892,42 @@ export class SocialController extends Controller {
                   first_name: true,
                   last_name: true,
                   user_pic: true,
+                  role: true,
                 },
               },
-              _count: { select: { children: true } },
+              replies: {
+                where: { parentId: null },
+                take: 3,
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                      user_pic: true,
+                    },
+                  },
+                  _count: { select: { children: true } },
+                },
+                orderBy: { createdAt: "asc" },
+              },
+              likes: {
+                include: {
+                  user: { select: { id: true, first_name: true, last_name: true } },
+                },
+              },
+              _count: { select: { replies: true, likes: true } },
             },
-            orderBy: { createdAt: "asc" },
-          },
-          likes: {
-            include: {
-              user: { select: { id: true, first_name: true, last_name: true } },
-            },
-          },
-          _count: { select: { replies: true, likes: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take,
-      });
+            orderBy: { createdAt: "desc" },
+            skip,
+            take,
+          });
 
-      const totalCount = await prisma.post.count();
+          const totalCount = await prisma.post.count();
+
+          return { posts, totalCount };
+        },
+      );
 
       this.setStatus(200);
       return {
@@ -957,23 +967,13 @@ export class SocialController extends Controller {
         return { message: "Course not found" };
       }
 
-      const getPost = await prisma.post.findMany({
-        where: { courseId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-            },
-          },
-          replies: {
-            where: { parentId: null },
-            take: 2,
-            select: {
-              id: true,
-              content: true,
+      const { getPost, totalCount } = await useCacheAside(
+        CacheKeys.socialFeedByCourse(courseId, page || 1, take),
+        TTL.short,
+        async () => {
+          const getPost = await prisma.post.findMany({
+            where: { courseId },
+            include: {
               user: {
                 select: {
                   id: true,
@@ -982,19 +982,37 @@ export class SocialController extends Controller {
                   user_pic: true,
                 },
               },
-              createdAt: true,
-              _count: { select: { children: true } },
+              replies: {
+                where: { parentId: null },
+                take: 2,
+                select: {
+                  id: true,
+                  content: true,
+                  user: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                      user_pic: true,
+                    },
+                  },
+                  createdAt: true,
+                  _count: { select: { children: true } },
+                },
+                orderBy: { createdAt: "desc" },
+              },
+              _count: { select: { likes: true, replies: true } },
             },
             orderBy: { createdAt: "desc" },
-          },
-          _count: { select: { likes: true, replies: true } },
-        },
-        orderBy: { createdAt: "desc" },
-        skip,
-        take,
-      });
+            skip,
+            take,
+          });
 
-      const totalCount = await prisma.post.count({ where: { courseId } });
+          const totalCount = await prisma.post.count({ where: { courseId } });
+
+          return { getPost, totalCount };
+        },
+      );
 
       this.setStatus(200);
       return {
@@ -1224,6 +1242,18 @@ export class SocialController extends Controller {
     if (!userId) {
       this.setStatus(404);
       return { message: "User not found" };
+    }
+
+    // Organizations already act as their own group/community — org admins
+    // and invited members create content inside the org, not a new group of
+    // their own. This was previously enforced only by the tutor-only UI
+    // (no admin page ever rendered the "create group" form); this makes it
+    // a real server-side rule instead of relying on the frontend never
+    // exposing the button.
+    const requesterRole = req.user?.role;
+    if (requesterRole === "org_admin" || requesterRole === "invited_user") {
+      this.setStatus(403);
+      return { message: "Organization members create content within the organization, not separate groups" };
     }
 
     try {
@@ -2143,20 +2173,50 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const joinedGroups = await prisma.joinedGroup.findMany({
-        where: {
-          studentId: userId,
+      const events = await useCacheAside(
+        CacheKeys.userGroupEvents(userId),
+        TTL.medium,
+        async () => {
+          const joinedGroups = await prisma.joinedGroup.findMany({
+            where: {
+              studentId: userId,
+            },
+            select: {
+              groupId: true,
+
+            },
+
+          });
+
+          const groupIds = joinedGroups.map((jg) => jg.groupId);
+
+          if (groupIds.length === 0) {
+            return [];
+          }
+
+          return prisma.event.findMany({
+            where: {
+              groupid: {
+                in: groupIds,
+              },
+            },
+            orderBy: { createdAt: "desc" },
+            include: {
+              group: {
+                select: {
+                  id: true,
+                  group_title: true,
+                  createdAt: true,
+
+                },
+              },
+
+            },
+          });
         },
-        select: {
-          groupId: true,
-        
-        },
+      );
 
-      });
-
-      const groupIds = joinedGroups.map((jg) => jg.groupId);
-
-      if (groupIds.length === 0) {
+      if (events.length === 0) {
         this.setStatus(200);
         return {
           message: "No groups found for student",
@@ -2164,26 +2224,6 @@ export class SocialController extends Controller {
           count: 0,
         };
       }
-
-      const events = await prisma.event.findMany({
-        where: {
-          groupid: {
-            in: groupIds,
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        include: {
-          group: {
-            select: {
-              id: true,
-              group_title: true,
-              createdAt: true,
-
-            },
-          },
-          
-        },
-      });
 
       this.setStatus(200);
       return {

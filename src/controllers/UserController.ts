@@ -37,19 +37,30 @@ import { normalizeEmail, findUserByEmail } from "../utils/email";
 import { WeirdService } from "../services/weridService";
 
 const forgotPasswordRateLimit = new Map<string, number[]>();
+// A 6-digit numeric OTP has only 1,000,000 combinations — without a
+// dedicated limit here, VerifyOtp only sat behind the general 300/min-per-IP
+// budget, making it brute-forceable well within an OTP's validity window.
+const verifyOtpRateLimit = new Map<string, number[]>();
 
 @Route("user")
 @Tags("User control APIs")
 export class UserController extends Controller {
   @Post("/auth/google")
   public async GoogleAuth(
-    @Body() body: { idToken: string },
+    @Body() body: { idToken: string; deviceId?: string },
     @Request() req: any,
   ): Promise<any> {
     try {
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = getDeviceType(userAgent);
-      const deviceId = generateDeviceId();
+      // Prefer the client's own device ID (header or body) so this device
+      // maps to the same userSession row every request makes going forward,
+      // instead of minting a disconnected server-generated ID the client
+      // never sees or sends back.
+      const deviceId =
+        (req.headers["x-device-id"] as string) ||
+        body.deviceId ||
+        generateDeviceId();
       const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
       const isProduction = process.env.NODE_ENV === "production";
 
@@ -126,6 +137,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId: deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken,
             accessToken,
             userType: "ORGANIZATION",
@@ -243,6 +255,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken,
             accessToken,
             userType: "ADMIN",
@@ -356,6 +369,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken, accessToken, userType: "INVITED_USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
@@ -475,6 +489,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken, accessToken, userType: "USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
@@ -565,12 +580,18 @@ export class UserController extends Controller {
 
   @Post("/signup")
   public async CreateUser(
-    @Body() body: Omit<User, "id">,
+    @Body() body: Omit<User, "id"> & { deviceId?: string },
     @Request() req: any,
   ): Promise<any> {
     const userAgent = req.headers["user-agent"] || "unknown";
     const deviceType = getDeviceType(userAgent);
-    const deviceId = generateDeviceId();
+    // Same reasoning as GoogleAuth: use the client's device ID when it sent
+    // one, rather than a server-only ID that never matches what the client
+    // sends on its very next request.
+    const deviceId =
+      (req.headers["x-device-id"] as string) ||
+      body.deviceId ||
+      generateDeviceId();
     const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
     const isProduction = process.env.NODE_ENV === "production";
 
@@ -761,7 +782,16 @@ export class UserController extends Controller {
     try {
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = credentials.deviceType || getDeviceType(userAgent);
-      const deviceId = credentials.deviceId || generateDeviceId();
+      // globalFetch.ts strips `deviceId` out of every JSON request body
+      // before it reaches the server (so backend validation schemas that
+      // don't declare that field don't reject the request), so the header
+      // is the only place the client's real device ID actually arrives here.
+      // Falling back to credentials.deviceId/generateDeviceId() only covers
+      // direct API callers that bypass that interceptor.
+      const deviceId =
+        (req.headers["x-device-id"] as string) ||
+        credentials.deviceId ||
+        generateDeviceId();
       const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
 
       // Case-insensitive on purpose: accounts created before email
@@ -844,6 +874,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken, accessToken, userType: "ADMIN",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
@@ -975,6 +1006,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken, accessToken, userType: "INVITED_USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
@@ -1103,6 +1135,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updateUser.id, // reassign device to the account that just logged in
             refreshToken, accessToken, userType: "USER",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
@@ -1217,6 +1250,7 @@ export class UserController extends Controller {
         await prisma.userSession.upsert({
           where: { deviceId },
           update: {
+            userId: updatedOrganization.user.id, // reassign device to the account that just logged in
             refreshToken, accessToken, userType: "ORGANIZATION",
             expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
@@ -1524,13 +1558,62 @@ export class UserController extends Controller {
     }
   }
 
+  // Had no auth at all, and trusted organizationId/role straight from the
+  // request body — any unauthenticated caller who knew (or guessed) a
+  // userId could make that user an "admin"/"org_admin" member of any
+  // organization by id. This is called mid-signup (accepting an invite,
+  // before any session exists), same constraint as UpdateOrganization, so
+  // it still can't carry @Security("bearerAuth") — instead it now requires
+  // the actual invite token/code (the same one FetchInvitedUserByToken
+  // verifies) and derives organizationId + role from that real InviteUser
+  // record, never from the caller-supplied body.
   @Patch("/update-invitation/{userId}")
   public async UpdateUserInvitation(
     @Path() userId: string,
-    @Body() body: { organizationId: string; role: string },
+    @Body() body: { token: string },
   ): Promise<any> {
     try {
-      const { organizationId, role } = body;
+      const { token } = body;
+      if (!token) {
+        this.setStatus(400);
+        return { success: false, message: "Invitation token is required" };
+      }
+
+      let decodedToken: any;
+      try {
+        decodedToken = jwt.verify(token, process.env.BEARERAUTH_SECRET || "secret-key");
+      } catch {
+        this.setStatus(401);
+        return { success: false, message: "Invalid or expired invitation token" };
+      }
+
+      const invitation = await prisma.inviteUser.findFirst({
+        where: { code: token },
+      });
+      if (!invitation) {
+        this.setStatus(404);
+        return { success: false, message: "Invitation not found" };
+      }
+      if (invitation.expiresIn < new Date()) {
+        this.setStatus(410);
+        return { success: false, message: "This invitation has expired" };
+      }
+      if (
+        invitation.email !== decodedToken.email ||
+        invitation.organizationId !== decodedToken.organizationId
+      ) {
+        this.setStatus(403);
+        return { success: false, message: "Token data does not match invitation record" };
+      }
+
+      const targetUser = await prisma.user.findUnique({ where: { id: userId } });
+      if (!targetUser || targetUser.email_address !== invitation.email) {
+        this.setStatus(403);
+        return { success: false, message: "This invitation does not belong to this user" };
+      }
+
+      const organizationId = invitation.organizationId;
+      const role = invitation.role;
 
       // ✅ Update user to INVITED_MEMBER — no more `invited` boolean
       const updatedUser = await prisma.user.update({
@@ -1560,19 +1643,6 @@ export class UserController extends Controller {
           role,
           joinedVia: "INVITE",
           isActive: true,
-        },
-      });
-
-      // ✅ Create an InviteUser record for audit trail
-      await prisma.inviteUser.create({
-        data: {
-          email: updatedUser.email_address,
-          role: role,
-          code: crypto.randomBytes(32).toString("hex"),
-          organizationId: organizationId,
-          sentById: userId,
-          invited: true,
-          expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
         },
       });
 
@@ -1705,6 +1775,19 @@ export class UserController extends Controller {
         this.setStatus(401);
         return { success: false, message: "Invalid or expired session token" };
       }
+
+      const rateLimitKey = `verify_otp_${decoded.email}`;
+      const now = Date.now();
+      const attempts = verifyOtpRateLimit.get(rateLimitKey) || [];
+      const recentAttempts = attempts.filter((time: number) => time > now - 15 * 60 * 1000);
+
+      if (recentAttempts.length >= 5) {
+        this.setStatus(429);
+        return { success: false, message: "Too many verification attempts. Please try again in 15 minutes." };
+      }
+
+      recentAttempts.push(now);
+      verifyOtpRateLimit.set(rateLimitKey, recentAttempts);
 
       const verifyOtp = await prisma.otp.findFirst({
         where: { code: otp, email: decoded.email },
@@ -1895,8 +1978,23 @@ export class UserController extends Controller {
     }
   }
 
+  // Had no @Security decorator at all — anyone, unauthenticated, could pull
+  // another user's email/phone/location by guessing an id. Adding
+  // @Security alone still let any logged-in user pull anyone else's PII
+  // by id (confirmed live: User A fetched User B's email/phone/location
+  // with a valid token) — not called from the frontend anywhere (grepped),
+  // so this is scoped to "your own record, or a platform admin," same as
+  // DeleteUser below.
+  @Security("bearerAuth")
   @Get("/get-user/{id}")
-  public async GetUser(@Path() id: string): Promise<any> {
+  public async GetUser(@Path() id: string, @Request() req: any): Promise<any> {
+    const requesterId = req.user?.id;
+    const requesterRole = req.user?.role;
+    if (requesterId !== id && requesterRole !== "goye_admin") {
+      this.setStatus(403);
+      return { message: "You can only view your own account" };
+    }
+
     const getUser = await prisma.user.findUnique({
       where: { id },
       select: {
@@ -1973,8 +2071,20 @@ export class UserController extends Controller {
     return { message: "User updated successfully", data: user };
   }
 
+  // Had no @Security decorator and no auth check at all — any unauthenticated
+  // request could permanently delete any user account by id. Not called from
+  // the frontend anywhere (grepped), so locking it down to "your own account,
+  // or a platform admin" carries zero risk of breaking an existing flow.
+  @Security("bearerAuth")
   @Delete("delete-user/{id}")
-  public async DeleteUser(@Path() id: string) {
+  public async DeleteUser(@Path() id: string, @Request() req: any) {
+    const requesterId = req.user?.id;
+    const requesterRole = req.user?.role;
+    if (requesterId !== id && requesterRole !== "goye_admin") {
+      this.setStatus(403);
+      return { message: "You can only delete your own account" };
+    }
+
     const user = await prisma.user.delete({ where: { id } });
     this.setStatus(200);
     return { message: "User Deleted Successfully", user };
@@ -1998,58 +2108,73 @@ export class UserController extends Controller {
     const orgId = req.org?.id;
 
     try {
-      const users = await prisma.user.findUnique({ where: { id: userId } });
+      // Keyed by caller type, not just "all": the two branches below return
+      // differently-shaped payloads (flat vs. nested under `.user`), so a
+      // shared key would serve an org caller the individual shape (or vice
+      // versa) whenever the other caller type populated the cache first.
+      const result = await useCacheAside(
+        CacheKeys.studentDirectory(userId ? "individual" : "org"),
+        TTL.medium,
+        async () => {
+          const users = await prisma.user.findUnique({ where: { id: userId } });
 
-      if (users) {
-        const students = await prisma.user.findMany({
-          where: { role: "student" },
-          select: {
-            id: true, user_pic: true, first_name: true, last_name: true,
-            email_address: true, role: true, userType: true, isOnline: true,
-            lastActive: true, enrollment: true,
-          },
-          orderBy: { createdAt: "desc" },
-        });
-
-        const enhancedStudents = students.map((student) => ({
-          ...student,
-          isCurrentlyOnline: student.isOnline && student.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          lastActiveFormatted: this.formatLastActive(student.lastActive),
-          full_name: `${student.first_name} ${student.last_name}`,
-        }));
-
-        this.setStatus(200);
-        return { message: "Student fetched successfully", enhancedStudents };
-      }
-
-      const organization = await prisma.organization.findUnique({
-        where: { id: orgId },
-      });
-
-      if (organization) {
-        const students = await prisma.organization.findMany({
-          where: { user: { role: "student" } },
-          select: {
-            user: {
+          if (users) {
+            const students = await prisma.user.findMany({
+              where: { role: "student" },
               select: {
                 id: true, user_pic: true, first_name: true, last_name: true,
                 email_address: true, role: true, userType: true, isOnline: true,
                 lastActive: true, enrollment: true,
               },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        });
+              orderBy: { createdAt: "desc" },
+            });
 
-        const enhancedStudents = students.map((student) => ({
-          ...student,
-          isCurrentlyOnline: student.user.isOnline && student.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          lastActiveFormatted: this.formatLastActive(student.user.lastActive),
-          full_name: `${student.user.first_name} ${student.user.last_name}`,
-        }));
+            const enhancedStudents = students.map((student) => ({
+              ...student,
+              isCurrentlyOnline: student.isOnline && student.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+              lastActiveFormatted: this.formatLastActive(student.lastActive),
+              full_name: `${student.first_name} ${student.last_name}`,
+            }));
 
+            return { message: "Student fetched successfully", enhancedStudents };
+          }
+
+          const organization = await prisma.organization.findUnique({
+            where: { id: orgId },
+          });
+
+          if (organization) {
+            const students = await prisma.organization.findMany({
+              where: { user: { role: "student" } },
+              select: {
+                user: {
+                  select: {
+                    id: true, user_pic: true, first_name: true, last_name: true,
+                    email_address: true, role: true, userType: true, isOnline: true,
+                    lastActive: true, enrollment: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: "desc" },
+            });
+
+            const enhancedStudents = students.map((student) => ({
+              ...student,
+              isCurrentlyOnline: student.user.isOnline && student.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+              lastActiveFormatted: this.formatLastActive(student.user.lastActive),
+              full_name: `${student.user.first_name} ${student.user.last_name}`,
+            }));
+
+            return { message: "Student fetched successfully", enhancedStudents };
+          }
+
+          return undefined;
+        },
+      );
+
+      if (result) {
         this.setStatus(200);
-        return { message: "Student fetched successfully", enhancedStudents };
+        return result;
       }
     } catch (error) {
       this.setStatus(500);
@@ -2064,58 +2189,71 @@ export class UserController extends Controller {
     const orgId = req.org?.id;
 
     try {
-      const tutor = await prisma.user.findUnique({ where: { id: userId } });
+      // Same fix as GetStudent above: key by caller type, not a shared "all",
+      // since the two branches below return differently-shaped payloads.
+      const result = await useCacheAside(
+        CacheKeys.tutorDirectory(userId ? "individual" : "org"),
+        TTL.medium,
+        async () => {
+          const tutor = await prisma.user.findUnique({ where: { id: userId } });
 
-      if (tutor) {
-        const tutors = await prisma.user.findMany({
-          where: { role: "tutor" },
-          select: {
-            id: true, user_pic: true, first_name: true, last_name: true,
-            email_address: true, role: true, userType: true, isOnline: true,
-            lastActive: true, enrollment: true,
-          },
-          orderBy: { createdAt: "desc" },
-        });
-
-        const enhancedStudents = tutors.map((t) => ({
-          ...t,
-          isCurrentlyOnline: t.isOnline && t.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          lastActiveFormatted: this.formatLastActive(t.lastActive),
-          full_name: `${t.first_name} ${t.last_name}`,
-        }));
-
-        this.setStatus(200);
-        return { message: "Tutor fetched successfully", enhancedStudents };
-      }
-
-      const organization = await prisma.organization.findUnique({
-        where: { id: orgId },
-      });
-
-      if (organization) {
-        const tutors = await prisma.organization.findMany({
-          where: { user: { role: "tutor" } },
-          select: {
-            user: {
+          if (tutor) {
+            const tutors = await prisma.user.findMany({
+              where: { role: "tutor" },
               select: {
                 id: true, user_pic: true, first_name: true, last_name: true,
                 email_address: true, role: true, userType: true, isOnline: true,
                 lastActive: true, enrollment: true,
               },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        });
+              orderBy: { createdAt: "desc" },
+            });
 
-        const enhancedStudents = tutors.map((t) => ({
-          ...t,
-          isCurrentlyOnline: t.user.isOnline && t.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
-          lastActiveFormatted: this.formatLastActive(t.user.lastActive),
-          full_name: `${t.user.first_name} ${t.user.last_name}`,
-        }));
+            const enhancedStudents = tutors.map((t) => ({
+              ...t,
+              isCurrentlyOnline: t.isOnline && t.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+              lastActiveFormatted: this.formatLastActive(t.lastActive),
+              full_name: `${t.first_name} ${t.last_name}`,
+            }));
 
+            return { message: "Tutor fetched successfully", enhancedStudents };
+          }
+
+          const organization = await prisma.organization.findUnique({
+            where: { id: orgId },
+          });
+
+          if (organization) {
+            const tutors = await prisma.organization.findMany({
+              where: { user: { role: "tutor" } },
+              select: {
+                user: {
+                  select: {
+                    id: true, user_pic: true, first_name: true, last_name: true,
+                    email_address: true, role: true, userType: true, isOnline: true,
+                    lastActive: true, enrollment: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: "desc" },
+            });
+
+            const enhancedStudents = tutors.map((t) => ({
+              ...t,
+              isCurrentlyOnline: t.user.isOnline && t.user.lastActive > new Date(Date.now() - 5 * 60 * 1000),
+              lastActiveFormatted: this.formatLastActive(t.user.lastActive),
+              full_name: `${t.user.first_name} ${t.user.last_name}`,
+            }));
+
+            return { message: "Tutor fetched successfully", enhancedStudents };
+          }
+
+          return undefined;
+        },
+      );
+
+      if (result) {
         this.setStatus(200);
-        return { message: "Tutor fetched successfully", enhancedStudents };
+        return result;
       }
     } catch (error) {
       this.setStatus(500);
@@ -2139,7 +2277,13 @@ public async GetProfile(@Request() req: any) {
       return { message: "Unauthorized", status: 401 };
     }
 
-    const cacheKey = `user:${userId}`;
+    // Must match the key `updateDataWithRedis(userId, ["profile"])` clears
+    // (UpdateUser and friends call that on every profile write) — this used
+    // to be the raw string `user:${userId}` while invalidation cleared
+    // `CacheKeys.userProfile(userId)` (`user:${userId}:profile`), a different
+    // key. That mismatch meant a profile edit — including changing your
+    // language — was invisible here for the full 1-hour TTL.
+    const cacheKey = CacheKeys.userProfile(userId);
 
     // Pass the execution block directly into your clean helper
     const responseData = await useCacheAside(cacheKey, 3600, async () => {
@@ -2195,6 +2339,7 @@ public async GetProfile(@Request() req: any) {
         return {
           message: "Profile fetched successfully",
           user: {
+            id: user.id, role: user.role,
             first_name: user.first_name, last_name: user.last_name, email_address: user.email_address,
             phone_number: user.phone_number, country: user.country, state: user.state,
             level: user.level, userType: user.userType, profile_pic: user.user_pic,
@@ -2584,101 +2729,112 @@ public async GetProfile(@Request() req: any) {
       return { message: "Only admins can access dashboard statistics" };
     }
 
-    const totalUsers = await prisma.user.count();
-    const activeUsers = await prisma.user.count({ where: { isOnline: true } });
-    const newUsersToday = await prisma.user.count({
-      where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
-    });
+    const data = await useCacheAside(
+      CacheKeys.adminDashboardStats(),
+      TTL.medium,
+      async () => {
+        const totalUsers = await prisma.user.count();
+        const activeUsers = await prisma.user.count({ where: { isOnline: true } });
+        const newUsersToday = await prisma.user.count({
+          where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+        });
 
-    // ✅ Count by userType — much cleaner than old boolean checks
-    const orgOwners = await prisma.user.count({ where: { userType: "ORGANIZATION_OWNER" } });
-    const invitedMembers = await prisma.user.count({ where: { userType: "INVITED_MEMBER" } });
-    const individualUsers = await prisma.user.count({ where: { userType: "INDIVIDUAL" } });
+        // ✅ Count by userType — much cleaner than old boolean checks
+        const orgOwners = await prisma.user.count({ where: { userType: "ORGANIZATION_OWNER" } });
+        const invitedMembers = await prisma.user.count({ where: { userType: "INVITED_MEMBER" } });
+        const individualUsers = await prisma.user.count({ where: { userType: "INDIVIDUAL" } });
 
-    const totalOrganizations = await prisma.organization.count();
-    const totalCourses = await prisma.course.count();
-    const totalEnrollments = await prisma.enrollment.count();
-    const completedEnrollments = await prisma.enrollment.count({ where: { status: "COMPLETED" } });
+        const totalOrganizations = await prisma.organization.count();
+        const totalCourses = await prisma.course.count();
+        const totalEnrollments = await prisma.enrollment.count();
+        const completedEnrollments = await prisma.enrollment.count({ where: { status: "COMPLETED" } });
 
-    const avgCompletionRate = totalEnrollments > 0
-      ? Math.round((completedEnrollments / totalEnrollments) * 100)
-      : 0;
+        const avgCompletionRate = totalEnrollments > 0
+          ? Math.round((completedEnrollments / totalEnrollments) * 100)
+          : 0;
 
-    const engagedUsers = await prisma.enrollment.groupBy({
-      by: ["userId"],
-      _count: { userId: true },
-    });
+        const engagedUsers = await prisma.enrollment.groupBy({
+          by: ["userId"],
+          _count: { userId: true },
+        });
 
-    const engagedUserCount = engagedUsers.length;
-    const engagementRate = totalUsers > 0
-      ? Math.round((engagedUserCount / totalUsers) * 100)
-      : 0;
+        const engagedUserCount = engagedUsers.length;
+        const engagementRate = totalUsers > 0
+          ? Math.round((engagedUserCount / totalUsers) * 100)
+          : 0;
 
-    const [recentUsers, recentOrganizations, recentCourses] = await Promise.all([
-      prisma.user.findMany({
-        select: { id: true, first_name: true, last_name: true, email_address: true, role: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-      prisma.organization.findMany({
-        select: { id: true, organization_name: true, organization_type: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-      prisma.course.findMany({
-        select: { id: true, course_title: true, organizationName: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      }),
-    ]);
+        const [recentUsers, recentOrganizations, recentCourses] = await Promise.all([
+          prisma.user.findMany({
+            select: { id: true, first_name: true, last_name: true, email_address: true, role: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          }),
+          prisma.organization.findMany({
+            select: { id: true, organization_name: true, organization_type: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          }),
+          prisma.course.findMany({
+            select: { id: true, course_title: true, organizationName: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          }),
+        ]);
 
-    const activities = [
-      ...recentUsers.map((u) => ({
-        type: "user_signup" as const,
-        id: u.id,
-        title: `${u.first_name} ${u.last_name}`.trim(),
-        detail: `New ${u.role} account (${u.email_address})`,
-        createdAt: u.createdAt,
-      })),
-      ...recentOrganizations.map((o) => ({
-        type: "organization_created" as const,
-        id: o.id,
-        title: o.organization_name,
-        detail: `New ${o.organization_type.toLowerCase()} organization`,
-        createdAt: o.createdAt,
-      })),
-      ...recentCourses.map((c) => ({
-        type: "course_created" as const,
-        id: c.id,
-        title: c.course_title,
-        detail: c.organizationName ? `New course in ${c.organizationName}` : "New independent course",
-        createdAt: c.createdAt,
-      })),
-    ]
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .slice(0, 10);
+        const activities = [
+          ...recentUsers.map((u) => ({
+            type: "user_signup" as const,
+            id: u.id,
+            title: `${u.first_name} ${u.last_name}`.trim(),
+            detail: `New ${u.role} account (${u.email_address})`,
+            createdAt: u.createdAt,
+          })),
+          ...recentOrganizations.map((o) => ({
+            type: "organization_created" as const,
+            id: o.id,
+            title: o.organization_name,
+            detail: `New ${o.organization_type.toLowerCase()} organization`,
+            createdAt: o.createdAt,
+          })),
+          ...recentCourses.map((c) => ({
+            type: "course_created" as const,
+            id: c.id,
+            title: c.course_title,
+            detail: c.organizationName ? `New course in ${c.organizationName}` : "New independent course",
+            createdAt: c.createdAt,
+          })),
+        ]
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+          .slice(0, 10);
+
+        return {
+          stats: {
+            totalUsers,
+            activeUsers,
+            newUsersToday,
+            totalOrganizations,
+            totalCourses,
+            totalEnrollments,
+            completedEnrollments,
+            avgCompletionRate,
+            engagementRate,
+            // ✅ New breakdown by userType
+            userTypeBreakdown: {
+              orgOwners,
+              invitedMembers,
+              individualUsers,
+            },
+          },
+          activities,
+        };
+      },
+    );
 
     this.setStatus(200);
     return {
       message: "Admin dashboard statistics fetched successfully",
-      stats: {
-        totalUsers,
-        activeUsers,
-        newUsersToday,
-        totalOrganizations,
-        totalCourses,
-        totalEnrollments,
-        completedEnrollments,
-        avgCompletionRate,
-        engagementRate,
-        // ✅ New breakdown by userType
-        userTypeBreakdown: {
-          orgOwners,
-          invitedMembers,
-          individualUsers,
-        },
-      },
-      activities,
+      stats: data.stats,
+      activities: data.activities,
     };
   }
 
@@ -2753,44 +2909,64 @@ public async GetProfile(@Request() req: any) {
     return { message: "Dark mode updated successfully", settings: updated };
   }
 
-  @Security("bearerAuth")
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authenticated" };
-    }
-
-    await prisma.user.update({
-      where: { id: userId },
-      data: { isOnline: false, lastActive: new Date() },
-    });
-
-    // Revoke the session for the device that is logging out.
+    // Deliberately NOT behind @Security("bearerAuth").
     //
-    // This handler previously did not touch userSession at all: it flipped
-    // isOnline and cleared a cookie, which meant the tokens it had just
-    // handed out stayed valid until they expired. The `isRevoked: true`
-    // writes elsewhere in this file all live in Login (each role branch
-    // retires the previous session for a device), so nothing in the codebase
-    // revoked anything at logout.
+    // An access token is only good for 15 minutes, and logging out is
+    // exactly the action someone takes after being away — the token is
+    // often already expired by the time they click it. Gating this route on
+    // a valid token meant tsoa rejected the request with 401 before this
+    // handler ever ran, so the session was never actually revoked server
+    // side: the client cleared its own cookies and *looked* logged out, but
+    // the token, if it had leaked, was still live until natural expiry.
     //
-    // Scoped by userId as well as deviceId: deviceId arrives from a
-    // client-controlled header, and an unscoped update would let one account
-    // log another one out.
+    // The device ID cookie (httpOnly, set by us on login) is what actually
+    // identifies which session to revoke, and it doesn't expire on the same
+    // clock as the access token — so it remains the authoritative source
+    // even when the bearer token can't be trusted to verify.
     const deviceId =
       req.deviceId ||
       (req.headers?.["x-device-id"] as string | undefined) ||
       req.cookies?.deviceId;
 
+    // Best-effort: identify the user so we can flip isOnline. Accept an
+    // expired access token here — its signature still proves who it
+    // belonged to, which is all this needs. Never let a decode failure
+    // block revocation, since deviceId alone is enough to do that safely
+    // (userSession.deviceId is unique, so it names exactly one session).
+    let userId: string | undefined = req.user?.id;
+    if (!userId) {
+      const authHeader = req.headers?.authorization as string | undefined;
+      const bearerToken = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : undefined;
+      const token = bearerToken || (req.cookies?.accessToken as string | undefined);
+      if (token) {
+        try {
+          const decoded: any = jwt.verify(token, process.env.ACCESS_SECRET!, {
+            ignoreExpiration: true,
+          });
+          userId = decoded?.id || decoded?.userId;
+        } catch {
+          // Unsigned/corrupted token: fall through, deviceId still works.
+        }
+      }
+    }
+
     if (deviceId) {
-      await prisma.userSession.updateMany({
-        where: { deviceId, userId },
+      const revoked = await prisma.userSession.updateMany({
+        where: { deviceId },
         data: { isRevoked: true },
       });
-    } else {
+      if (!userId && revoked.count > 0) {
+        const session = await prisma.userSession.findUnique({
+          where: { deviceId },
+          select: { userId: true },
+        });
+        userId = session?.userId;
+      }
+    } else if (userId) {
       // No device to identify: retire every session for this user rather than
       // silently leaving them all live.
       console.warn(`[Logout] no deviceId for user ${userId} — revoking all their sessions`);
@@ -2798,6 +2974,19 @@ public async GetProfile(@Request() req: any) {
         where: { userId },
         data: { isRevoked: true },
       });
+    } else {
+      console.warn("[Logout] no deviceId and no identifiable user — nothing to revoke");
+    }
+
+    if (userId) {
+      await prisma.user
+        .update({
+          where: { id: userId },
+          data: { isOnline: false, lastActive: new Date() },
+        })
+        .catch((err) =>
+          console.warn(`[Logout] failed to update isOnline for ${userId}:`, err),
+        );
     }
 
     if (req.res) {

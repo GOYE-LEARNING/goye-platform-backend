@@ -19,6 +19,7 @@ import {
 } from "../utils/ai_utils/mentor_match_client";
 import { NotificationService, Role, NotificationType } from "../services/notificationServices";
 import { EncryptionUtil } from "../utils/encryption";
+import { AI_ENABLED } from "../config/featureFlags";
 
 async function studentNameFor(userId: string): Promise<string> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { first_name: true, last_name: true } });
@@ -34,16 +35,24 @@ async function studentNameFor(userId: string): Promise<string> {
 // whole request over it.
 async function openMentorConnection(studentId: string, studentName: string, matchedTutor: { id: string; name: string; reason: string }) {
   try {
+    // reason comes from the AI's tool-call arguments (mentor_match_functions.ts
+    // in ShekiAI) — only "required" in the tool description, which the model
+    // doesn't always honor, so a template literal here could otherwise
+    // interpolate the literal string "undefined" into a real notification.
+    const reason = matchedTutor.reason && matchedTutor.reason !== "undefined"
+      ? matchedTutor.reason
+      : "a great fit for what you're looking for";
+
     await NotificationService.createNotification({
       title: "New mentorship request",
-      message: `${studentName} is looking for a mentor and thinks you'd be a great fit: "${matchedTutor.reason}"`,
+      message: `${studentName} is looking for a mentor and thinks you'd be a great fit: "${reason}"`,
       type: NotificationType.MENTOR_REQUEST,
       role: Role.STUDENT,
       to: Role.TUTOR,
       userId: matchedTutor.id,
     });
 
-    const intro = `Hi ${matchedTutor.name}! I'm ${studentName} — ${matchedTutor.reason} I'd love your help if you're open to it!`;
+    const intro = `Hi ${matchedTutor.name}! I'm ${studentName} — ${reason} I'd love your help if you're open to it!`;
     await prisma.privateMessage.create({
       data: {
         id: randomUUID(),
@@ -74,12 +83,23 @@ function proxyFailure(this: Controller, route: string, error: any) {
   };
 }
 
+function aiDisabled(this: Controller) {
+  this.setStatus(503);
+  return {
+    message: "The AI assistant is currently unavailable.",
+    data: [],
+    status: 503,
+    error: ["ai_disabled"],
+  };
+}
+
 @Security("bearerAuth")
 @Tags("Mentor Match AI")
 @Route("mentor-match")
 export class MentorMatchController extends Controller {
   @Post("start")
   public async Start(@Request() req: any, @Body() body: { message?: string }): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const name = await studentNameFor(req.user.id);
       const result = await startMentorMatch(req.user.id, name, body?.message);
@@ -94,6 +114,7 @@ export class MentorMatchController extends Controller {
 
   @Post("{sessionId}/message")
   public async Message(@Path() sessionId: string, @Request() req: any, @Body() body: { message: string }): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const name = await studentNameFor(req.user.id);
       const result = await sendMentorMatchMessage(sessionId, req.user.id, name, body.message);
@@ -108,6 +129,7 @@ export class MentorMatchController extends Controller {
 
   @Get("{sessionId}")
   public async GetSession(@Path() sessionId: string, @Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await getMentorMatchSession(sessionId, req.user.id);
       this.setStatus(result.status);
@@ -119,6 +141,7 @@ export class MentorMatchController extends Controller {
 
   @Get("mine/list")
   public async ListMine(@Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await listMentorMatchSessions(req.user.id);
       this.setStatus(result.status);
@@ -130,6 +153,7 @@ export class MentorMatchController extends Controller {
 
   @Post("{sessionId}/abandon")
   public async Abandon(@Path() sessionId: string, @Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await abandonMentorMatch(sessionId, req.user.id);
       this.setStatus(result.status);
@@ -145,6 +169,7 @@ export class MentorMatchController extends Controller {
     @Request() req: any,
     @UploadedFile() document: Express.Multer.File,
   ): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await sendMentorMatchDocument(sessionId, req.user.id, await studentNameFor(req.user.id), document);
       this.setStatus(result.status);

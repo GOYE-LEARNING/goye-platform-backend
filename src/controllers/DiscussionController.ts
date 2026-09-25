@@ -22,6 +22,7 @@ import {
 import { EncryptionUtil } from "../utils/encryption";
 import { MediaService } from "../services/mediaServices";
 import { CacheKeys, TTL, useCacheAside } from "../utils/redis";
+import { assertCanStartPrivateChat, ORG_LEADER_ROLES } from "../utils/chatPermissions";
 // ==================== INTERFACES ====================
 
 interface MediaItem {
@@ -261,52 +262,66 @@ export class DiscussionController extends Controller {
         orderBy = { likes: { _count: "desc" } };
       }
 
-      const discussions = await prisma.discussion.findMany({
-        where: {
-          isPublic: true,
-          parentId: null,
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
+      // Cached without the caller's identity in the key on purpose: the query
+      // itself is the same for everyone. Likes are fetched unfiltered (every
+      // liker's userId) so the cached payload works for any caller, and the
+      // per-user `liked` flag is derived below, outside the cache, the same
+      // way GetGroup derives `hasJoined`.
+      const { discussions, totalCount } = await useCacheAside(
+        CacheKeys.publicDiscussions(sort, page, limit),
+        TTL.short,
+        async () => {
+          const discussions = await prisma.discussion.findMany({
+            where: {
+              isPublic: true,
+              parentId: null,
             },
-          },
-          _count: {
-            select: {
-              replies: true,
-              likes: true,
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                  role: true,
+                },
+              },
+              _count: {
+                select: {
+                  replies: true,
+                  likes: true,
+                },
+              },
+              // Unfiltered so the cached result isn't tied to one caller.
+              likes: {
+                select: { userId: true },
+              },
             },
-          },
-          // Include likes to check if current user liked this discussion
-          likes: {
-            where: { userId: userId },
-            select: { userId: true },
-          },
+            orderBy,
+            skip,
+            take: limit,
+          });
+
+          const totalCount = await prisma.discussion.count({
+            where: {
+              isPublic: true,
+              parentId: null,
+            },
+          });
+
+          return { discussions, totalCount };
         },
-        orderBy,
-        skip,
-        take: limit,
-      });
+      );
 
       // DECRYPT each discussion content and add liked status
       const decryptedDiscussions = discussions.map((discussion) => ({
         ...discussion,
         content: EncryptionUtil.decrypt(discussion.content),
-        liked: discussion.likes && discussion.likes.length > 0, // This adds the liked field
+        liked:
+          discussion.likes &&
+          discussion.likes.some((like) => like.userId === userId), // This adds the liked field
         likes: undefined, // Remove the likes array from response
       }));
-
-      const totalCount = await prisma.discussion.count({
-        where: {
-          isPublic: true,
-          parentId: null,
-        },
-      });
 
       this.setStatus(200);
       return {
@@ -566,7 +581,7 @@ export class DiscussionController extends Controller {
 
       if (parent.authorId !== userId) {
         await NotificationService.createNotification({
-          message: `${req.user?.first_name} ${req.user?.last_name} replied to your discussion`,
+          message: `${reply.author.first_name} ${reply.author.last_name} replied to your discussion`,
           title: "New Reply",
           type: "discussion",
           role:
@@ -709,7 +724,7 @@ export class DiscussionController extends Controller {
       // Send notification to the user being replied to
       if (parentReply.authorId !== userId) {
         await NotificationService.createNotification({
-          message: `${req.user?.first_name} ${req.user?.last_name} replied to your comment: "${body.content.substring(0, 50)}..."`,
+          message: `${nestedReply.author.first_name} ${nestedReply.author.last_name} replied to your comment: "${body.content.substring(0, 50)}..."`,
           title: "New Reply",
           type: "discussion",
           role:
@@ -1160,6 +1175,12 @@ export class DiscussionController extends Controller {
         return { message: "You cannot send a message to yourself" };
       }
 
+      const permission = await assertCanStartPrivateChat(userId, body.receiverId);
+      if (permission.allowed === false) {
+        this.setStatus(403);
+        return { message: permission.message };
+      }
+
       const encryptedContent = EncryptionUtil.encrypt(body.content);
 
       const message = await prisma.privateMessage.create({
@@ -1209,7 +1230,7 @@ export class DiscussionController extends Controller {
         : null;
 
       await NotificationService.createNotification({
-        message: `${req.user?.first_name} ${req.user?.last_name} sent you a private message`,
+        message: `${message.sender.first_name} ${message.sender.last_name} sent you a private message`,
         title: "New Private Message",
         type: "private_message",
         role: receiver.role === "instructor" ? Role.INSTRUCTOR : Role.STUDENT,
@@ -1280,52 +1301,57 @@ export class DiscussionController extends Controller {
         orderBy: { createdAt: "desc" },
       });
 
+      // Unread count for a given conversation partner is always the same
+      // query (`senderId: partner, receiverId: userId, readAt: null`)
+      // regardless of which loop below reaches them first — so instead of
+      // firing it per partner (and, in the previous version, sometimes
+      // twice for the same partner), batch it once for every partner
+      // up front.
+      const partnerIds = Array.from(
+        new Set([
+          ...sentMessages.map((msg) => msg.receiverId),
+          ...receivedMessages.map((msg) => msg.senderId),
+        ]),
+      );
+      const unreadGroups =
+        partnerIds.length > 0
+          ? await prisma.privateMessage.groupBy({
+              by: ["senderId"],
+              where: {
+                senderId: { in: partnerIds },
+                receiverId: userId,
+                readAt: null,
+              },
+              _count: { _all: true },
+            })
+          : [];
+      const unreadCountByPartner = new Map<string, number>(
+        unreadGroups.map((row) => [row.senderId, row._count._all]),
+      );
+
       const conversationsMap = new Map();
 
       for (const msg of sentMessages) {
         if (!conversationsMap.has(msg.receiverId)) {
-          const unreadCount = await prisma.privateMessage.count({
-            where: {
-              senderId: msg.receiverId,
-              receiverId: userId,
-              readAt: null,
-            },
-          });
-
           conversationsMap.set(msg.receiverId, {
             user: msg.receiver,
             lastMessageAt: msg.createdAt,
-            unreadCount,
+            unreadCount: unreadCountByPartner.get(msg.receiverId) || 0,
           });
         }
       }
 
       for (const msg of receivedMessages) {
+        const unreadCount = unreadCountByPartner.get(msg.senderId) || 0;
         if (!conversationsMap.has(msg.senderId)) {
-          const unreadCount = await prisma.privateMessage.count({
-            where: {
-              senderId: msg.senderId,
-              receiverId: userId,
-              readAt: null,
-            },
-          });
-
           conversationsMap.set(msg.senderId, {
             user: msg.sender,
             lastMessageAt: msg.createdAt,
             unreadCount,
           });
         } else {
-          const existing = conversationsMap.get(msg.senderId);
-          const unreadCount = await prisma.privateMessage.count({
-            where: {
-              senderId: msg.senderId,
-              receiverId: userId,
-              readAt: null,
-            },
-          });
           conversationsMap.set(msg.senderId, {
-            ...existing,
+            ...conversationsMap.get(msg.senderId),
             unreadCount,
           });
         }
@@ -1840,7 +1866,7 @@ export class DiscussionController extends Controller {
       }
 
       // Remove duplicate tutors and sort by name
-      const uniqueTutors = tutors.reduce((acc, current) => {
+      let uniqueTutors = tutors.reduce((acc, current) => {
         const exists = acc.find((t) => t.id === current.id);
         if (!exists) {
           acc.push(current);
@@ -1848,54 +1874,102 @@ export class DiscussionController extends Controller {
         return acc;
       }, []);
 
+      // A rank-and-file org member can only actually message their own
+      // org's admins/instructors (enforced in SendPrivateMessage) — filter
+      // the list to match, so the picker never shows a "tutor" (e.g. an
+      // independent/diaspora instructor from an enrolled public course)
+      // that a send attempt would then reject.
+      if (!isInstructor) {
+        const senderMembership = await prisma.organizationMember.findFirst({
+          where: { userId, isActive: true },
+          select: { organizationId: true },
+        });
+        if (senderMembership && !ORG_LEADER_ROLES.includes(user?.role || "")) {
+          const orgMembers = await prisma.organizationMember.findMany({
+            where: { organizationId: senderMembership.organizationId, isActive: true },
+            select: { userId: true, user: { select: { role: true } } },
+          });
+          const orgLeaderIds = new Set(
+            orgMembers
+              .filter((m) => ORG_LEADER_ROLES.includes(m.user.role))
+              .map((m) => m.userId),
+          );
+          uniqueTutors = uniqueTutors.filter((t: any) => orgLeaderIds.has(t.id));
+        }
+      }
+
       uniqueTutors.sort((a, b) => a.first_name.localeCompare(b.first_name));
 
-      // Get last message and unread count for each tutor
-      const tutorsWithMessages = await Promise.all(
-        uniqueTutors.map(async (tutor) => {
-          // Get last message between current user and this tutor
-          const lastMessage = await prisma.privateMessage.findFirst({
-            where: {
-              OR: [
-                { senderId: userId, receiverId: tutor.id },
-                { senderId: tutor.id, receiverId: userId },
-              ],
-            },
-            orderBy: { createdAt: "desc" },
-            select: {
-              content: true,
-              createdAt: true,
-              senderId: true,
-            },
-          });
+      // Get last message and unread count for each tutor — batched into two
+      // queries total instead of two PER TUTOR, which used to make this
+      // contacts list (loaded on every visit to messaging) scale linearly
+      // with the number of tutors.
+      const tutorIds = uniqueTutors.map((tutor: any) => tutor.id);
+      const [recentMessages, unreadGroups] = await Promise.all([
+        tutorIds.length > 0
+          ? prisma.privateMessage.findMany({
+              where: {
+                OR: [
+                  { senderId: userId, receiverId: { in: tutorIds } },
+                  { senderId: { in: tutorIds }, receiverId: userId },
+                ],
+              },
+              orderBy: { createdAt: "desc" },
+              select: {
+                content: true,
+                createdAt: true,
+                senderId: true,
+                receiverId: true,
+              },
+            })
+          : Promise.resolve([]),
+        tutorIds.length > 0
+          ? prisma.privateMessage.groupBy({
+              by: ["senderId"],
+              where: {
+                senderId: { in: tutorIds },
+                receiverId: userId,
+                readAt: null,
+              },
+              _count: { _all: true },
+            })
+          : Promise.resolve([]),
+      ]);
 
-          // Get unread count
-          const unreadCount = await prisma.privateMessage.count({
-            where: {
-              senderId: tutor.id,
-              receiverId: userId,
-              readAt: null,
-            },
-          });
-
-          // Decrypt last message content if exists
-          let lastMessageContent = null;
-          if (lastMessage) {
-            lastMessageContent = {
-              text: EncryptionUtil.decrypt(lastMessage.content),
-              time: lastMessage.createdAt,
-              isFromCurrentUser: lastMessage.senderId === userId,
-            };
-          }
-
-          return {
-            ...tutor,
-            lastMessage: lastMessageContent,
-            unreadCount,
-            online: false, // Will be updated by Socket.IO
-          };
-        }),
+      // recentMessages is already ordered newest-first, so the first time we
+      // see a given conversation partner IS their most recent message —
+      // same result `findFirst` + `orderBy: desc` gave per tutor before.
+      const lastMessageByTutor = new Map<string, (typeof recentMessages)[number]>();
+      for (const message of recentMessages) {
+        const otherPartyId = message.senderId === userId ? message.receiverId : message.senderId;
+        if (otherPartyId && !lastMessageByTutor.has(otherPartyId)) {
+          lastMessageByTutor.set(otherPartyId, message);
+        }
+      }
+      const unreadCountByTutor = new Map<string, number>(
+        unreadGroups.map((row: any) => [row.senderId as string, row._count._all]),
       );
+
+      const tutorsWithMessages = uniqueTutors.map((tutor: any) => {
+        const lastMessage = lastMessageByTutor.get(tutor.id);
+        const unreadCount = unreadCountByTutor.get(tutor.id) || 0;
+
+        let lastMessageContent = null;
+        if (lastMessage) {
+          lastMessageContent = {
+            text: EncryptionUtil.decrypt(lastMessage.content),
+            time: lastMessage.createdAt,
+            isFromCurrentUser: lastMessage.senderId === userId,
+          };
+        }
+
+        return {
+          ...tutor,
+          lastMessage: lastMessageContent,
+          unreadCount,
+          online: false, // Will be updated by Socket.IO
+        };
+      });
 
       // Group tutors by conversation time
       const today: any[] = [];
@@ -2247,49 +2321,72 @@ export class DiscussionController extends Controller {
       const students = Array.from(studentMap.values());
       students.sort((a, b) => a.first_name.localeCompare(b.first_name));
 
-      // 6. Get last message and unread count for each student
-      const studentsWithMessages = await Promise.all(
-        students.map(async (student) => {
-          const lastMessage = await prisma.privateMessage.findFirst({
-            where: {
-              OR: [
-                { senderId: userId, receiverId: student.id },
-                { senderId: student.id, receiverId: userId },
-              ],
-            },
-            orderBy: { createdAt: "desc" },
-            select: {
-              content: true,
-              createdAt: true,
-              senderId: true,
-            },
-          });
+      // 6. Get last message and unread count for each student — batched
+      // into two queries total instead of two PER STUDENT (mirrors the same
+      // fix in GetAvailableTutors above).
+      const studentIds = students.map((student: any) => student.id);
+      const [recentMessages, unreadGroups] = await Promise.all([
+        studentIds.length > 0
+          ? prisma.privateMessage.findMany({
+              where: {
+                OR: [
+                  { senderId: userId, receiverId: { in: studentIds } },
+                  { senderId: { in: studentIds }, receiverId: userId },
+                ],
+              },
+              orderBy: { createdAt: "desc" },
+              select: {
+                content: true,
+                createdAt: true,
+                senderId: true,
+                receiverId: true,
+              },
+            })
+          : Promise.resolve([]),
+        studentIds.length > 0
+          ? prisma.privateMessage.groupBy({
+              by: ["senderId"],
+              where: {
+                senderId: { in: studentIds },
+                receiverId: userId,
+                readAt: null,
+              },
+              _count: { _all: true },
+            })
+          : Promise.resolve([]),
+      ]);
 
-          const unreadCount = await prisma.privateMessage.count({
-            where: {
-              senderId: student.id,
-              receiverId: userId,
-              readAt: null,
-            },
-          });
-
-          let lastMessageContent = null;
-          if (lastMessage) {
-            lastMessageContent = {
-              text: EncryptionUtil.decrypt(lastMessage.content),
-              time: lastMessage.createdAt,
-              isFromCurrentUser: lastMessage.senderId === userId,
-            };
-          }
-
-          return {
-            ...student,
-            lastMessage: lastMessageContent,
-            unreadCount,
-            online: false,
-          };
-        }),
+      const lastMessageByStudent = new Map<string, (typeof recentMessages)[number]>();
+      for (const message of recentMessages) {
+        const otherPartyId = message.senderId === userId ? message.receiverId : message.senderId;
+        if (otherPartyId && !lastMessageByStudent.has(otherPartyId)) {
+          lastMessageByStudent.set(otherPartyId, message);
+        }
+      }
+      const unreadCountByStudent = new Map<string, number>(
+        unreadGroups.map((row: any) => [row.senderId as string, row._count._all]),
       );
+
+      const studentsWithMessages = students.map((student: any) => {
+        const lastMessage = lastMessageByStudent.get(student.id);
+        const unreadCount = unreadCountByStudent.get(student.id) || 0;
+
+        let lastMessageContent = null;
+        if (lastMessage) {
+          lastMessageContent = {
+            text: EncryptionUtil.decrypt(lastMessage.content),
+            time: lastMessage.createdAt,
+            isFromCurrentUser: lastMessage.senderId === userId,
+          };
+        }
+
+        return {
+          ...student,
+          lastMessage: lastMessageContent,
+          unreadCount,
+          online: false,
+        };
+      });
 
       // 7. Group by conversation time (today, yesterday, persons)
       const today: any[] = [];

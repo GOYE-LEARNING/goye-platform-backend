@@ -3,6 +3,7 @@ import { Server, Socket } from "socket.io";
 import prisma from "../db";
 import { EncryptionUtil } from "../utils/encryption";
 import { SOCKET_EVENTS, ALLOWED_ORIGINS } from "../utils/constant";
+import { assertCanStartPrivateChat } from "../utils/chatPermissions";
 import jwt from "jsonwebtoken";
 
 interface SocketUser {
@@ -678,6 +679,14 @@ export class SocketService {
         if (!receiverId || !content) {
           socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
             message: "Invalid message data",
+          });
+          return;
+        }
+
+        const permission = await assertCanStartPrivateChat(senderId, receiverId);
+        if (permission.allowed === false) {
+          socket.emit(SOCKET_EVENTS.PRIVATE_ERROR, {
+            message: permission.message,
           });
           return;
         }

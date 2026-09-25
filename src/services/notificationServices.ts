@@ -200,7 +200,8 @@ export class NotificationService {
             | "reset-password"
             | "invitation"
             | "org-verification"
-            | "broadcast" = "broadcast";
+            | "broadcast"
+            | "motivation" = "broadcast";
           const additionalData: any = {
             userName: `${userExists.first_name} ${userExists.last_name}`,
           };
@@ -214,6 +215,16 @@ export class NotificationService {
           } else if (data.type === NotificationType.SYSTEM_ANNOUNCEMENT) {
             mappedEmailType = "broadcast";
             additionalData.heading = notification.title;
+          } else if (
+            data.type === NotificationType.COURSE_UPDATE &&
+            data.title === "Keep learning!"
+          ) {
+            // The tutor "Notify" reminder — swaps the plain broadcast card for
+            // one with a progress bar and a "Continue Course" CTA.
+            mappedEmailType = "motivation";
+            additionalData.courseName =
+              data.data?.courseName || notification.course?.course_title;
+            additionalData.progressPercentage = data.data?.progressPercentage;
           }
 
           // Offload the heavy fetch request completely to the worker
@@ -467,6 +478,8 @@ export class NotificationService {
         await this.socketService.sendUnreadCount(userId);
       }
 
+      await invalidateNotificationCaches(userId);
+
       return notification;
     } catch (error) {
       console.error("Error in archiveNotification:", error);
@@ -493,6 +506,11 @@ export class NotificationService {
       if (this.socketService) {
         await this.socketService.sendUnreadCount(userId);
       }
+
+      // The counts endpoint caches unread/total behind a short TTL — without
+      // this, a just-read notification keeps counting as unread until that
+      // TTL expires, so the bell badge doesn't budge right after "mark as read".
+      await invalidateNotificationCaches(userId);
 
       return notification;
     } catch (error) {
@@ -789,12 +807,16 @@ export class NotificationService {
    */
   static async deleteNotification(notificationId: string, userId: string) {
     try {
-      return await prisma.notification.delete({
+      const notification = await prisma.notification.delete({
         where: {
           id: notificationId,
           userId: userId,
         },
       });
+
+      await invalidateNotificationCaches(userId);
+
+      return notification;
     } catch (error) {
       console.error("Error in deleteNotification:", error);
       throw error;

@@ -23,6 +23,8 @@ import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
 import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
 import { useCacheAside, CacheKeys, TTL, invalidateOrgCaches } from "../utils/redis";
+import { assertOrgAdminOf, decodeOptionalRequester } from "../utils/orgPermissions";
+import { Role } from "../services/notificationServices";
 
 @Route("organizations")
 @Tags("Organization Controllers")
@@ -675,112 +677,120 @@ public async GetUserDetails(
       const range = (req.query?.range as string) || "today";
       const customDate = req.query?.date as string | undefined;
 
-      const { rangeStart, rangeEnd, prevRangeStart, prevRangeEnd } =
-        this.resolveDateRange(range, customDate);
+      const data = await useCacheAside(
+        CacheKeys.orgOverview(organizationId, range, customDate),
+        TTL.short,
+        async () => {
+          const { rangeStart, rangeEnd, prevRangeStart, prevRangeEnd } =
+            this.resolveDateRange(range, customDate);
 
-      // ── Active members: all users in the org ────────────────────────────
-      const members = await prisma.organizationMember.findMany({
-        where: { organizationId, isActive: true },
-        select: { userId: true },
-      });
-      const memberIds = members.map((m) => m.userId);
-      const totalMembers = memberIds.length;
+          // ── Active members: all users in the org ────────────────────────────
+          const members = await prisma.organizationMember.findMany({
+            where: { organizationId, isActive: true },
+            select: { userId: true },
+          });
+          const memberIds = members.map((m) => m.userId);
+          const totalMembers = memberIds.length;
 
-      // ── Online count: prefer live socket service if available ──────────
-      let onlineCount = 0;
-      const socketService = req.app?.get?.("socketService") as
-        | { getOrganizationOnlineUsers: (id: string) => any[] }
-        | undefined;
+          // ── Online count: prefer live socket service if available ──────────
+          let onlineCount = 0;
+          const socketService = req.app?.get?.("socketService") as
+            | { getOrganizationOnlineUsers: (id: string) => any[] }
+            | undefined;
 
-      if (socketService) {
-        onlineCount =
-          socketService.getOrganizationOnlineUsers(organizationId).length;
-      } else {
-        // Fallback: DB flag, "online" = active in the last 5 minutes
-        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-        onlineCount = await prisma.user.count({
-          where: {
-            id: { in: memberIds },
-            isOnline: true,
-            lastActive: { gte: fiveMinAgo },
-          },
-        });
-      }
+          if (socketService) {
+            onlineCount =
+              socketService.getOrganizationOnlineUsers(organizationId).length;
+          } else {
+            // Fallback: DB flag, "online" = active in the last 5 minutes
+            const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+            onlineCount = await prisma.user.count({
+              where: {
+                id: { in: memberIds },
+                isOnline: true,
+                lastActive: { gte: fiveMinAgo },
+              },
+            });
+          }
 
-      // ── New members within the selected range ───────────────────────────
-      const newMembersInRange = await prisma.organizationMember.count({
-        where: {
-          organizationId,
-          isActive: true,
-          joinedAt: { gte: rangeStart, lte: rangeEnd },
-        },
-      });
-
-      const newMembersPrevRange = prevRangeStart
-        ? await prisma.organizationMember.count({
+          // ── New members within the selected range ───────────────────────────
+          const newMembersInRange = await prisma.organizationMember.count({
             where: {
               organizationId,
               isActive: true,
-              joinedAt: { gte: prevRangeStart, lte: prevRangeEnd! },
+              joinedAt: { gte: rangeStart, lte: rangeEnd },
             },
-          })
-        : 0;
+          });
 
-      // ── Courses completed within range (org-scoped) ──────────────────────
-      const completedInRange = await prisma.enrollment.count({
-        where: {
-          userId: { in: memberIds },
-          status: "COMPLETED",
-          completedAt: { gte: rangeStart, lte: rangeEnd },
-        },
-      });
-
-      const totalCompletedAllTime = await prisma.enrollment.count({
-        where: {
-          userId: { in: memberIds },
-          status: "COMPLETED",
-        },
-      });
-
-      const totalEnrollments = await prisma.enrollment.count({
-        where: { userId: { in: memberIds } },
-      });
-
-      const avgCompletion =
-        totalEnrollments > 0
-          ? Math.round((totalCompletedAllTime / totalEnrollments) * 100)
-          : 0;
-
-      // ── % change vs previous equivalent period (for UI trend arrows) ─────
-      const newMembersTrend =
-        newMembersPrevRange > 0
-          ? Math.round(
-              ((newMembersInRange - newMembersPrevRange) /
-                newMembersPrevRange) *
-                100,
-            )
-          : newMembersInRange > 0
-            ? 100
+          const newMembersPrevRange = prevRangeStart
+            ? await prisma.organizationMember.count({
+                where: {
+                  organizationId,
+                  isActive: true,
+                  joinedAt: { gte: prevRangeStart, lte: prevRangeEnd! },
+                },
+              })
             : 0;
+
+          // ── Courses completed within range (org-scoped) ──────────────────────
+          const completedInRange = await prisma.enrollment.count({
+            where: {
+              userId: { in: memberIds },
+              status: "COMPLETED",
+              completedAt: { gte: rangeStart, lte: rangeEnd },
+            },
+          });
+
+          const totalCompletedAllTime = await prisma.enrollment.count({
+            where: {
+              userId: { in: memberIds },
+              status: "COMPLETED",
+            },
+          });
+
+          const totalEnrollments = await prisma.enrollment.count({
+            where: { userId: { in: memberIds } },
+          });
+
+          const avgCompletion =
+            totalEnrollments > 0
+              ? Math.round((totalCompletedAllTime / totalEnrollments) * 100)
+              : 0;
+
+          // ── % change vs previous equivalent period (for UI trend arrows) ─────
+          const newMembersTrend =
+            newMembersPrevRange > 0
+              ? Math.round(
+                  ((newMembersInRange - newMembersPrevRange) /
+                    newMembersPrevRange) *
+                    100,
+                )
+              : newMembersInRange > 0
+                ? 100
+                : 0;
+
+          return {
+            total_members: totalMembers,
+            online_members: onlineCount,
+            new_members_in_range: newMembersInRange,
+            new_members_trend_pct: newMembersTrend,
+            courses_completed_in_range: completedInRange,
+            total_courses_completed: totalCompletedAllTime,
+            avg_completion: avgCompletion,
+            range: {
+              type: range,
+              start: rangeStart,
+              end: rangeEnd,
+            },
+          };
+        },
+      );
 
       this.setStatus(200);
       return {
         success: true,
         message: "Organization overview stats fetched successfully",
-        data: {
-          total_members: totalMembers,
-          online_members: onlineCount,
-          new_members_in_range: newMembersInRange,
-          new_members_trend_pct: newMembersTrend,
-          courses_completed_in_range: completedInRange,
-          total_courses_completed: totalCompletedAllTime,
-          avg_completion: avgCompletion,
-          range: {
-            type: range,
-            start: rangeStart,
-            end: rangeEnd,
-          },
-        },
+        data,
       };
     } catch (error: any) {
       console.error("Error fetching organization overview stats:", error);
@@ -819,6 +829,10 @@ public async GetUserDetails(
         };
       }
 
+      const data = await useCacheAside(
+        CacheKeys.orgActivities(organizationId),
+        TTL.short,
+        async () => {
       // Get all active members of the organization
       const members = await prisma.organizationMember.findMany({
         where: {
@@ -1334,23 +1348,27 @@ public async GetUserDetails(
       // Limit to the most recent 50 activities
       const recentActivities = activities.slice(0, 50);
 
+          return {
+            activities: recentActivities,
+            total: recentActivities.length,
+            summary: {
+              course_joins: courseJoins.length,
+              course_completions: courseCompletions.length,
+              event_joins: eventJoins.length,
+              group_joins: groupJoins.length,
+              posts: posts.length,
+              quiz_completions: quizCompletions.length,
+              achievements: achievements.length,
+            },
+          };
+        },
+      );
+
       this.setStatus(200);
       return {
         success: true,
         message: "Organization activities fetched successfully",
-        data: {
-          activities: recentActivities,
-          total: recentActivities.length,
-          summary: {
-            course_joins: courseJoins.length,
-            course_completions: courseCompletions.length,
-            event_joins: eventJoins.length,
-            group_joins: groupJoins.length,
-            posts: posts.length,
-            quiz_completions: quizCompletions.length,
-            achievements: achievements.length,
-          },
-        },
+        data,
       };
     } catch (error: any) {
       console.error("Error fetching organization activities:", error);
@@ -1585,6 +1603,13 @@ public async GetUserDetails(
         };
       }
 
+      const data = await useCacheAside(
+        CacheKeys.orgBreakdown(organizationId),
+        // Includes a live online-member count, same as GetOrganizationOverviewStats
+        // a few hundred lines up — matching its TTL.short so both views show a
+        // similarly-fresh "online now" figure instead of this one lagging 5x longer.
+        TTL.short,
+        async () => {
       // Get all active members of the organization
       const members = await prisma.organizationMember.findMany({
         where: {
@@ -1707,49 +1732,53 @@ public async GetUserDetails(
         socketOnlineCount = onlineCount;
       }
 
+          return {
+            // Main stats for the UI cards
+            total_members: totalMembers,
+            students: studentCount,
+            instructors: instructorCount,
+            admins: adminCount + orgAdminCount,
+            online_members: socketOnlineCount || onlineCount,
+            pending_invitations: pendingInvitations,
+
+            // Detailed breakdown
+            breakdown: {
+              by_role: {
+                student: studentCount,
+                instructor: instructorCount,
+                admin: adminCount,
+                org_admin: orgAdminCount,
+              },
+              by_user_type: {
+                invited_member: invitedMemberCount,
+                individual: individualCount,
+                organization_owner:
+                  totalMembers - invitedMemberCount - individualCount,
+              },
+            },
+
+            // Activity stats
+            activity: {
+              total_enrollments: totalEnrollments,
+              completed_courses: completedCourses,
+              in_progress_courses: inProgressCourses,
+              completion_rate:
+                totalEnrollments > 0
+                  ? Math.round((completedCourses / totalEnrollments) * 100)
+                  : 0,
+            },
+
+            // Timestamp
+            fetched_at: new Date().toISOString(),
+          };
+        },
+      );
+
       this.setStatus(200);
       return {
         success: true,
         message: "User breakdown fetched successfully",
-        data: {
-          // Main stats for the UI cards
-          total_members: totalMembers,
-          students: studentCount,
-          instructors: instructorCount,
-          admins: adminCount + orgAdminCount,
-          online_members: socketOnlineCount || onlineCount,
-          pending_invitations: pendingInvitations,
-
-          // Detailed breakdown
-          breakdown: {
-            by_role: {
-              student: studentCount,
-              instructor: instructorCount,
-              admin: adminCount,
-              org_admin: orgAdminCount,
-            },
-            by_user_type: {
-              invited_member: invitedMemberCount,
-              individual: individualCount,
-              organization_owner:
-                totalMembers - invitedMemberCount - individualCount,
-            },
-          },
-
-          // Activity stats
-          activity: {
-            total_enrollments: totalEnrollments,
-            completed_courses: completedCourses,
-            in_progress_courses: inProgressCourses,
-            completion_rate:
-              totalEnrollments > 0
-                ? Math.round((completedCourses / totalEnrollments) * 100)
-                : 0,
-          },
-
-          // Timestamp
-          fetched_at: new Date().toISOString(),
-        },
+        data,
       };
     } catch (error: any) {
       console.error("Error fetching user breakdown:", error);
@@ -2206,33 +2235,38 @@ public async GetUserDetails(
   @Get("/fetch-organizations")
   public async FetchOrganization(): Promise<any> {
     try {
-      const fetchOrganizationsType = await prisma.organization.findMany({
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              userType: true, // ✅ include userType
+      const fetchOrganizationsType = await useCacheAside(
+        CacheKeys.organizationsPublicList(),
+        TTL.medium,
+        async () =>
+          prisma.organization.findMany({
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                  userType: true, // ✅ include userType
+                },
+              },
+              Church: true,
+              school: true,
+              Club: true,
+              members: {
+                // ✅ include membership info
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  joinedVia: true,
+                  joinedAt: true,
+                  isActive: true,
+                },
+              },
             },
-          },
-          Church: true,
-          school: true,
-          Club: true,
-          members: {
-            // ✅ include membership info
-            select: {
-              id: true,
-              userId: true,
-              role: true,
-              joinedVia: true,
-              joinedAt: true,
-              isActive: true,
-            },
-          },
-        },
-      });
+          }),
+      );
 
       return {
         message: "Organization Fetched successfully",
@@ -2246,30 +2280,35 @@ public async GetUserDetails(
   @Get("/fetch-specific-organization/{id}")
   public async FetchSpecificOrganization(@Path() id: string) {
     try {
-      const fetchSpecificOrganization = await prisma.organization.findUnique({
-        where: { id },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              userType: true, // ✅
+      const fetchSpecificOrganization = await useCacheAside(
+        CacheKeys.orgPublicDetail(id),
+        TTL.medium,
+        async () =>
+          prisma.organization.findUnique({
+            where: { id },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                  userType: true, // ✅
+                },
+              },
+              members: {
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  joinedVia: true,
+                  joinedAt: true,
+                  isActive: true,
+                },
+              },
             },
-          },
-          members: {
-            select: {
-              id: true,
-              userId: true,
-              role: true,
-              joinedVia: true,
-              joinedAt: true,
-              isActive: true,
-            },
-          },
-        },
-      });
+          }),
+      );
 
       if (!fetchSpecificOrganization) {
         return {
@@ -2616,10 +2655,20 @@ public async GetUserDetails(
     }
   }
 
+  // Had no auth check at all — anyone could update any organization's
+  // profile by id. Can't use @Security("bearerAuth") here: this route is
+  // also called mid-signup (attaching an uploaded logo/document) right
+  // after CreateOrganization but BEFORE OTP verification, when no session
+  // cookie exists yet — that decorator would reject the request outright
+  // before this method ever ran. Instead: allow the update with no session
+  // while the org is still unverified (the brief, low-blast-radius signup
+  // window), and require a real admin-of-this-org session once it's
+  // verified.
   @Put("/update-organization/{id}")
   public async UpdateOrganization(
     @Path() id: string,
     @Body() body: Omit<OrganizationDTO, "id">,
+    @Request() req: any,
   ) {
     try {
       const findOrganization = await prisma.organization.findUnique({
@@ -2635,6 +2684,15 @@ public async GetUserDetails(
       if (!findOrganization) {
         this.setStatus(404);
         return { message: "This organization does not exist." };
+      }
+
+      if (findOrganization.isVerified) {
+        const requester = decodeOptionalRequester(req);
+        const permission = await assertOrgAdminOf({ user: requester }, id);
+        if (permission.ok === false) {
+          this.setStatus(permission.status);
+          return { success: false, message: permission.message };
+        }
       }
 
       const updateOrganization = await prisma.organization.update({
@@ -2717,6 +2775,8 @@ public async GetUserDetails(
         },
       });
 
+      await invalidateOrgCaches(id);
+
       return {
         message: "Organization updated successfully",
         data: updateOrganization,
@@ -2780,34 +2840,39 @@ public async GetUserDetails(
         return { message: "Unauthorized", status: 401 };
       }
 
-      const organization = await prisma.organization.findUnique({
-        where: { id: organizationId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              userType: true, // ✅
+      const organization = await useCacheAside(
+        CacheKeys.orgProfile(organizationId),
+        TTL.medium,
+        async () =>
+          prisma.organization.findUnique({
+            where: { id: organizationId },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                  userType: true, // ✅
+                },
+              },
+              Church: true,
+              school: true,
+              Club: true,
+              members: {
+                // ✅ return membership list
+                select: {
+                  id: true,
+                  userId: true,
+                  role: true,
+                  joinedVia: true,
+                  joinedAt: true,
+                  isActive: true,
+                },
+              },
             },
-          },
-          Church: true,
-          school: true,
-          Club: true,
-          members: {
-            // ✅ return membership list
-            select: {
-              id: true,
-              userId: true,
-              role: true,
-              joinedVia: true,
-              joinedAt: true,
-              isActive: true,
-            },
-          },
-        },
-      });
+          }),
+      );
 
       this.setStatus(200);
       return {
@@ -3201,6 +3266,10 @@ public async InviteUsersToOrganization(
       statusCode = 400;
     }
 
+    if (successful > 0) {
+      await invalidateOrgCaches(organizationId);
+    }
+
     this.setStatus(statusCode);
     return {
       success: successful > 0,
@@ -3479,6 +3548,8 @@ public async InviteUsersToOrganization(
         },
       );
 
+      await invalidateOrgCaches(organizationId);
+
       this.setStatus(200);
       return {
         success: true,
@@ -3521,56 +3592,64 @@ public async InviteUsersToOrganization(
         return { success: false, message: "Organization not found" };
       }
 
-      const invitations = await prisma.inviteUser.findMany({
-        where: { organizationId: organizationId },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          expiresIn: true,
-          createdAt: true,
-          sentById: true,
-        },
-      });
-
-      // ✅ Use userType instead of `invited: true`
-      const acceptedUsers = await prisma.user.findMany({
-        where: {
-          userType: "INVITED_MEMBER",
-          email_address: {
-            in: invitations.map((i) => i.email),
-          },
-        },
-        select: {
-          id: true,
-          email_address: true,
-          first_name: true,
-          last_name: true,
-          role: true,
-          userType: true, // ✅
-          createdAt: true,
-          // ✅ Also return their membership record
-          organizationMemberships: {
-            where: { organizationId },
+      const data = await useCacheAside(
+        CacheKeys.orgInvitedUsers(organizationId),
+        TTL.medium,
+        async () => {
+          const invitations = await prisma.inviteUser.findMany({
+            where: { organizationId: organizationId },
+            orderBy: { createdAt: "desc" },
             select: {
-              joinedVia: true,
-              joinedAt: true,
-              isActive: true,
+              id: true,
+              email: true,
+              role: true,
+              expiresIn: true,
+              createdAt: true,
+              sentById: true,
             },
-          },
+          });
+
+          // ✅ Use userType instead of `invited: true`
+          const acceptedUsers = await prisma.user.findMany({
+            where: {
+              userType: "INVITED_MEMBER",
+              email_address: {
+                in: invitations.map((i) => i.email),
+              },
+            },
+            select: {
+              id: true,
+              email_address: true,
+              first_name: true,
+              last_name: true,
+              role: true,
+              userType: true, // ✅
+              createdAt: true,
+              // ✅ Also return their membership record
+              organizationMemberships: {
+                where: { organizationId },
+                select: {
+                  joinedVia: true,
+                  joinedAt: true,
+                  isActive: true,
+                },
+              },
+            },
+          });
+
+          return {
+            pending: invitations.filter((i) => i.expiresIn > new Date()),
+            expired: invitations.filter((i) => i.expiresIn <= new Date()),
+            accepted: acceptedUsers,
+          };
         },
-      });
+      );
 
       this.setStatus(200);
       return {
         success: true,
         message: "Invited users fetched successfully",
-        data: {
-          pending: invitations.filter((i) => i.expiresIn > new Date()),
-          expired: invitations.filter((i) => i.expiresIn <= new Date()),
-          accepted: acceptedUsers,
-        },
+        data,
       };
     } catch (error: any) {
       console.error("Error fetching invited users:", error);
@@ -3643,6 +3722,8 @@ public async InviteUsersToOrganization(
 
       await SendEmail(existingInvitation.email, emailSubject, emailText);
 
+      await invalidateOrgCaches(existingInvitation.organizationId);
+
       this.setStatus(200);
       return {
         success: true,
@@ -3705,30 +3786,35 @@ public async InviteUsersToOrganization(
         return { message: "Organization not found" };
       }
 
-      const fetchInviteusers = await prisma.inviteUser.findMany({
-        where: { organizationId },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          // ✅ Also surface whether the user has accepted and their userType
-          members: {
+      const fetchInviteusers = await useCacheAside(
+        CacheKeys.orgInvitedUsersLegacy(organizationId),
+        TTL.medium,
+        async () =>
+          prisma.inviteUser.findMany({
+            where: { organizationId },
             select: {
-              userId: true,
-              joinedVia: true,
-              isActive: true,
-              user: {
+              id: true,
+              email: true,
+              role: true,
+              // ✅ Also surface whether the user has accepted and their userType
+              members: {
                 select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  userType: true,
+                  userId: true,
+                  joinedVia: true,
+                  isActive: true,
+                  user: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                      userType: true,
+                    },
+                  },
                 },
               },
             },
-          },
-        },
-      });
+          }),
+      );
 
       this.setStatus(200);
       return {
@@ -3761,147 +3847,155 @@ public async InviteUsersToOrganization(
         };
       }
 
-      // Get all active members who accepted invitations
-      const membersWithAccess = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          isActive: true,
-          joinedVia: {
-            in: ["INVITE", "CREATED"], // Include both invited users and creators
-          },
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              role: true,
-              user_pic: true,
-              userType: true,
-              isOnline: true,
-              lastActive: true,
-              createdAt: true,
-              isSuspended: true,
+      const data = await useCacheAside(
+        CacheKeys.orgInvitedUsersWithAccess(organizationId),
+        TTL.medium,
+        async () => {
+          // Get all active members who accepted invitations
+          const membersWithAccess = await prisma.organizationMember.findMany({
+            where: {
+              organizationId: organizationId,
+              isActive: true,
+              joinedVia: {
+                in: ["INVITE", "CREATED"], // Include both invited users and creators
+              },
             },
-          },
-        },
-        orderBy: {
-          joinedAt: "desc",
-        },
-      });
-
-      // Also get the organization owner (creator)
-      const ownerMember = await prisma.organizationMember.findFirst({
-        where: {
-          organizationId: organizationId,
-          role: "org_admin",
-          joinedVia: "CREATED",
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              email_address: true,
-              role: true,
-              user_pic: true,
-              userType: true,
-              isOnline: true,
-              lastActive: true,
-              createdAt: true,
-              isSuspended: true,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                  role: true,
+                  user_pic: true,
+                  userType: true,
+                  isOnline: true,
+                  lastActive: true,
+                  createdAt: true,
+                  isSuspended: true,
+                },
+              },
             },
-          },
-        },
-      });
-
-      // Combine and deduplicate users
-      const usersMap = new Map();
-
-      // Add owner if exists
-      if (ownerMember && ownerMember.user) {
-        usersMap.set(ownerMember.user.id, {
-          ...ownerMember.user,
-          membershipRole: ownerMember.role,
-          joinedAt: ownerMember.joinedAt,
-          joinedVia: ownerMember.joinedVia,
-          isActive: ownerMember.isActive,
-          organizationMemberId: ownerMember.id,
-        });
-      }
-
-      // Add members
-      membersWithAccess.forEach((member) => {
-        if (member.user && !usersMap.has(member.user.id)) {
-          usersMap.set(member.user.id, {
-            ...member.user,
-            membershipRole: member.role,
-            joinedAt: member.joinedAt,
-            joinedVia: member.joinedVia,
-            isActive: member.isActive,
-            organizationMemberId: member.id,
+            orderBy: {
+              joinedAt: "desc",
+            },
           });
-        }
-      });
 
-      // Convert to array
-      const usersWithAccess = Array.from(usersMap.values());
-
-      // Get pending invitations count
-      const pendingInvitations = await prisma.inviteUser.count({
-        where: {
-          organizationId: organizationId,
-          expiresIn: { gt: new Date() },
-          // Exclude those who already accepted
-          NOT: {
-            email: {
-              in: usersWithAccess.map((u) => u.email_address),
+          // Also get the organization owner (creator)
+          const ownerMember = await prisma.organizationMember.findFirst({
+            where: {
+              organizationId: organizationId,
+              role: "org_admin",
+              joinedVia: "CREATED",
             },
-          },
-        },
-      });
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  email_address: true,
+                  role: true,
+                  user_pic: true,
+                  userType: true,
+                  isOnline: true,
+                  lastActive: true,
+                  createdAt: true,
+                  isSuspended: true,
+                },
+              },
+            },
+          });
 
-      // Get total members count
-      const totalMembers = await prisma.organizationMember.count({
-        where: {
-          organizationId: organizationId,
-          isActive: true,
+          // Combine and deduplicate users
+          const usersMap = new Map();
+
+          // Add owner if exists
+          if (ownerMember && ownerMember.user) {
+            usersMap.set(ownerMember.user.id, {
+              ...ownerMember.user,
+              membershipRole: ownerMember.role,
+              joinedAt: ownerMember.joinedAt,
+              joinedVia: ownerMember.joinedVia,
+              isActive: ownerMember.isActive,
+              organizationMemberId: ownerMember.id,
+            });
+          }
+
+          // Add members
+          membersWithAccess.forEach((member) => {
+            if (member.user && !usersMap.has(member.user.id)) {
+              usersMap.set(member.user.id, {
+                ...member.user,
+                membershipRole: member.role,
+                joinedAt: member.joinedAt,
+                joinedVia: member.joinedVia,
+                isActive: member.isActive,
+                organizationMemberId: member.id,
+              });
+            }
+          });
+
+          // Convert to array
+          const usersWithAccess = Array.from(usersMap.values());
+
+          // Get pending invitations count
+          const pendingInvitations = await prisma.inviteUser.count({
+            where: {
+              organizationId: organizationId,
+              expiresIn: { gt: new Date() },
+              // Exclude those who already accepted
+              NOT: {
+                email: {
+                  in: usersWithAccess.map((u) => u.email_address),
+                },
+              },
+            },
+          });
+
+          // Get total members count
+          const totalMembers = await prisma.organizationMember.count({
+            where: {
+              organizationId: organizationId,
+              isActive: true,
+            },
+          });
+
+          return {
+            users: usersWithAccess.map((user) => ({
+              id: user.id,
+              first_name: user.first_name,
+              last_name: user.last_name,
+              email_address: user.email_address,
+              role: user.role,
+              user_pic: user.user_pic,
+              userType: user.userType,
+              isOnline: user.isOnline,
+              lastActive: user.lastActive,
+              joinedAt: user.joinedAt,
+              joinedVia: user.joinedVia,
+              membershipRole: user.membershipRole,
+              isActive: user.isActive,
+              createdAt: user.createdAt,
+              isSuspended: user.isSuspended,
+            })),
+            stats: {
+              totalMembers: totalMembers,
+              activeMembers: usersWithAccess.filter((u) => u.isActive).length,
+              pendingInvitations: pendingInvitations,
+              organizationId: organizationId,
+              organizationName: organization.organization_name,
+            },
+          };
         },
-      });
+      );
 
       this.setStatus(200);
       return {
         success: true,
         message: "Users with access fetched successfully",
-        data: {
-          users: usersWithAccess.map((user) => ({
-            id: user.id,
-            first_name: user.first_name,
-            last_name: user.last_name,
-            email_address: user.email_address,
-            role: user.role,
-            user_pic: user.user_pic,
-            userType: user.userType,
-            isOnline: user.isOnline,
-            lastActive: user.lastActive,
-            joinedAt: user.joinedAt,
-            joinedVia: user.joinedVia,
-            membershipRole: user.membershipRole,
-            isActive: user.isActive,
-            createdAt: user.createdAt,
-            isSuspended: user.isSuspended,
-          })),
-          stats: {
-            totalMembers: totalMembers,
-            activeMembers: usersWithAccess.filter((u) => u.isActive).length,
-            pendingInvitations: pendingInvitations,
-            organizationId: organizationId,
-            organizationName: organization.organization_name,
-          },
-        },
+        data,
       };
     } catch (error: any) {
       console.error("Error fetching users with access:", error);
@@ -3931,59 +4025,65 @@ public async InviteUsersToOrganization(
         return { success: false, message: "Organization not found" };
       }
 
-      // Get all invitations
-      const invitations = await prisma.inviteUser.findMany({
-        where: {
-          organizationId: organizationId,
-          // Only include active invites that haven't been accepted
-          expiresIn: { gt: new Date() },
-        },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          createdAt: true,
-          expiresIn: true,
-          // Check if this user has already accepted
-          members: {
+      const formattedInvitations = await useCacheAside(
+        CacheKeys.orgInvitedUsersEnhanced(organizationId),
+        TTL.short,
+        async () => {
+          // Get all invitations
+          const invitations = await prisma.inviteUser.findMany({
             where: {
-              isActive: true,
+              organizationId: organizationId,
+              // Only include active invites that haven't been accepted
+              expiresIn: { gt: new Date() },
             },
             select: {
               id: true,
-              userId: true,
+              email: true,
+              role: true,
+              createdAt: true,
+              expiresIn: true,
+              // Check if this user has already accepted
+              members: {
+                where: {
+                  isActive: true,
+                },
+                select: {
+                  id: true,
+                  userId: true,
+                },
+              },
             },
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      });
+            orderBy: {
+              createdAt: "desc",
+            },
+          });
 
-      // Filter out invitations that have been accepted
-      const pendingInvitations = invitations.filter(
-        (invite) => invite.members.length === 0,
+          // Filter out invitations that have been accepted
+          const pendingInvitations = invitations.filter(
+            (invite) => invite.members.length === 0,
+          );
+
+          return pendingInvitations.map((invite) => ({
+            id: invite.id,
+            email: invite.email,
+            role: invite.role,
+            createdAt: invite.createdAt,
+            expiresIn: invite.expiresIn,
+            // Check if invitation is expiring soon (within 24 hours)
+            isExpiringSoon: invite.expiresIn
+              ? new Date(invite.expiresIn).getTime() - Date.now() <
+                24 * 60 * 60 * 1000
+              : false,
+            // Time remaining in hours
+            hoursRemaining: invite.expiresIn
+              ? Math.floor(
+                  (new Date(invite.expiresIn).getTime() - Date.now()) /
+                    (1000 * 60 * 60),
+                )
+              : 0,
+          }));
+        },
       );
-
-      const formattedInvitations = pendingInvitations.map((invite) => ({
-        id: invite.id,
-        email: invite.email,
-        role: invite.role,
-        createdAt: invite.createdAt,
-        expiresIn: invite.expiresIn,
-        // Check if invitation is expiring soon (within 24 hours)
-        isExpiringSoon: invite.expiresIn
-          ? new Date(invite.expiresIn).getTime() - Date.now() <
-            24 * 60 * 60 * 1000
-          : false,
-        // Time remaining in hours
-        hoursRemaining: invite.expiresIn
-          ? Math.floor(
-              (new Date(invite.expiresIn).getTime() - Date.now()) /
-                (1000 * 60 * 60),
-            )
-          : 0,
-      }));
 
       this.setStatus(200);
       return {
@@ -4002,12 +4102,24 @@ public async InviteUsersToOrganization(
     }
   }
 
+  // This had no @Security decorator at all — any unauthenticated request
+  // could delete any organization by id. Locked down to that org's own
+  // admin (not just any org's admin — see assertOrgAdminOf).
+  @Security("bearerAuth")
   @Delete("/delete-organization/{id}")
-  public async DeleteOrganization(@Path() id: string) {
+  public async DeleteOrganization(@Path() id: string, @Request() req: any) {
     try {
+      const permission = await assertOrgAdminOf(req, id);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { message: permission.message };
+      }
+
       const deleteOrganization = await prisma.organization.delete({
         where: { id },
       });
+
+      await invalidateOrgCaches(id);
 
       return {
         message: "Organization Deleted successfully",
@@ -4015,6 +4127,8 @@ public async InviteUsersToOrganization(
       };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
+      return { message: "Failed to delete organization" };
     }
   }
 
@@ -4433,6 +4547,10 @@ public async GetOrganizationCoursesWithStats(
       };
     }
 
+    const data = await useCacheAside(
+      CacheKeys.orgCoursesWithStats(organizationId),
+      TTL.medium,
+      async () => {
     // Get all courses for this organization with their modules
     const courses = await prisma.course.findMany({
       where: {
@@ -4492,9 +4610,84 @@ public async GetOrganizationCoursesWithStats(
     // Get total active members count
     const totalMembers = memberIds.length;
 
+    // Per-course, per-student progress used to mean two extra queries PER
+    // ENROLLMENT (a progress lookup and a video-tracker lookup), nested
+    // inside a per-course loop — so this scaled as courses × enrollments
+    // per course. Batched here into two queries total for the whole
+    // organization, then grouped in memory by courseId -> userId below.
+    const allCourseIds = courses.map((course) => course.id);
+    const allUserIds = Array.from(
+      new Set(courses.flatMap((course) => course.enrollment.map((e) => e.userId))),
+    );
+
+    const [allCompletedLessons, allVideoProgress] =
+      allCourseIds.length > 0 && allUserIds.length > 0
+        ? await Promise.all([
+            prisma.progress.findMany({
+              where: {
+                userId: { in: allUserIds },
+                lesson: { module: { courseId: { in: allCourseIds } } },
+                progressBar: { gte: 100 },
+              },
+              select: {
+                userId: true,
+                lessonId: true,
+                lesson: { select: { module: { select: { courseId: true } } } },
+              },
+            }),
+            prisma.videoTracker.findMany({
+              where: {
+                progress: { userId: { in: allUserIds } },
+                lesson: { module: { courseId: { in: allCourseIds } } },
+              },
+              select: {
+                videoTrackTime: true,
+                videoFinished: true,
+                progress: { select: { userId: true } },
+                lesson: {
+                  select: { duration: true, module: { select: { courseId: true } } },
+                },
+              },
+            }),
+          ])
+        : [[], []];
+
+    // courseId -> userId -> set of completed lessonIds
+    const completedLessonsByCourseAndUser = new Map<string, Map<string, Set<string>>>();
+    for (const row of allCompletedLessons) {
+      const courseId = row.lesson?.module?.courseId;
+      if (!courseId || !row.userId) continue;
+      if (!completedLessonsByCourseAndUser.has(courseId)) {
+        completedLessonsByCourseAndUser.set(courseId, new Map());
+      }
+      const byUser = completedLessonsByCourseAndUser.get(courseId)!;
+      if (!byUser.has(row.userId)) byUser.set(row.userId, new Set());
+      byUser.get(row.userId)!.add(row.lessonId);
+    }
+
+    // courseId -> userId -> { totalVideoProgress, totalVideoDuration }
+    const videoProgressByCourseAndUser = new Map<
+      string,
+      Map<string, { totalVideoProgress: number; totalVideoDuration: number }>
+    >();
+    for (const row of allVideoProgress) {
+      const courseId = row.lesson?.module?.courseId;
+      const userId = row.progress?.userId;
+      if (!courseId || !userId) continue;
+      if (!videoProgressByCourseAndUser.has(courseId)) {
+        videoProgressByCourseAndUser.set(courseId, new Map());
+      }
+      const byUser = videoProgressByCourseAndUser.get(courseId)!;
+      if (!byUser.has(userId)) {
+        byUser.set(userId, { totalVideoProgress: 0, totalVideoDuration: 0 });
+      }
+      const acc = byUser.get(userId)!;
+      acc.totalVideoProgress += row.videoTrackTime || 0;
+      acc.totalVideoDuration += row.lesson?.duration || 0;
+    }
+
     // Calculate stats for each course
-    const courseStats = await Promise.all(
-      courses.map(async (course) => {
+    const courseStats = courses.map((course) => {
         // Get all enrollments for this course
         const enrollments = course.enrollment;
         const totalEnrolled = enrollments.length;
@@ -4518,60 +4711,15 @@ public async GetOrganizationCoursesWithStats(
         const allLessons = course.module.flatMap((m) => m.lesson);
         const totalLessons = allLessons.length;
 
-        // Calculate progress for each enrolled student
-        const studentProgress = await Promise.all(
-          enrollments.map(async (enrollment) => {
-            // Get completed lessons for this student in this course
-            const completedLessons = await prisma.progress.findMany({
-              where: {
-                userId: enrollment.userId,
-                lesson: {
-                  module: {
-                    courseId: course.id,
-                  },
-                },
-                progressBar: { gte: 100 },
-              },
-              select: {
-                lessonId: true,
-              },
-            });
+        // Calculate progress for each enrolled student — looked up from the
+        // batched maps above instead of querying per enrollment.
+        const studentProgress = enrollments.map((enrollment) => {
+            const completedCount =
+              completedLessonsByCourseAndUser.get(course.id)?.get(enrollment.userId)?.size || 0;
 
-            // Get video tracking progress
-            const videoProgress = await prisma.videoTracker.findMany({
-              where: {
-                progress: {
-                  userId: enrollment.userId,
-                },
-                lesson: {
-                  module: {
-                    courseId: course.id,
-                  },
-                },
-              },
-              select: {
-                videoTrackTime: true,
-                videoFinished: true,
-                lesson: {
-                  select: {
-                    duration: true,
-                  },
-                },
-              },
-            });
-
-            const completedLessonIds = new Set(
-              completedLessons.map((p) => p.lessonId)
-            );
-            const completedCount = completedLessonIds.size;
-
-            // Calculate video progress
-            let totalVideoProgress = 0;
-            let totalVideoDuration = 0;
-            videoProgress.forEach((vp) => {
-              totalVideoProgress += vp.videoTrackTime || 0;
-              totalVideoDuration += vp.lesson?.duration || 0;
-            });
+            const videoAcc = videoProgressByCourseAndUser.get(course.id)?.get(enrollment.userId);
+            const totalVideoProgress = videoAcc?.totalVideoProgress || 0;
+            const totalVideoDuration = videoAcc?.totalVideoDuration || 0;
 
             const videoPercentage = totalVideoDuration > 0
               ? Math.min(Math.round((totalVideoProgress / totalVideoDuration) * 100), 100)
@@ -4599,8 +4747,7 @@ public async GetOrganizationCoursesWithStats(
               startedAt: enrollment.startedAt,
               completedAt: enrollment.completedAt,
             };
-          })
-        );
+          });
 
         // Calculate average progress across all students
         const totalProgress = studentProgress.reduce(
@@ -4674,8 +4821,7 @@ public async GetOrganizationCoursesWithStats(
               : 0,
           },
         };
-      })
-    );
+      });
 
     // Calculate overall organization stats
     const totalCourses = courseStats.length;
@@ -4704,33 +4850,37 @@ public async GetOrganizationCoursesWithStats(
         )
       : 0;
 
+        return {
+          organization: {
+            id: organization.id,
+            name: organization.organization_name,
+            type: organization.organization_type,
+            image: organization.organization_image,
+          },
+          summary: {
+            totalCourses: totalCourses,
+            totalEnrollments: totalEnrollmentsAcrossAllCourses,
+            totalCompletions: totalCompletedAcrossAllCourses,
+            totalModules: totalModulesAcrossAllCourses,
+            totalLessons: totalLessonsAcrossAllCourses,
+            overallAverageProgress: overallAvgProgress,
+            overallCompletionRate: totalEnrollmentsAcrossAllCourses > 0
+              ? Math.round(
+                  (totalCompletedAcrossAllCourses / totalEnrollmentsAcrossAllCourses) *
+                    100
+                )
+              : 0,
+          },
+          courses: courseStats,
+        };
+      },
+    );
+
     this.setStatus(200);
     return {
       success: true,
       message: "Organization courses with stats fetched successfully",
-      data: {
-        organization: {
-          id: organization.id,
-          name: organization.organization_name,
-          type: organization.organization_type,
-          image: organization.organization_image,
-        },
-        summary: {
-          totalCourses: totalCourses,
-          totalEnrollments: totalEnrollmentsAcrossAllCourses,
-          totalCompletions: totalCompletedAcrossAllCourses,
-          totalModules: totalModulesAcrossAllCourses,
-          totalLessons: totalLessonsAcrossAllCourses,
-          overallAverageProgress: overallAvgProgress,
-          overallCompletionRate: totalEnrollmentsAcrossAllCourses > 0
-            ? Math.round(
-                (totalCompletedAcrossAllCourses / totalEnrollmentsAcrossAllCourses) *
-                  100
-              )
-            : 0,
-        },
-        courses: courseStats,
-      },
+      data,
     };
   } catch (error: any) {
     console.error("Error fetching courses with stats:", error);
@@ -4777,10 +4927,10 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const requesterRole = req.user?.role;
-      if (requesterRole !== "org_admin") {
-        this.setStatus(403);
-        return { success: false, message: "Only organization admins can remove members" };
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
       }
 
       // Delete the organization member relationship
@@ -4811,16 +4961,18 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const requesterRole = req.user?.role;
-      if (requesterRole !== "org_admin") {
-        this.setStatus(403);
-        return { success: false, message: "Only organization admins can suspend members" };
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
       }
 
       await prisma.user.update({
         where: { id: userId },
         data: { isSuspended: body.suspend },
       });
+
+      await invalidateOrgCaches(organizationId);
 
       this.setStatus(200);
       return {
@@ -4831,6 +4983,55 @@ public async GetOrganizationCoursesWithStats(
       console.error("Error suspending member:", error);
       this.setStatus(500);
       return { success: false, message: "Failed to update member status", error: error.message };
+    }
+  }
+
+  // Makes an existing member an organization admin — gives them the same
+  // `User.role === "org_admin"` every other admin-only check in this
+  // controller (and elsewhere) looks for, plus the per-org
+  // OrganizationMember.role for anything scoped to this membership. There's
+  // no "demote" counterpart yet; add one the same way if it's ever needed.
+  @Security("bearerAuth")
+  @Put("/members/{organizationId}/{userId}/promote")
+  public async PromoteMember(
+    @Path() organizationId: string,
+    @Path() userId: string,
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
+      }
+
+      const membership = await prisma.organizationMember.findUnique({
+        where: { userId_organizationId: { userId, organizationId } },
+      });
+      if (!membership) {
+        this.setStatus(404);
+        return { success: false, message: "This user is not a member of this organization" };
+      }
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: userId },
+          data: { role: "org_admin" },
+        }),
+        prisma.organizationMember.update({
+          where: { userId_organizationId: { userId, organizationId } },
+          data: { role: "admin" },
+        }),
+      ]);
+
+      await invalidateOrgCaches(organizationId);
+
+      this.setStatus(200);
+      return { success: true, message: "Member promoted to admin successfully" };
+    } catch (error: any) {
+      console.error("Error promoting member:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to promote member", error: error.message };
     }
   }
 
@@ -4848,10 +5049,10 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const requesterRole = req.user?.role;
-      if (requesterRole !== "org_admin") {
-        this.setStatus(403);
-        return { success: false, message: "Only organization admins can create announcements" };
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
       }
 
       if (!body.title || !body.message) {
@@ -4876,10 +5077,17 @@ public async GetOrganizationCoursesWithStats(
       }
 
       // Create announcement notifications for each target member
+      const toRoleForMember = (memberRole: string): Role => {
+        if (memberRole === "instructor" || memberRole === "tutor") return Role.INSTRUCTOR;
+        if (memberRole === "admin" || memberRole === "org_admin") return Role.ORG_ADMIN;
+        return Role.STUDENT;
+      };
       const notifications = targetMembers.map((member) => ({
         title: body.title,
         message: body.message,
         type: "ANNOUNCEMENT",
+        role: Role.ORG_ADMIN,
+        to: toRoleForMember(member.user.role),
         userId: member.userId,
         organizationId: organizationId,
         createdAt: new Date(),
@@ -4945,10 +5153,10 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const requesterRole = req.user?.role;
-      if (requesterRole !== "org_admin") {
-        this.setStatus(403);
-        return { success: false, message: "Only organization admins can create events" };
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
       }
 
       if (!body.name || !body.date || !body.time) {
@@ -4971,6 +5179,8 @@ public async GetOrganizationCoursesWithStats(
         },
       });
 
+      await invalidateOrgCaches(organizationId);
+
       this.setStatus(201);
       return { success: true, message: "Event created successfully", data: event };
     } catch (error: any) {
@@ -4987,18 +5197,24 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const events = await prisma.organizationEvent.findMany({
-        where: { organizationId },
-        orderBy: { date: "asc" },
-        include: {
-          _count: { select: { attendees: true } },
-        },
-      });
+      const eventsWithAttendeeCount = await useCacheAside(
+        CacheKeys.orgEvents(organizationId),
+        TTL.medium,
+        async () => {
+          const events = await prisma.organizationEvent.findMany({
+            where: { organizationId },
+            orderBy: { date: "asc" },
+            include: {
+              _count: { select: { attendees: true } },
+            },
+          });
 
-      const eventsWithAttendeeCount = events.map(({ _count, ...event }) => ({
-        ...event,
-        attendees: _count.attendees,
-      }));
+          return events.map(({ _count, ...event }) => ({
+            ...event,
+            attendees: _count.attendees,
+          }));
+        },
+      );
 
       this.setStatus(200);
       return { success: true, data: eventsWithAttendeeCount };
@@ -5027,10 +5243,10 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const requesterRole = req.user?.role;
-      if (requesterRole !== "org_admin") {
-        this.setStatus(403);
-        return { success: false, message: "Only organization admins can update events" };
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
       }
 
       const event = await prisma.organizationEvent.update({
@@ -5045,6 +5261,8 @@ public async GetOrganizationCoursesWithStats(
           ...(body.status && { status: body.status }),
         },
       });
+
+      await invalidateOrgCaches(organizationId);
 
       this.setStatus(200);
       return { success: true, message: "Event updated successfully", data: event };
@@ -5063,15 +5281,17 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const requesterRole = req.user?.role;
-      if (requesterRole !== "org_admin") {
-        this.setStatus(403);
-        return { success: false, message: "Only organization admins can delete events" };
+      const permission = await assertOrgAdminOf(req, organizationId);
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
       }
 
       await prisma.organizationEvent.delete({
         where: { id: eventId },
       });
+
+      await invalidateOrgCaches(organizationId);
 
       this.setStatus(200);
       return { success: true, message: "Event deleted successfully" };

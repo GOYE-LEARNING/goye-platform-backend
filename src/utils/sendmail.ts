@@ -253,13 +253,102 @@ const broadcastTemplate = (message: string, heading: string, userName?: string) 
   </div>
 </div>`;
 
+// Course-reminder / "keep learning" template — unlike the plain broadcast
+// card, this one is meant to feel encouraging: a progress bar showing how
+// far the student already got, plus a CTA back into the course, instead of
+// just restating the reminder text.
+const motivationTemplate = (
+  message: string,
+  courseName: string | undefined,
+  progressPercentage: number | undefined,
+  userName?: string,
+) => {
+  const pct = Math.max(0, Math.min(100, progressPercentage ?? 0));
+  const hasProgress = typeof progressPercentage === "number";
+  const encouragement =
+    pct >= 75
+      ? "You're so close to the finish line!"
+      : pct >= 40
+        ? "Great momentum — keep it going!"
+        : pct > 0
+          ? "Every lesson counts — let's keep building."
+          : "Your course is ready whenever you are.";
+
+  return `
+<div style="background:#121318; min-height:100vh; padding:40px 16px; font-family:Arial,sans-serif;">
+  <div style="max-width:520px; margin:0 auto;">
+
+    <div style="text-align:center; margin-bottom:28px;">
+      <span style="font-size:18px; font-weight:500; color:#E8EAEF;">GOYE Platform</span>
+    </div>
+
+    <div style="background:#1a1d26; border-radius:16px; border:1px solid #252830; overflow:hidden;">
+
+      <div style="background:linear-gradient(135deg,#FFA500 0%,#FBB041 100%); padding:32px; text-align:center;">
+        <div style="font-size:36px; line-height:1; margin-bottom:8px;">🔥</div>
+        <h1 style="margin:0 0 4px; font-size:22px; color:#121318;">Keep learning!</h1>
+        ${courseName ? `<p style="margin:0; font-size:14px; color:rgba(18,19,24,0.65);">${courseName}</p>` : ""}
+      </div>
+
+      <div style="padding:32px;">
+        ${userName ? `<p style="margin:0 0 16px; font-size:15px; color:#E8EAEF;">Hi ${userName},</p>` : ""}
+        <p style="margin:0 0 24px; font-size:15px; color:#B8BCC8; line-height:1.8;">${message}</p>
+
+        ${
+          hasProgress
+            ? `
+        <div style="background:#252830; border-radius:12px; border:1px solid rgba(255,165,0,0.2); padding:20px; margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+            <span style="font-size:13px; color:#9CA3B0;">Course progress</span>
+            <span style="font-size:13px; font-weight:bold; color:#FFA500;">${pct}%</span>
+          </div>
+          <div style="background:#121318; border-radius:999px; height:10px; overflow:hidden;">
+            <div style="background:linear-gradient(90deg,#FFA500,#FBB041); width:${pct}%; height:100%; border-radius:999px;"></div>
+          </div>
+          <p style="margin:12px 0 0; font-size:13px; color:#B8BCC8;">${encouragement} 🎉</p>
+        </div>`
+            : ""
+        }
+
+        <div style="text-align:center; margin-bottom:8px;">
+          <a href="https://goye.com/dashboard/student" style="display:inline-block; background:#FFA500; color:#121318; font-size:15px; font-weight:600; text-decoration:none; padding:14px 40px; border-radius:10px;">
+            Continue Course
+          </a>
+        </div>
+
+        <div style="border-top:1px solid #252830; padding-top:20px; margin-top:28px; text-align:center;">
+          <p style="margin:0 0 4px; font-size:13px; color:#9CA3B0;">Need help? Reach us at</p>
+          <a href="mailto:support@goye.com" style="font-size:13px; color:#FFA500;">support@goye.com</a>
+        </div>
+      </div>
+    </div>
+
+    <p style="text-align:center; font-size:12px; color:#9CA3B0; margin-top:20px;">
+      &copy; 2026 GOYE Platform. All rights reserved.
+    </p>
+  </div>
+</div>`;
+};
+
 // Updated SendEmail function with organization verification support
 export const SendEmail = async (
   to: string,
   subject: string,
   content: string,
-  type: "otp" | "reset-password" | "invitation" | "org-verification" | "broadcast" = "otp",
-  additionalData?: { organizationName?: string; userName?: string; heading?: string },
+  type:
+    | "otp"
+    | "reset-password"
+    | "invitation"
+    | "org-verification"
+    | "broadcast"
+    | "motivation" = "otp",
+  additionalData?: {
+    organizationName?: string;
+    userName?: string;
+    heading?: string;
+    courseName?: string;
+    progressPercentage?: number;
+  },
 ) => {
   let html: string;
 
@@ -280,6 +369,13 @@ export const SendEmail = async (
     html = broadcastTemplate(
       content, // content is the message body
       additionalData?.heading || subject,
+      additionalData?.userName,
+    );
+  } else if (type === "motivation") {
+    html = motivationTemplate(
+      content, // content is the reminder message body
+      additionalData?.courseName,
+      additionalData?.progressPercentage,
       additionalData?.userName,
     );
   } else {

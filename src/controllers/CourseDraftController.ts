@@ -5,6 +5,7 @@
 // server-to-server — the browser never holds ShekiAI's service key.
 import { Body, Controller, Get, Path, Post, Query, Request, Route, Security, Tags, UploadedFile } from "tsoa";
 import prisma from "../db";
+import { AI_ENABLED } from "../config/featureFlags";
 import {
   abandonCourseDraft,
   finalizeCourseDraft,
@@ -42,12 +43,23 @@ function proxyFailure(this: Controller, route: string, error: any) {
   };
 }
 
+function aiDisabled(this: Controller) {
+  this.setStatus(503);
+  return {
+    message: "The AI assistant is currently unavailable.",
+    data: [],
+    status: 503,
+    error: ["ai_disabled"],
+  };
+}
+
 @Security("bearerAuth")
 @Tags("Course Draft AI")
 @Route("course-draft")
 export class CourseDraftController extends Controller {
   @Post("start")
   public async Start(@Request() req: any, @Body() body: { message?: string }): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await startCourseDraft(req.user.id, await tutorNameFor(req.user.id), body?.message);
       this.setStatus(result.status);
@@ -59,6 +71,7 @@ export class CourseDraftController extends Controller {
 
   @Post("{sessionId}/message")
   public async Message(@Path() sessionId: string, @Request() req: any, @Body() body: { message: string }): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await sendCourseDraftMessage(sessionId, req.user.id, await tutorNameFor(req.user.id), body.message);
       this.setStatus(result.status);
@@ -70,6 +83,7 @@ export class CourseDraftController extends Controller {
 
   @Get("{sessionId}")
   public async GetSession(@Path() sessionId: string, @Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await getCourseDraftSession(sessionId, req.user.id);
       this.setStatus(result.status);
@@ -81,6 +95,7 @@ export class CourseDraftController extends Controller {
 
   @Get("mine/list")
   public async ListMine(@Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await listCourseDraftSessions(req.user.id);
       this.setStatus(result.status);
@@ -92,6 +107,7 @@ export class CourseDraftController extends Controller {
 
   @Post("{sessionId}/finalize")
   public async Finalize(@Path() sessionId: string, @Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await finalizeCourseDraft(sessionId, req.user.id);
       this.setStatus(result.status);
@@ -103,6 +119,7 @@ export class CourseDraftController extends Controller {
 
   @Post("{sessionId}/abandon")
   public async Abandon(@Path() sessionId: string, @Request() req: any): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await abandonCourseDraft(sessionId, req.user.id);
       this.setStatus(result.status);
@@ -118,6 +135,7 @@ export class CourseDraftController extends Controller {
     @Request() req: any,
     @UploadedFile() document: Express.Multer.File,
   ): Promise<any> {
+    if (!AI_ENABLED) return aiDisabled.call(this);
     try {
       const result = await sendCourseDraftDocument(sessionId, req.user.id, await tutorNameFor(req.user.id), document);
       this.setStatus(result.status);

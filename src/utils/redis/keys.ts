@@ -28,6 +28,12 @@ export const CacheKeys = {
   userJourneyStatus: (userId: string) => `user:${userId}:journey-status`,
   userAchievements: (userId: string) => `user:${userId}:achievements`,
   userSummary: (userId: string) => `user:${userId}:summary`,
+  userRank: (userId: string) => `user:${userId}:rank`,
+  userBadges: (userId: string) => `user:${userId}:badges`,
+  userPointHistory: (userId: string, page: number, limit: number) =>
+    `user:${userId}:point-history:${page}:${limit}`,
+  userXpBreakdown: (userId: string) => `user:${userId}:xp-breakdown`,
+  userGroupEvents: (userId: string) => `user:${userId}:group-events`,
   /**
    * Every point-bearing user, ordered — the raw material for rank lookups.
    * Shared deliberately: the old code ran this full scan once per request per
@@ -46,11 +52,46 @@ export const CacheKeys = {
   courseStats: (courseId: string) => `course:${courseId}:stats`,
 
   // ── Organization ───────────────────────────────────────────────────────
+  // Everything here is namespaced `org:<id>:*` on purpose — invalidateOrgCaches
+  // sweeps that whole prefix, so a new key here is covered by the existing
+  // invalidation call sites for free, with no extra wiring per endpoint.
   orgAnalytics: (orgId: string) => `org:${orgId}:analytics`,
-  orgOverview: (orgId: string) => `org:${orgId}:overview`,
+  orgOverview: (orgId: string, range: string, date?: string) =>
+    `org:${orgId}:overview:${range}${date ? `:${date}` : ""}`,
   orgMembers: (orgId: string) => `org:${orgId}:members`,
   orgCourses: (orgId: string) => `org:${orgId}:courses`,
   orgBreakdown: (orgId: string) => `org:${orgId}:breakdown`,
+  orgActivities: (orgId: string) => `org:${orgId}:activities`,
+  orgAnnouncements: (orgId: string) => `org:${orgId}:announcements`,
+  orgEvents: (orgId: string) => `org:${orgId}:events`,
+  orgCoursesWithStats: (orgId: string) => `org:${orgId}:courses-with-stats`,
+  orgInvitedUsers: (orgId: string) => `org:${orgId}:invited-users`,
+  orgInvitedUsersLegacy: (orgId: string) => `org:${orgId}:invited-users-legacy`,
+  orgInvitedUsersWithAccess: (orgId: string) =>
+    `org:${orgId}:invited-users-with-access`,
+  orgInvitedUsersEnhanced: (orgId: string) =>
+    `org:${orgId}:invited-users-enhanced`,
+  orgProfile: (orgId: string) => `org:${orgId}:profile`,
+  orgPublicDetail: (orgId: string) => `org:${orgId}:public-detail`,
+  // Not org-scoped — a directory of every organization, so it lives outside
+  // the org:<id>:* namespace and is TTL-only (no single org's mutation
+  // should have to know to bust a platform-wide list).
+  organizationsPublicList: () => `organizations:public-list`,
+
+  // ── Super admin ────────────────────────────────────────────────────────
+  superAdminOrganizations: () => `admin:organizations`,
+  superAdminActivity: () => `admin:activity`,
+  superAdminCourses: () => `admin:courses`,
+  superAdminUsers: () => `admin:users`,
+  superAdminEvents: () => `admin:events`,
+  adminDashboardStats: () => `admin:dashboard-stats`,
+
+  // ── Tutor dashboards ───────────────────────────────────────────────────
+  tutorCourses: (tutorId: string) => `tutor:${tutorId}:courses`,
+  tutorOverview: (tutorId: string) => `tutor:${tutorId}:overview`,
+  tutorStudents: (tutorId: string) => `tutor:${tutorId}:students`,
+  tutorStudentDetail: (tutorId: string, studentId: string) =>
+    `tutor:${tutorId}:student:${studentId}`,
 
   // ── Social: groups and events ──────────────────────────────────────────
   groupList: (scope: string) => `groups:${scope}`,
@@ -61,6 +102,19 @@ export const CacheKeys = {
   // ── Discussion: people directories ─────────────────────────────────────
   tutorDirectory: (scope: string) => `directory:tutors:${scope}`,
   studentDirectory: (scope: string) => `directory:students:${scope}`,
+
+  // ── Course modules & social feeds ──────────────────────────────────────
+  allModulesList: () => `modules:all`,
+  // `limit` is part of every one of these keys, not just `page` — the page
+  // size changes `skip`/`take` just as much as the page number does, and a
+  // key that only captured `page` let one caller's page size leak onto
+  // another caller's request for the same page with a different limit.
+  publicDiscussions: (sort: string, page: number, limit: number) =>
+    `discussions:public:${sort}:${page}:${limit}`,
+  socialFeedAll: (filter: string, page: number, limit: number) =>
+    `social:feed:${filter || "all"}:${page}:${limit}`,
+  socialFeedByCourse: (courseId: string, page: number, limit: number) =>
+    `social:course:${courseId}:feed:${page}:${limit}`,
 
   // ── Pricing (external API responses, not DB rows) ──────────────────────
   pricingDetails: () => `pricing:details`,

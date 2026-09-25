@@ -27,7 +27,7 @@ import {
 import { NotificationService, Role } from "../services/notificationServices";
 import { TranslateText } from "../utils/ai_utils/translator";
 import { awardCertificateIfCompleted } from "../services/certificateService"; //To determine levels
-import { useCacheAside, CacheKeys, TTL, invalidateCourseCaches, updateDataWithRedis } from "../utils/redis";
+import { useCacheAside, CacheKeys, TTL, invalidateCourseCaches, invalidateKeys, updateDataWithRedis } from "../utils/redis";
 const levels: Record<string, string> = {
   beginner: "Beginner",
   Beginner: "Beginner",
@@ -207,6 +207,7 @@ export class CourseController extends Controller {
       // A new course has to show up in the shared catalogue and in every
       // user's cached per-level listing straight away, not an hour later.
       await invalidateCourseCaches(course.id);
+      await invalidateKeys(CacheKeys.tutorCourses(tutorId));
 
       this.setStatus(201);
       return {
@@ -636,6 +637,7 @@ export class CourseController extends Controller {
       // per-level listings and each student's course-detail view — is now
       // stale and would keep serving the old version for up to an hour.
       await invalidateCourseCaches(courseId);
+      await invalidateKeys(CacheKeys.tutorCourses(existingCourse.createdUserId));
 
       this.setStatus(200);
       return {
@@ -654,36 +656,40 @@ export class CourseController extends Controller {
 
   @Get("/get-all-courses")
   public async GetAllCourses(): Promise<CourseResponse> {
-    try {
-      const getAllCourses = await prisma.course.findMany({
-        // AI-drafted courses start as status: "DRAFT" (no lesson videos yet —
-        // see course_draft_finalize_functions.ts) and are meant to only be
-        // visible to the tutor who's still building them (get-courses-by-tutor
-        // is intentionally unfiltered). Nothing here filtered by status at
-        // all, so every draft — an empty shell with no playable content —
-        // was showing up in the public browse list right alongside real
-        // courses.
-        where: { status: "PUBLISHED" },
-        orderBy: {
-          createdAt: "desc",
-        },
+    const cacheKey = CacheKeys.courseList();
 
-        include: {
-          module: {
-            select: {
-              _count: {
-                select: {
-                  lesson: true,
+    try {
+      const getAllCourses = await useCacheAside(cacheKey, TTL.medium, async () => {
+        return prisma.course.findMany({
+          // AI-drafted courses start as status: "DRAFT" (no lesson videos yet —
+          // see course_draft_finalize_functions.ts) and are meant to only be
+          // visible to the tutor who's still building them (get-courses-by-tutor
+          // is intentionally unfiltered). Nothing here filtered by status at
+          // all, so every draft — an empty shell with no playable content —
+          // was showing up in the public browse list right alongside real
+          // courses.
+          where: { status: "PUBLISHED" },
+          orderBy: {
+            createdAt: "desc",
+          },
+
+          include: {
+            module: {
+              select: {
+                _count: {
+                  select: {
+                    lesson: true,
+                  },
                 },
-              },
-              lesson: {
-                select: {
-                  duration: true,
+                lesson: {
+                  select: {
+                    duration: true,
+                  },
                 },
               },
             },
           },
-        },
+        });
       });
       this.setStatus(200);
       return {
@@ -781,9 +787,56 @@ export class CourseController extends Controller {
             },
           });
 
-          // Map loop handling the sub-queries safely inside the asynchronous fallback
-          const transformedCourses = await Promise.all(
-            getAllCourses.map(async (course) => {
+          // Batch what used to be two extra Prisma round-trips PER COURSE
+          // (an enrollment count and a progress lookup) into one query each
+          // for the whole list, then look results up from in-memory maps
+          // below. On a level with dozens of courses this turns ~40+ DB
+          // calls into 2.
+          const courseIds = getAllCourses.map((course) => course.id);
+          const enrolledCourseIds = getAllCourses
+            .filter((course) => course.enrollment?.[0])
+            .map((course) => course.id);
+
+          const [enrollmentCounts, enrolledProgress] = await Promise.all([
+            prisma.enrollment.groupBy({
+              by: ["courseId"],
+              where: {
+                courseId: { in: courseIds },
+                status: { in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"] },
+              },
+              _count: { _all: true },
+            }),
+            enrolledCourseIds.length > 0
+              ? prisma.progress.findMany({
+                  where: {
+                    userId: userId,
+                    courses: { some: { id: { in: enrolledCourseIds } } },
+                  },
+                  include: {
+                    videoTracker: true,
+                    courses: { select: { id: true } },
+                  },
+                })
+              : Promise.resolve([]),
+          ]);
+
+          const enrollmentCountByCourse = new Map<string, number>(
+            enrollmentCounts.map((row) => [row.courseId as string, row._count._all]),
+          );
+          // A progress row can be linked to more than one course; index by
+          // course id so each course picks up the first matching row —
+          // the same "any one match" semantics the old per-course
+          // findFirst had.
+          const progressByCourse = new Map<string, (typeof enrolledProgress)[number]>();
+          for (const progressRow of enrolledProgress) {
+            for (const linkedCourse of progressRow.courses) {
+              if (!progressByCourse.has(linkedCourse.id)) {
+                progressByCourse.set(linkedCourse.id, progressRow);
+              }
+            }
+          }
+
+          const transformedCourses = getAllCourses.map((course) => {
               const userEnrollment = course.enrollment?.[0];
               let enrollmentStatus = "NOT_ENROLLED";
               let isEnrolled = false;
@@ -793,13 +846,7 @@ export class CourseController extends Controller {
                 isEnrolled = true;
                 enrollmentStatus = userEnrollment.status || "ENROLLED";
 
-                const courseProgress = await prisma.progress.findFirst({
-                  where: {
-                    userId: userId,
-                    courses: { some: { id: course.id } },
-                  },
-                  include: { videoTracker: true },
-                });
+                const courseProgress = progressByCourse.get(course.id);
 
                 if (courseProgress) {
                   const totalVideos =
@@ -826,12 +873,7 @@ export class CourseController extends Controller {
                 }
               }
 
-              const enrollmentCount = await prisma.enrollment.count({
-                where: {
-                  courseId: course.id,
-                  status: { in: ["ENROLLED", "IN_PROGRESS", "COMPLETED"] },
-                },
-              });
+              const enrollmentCount = enrollmentCountByCourse.get(course.id) || 0;
 
               let totalLessons = 0;
               let totalDuration = 0;
@@ -876,8 +918,7 @@ export class CourseController extends Controller {
                 module: course.module || [],
                 createdByDetails: course.createdByDetails || null,
               };
-            }),
-          );
+            });
 
           // Handle translation calculations safely within the isolated query block
           let translateText = null;
@@ -936,46 +977,49 @@ export class CourseController extends Controller {
         };
       }
 
-      const userCourses = await prisma.user.findMany({
-        where: { id: userId },
-        select: {
-          Courses: {
-            include: {
-              enrollment: true,
-              material: true,
-              // `module: true` returned modules with no lessons inside, so a
-              // tutor opening their own course saw the module list and an
-              // empty body — no lessons, and therefore no videos. The student
-              // route (GetCourseById) has always nested lessons; this one
-              // didn't, which is why the same course looked complete to a
-              // student and empty to the tutor who built it.
-              module: {
-                include: {
-                  lesson: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
-                  _count: { select: { lesson: true } },
+      const cacheKey = CacheKeys.tutorCourses(userId);
+      const userCourses = await useCacheAside(cacheKey, TTL.medium, async () => {
+        return prisma.user.findMany({
+          where: { id: userId },
+          select: {
+            Courses: {
+              include: {
+                enrollment: true,
+                material: true,
+                // `module: true` returned modules with no lessons inside, so a
+                // tutor opening their own course saw the module list and an
+                // empty body — no lessons, and therefore no videos. The student
+                // route (GetCourseById) has always nested lessons; this one
+                // didn't, which is why the same course looked complete to a
+                // student and empty to the tutor who built it.
+                module: {
+                  include: {
+                    lesson: { orderBy: [{ order: "asc" }, { createdAt: "asc" }] },
+                    _count: { select: { lesson: true } },
+                  },
+                  // Same ordering as the student view, so a tutor previewing
+                  // their course sees it in the sequence a student will.
+                  orderBy: [{ order: "asc" }, { createdAt: "asc" }],
                 },
-                // Same ordering as the student view, so a tutor previewing
-                // their course sees it in the sequence a student will.
-                orderBy: [{ order: "asc" }, { createdAt: "asc" }],
-              },
-              objectives: true,
-              quiz: {
-                include: {
-                  questions: true,
+                objectives: true,
+                quiz: {
+                  include: {
+                    questions: true,
+                  },
+                },
+                _count: {
+                  select: {
+                    post: true,
+                  },
                 },
               },
-              _count: {
-                select: {
-                  post: true,
-                },
-              },
-            },
 
-            orderBy: {
-              createdAt: "desc",
+              orderBy: {
+                createdAt: "desc",
+              },
             },
           },
-        },
+        });
       });
 
       this.setStatus(200);
@@ -1060,9 +1104,24 @@ public async GetCourseById(
 
       if (!course) return "NOT_FOUND";
 
+      // Total runtime is derived from the lesson videos themselves (each
+      // lesson's `duration` is auto-captured from the file at upload time),
+      // never hand-typed — so a tutor is never asked to guess how long their
+      // own course is, and the number always matches what's actually
+      // uploaded.
+      const totalDurationSeconds = course.module.reduce(
+        (sum, m: any) =>
+          sum + m.lesson.reduce((s: number, l: any) => s + (l.duration || 0), 0),
+        0,
+      );
+      const totalLessons = course.module.reduce(
+        (sum, m: any) => sum + m.lesson.length,
+        0,
+      );
+
       return {
         message: "Course fetched successfully",
-        data: course,
+        data: { ...course, totalDurationSeconds, totalLessons },
         progress: 0,
       };
     });
@@ -1157,6 +1216,7 @@ public async GetCourseById(
       // every user's cached listing/detail view, or students keep seeing and
       // clicking a course that no longer exists.
       await invalidateCourseCaches(courseId);
+      await invalidateKeys(CacheKeys.tutorCourses(existingCourse.createdUserId));
 
       this.setStatus(200);
       return {
@@ -1296,6 +1356,8 @@ public async GetCourseById(
         return { message: "Upload failed", error };
       }
 
+      await invalidateCourseCaches(courseId);
+
       this.setStatus(200);
       return {
         message: "Lesson video uploaded successfully",
@@ -1337,6 +1399,7 @@ public async GetCourseById(
       // Check if lesson exists
       const lesson = await prisma.lesson.findUnique({
         where: { id: lessonId },
+        include: { module: { select: { courseId: true } } },
       });
 
       if (!lesson) {
@@ -1364,6 +1427,8 @@ public async GetCourseById(
         data: updateData,
       });
 
+      await invalidateCourseCaches(lesson.module.courseId);
+
       this.setStatus(200);
       return {
         message: "Lesson updated successfully",
@@ -1374,6 +1439,41 @@ public async GetCourseById(
       this.setStatus(500);
       return {
         message: "Failed to update lesson",
+        error: error.message,
+      };
+    }
+  }
+
+  @Delete("/delete-lesson/{lessonId}")
+  @Security("bearerAuth")
+  public async DeleteLesson(@Path() lessonId: string): Promise<any> {
+    try {
+      const lesson = await prisma.lesson.findUnique({
+        where: { id: lessonId },
+        include: { module: { select: { courseId: true } } },
+      });
+
+      if (!lesson) {
+        this.setStatus(404);
+        return { message: "Lesson not found" };
+      }
+
+      const deletedLesson = await prisma.lesson.delete({
+        where: { id: lessonId },
+      });
+
+      await invalidateCourseCaches(lesson.module.courseId);
+
+      this.setStatus(200);
+      return {
+        message: "Lesson deleted successfully",
+        data: deletedLesson,
+      };
+    } catch (error: any) {
+      console.error("Error deleting lesson:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to delete lesson",
         error: error.message,
       };
     }
@@ -1537,6 +1637,9 @@ public async GetCourseById(
         lesson: true,
       },
     });
+
+    await invalidateCourseCaches(courseId);
+
     this.setStatus(201);
     return {
       message: "Module created successfully",
@@ -1546,21 +1649,24 @@ public async GetCourseById(
 
   @Get("/get-modules")
   public async GetModules(): Promise<any> {
-    const modules = await prisma.module.findMany({
-      include: {
-        course: {
-          select: {
-            id: true,
-            course_title: true,
+    const cacheKey = CacheKeys.allModulesList();
+    const modules = await useCacheAside(cacheKey, TTL.medium, async () => {
+      return prisma.module.findMany({
+        include: {
+          course: {
+            select: {
+              id: true,
+              course_title: true,
+            },
+          },
+          lesson: true,
+          _count: {
+            select: {
+              lesson: true,
+            },
           },
         },
-        lesson: true,
-        _count: {
-          select: {
-            lesson: true,
-          },
-        },
-      },
+      });
     });
     this.setStatus(200);
     return {
@@ -1619,6 +1725,8 @@ public async GetCourseById(
       data: body,
     });
 
+    await invalidateCourseCaches(updateModule.courseId);
+
     this.setStatus(200);
     return {
       message: "Module updated successfully",
@@ -1632,6 +1740,8 @@ public async GetCourseById(
     const deleteModule = await prisma.module.delete({
       where: { id },
     });
+
+    await invalidateCourseCaches(deleteModule.courseId);
 
     this.setStatus(200);
     return {
@@ -1722,6 +1832,110 @@ public async GetCourseById(
       this.setStatus(500);
       return {
         message: "Failed to create quiz",
+        error: error.message,
+      };
+    }
+  }
+
+  @Put("/update-quiz/{quizId}")
+  @Security("bearerAuth")
+  public async UpdateQuiz(
+    @Path() quizId: string,
+    @Body()
+    body: {
+      title?: string;
+      description?: string;
+      duration?: number;
+      passingScore?: number;
+      maxAttempts?: number;
+      questions?: Array<{
+        question: string;
+        options: string[];
+        correctAnswer: string;
+        explanation?: string;
+        points?: number;
+        order: number;
+      }>;
+    },
+  ): Promise<any> {
+    try {
+      const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+      if (!quiz) {
+        this.setStatus(404);
+        return { message: "Quiz not found" };
+      }
+
+      const updatedQuiz = await prisma.quiz.update({
+        where: { id: quizId },
+        data: {
+          ...(body.title !== undefined && { title: body.title }),
+          ...(body.description !== undefined && { description: body.description }),
+          ...(body.duration !== undefined && { duration: body.duration }),
+          ...(body.passingScore !== undefined && { passingScore: body.passingScore }),
+          ...(body.maxAttempts !== undefined && { maxAttempts: body.maxAttempts }),
+          // Questions have no independent identity worth preserving here —
+          // simplest correct approach is to replace the set wholesale rather
+          // than diff and patch individual rows.
+          ...(body.questions !== undefined && {
+            questions: {
+              deleteMany: {},
+              create: body.questions.map((question) => ({
+                question: question.question,
+                options: question.options,
+                correctAnswer: question.correctAnswer,
+                explanation: question.explanation,
+                points: question.points || 1,
+                order: question.order,
+              })),
+            },
+          }),
+        },
+        include: {
+          questions: { orderBy: { order: "asc" } },
+        },
+      });
+
+      await invalidateCourseCaches(quiz.courseId);
+
+      this.setStatus(200);
+      return {
+        message: "Quiz updated successfully",
+        data: updatedQuiz,
+      };
+    } catch (error: any) {
+      console.error("Error updating quiz:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to update quiz",
+        error: error.message,
+      };
+    }
+  }
+
+  @Delete("/delete-quiz/{quizId}")
+  @Security("bearerAuth")
+  public async DeleteQuiz(@Path() quizId: string): Promise<any> {
+    try {
+      const quiz = await prisma.quiz.findUnique({ where: { id: quizId } });
+      if (!quiz) {
+        this.setStatus(404);
+        return { message: "Quiz not found" };
+      }
+
+      const deletedQuiz = await prisma.quiz.delete({ where: { id: quizId } });
+
+      await invalidateCourseCaches(quiz.courseId);
+
+      this.setStatus(200);
+      return {
+        message: "Quiz deleted successfully",
+        data: deletedQuiz,
+      };
+    } catch (error: any) {
+      console.error("Error deleting quiz:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to delete quiz",
         error: error.message,
       };
     }
@@ -2777,76 +2991,80 @@ public async GetCourseById(
     const orgId = req.org?.id;
 
     try {
-      // Step 1 — Fetch all courses belonging to this tutor/org
-      const allCourses = await prisma.course.findMany({
-        where: orgId ? { organizationId: orgId } : { createdUserId: tutorId },
-        select: {
-          id: true,
-          course_title: true,
-          course_short_description: true,
-          course_image: true,
-          course_level: true,
-          _count: {
-            select: { enrollment: true },
+      const cacheKey = CacheKeys.tutorOverview(tutorId);
+      const responseData = await useCacheAside(cacheKey, TTL.medium, async () => {
+        // Step 1 — Fetch all courses belonging to this tutor/org
+        const allCourses = await prisma.course.findMany({
+          where: orgId ? { organizationId: orgId } : { createdUserId: tutorId },
+          select: {
+            id: true,
+            course_title: true,
+            course_short_description: true,
+            course_image: true,
+            course_level: true,
+            _count: {
+              select: { enrollment: true },
+            },
           },
-        },
-      });
+        });
 
-      const totalPublishedCourses = allCourses.length;
+        const totalPublishedCourses = allCourses.length;
 
-      if (totalPublishedCourses === 0) {
-        this.setStatus(200);
+        if (totalPublishedCourses === 0) {
+          return {
+            message: "No courses found",
+            data: {
+              topCourse: null,
+              totalPublishedCourses: 0,
+              avgCompletionPercentage: 0,
+            },
+          };
+        }
+
+        // Step 2 — Pick the course with the most enrollments
+        const topCourse = allCourses.reduce((prev, curr) =>
+          curr._count.enrollment > prev._count.enrollment ? curr : prev,
+        );
+
+        // Step 3 — Compute completion % across all tutor's courses
+        const courseIds = allCourses.map((c) => c.id);
+
+        const [totalEnrollments, completedEnrollments] = await Promise.all([
+          prisma.enrollment.count({
+            where: { courseId: { in: courseIds } },
+          }),
+          prisma.enrollment.count({
+            where: {
+              courseId: { in: courseIds },
+              status: "COMPLETED",
+            },
+          }),
+        ]);
+
+        const avgCompletionPercentage =
+          totalEnrollments > 0
+            ? Math.round((completedEnrollments / totalEnrollments) * 100)
+            : 0;
+
         return {
-          message: "No courses found",
+          message: "Tutor overview fetched successfully",
           data: {
-            topCourse: null,
-            totalPublishedCourses: 0,
-            avgCompletionPercentage: 0,
+            topCourse: {
+              id: topCourse.id,
+              course_title: topCourse.course_title,
+              course_short_description: topCourse.course_short_description,
+              course_image: topCourse.course_image,
+              course_level: topCourse.course_level,
+              totalStudents: topCourse._count.enrollment,
+            },
+            totalPublishedCourses,
+            avgCompletionPercentage,
           },
         };
-      }
-
-      // Step 2 — Pick the course with the most enrollments
-      const topCourse = allCourses.reduce((prev, curr) =>
-        curr._count.enrollment > prev._count.enrollment ? curr : prev,
-      );
-
-      // Step 3 — Compute completion % across all tutor's courses
-      const courseIds = allCourses.map((c) => c.id);
-
-      const [totalEnrollments, completedEnrollments] = await Promise.all([
-        prisma.enrollment.count({
-          where: { courseId: { in: courseIds } },
-        }),
-        prisma.enrollment.count({
-          where: {
-            courseId: { in: courseIds },
-            status: "COMPLETED",
-          },
-        }),
-      ]);
-
-      const avgCompletionPercentage =
-        totalEnrollments > 0
-          ? Math.round((completedEnrollments / totalEnrollments) * 100)
-          : 0;
+      });
 
       this.setStatus(200);
-      return {
-        message: "Tutor overview fetched successfully",
-        data: {
-          topCourse: {
-            id: topCourse.id,
-            course_title: topCourse.course_title,
-            course_short_description: topCourse.course_short_description,
-            course_image: topCourse.course_image,
-            course_level: topCourse.course_level,
-            totalStudents: topCourse._count.enrollment,
-          },
-          totalPublishedCourses,
-          avgCompletionPercentage,
-        },
-      };
+      return responseData;
     } catch (error: any) {
       console.error("Error fetching tutor overview:", error);
       this.setStatus(500);

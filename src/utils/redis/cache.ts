@@ -157,6 +157,8 @@ export async function updateDataWithRedis(
           CacheKeys.userJourneyStatus(userId),
           CacheKeys.userAchievements(userId),
           CacheKeys.userSummary(userId),
+          CacheKeys.userRank(userId),
+          CacheKeys.userBadges(userId),
         );
         // A points change also reorders everyone's rank, not just this user's.
         keys.push(CacheKeys.userRankTable());
@@ -180,7 +182,7 @@ export async function updateDataWithRedis(
  * every user's personalised view of that course.
  */
 export async function invalidateCourseCaches(courseId?: string): Promise<void> {
-  await invalidateKeys(CacheKeys.courseList());
+  await invalidateKeys(CacheKeys.courseList(), CacheKeys.allModulesList());
 
   if (courseId) {
     await invalidateKeys(CacheKeys.courseDetail(courseId), CacheKeys.courseStats(courseId));
