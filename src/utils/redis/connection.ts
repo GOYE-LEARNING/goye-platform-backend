@@ -58,6 +58,16 @@ let connecting: Promise<RedisClientType | null> | null = null;
 /** Flipped on once we've failed, so we stop retrying on every single request. */
 let unavailableUntil = 0;
 const RETRY_COOLDOWN_MS = 30_000;
+// The socket-level `connectTimeout` below doesn't reliably bound how long a
+// hung DNS lookup or a silently-blackholed connection to an unreachable host
+// takes to fail — measured live against a Redis Cloud outage: a single
+// request that happened to be the first one after the cooldown window
+// stalled for 50+ seconds before falling back to Postgres, which is exactly
+// what showed up as "scrolling stalls partway through" on the client. This
+// caps the WORST case any single request pays for a dead Redis at this
+// value, independent of what node-redis/the OS network stack does
+// internally.
+const CONNECT_RACE_TIMEOUT_MS = 3_000;
 
 function createRedisClient(): RedisClientType {
   const c: RedisClientType = createClient({
@@ -95,7 +105,17 @@ export async function getRedis(): Promise<RedisClientType | null> {
   connecting = (async () => {
     try {
       if (!client) client = createRedisClient();
-      if (!client.isOpen) await client.connect();
+      if (!client.isOpen) {
+        await Promise.race([
+          client.connect(),
+          new Promise((_, reject) =>
+            setTimeout(
+              () => reject(new Error(`connect() exceeded ${CONNECT_RACE_TIMEOUT_MS}ms`)),
+              CONNECT_RACE_TIMEOUT_MS,
+            ),
+          ),
+        ]);
+      }
       return client.isReady ? client : null;
     } catch (err: any) {
       console.error(
@@ -103,10 +123,13 @@ export async function getRedis(): Promise<RedisClientType | null> {
         err?.message ?? err,
       );
       unavailableUntil = Date.now() + RETRY_COOLDOWN_MS;
+      // The real connect() attempt may still be in flight after losing the
+      // race — destroy() abandons it instead of leaving it to resolve later
+      // and mutate a `client` reference this module has already discarded.
       try {
         await client?.destroy();
       } catch {
-        /* already gone */
+        /* already gone, or never got that far */
       }
       client = null;
       return null;

@@ -3266,393 +3266,387 @@
 												"progressId": {},
 												"level": {},
 												"user": {
-													"allOf": [
-														{
-															"properties": {
-																"progress": {
-																	"items": {
-																		"allOf": [
-																			{
-																				"properties": {
-																					"badges": {
-																						"items": {
-																							"properties": {
-																								"badgesAndLevelEarnedId": {
-																									"type": "string"
-																								},
-																								"achievementId": {
-																									"type": "string"
-																								},
-																								"badges": {
-																									"$ref": "#/components/schemas/_36_Enums.BadgesEnum"
-																								},
-																								"userId": {
-																									"type": "string"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"progressId": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"badgesAndLevelEarnedId",
-																								"achievementId",
-																								"badges",
-																								"userId",
-																								"updatedAt",
-																								"createdAt",
-																								"progressId",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					},
-																					"badges_and_levels": {
-																						"items": {
-																							"properties": {
-																								"achievementId": {
-																									"type": "string"
-																								},
-																								"level": {
-																									"$ref": "#/components/schemas/_36_Enums.Levels"
-																								},
-																								"userId": {
-																									"type": "string"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"courseId": {
-																									"type": "string"
-																								},
-																								"progressId": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"achievementId",
-																								"level",
-																								"userId",
-																								"updatedAt",
-																								"createdAt",
-																								"courseId",
-																								"progressId",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					},
-																					"achivement": {
-																						"items": {
-																							"properties": {
-																								"groupId": {
-																									"type": "string"
-																								},
-																								"progressMessage": {
-																									"type": "string"
-																								},
-																								"totalPoint": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"content": {
-																									"type": "string"
-																								},
-																								"title": {
-																									"type": "string"
-																								},
-																								"userId": {
-																									"type": "string"
-																								},
-																								"point": {
-																									"type": "number",
-																									"format": "double"
-																								},
-																								"updatedAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"createdAt": {
-																									"type": "string",
-																									"format": "date-time"
-																								},
-																								"courseId": {
-																									"type": "string"
-																								},
-																								"progressId": {
-																									"type": "string"
-																								},
-																								"id": {
-																									"type": "string"
-																								}
-																							},
-																							"required": [
-																								"groupId",
-																								"progressMessage",
-																								"totalPoint",
-																								"content",
-																								"title",
-																								"userId",
-																								"point",
-																								"updatedAt",
-																								"createdAt",
-																								"courseId",
-																								"progressId",
-																								"id"
-																							],
-																							"type": "object"
-																						},
-																						"type": "array"
-																					}
-																				},
-																				"required": [
-																					"badges",
-																					"badges_and_levels",
-																					"achivement"
-																				],
-																				"type": "object"
-																			},
-																			{
-																				"properties": {
-																					"userId": {
-																						"type": "string"
-																					},
-																					"startedJourney": {
-																						"type": "boolean"
-																					},
-																					"progressBar": {
-																						"type": "number",
-																						"format": "double"
-																					},
-																					"updatedAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"createdAt": {
-																						"type": "string",
-																						"format": "date-time"
-																					},
-																					"lessonId": {
-																						"type": "string"
-																					},
-																					"id": {
-																						"type": "string"
-																					}
-																				},
-																				"required": [
-																					"userId",
-																					"startedJourney",
-																					"progressBar",
-																					"updatedAt",
-																					"createdAt",
-																					"lessonId",
-																					"id"
-																				],
-																				"type": "object"
-																			}
-																		]
-																	},
-																	"type": "array"
-																}
-															},
-															"required": [
-																"progress"
-															],
-															"type": "object"
+													"properties": {
+														"permissions": {},
+														"adminRole": {},
+														"memberships": {},
+														"organization": {},
+														"profile_pic": {},
+														"social_media": {
+															"type": "string"
 														},
-														{
-															"properties": {
-																"social_media": {
-																	"type": "string"
-																},
-																"church_role": {
-																	"type": "string"
-																},
-																"church_name": {
-																	"type": "string"
-																},
-																"bio": {
-																	"type": "string"
-																},
-																"isSuspended": {
-																	"type": "boolean"
-																},
-																"verifiedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"isVerified": {
-																	"type": "boolean"
-																},
-																"resetTokenExpires": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"resetToken": {
-																	"type": "string"
-																},
-																"isFromWaitList": {
-																	"type": "boolean"
-																},
-																"isProfileComplete": {
-																	"type": "boolean"
-																},
-																"completedVideo": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"completedLessons": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"completedCourses": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"provider": {
-																	"type": "string"
-																},
-																"user_pic": {
-																	"type": "string"
-																},
-																"lastActive": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"isOnline": {
-																	"type": "boolean"
-																},
-																"userType": {
-																	"$ref": "#/components/schemas/_36_Enums.UserType"
-																},
-																"form_type": {
-																	"$ref": "#/components/schemas/_36_Enums.FormType"
-																},
-																"completed": {
-																	"type": "string"
-																},
-																"paymentCode": {
-																	"type": "string"
-																},
-																"waitlistId": {
-																	"type": "string"
-																},
-																"firebase_uid": {
-																	"type": "string"
-																},
-																"level": {
-																	"type": "string"
-																},
-																"role": {
-																	"type": "string"
-																},
-																"languageCode": {
-																	"$ref": "#/components/schemas/_36_Enums.LanguageCode"
-																},
-																"language": {
-																	"type": "string"
-																},
-																"phone_number": {
-																	"type": "string"
-																},
-																"state": {
-																	"type": "string"
-																},
-																"country": {
-																	"type": "string"
-																},
-																"password": {
-																	"type": "string"
-																},
-																"email_address": {
-																	"type": "string"
-																},
-																"last_name": {
-																	"type": "string"
-																},
-																"first_name": {
-																	"type": "string"
-																},
-																"point": {
-																	"type": "number",
-																	"format": "double"
-																},
-																"updatedAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"createdAt": {
-																	"type": "string",
-																	"format": "date-time"
-																},
-																"id": {
-																	"type": "string"
-																}
+														"church_role": {
+															"type": "string"
+														},
+														"church_name": {
+															"type": "string"
+														},
+														"bio": {
+															"type": "string"
+														},
+														"isSuspended": {
+															"type": "boolean"
+														},
+														"verifiedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"isVerified": {
+															"type": "boolean"
+														},
+														"resetTokenExpires": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"resetToken": {
+															"type": "string"
+														},
+														"isFromWaitList": {
+															"type": "boolean"
+														},
+														"isProfileComplete": {
+															"type": "boolean"
+														},
+														"completedVideo": {
+															"type": "number",
+															"format": "double"
+														},
+														"completedLessons": {
+															"type": "number",
+															"format": "double"
+														},
+														"completedCourses": {
+															"type": "number",
+															"format": "double"
+														},
+														"provider": {
+															"type": "string"
+														},
+														"user_pic": {
+															"type": "string"
+														},
+														"lastActive": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"isOnline": {
+															"type": "boolean"
+														},
+														"userType": {
+															"$ref": "#/components/schemas/_36_Enums.UserType"
+														},
+														"form_type": {
+															"$ref": "#/components/schemas/_36_Enums.FormType"
+														},
+														"completed": {
+															"type": "string"
+														},
+														"paymentCode": {
+															"type": "string"
+														},
+														"waitlistId": {
+															"type": "string"
+														},
+														"firebase_uid": {
+															"type": "string"
+														},
+														"level": {
+															"type": "string"
+														},
+														"role": {
+															"type": "string"
+														},
+														"language": {
+															"type": "string"
+														},
+														"phone_number": {
+															"type": "string"
+														},
+														"state": {
+															"type": "string"
+														},
+														"country": {
+															"type": "string"
+														},
+														"password": {
+															"type": "string"
+														},
+														"email_address": {
+															"type": "string"
+														},
+														"last_name": {
+															"type": "string"
+														},
+														"first_name": {
+															"type": "string"
+														},
+														"point": {
+															"type": "number",
+															"format": "double"
+														},
+														"updatedAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"createdAt": {
+															"type": "string",
+															"format": "date-time"
+														},
+														"id": {
+															"type": "string"
+														},
+														"progress": {
+															"items": {
+																"allOf": [
+																	{
+																		"properties": {
+																			"badges": {
+																				"items": {
+																					"properties": {
+																						"badgesAndLevelEarnedId": {
+																							"type": "string"
+																						},
+																						"achievementId": {
+																							"type": "string"
+																						},
+																						"badges": {
+																							"$ref": "#/components/schemas/_36_Enums.BadgesEnum"
+																						},
+																						"userId": {
+																							"type": "string"
+																						},
+																						"updatedAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"createdAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"progressId": {
+																							"type": "string"
+																						},
+																						"id": {
+																							"type": "string"
+																						}
+																					},
+																					"required": [
+																						"badgesAndLevelEarnedId",
+																						"achievementId",
+																						"badges",
+																						"userId",
+																						"updatedAt",
+																						"createdAt",
+																						"progressId",
+																						"id"
+																					],
+																					"type": "object"
+																				},
+																				"type": "array"
+																			},
+																			"badges_and_levels": {
+																				"items": {
+																					"properties": {
+																						"achievementId": {
+																							"type": "string"
+																						},
+																						"level": {
+																							"$ref": "#/components/schemas/_36_Enums.Levels"
+																						},
+																						"userId": {
+																							"type": "string"
+																						},
+																						"updatedAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"createdAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"courseId": {
+																							"type": "string"
+																						},
+																						"progressId": {
+																							"type": "string"
+																						},
+																						"id": {
+																							"type": "string"
+																						}
+																					},
+																					"required": [
+																						"achievementId",
+																						"level",
+																						"userId",
+																						"updatedAt",
+																						"createdAt",
+																						"courseId",
+																						"progressId",
+																						"id"
+																					],
+																					"type": "object"
+																				},
+																				"type": "array"
+																			},
+																			"achivement": {
+																				"items": {
+																					"properties": {
+																						"groupId": {
+																							"type": "string"
+																						},
+																						"progressMessage": {
+																							"type": "string"
+																						},
+																						"totalPoint": {
+																							"type": "number",
+																							"format": "double"
+																						},
+																						"content": {
+																							"type": "string"
+																						},
+																						"title": {
+																							"type": "string"
+																						},
+																						"userId": {
+																							"type": "string"
+																						},
+																						"point": {
+																							"type": "number",
+																							"format": "double"
+																						},
+																						"updatedAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"createdAt": {
+																							"type": "string",
+																							"format": "date-time"
+																						},
+																						"courseId": {
+																							"type": "string"
+																						},
+																						"progressId": {
+																							"type": "string"
+																						},
+																						"id": {
+																							"type": "string"
+																						}
+																					},
+																					"required": [
+																						"groupId",
+																						"progressMessage",
+																						"totalPoint",
+																						"content",
+																						"title",
+																						"userId",
+																						"point",
+																						"updatedAt",
+																						"createdAt",
+																						"courseId",
+																						"progressId",
+																						"id"
+																					],
+																					"type": "object"
+																				},
+																				"type": "array"
+																			}
+																		},
+																		"required": [
+																			"badges",
+																			"badges_and_levels",
+																			"achivement"
+																		],
+																		"type": "object"
+																	},
+																	{
+																		"properties": {
+																			"userId": {
+																				"type": "string"
+																			},
+																			"startedJourney": {
+																				"type": "boolean"
+																			},
+																			"progressBar": {
+																				"type": "number",
+																				"format": "double"
+																			},
+																			"updatedAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"createdAt": {
+																				"type": "string",
+																				"format": "date-time"
+																			},
+																			"lessonId": {
+																				"type": "string"
+																			},
+																			"id": {
+																				"type": "string"
+																			}
+																		},
+																		"required": [
+																			"userId",
+																			"startedJourney",
+																			"progressBar",
+																			"updatedAt",
+																			"createdAt",
+																			"lessonId",
+																			"id"
+																		],
+																		"type": "object"
+																	}
+																]
 															},
-															"required": [
-																"social_media",
-																"church_role",
-																"church_name",
-																"bio",
-																"isSuspended",
-																"verifiedAt",
-																"isVerified",
-																"resetTokenExpires",
-																"resetToken",
-																"isFromWaitList",
-																"isProfileComplete",
-																"completedVideo",
-																"completedLessons",
-																"completedCourses",
-																"provider",
-																"user_pic",
-																"lastActive",
-																"isOnline",
-																"userType",
-																"form_type",
-																"completed",
-																"paymentCode",
-																"waitlistId",
-																"firebase_uid",
-																"level",
-																"role",
-																"languageCode",
-																"language",
-																"phone_number",
-																"state",
-																"country",
-																"password",
-																"email_address",
-																"last_name",
-																"first_name",
-																"point",
-																"updatedAt",
-																"createdAt",
-																"id"
-															],
-															"type": "object"
+															"type": "array"
+														},
+														"languageCode": {
+															"type": "string"
 														}
-													]
+													},
+													"required": [
+														"social_media",
+														"church_role",
+														"church_name",
+														"bio",
+														"isSuspended",
+														"verifiedAt",
+														"isVerified",
+														"resetTokenExpires",
+														"resetToken",
+														"isFromWaitList",
+														"isProfileComplete",
+														"completedVideo",
+														"completedLessons",
+														"completedCourses",
+														"provider",
+														"user_pic",
+														"lastActive",
+														"isOnline",
+														"userType",
+														"form_type",
+														"completed",
+														"paymentCode",
+														"waitlistId",
+														"firebase_uid",
+														"level",
+														"role",
+														"language",
+														"phone_number",
+														"state",
+														"country",
+														"password",
+														"email_address",
+														"last_name",
+														"first_name",
+														"point",
+														"updatedAt",
+														"createdAt",
+														"id",
+														"progress",
+														"languageCode"
+													],
+													"type": "object"
 												},
 												"message": {
 													"type": "string"
@@ -3675,6 +3669,12 @@
 														"permissions": {},
 														"adminRole": {},
 														"isProfileComplete": {},
+														"languageCode": {
+															"type": "string"
+														},
+														"language": {
+															"type": "string"
+														},
 														"memberships": {
 															"items": {
 																"properties": {
@@ -3974,6 +3974,8 @@
 														}
 													},
 													"required": [
+														"languageCode",
+														"language",
 														"memberships",
 														"organization",
 														"profile_pic",
@@ -4010,6 +4012,12 @@
 													"properties": {
 														"memberships": {},
 														"organization": {},
+														"languageCode": {
+															"type": "string"
+														},
+														"language": {
+															"type": "string"
+														},
 														"permissions": {
 															"$ref": "#/components/schemas/JsonValue"
 														},
@@ -4054,6 +4062,8 @@
 														}
 													},
 													"required": [
+														"languageCode",
+														"language",
 														"permissions",
 														"adminRole",
 														"isProfileComplete",
@@ -4067,6 +4077,83 @@
 														"email_address",
 														"last_name",
 														"first_name",
+														"id"
+													],
+													"type": "object"
+												},
+												"message": {
+													"type": "string"
+												}
+											},
+											"required": [
+												"progressId",
+												"level",
+												"user",
+												"message"
+											],
+											"type": "object"
+										},
+										{
+											"properties": {
+												"progressId": {},
+												"level": {},
+												"user": {
+													"properties": {
+														"permissions": {},
+														"adminRole": {},
+														"isProfileComplete": {},
+														"memberships": {},
+														"organization": {},
+														"level": {},
+														"languageCode": {
+															"type": "string"
+														},
+														"language": {
+															"type": "string"
+														},
+														"profile_pic": {
+															"type": "string"
+														},
+														"userType": {
+															"$ref": "#/components/schemas/_36_Enums.UserType"
+														},
+														"state": {
+															"type": "string"
+														},
+														"country": {
+															"type": "string"
+														},
+														"phone_number": {
+															"type": "string"
+														},
+														"email_address": {
+															"type": "string"
+														},
+														"last_name": {
+															"type": "string"
+														},
+														"first_name": {
+															"type": "string"
+														},
+														"role": {
+															"type": "string"
+														},
+														"id": {
+															"type": "string"
+														}
+													},
+													"required": [
+														"languageCode",
+														"language",
+														"profile_pic",
+														"userType",
+														"state",
+														"country",
+														"phone_number",
+														"email_address",
+														"last_name",
+														"first_name",
+														"role",
 														"id"
 													],
 													"type": "object"
@@ -6657,7 +6744,28 @@
 						"bearerAuth": []
 					}
 				],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 20,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
 			}
 		},
 		"/socials/update-group/{id}": {
@@ -15330,7 +15438,28 @@
 						"bearerAuth": []
 					}
 				],
-				"parameters": []
+				"parameters": [
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"default": 1,
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"default": 12,
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
 			}
 		},
 		"/course/get-courses-by-tutor": {

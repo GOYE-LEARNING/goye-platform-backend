@@ -8,6 +8,26 @@ import { PORT } from "./utils/constant";
 import { initRedis, closeRedis, startNotificationWorker } from "./utils/redis";
 import { VerifyToken } from "./middleware/verifytoken";
 
+// Last-resort safety net for the "never take the process down" rule already
+// documented in utils/redis/connection.ts. That module's own Redis client is
+// careful to attach an 'error' listener everywhere — but BullMQ (the
+// notification queue/worker) creates its own additional ioredis connections
+// internally for blocking commands, and those don't inherit the listener
+// attached to the connection they were duplicated from. An EventEmitter's
+// 'error' event with no listener is fatal in Node, so a Redis Cloud blip hit
+// one of those internal connections and took the entire API down with it —
+// confirmed live: `connect ETIMEDOUT` from "[Notification Queue]" was
+// immediately followed by an unhandled exception and process exit, even
+// though every explicitly-wired client here logs instead of throwing.
+// Notifications/cache are not the system of record, so logging and
+// continuing is strictly better than losing the whole API over either.
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Unhandled promise rejection (process kept alive):", reason);
+});
+process.on("uncaughtException", (error) => {
+  console.error("❌ Uncaught exception (process kept alive):", error);
+});
+
 /**
  * Every token this process signs is only verifiable while ACCESS_SECRET /
  * REFRESH_SECRET stay byte-identical. If either value differs from the one a

@@ -1449,19 +1449,31 @@ export class SocialController extends Controller {
 
   @Security("bearerAuth")
   @Get("/get-groups")
-  public async GetGroup(@Request() req: any): Promise<any> {
+  public async GetGroup(
+    @Request() req: any,
+    @Query() page: number = 1,
+    @Query() limit: number = 20,
+  ): Promise<any> {
     const userId = req.user?.id;
+    const safePage = page > 0 ? page : 1;
+    const safeLimit = limit > 0 ? Math.min(limit, 50) : 20;
+    const skip = (safePage - 1) * safeLimit;
 
     try {
       // Cached without the caller's identity in the key on purpose: the query
       // itself is the same for everyone, and the only per-user part
       // (`hasJoined`) is derived below from data already in the payload. Keying
       // this per user would multiply the same rows by the number of students.
-      const groups = await useCacheAside(
-        CacheKeys.groupList("all"),
+      // Every group ever created used to come back in one unbounded fetch —
+      // paginated the same way the course catalog and discussion feed are.
+      const [groups, totalCount] = await useCacheAside(
+        CacheKeys.groupList(`all:${safePage}:${safeLimit}`),
         TTL.medium,
-        () => prisma.group.findMany({
+        () => Promise.all([
+          prisma.group.findMany({
         orderBy: { createdAt: "desc" },
+        skip,
+        take: safeLimit,
         include: {
           createdBy: {
             select: {
@@ -1502,7 +1514,9 @@ export class SocialController extends Controller {
             },
           },
         },
-        }),
+          }),
+          prisma.group.count(),
+        ]),
       );
 
       const groupsWithStatus = groups.map((group) => {
@@ -1520,7 +1534,13 @@ export class SocialController extends Controller {
       return {
         message: "Group fetched successfully",
         data: groupsWithStatus,
-        length: groups.length,
+        length: groupsWithStatus.length,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total: totalCount,
+          hasMore: skip + groupsWithStatus.length < totalCount,
+        },
       };
     } catch (error) {
       console.error("❌ Error fetching groups:", error);

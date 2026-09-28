@@ -35,6 +35,7 @@ import { firebaseAuthService } from "../services/firebaseService";
 import { otpRateLimit } from "../utils/otp";
 import { normalizeEmail, findUserByEmail } from "../utils/email";
 import { WeirdService } from "../services/weridService";
+import { toDbLanguageCode, toWireLanguageCode } from "../utils/languageCode";
 
 const forgotPasswordRateLimit = new Map<string, number[]>();
 // A 6-digit numeric OTP has only 1,000,000 combinations — without a
@@ -619,7 +620,7 @@ export class UserController extends Controller {
         password: hashedPassword,
         level: body.level,
         language: body.language,
-        languageCode: body.languageCode as any,
+        languageCode: toDbLanguageCode(body.languageCode) as any,
         userType: "INDIVIDUAL", // ✅ explicit on signup
       },
 
@@ -2053,22 +2054,35 @@ export class UserController extends Controller {
     if (data.state !== undefined) updateData.state = data.state;
     if (data.phone_number !== undefined) updateData.phone_number = data.phone_number;
     if (data.language !== undefined) updateData.language = data.language;
-    if (data.languageCode !== undefined) updateData.languageCode = data.languageCode;
+    if (data.languageCode !== undefined) updateData.languageCode = toDbLanguageCode(data.languageCode);
 
     if (Object.keys(updateData).length === 0) {
       this.setStatus(400);
       return { message: "No fields provided to update" };
     }
 
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-    });
+    let user;
+    try {
+      user = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+    } catch (error: any) {
+      // Most likely an unrecognized languageCode (the LanguageCode enum only
+      // accepts a fixed set of values) — fail with a clear 400 instead of an
+      // unhandled 500 for a bad value the client sent.
+      console.error("Error updating user:", error);
+      this.setStatus(400);
+      return { message: "Failed to update user — check the submitted values", error: error.message };
+    }
 
     await updateDataWithRedis(user.id,  ["profile"],)
 
     this.setStatus(200);
-    return { message: "User updated successfully", data: user };
+    return {
+      message: "User updated successfully",
+      data: { ...user, languageCode: toWireLanguageCode(user.languageCode as any) },
+    };
   }
 
   // Had no @Security decorator and no auth check at all — any unauthenticated
@@ -2298,7 +2312,12 @@ public async GetProfile(@Request() req: any) {
         });
         if (!user) return null;
 
-        return { message: "Profile fetched successfully", user, level: userLevel ?? null, progressId };
+        return {
+          message: "Profile fetched successfully",
+          user: { ...user, languageCode: toWireLanguageCode(user.languageCode as any) },
+          level: userLevel ?? null,
+          progressId,
+        };
       }
 
       if (userRole === "student") {
@@ -2310,7 +2329,12 @@ public async GetProfile(@Request() req: any) {
         });
         if (!user) return null;
 
-        return { message: "Profile fetched successfully", user, level: userLevel ?? null, progressId };
+        return {
+          message: "Profile fetched successfully",
+          user: { ...user, languageCode: toWireLanguageCode(user.languageCode as any) },
+          level: userLevel ?? null,
+          progressId,
+        };
       }
 
       if (userRole === "Member" || userRole === "member" || userRole === "invited_user") {
@@ -2344,6 +2368,7 @@ public async GetProfile(@Request() req: any) {
             phone_number: user.phone_number, country: user.country, state: user.state,
             level: user.level, userType: user.userType, profile_pic: user.user_pic,
             organization: user.organization, memberships: user.organizationMemberships,
+            language: user.language, languageCode: toWireLanguageCode(user.languageCode as any),
           },
           level: userLevel ?? null,
           progressId,
@@ -2366,6 +2391,32 @@ public async GetProfile(@Request() req: any) {
             userType: user.userType, profile_pic: user.user_pic, isProfileComplete: true,
             adminRole: user.adminProfile?.role ?? "super_admin",
             permissions: user.adminProfile?.permissions ?? null,
+            language: user.language, languageCode: toWireLanguageCode(user.languageCode as any),
+          },
+          level: userLevel ?? null,
+          progressId,
+        };
+      }
+
+      // Org owners authenticate with an "ORGANIZATION"-typed token but are
+      // still backed by a real User row (Organization.userId) — this is that
+      // row's own profile fetch, keyed by the same userId every other branch
+      // uses. Without this branch, GetProfile fell through to "INVALID_ROLE"
+      // (400) for every org owner, which meant refreshFromBackend() in
+      // I18nContext silently failed for them on every reload, and a language
+      // saved via /update-user could never be read back.
+      if (userRole === "org_admin") {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return null;
+
+        return {
+          message: "Profile fetched successfully",
+          user: {
+            id: user.id, role: user.role,
+            first_name: user.first_name, last_name: user.last_name, email_address: user.email_address,
+            phone_number: user.phone_number, country: user.country, state: user.state,
+            userType: user.userType, profile_pic: user.user_pic,
+            language: user.language, languageCode: toWireLanguageCode(user.languageCode as any),
           },
           level: userLevel ?? null,
           progressId,

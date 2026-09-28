@@ -11,6 +11,7 @@ import {
   Request,
   Delete,
   UploadedFile,
+  Query,
 } from "tsoa";
 import prisma from "../db";
 import { decodeBase64Upload } from "../utils/uploads";
@@ -711,6 +712,8 @@ export class CourseController extends Controller {
   @Get("/get-all-courses-level")
   public async GetAllCoursesByLevel(
     @Request() req: any,
+    @Query() page: number = 1,
+    @Query() limit: number = 12,
   ): Promise<CourseResponse> {
     const userId = req.user?.id;
     const userLevel = req.user?.level;
@@ -741,8 +744,15 @@ export class CourseController extends Controller {
         };
       }
 
-      // Unique user-scoped cache key format
-      const cacheKey = `user:${userId}:courses:${levelToFetch.toLowerCase()}`;
+      const safePage = page > 0 ? page : 1;
+      const safeLimit = limit > 0 ? Math.min(limit, 50) : 12;
+      const skip = (safePage - 1) * safeLimit;
+
+      // Unique user-scoped cache key format — every course catalog page a
+      // student can load with unbounded scrolling used to come back as one
+      // ever-growing, uncached-past-page-1 fetch; each page now caches (and
+      // invalidates) independently.
+      const cacheKey = `user:${userId}:courses:${levelToFetch.toLowerCase()}:${safePage}:${safeLimit}`;
 
       // Pass the entire execution sequence into our type-safe cache helper
       // We use a 1-hour expiration (3600 seconds) since progress data evolves
@@ -755,14 +765,19 @@ export class CourseController extends Controller {
           );
 
           // Fetch courses for the user's level
-          const getAllCourses = await prisma.course.findMany({
-            where: {
-              course_level: levelToFetch,
-              status: "PUBLISHED",
-            },
+          const courseWhere = {
+            course_level: levelToFetch,
+            status: "PUBLISHED",
+          } as const;
+
+          const [getAllCourses, totalCount] = await Promise.all([
+            prisma.course.findMany({
+            where: courseWhere,
             orderBy: {
               createdAt: "desc",
             },
+            skip,
+            take: safeLimit,
             include: {
               enrollment: {
                 where: { userId: userId },
@@ -785,7 +800,9 @@ export class CourseController extends Controller {
                 select: { user_pic: true },
               },
             },
-          });
+            }),
+            prisma.course.count({ where: courseWhere }),
+          ]);
 
           // Batch what used to be two extra Prisma round-trips PER COURSE
           // (an enrollment count and a progress lookup) into one query each
@@ -938,7 +955,10 @@ export class CourseController extends Controller {
             message: "Courses fetched successfully",
             data: {
               getAllCourses: transformedCourses,
-              total: transformedCourses.length,
+              total: totalCount,
+              page: safePage,
+              limit: safeLimit,
+              hasMore: skip + transformedCourses.length < totalCount,
               userLevel: userLevel,
               language: language ?? null,
               languageCode: languageCode ?? null,
