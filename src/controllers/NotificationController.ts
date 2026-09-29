@@ -320,6 +320,70 @@ export class NotificationController extends Controller {
   }
 
   @Security("bearerAuth")
+  @Delete("/clear-all")
+  public async clearAllNotifications(@Request() req: any) {
+    const userId = req.user?.id;
+    let userRole = req.user?.role;
+
+    if (!userId || !userRole) {
+      this.setStatus(401);
+      return {
+        success: false,
+        message: "User is unauthorized",
+      };
+    }
+
+    try {
+      userRole = userRole.toUpperCase();
+
+      // ✅ USE THE FILTER
+      const { where } = await NotificationService.getNotificationFilter(
+        userId,
+        userRole,
+      );
+
+      // Get all notification IDs for this user based on settings
+      const notifications = await prisma.notification.findMany({
+        where: where, // ✅ FILTERED WHERE CLAUSE
+        select: { id: true },
+      });
+
+      const notificationIds = notifications.map((n) => n.id);
+
+      if (notificationIds.length === 0) {
+        return {
+          success: true,
+          message: "No notifications to clear",
+          data: { count: 0 },
+        };
+      }
+
+      const result = await NotificationService.deleteMultipleNotifications(
+        notificationIds,
+        userId,
+      );
+
+      return {
+        success: true,
+        message: `${result.count} notifications cleared successfully`,
+        data: { count: result.count },
+      };
+    } catch (error: any) {
+      console.error("Error clearing all notifications:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to clear notifications",
+        error: error.message,
+      };
+    }
+  }
+
+  // This must stay registered AFTER the literal "/clear-all" route above —
+  // tsoa/Express match routes in declaration order, and this parameterized
+  // path would otherwise swallow "clear-all" as a literal notificationId,
+  // producing a Prisma "record not found" error on every clear-all request.
+  @Security("bearerAuth")
   @Delete("/{notificationId}")
   public async deleteNotification(
     @Request() req: any,
@@ -468,66 +532,6 @@ export class NotificationController extends Controller {
       return {
         success: false,
         message: "Notification not found or unauthorized",
-        error: error.message,
-      };
-    }
-  }
-
-  @Security("bearerAuth")
-  @Delete("/clear-all")
-  public async clearAllNotifications(@Request() req: any) {
-    const userId = req.user?.id;
-    let userRole = req.user?.role;
-
-    if (!userId || !userRole) {
-      this.setStatus(401);
-      return {
-        success: false,
-        message: "User is unauthorized",
-      };
-    }
-
-    try {
-      userRole = userRole.toUpperCase();
-
-      // ✅ USE THE FILTER
-      const { where } = await NotificationService.getNotificationFilter(
-        userId,
-        userRole,
-      );
-
-      // Get all notification IDs for this user based on settings
-      const notifications = await prisma.notification.findMany({
-        where: where, // ✅ FILTERED WHERE CLAUSE
-        select: { id: true },
-      });
-
-      const notificationIds = notifications.map((n) => n.id);
-
-      if (notificationIds.length === 0) {
-        return {
-          success: true,
-          message: "No notifications to clear",
-          data: { count: 0 },
-        };
-      }
-
-      const result = await NotificationService.deleteMultipleNotifications(
-        notificationIds,
-        userId,
-      );
-
-      return {
-        success: true,
-        message: `${result.count} notifications cleared successfully`,
-        data: { count: result.count },
-      };
-    } catch (error: any) {
-      console.error("Error clearing all notifications:", error);
-      this.setStatus(500);
-      return {
-        success: false,
-        message: "Failed to clear notifications",
         error: error.message,
       };
     }
