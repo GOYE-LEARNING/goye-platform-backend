@@ -54,7 +54,7 @@ const redisUrl = buildRedisUrl();
 export const isRedisConfigured = redisUrl !== null;
 
 let client: RedisClientType | null = null;
-let connecting: Promise<RedisClientType | null> | null = null;
+let connecting: Promise<void> | null = null;
 /** Flipped on once we've failed, so we stop retrying on every single request. */
 let unavailableUntil = 0;
 const RETRY_COOLDOWN_MS = 30_000;
@@ -93,13 +93,11 @@ function createRedisClient(): RedisClientType {
 }
 
 /**
- * Returns a connected client, or null when Redis is unconfigured/unreachable.
- * Callers must treat null as "skip the cache", never as an error.
+ * Does the actual connect() attempt (bounded by CONNECT_RACE_TIMEOUT_MS),
+ * shared by getRedis() (which never awaits this) and initRedis() (which
+ * does, once, at boot — see their own doc comments).
  */
-export async function getRedis(): Promise<RedisClientType | null> {
-  if (!isRedisConfigured) return null;
-  if (Date.now() < unavailableUntil) return null;
-  if (client?.isReady) return client;
+function attemptConnect(): Promise<void> {
   if (connecting) return connecting;
 
   connecting = (async () => {
@@ -116,7 +114,6 @@ export async function getRedis(): Promise<RedisClientType | null> {
           ),
         ]);
       }
-      return client.isReady ? client : null;
     } catch (err: any) {
       console.error(
         `[Redis] connection failed, caching disabled for ${RETRY_COOLDOWN_MS / 1000}s:`,
@@ -132,7 +129,6 @@ export async function getRedis(): Promise<RedisClientType | null> {
         /* already gone, or never got that far */
       }
       client = null;
-      return null;
     } finally {
       connecting = null;
     }
@@ -141,7 +137,37 @@ export async function getRedis(): Promise<RedisClientType | null> {
   return connecting;
 }
 
-/** Warms the connection at boot so the first request isn't the one that pays for it. */
+/**
+ * Returns a connected client, or null when Redis is unconfigured/unreachable
+ * or still in the middle of (re)connecting. Callers must treat null as "skip
+ * the cache", never as an error.
+ *
+ * Never awaits a fresh connection attempt itself — a live request should
+ * never pay Redis's connect latency (previously up to 52s against the real
+ * Redis Cloud outage this was written against, then capped at 3s, and still
+ * a visible stall on "Go to Dashboard" once per cooldown window). Caching is
+ * a pure optimization here, so the very first caller after a cold start (or
+ * after a failure) gets null immediately and simply runs uncached, while the
+ * actual connect() happens in the background; once it resolves, later
+ * callers pick up the now-ready client for free.
+ */
+export async function getRedis(): Promise<RedisClientType | null> {
+  if (!isRedisConfigured) return null;
+  if (client?.isReady) return client;
+  if (Date.now() < unavailableUntil) return null;
+
+  // Kick off (or join, if one is already running) the connection attempt,
+  // but never await it here.
+  void attemptConnect();
+  return null;
+}
+
+/**
+ * Warms the connection at boot so the first request isn't the one that pays
+ * for it. Unlike getRedis(), this is allowed to await the real connect() —
+ * it runs once before the server starts accepting traffic, so no live
+ * request is ever blocked by it.
+ */
 export async function initRedis(): Promise<void> {
   if (!isRedisConfigured) {
     console.warn(
@@ -149,8 +175,8 @@ export async function initRedis(): Promise<void> {
     );
     return;
   }
-  const c = await getRedis();
-  if (!c) console.warn("[Redis] Unavailable at boot — the API will run uncached until it recovers.");
+  await attemptConnect();
+  if (!client?.isReady) console.warn("[Redis] Unavailable at boot — the API will run uncached until it recovers.");
 }
 
 /**
