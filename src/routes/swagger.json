@@ -4509,6 +4509,70 @@
 				}
 			}
 		},
+		"/user/push-token": {
+			"put": {
+				"operationId": "RegisterPushToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"expoPushToken": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"expoPushToken"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "UnregisterPushToken",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"User control APIs"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
 		"/user/logout": {
 			"post": {
 				"operationId": "Logout",
@@ -11122,6 +11186,12 @@
 																	"replyId": {
 																		"type": "string"
 																	},
+																	"dismissedBy": {
+																		"items": {
+																			"type": "string"
+																		},
+																		"type": "array"
+																	},
 																	"isRead": {
 																		"type": "boolean"
 																	},
@@ -11172,6 +11242,7 @@
 																},
 																"required": [
 																	"replyId",
+																	"dismissedBy",
 																	"isRead",
 																	"to",
 																	"postId",
@@ -11369,6 +11440,12 @@
 																	"replyId": {
 																		"type": "string"
 																	},
+																	"dismissedBy": {
+																		"items": {
+																			"type": "string"
+																		},
+																		"type": "array"
+																	},
 																	"isRead": {
 																		"type": "boolean"
 																	},
@@ -11419,6 +11496,7 @@
 																},
 																"required": [
 																	"replyId",
+																	"dismissedBy",
 																	"isRead",
 																	"to",
 																	"postId",
@@ -11641,6 +11719,12 @@
 														"replyId": {
 															"type": "string"
 														},
+														"dismissedBy": {
+															"items": {
+																"type": "string"
+															},
+															"type": "array"
+														},
 														"isRead": {
 															"type": "boolean"
 														},
@@ -11691,6 +11775,7 @@
 													},
 													"required": [
 														"replyId",
+														"dismissedBy",
 														"isRead",
 														"to",
 														"postId",
@@ -11984,6 +12069,12 @@
 														"replyId": {
 															"type": "string"
 														},
+														"dismissedBy": {
+															"items": {
+																"type": "string"
+															},
+															"type": "array"
+														},
 														"isRead": {
 															"type": "boolean"
 														},
@@ -12034,6 +12125,7 @@
 													},
 													"required": [
 														"replyId",
+														"dismissedBy",
 														"isRead",
 														"to",
 														"postId",
@@ -12288,6 +12380,12 @@
 																			"replyId": {
 																				"type": "string"
 																			},
+																			"dismissedBy": {
+																				"items": {
+																					"type": "string"
+																				},
+																				"type": "array"
+																			},
 																			"isRead": {
 																				"type": "boolean"
 																			},
@@ -12338,6 +12436,7 @@
 																		},
 																		"required": [
 																			"replyId",
+																			"dismissedBy",
 																			"isRead",
 																			"to",
 																			"postId",
@@ -12572,6 +12671,12 @@
 														"replyId": {
 															"type": "string"
 														},
+														"dismissedBy": {
+															"items": {
+																"type": "string"
+															},
+															"type": "array"
+														},
 														"isRead": {
 															"type": "boolean"
 														},
@@ -12622,6 +12727,7 @@
 													},
 													"required": [
 														"replyId",
+														"dismissedBy",
 														"isRead",
 														"to",
 														"postId",
@@ -12923,6 +13029,12 @@
 													"replyId": {
 														"type": "string"
 													},
+													"dismissedBy": {
+														"items": {
+															"type": "string"
+														},
+														"type": "array"
+													},
 													"isRead": {
 														"type": "boolean"
 													},
@@ -12973,6 +13085,7 @@
 												},
 												"required": [
 													"replyId",
+													"dismissedBy",
 													"isRead",
 													"to",
 													"postId",

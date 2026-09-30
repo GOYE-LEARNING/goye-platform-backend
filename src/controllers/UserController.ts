@@ -2960,6 +2960,70 @@ public async GetProfile(@Request() req: any) {
     return { message: "Dark mode updated successfully", settings: updated };
   }
 
+  // Stores the Expo push token against the *session's own device*, not just
+  // the user — a user can be logged in on several devices at once, and a
+  // push notification needs to reach all of them, not overwrite one shared
+  // slot. `req.deviceId` is set by the auth middleware from the same header
+  // (`x-device-id`) every other authenticated mobile request already sends.
+  @Security("bearerAuth")
+  @Put("/push-token")
+  public async RegisterPushToken(
+    @Request() req: any,
+    @Body() body: { expoPushToken: string },
+  ): Promise<any> {
+    const userId = req.user?.id;
+    const deviceId = req.deviceId;
+
+    if (!userId || !deviceId) {
+      this.setStatus(401);
+      return { message: "Unauthorized" };
+    }
+
+    if (!body.expoPushToken) {
+      this.setStatus(400);
+      return { message: "expoPushToken is required" };
+    }
+
+    try {
+      await prisma.userSession.update({
+        where: { deviceId },
+        data: { expoPushToken: body.expoPushToken },
+      });
+      this.setStatus(200);
+      return { message: "Push token registered" };
+    } catch (error: any) {
+      // The session row is created at login before this call ever fires, so
+      // a missing row here means a stale/rotated deviceId, not a real error.
+      console.error("Error registering push token:", error);
+      this.setStatus(404);
+      return { message: "Session not found for this device" };
+    }
+  }
+
+  // Lets the app stop sending push to a device on explicit logout, so a
+  // signed-out phone doesn't keep receiving another account's notifications
+  // if someone else logs in on it later.
+  @Security("bearerAuth")
+  @Delete("/push-token")
+  public async UnregisterPushToken(@Request() req: any): Promise<any> {
+    const deviceId = req.deviceId;
+    if (!deviceId) {
+      this.setStatus(401);
+      return { message: "Unauthorized" };
+    }
+
+    try {
+      await prisma.userSession.update({
+        where: { deviceId },
+        data: { expoPushToken: null },
+      });
+    } catch {
+      // Session already gone (e.g. logout already deleted it) — nothing to do.
+    }
+    this.setStatus(200);
+    return { message: "Push token unregistered" };
+  }
+
   @Post("/logout")
   public async Logout(@Request() req: any): Promise<any> {
     // Deliberately NOT behind @Security("bearerAuth").

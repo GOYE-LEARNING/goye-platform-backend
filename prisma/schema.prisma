@@ -359,6 +359,10 @@ model UserSession {
   isRevoked    Boolean  @default(false)
   userAgent    String?
   ipAddress    String?
+  // Expo push token for this specific device, so a push notification can be
+  // sent to every device a user is logged in on. Null until the mobile app
+  // registers one (web sessions never set this).
+  expoPushToken String?
 
   // ── Added organizationId for org sessions ──
   organizationId String?

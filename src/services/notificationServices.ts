@@ -3,6 +3,7 @@ import prisma from "../db";
 import { updateDataWithRedis, invalidateNotificationCaches } from "../utils/redis";
 import { queueNotification } from "../utils/redis";
 import { SocketService } from "./socketService";
+import { sendExpoPush } from "../utils/pushNotifications";
 
 export enum Role {
   ADMIN = "ADMIN",
@@ -192,6 +193,20 @@ export class NotificationService {
         "notifications-unread",
         "notifications-counts",
       ]);
+
+      // Not awaited — this is the "user isn't in the app" delivery path
+      // (OS push via Expo), which must never slow down or fail the
+      // in-app/socket notification path above it.
+      void sendExpoPush(data.userId, {
+        title: notificationData.title,
+        body: data.message,
+        data: {
+          notificationId: notification.id,
+          type: data.type,
+          courseId: data.courseId,
+          groupId: data.groupId,
+        },
+      });
 
       try {
         if (userExists.email_address) {
