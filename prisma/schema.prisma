@@ -524,6 +524,13 @@ model Notification {
   role           String
   to             String
   isRead         Boolean       @default(false)
+  // Role-wide broadcasts (userId null) are one shared row for every
+  // recipient in that role — deleting it would remove it for everyone, not
+  // just the person who cleared it. This tracks who has individually
+  // dismissed/cleared it so "Clear All" can hide it per-user without
+  // touching the shared row. Personal notifications (userId set) are still
+  // hard-deleted and never need this.
+  dismissedBy    String[]      @default([])
   user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId         String?
   course         Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)

@@ -807,12 +807,26 @@ export class NotificationService {
    */
   static async deleteNotification(notificationId: string, userId: string) {
     try {
-      const notification = await prisma.notification.delete({
-        where: {
-          id: notificationId,
-          userId: userId,
-        },
+      const existing = await prisma.notification.findUniqueOrThrow({
+        where: { id: notificationId },
+        select: { userId: true },
       });
+
+      // A broadcast row (userId null) is shared by every recipient in that
+      // role — deleting it would remove it for everyone, not just this
+      // user, so record the dismissal instead of the row itself. A personal
+      // notification not owned by this user should never reach here given
+      // the fixed getNotificationFilter, but the userId check still guards
+      // against deleting someone else's row.
+      const notification =
+        existing.userId === null
+          ? await prisma.notification.update({
+              where: { id: notificationId },
+              data: { dismissedBy: { push: userId } },
+            })
+          : await prisma.notification.delete({
+              where: { id: notificationId, userId: userId },
+            });
 
       await invalidateNotificationCaches(userId);
 
@@ -831,12 +845,36 @@ export class NotificationService {
     userId: string,
   ) {
     try {
-      return await prisma.notification.deleteMany({
-        where: {
-          id: { in: notificationIds },
-          userId: userId,
-        },
+      const targets = await prisma.notification.findMany({
+        where: { id: { in: notificationIds } },
+        select: { id: true, userId: true },
       });
+
+      const personalIds = targets
+        .filter((n) => n.userId === userId)
+        .map((n) => n.id);
+      const broadcastIds = targets
+        .filter((n) => n.userId === null)
+        .map((n) => n.id);
+
+      const [deleted] = await Promise.all([
+        personalIds.length
+          ? prisma.notification.deleteMany({
+              where: { id: { in: personalIds }, userId: userId },
+            })
+          : { count: 0 },
+        // Broadcasts are shared rows — dismiss per-user instead of deleting
+        // them, or clearing your own feed would clear it for everyone else
+        // still meant to see it.
+        ...broadcastIds.map((id) =>
+          prisma.notification.update({
+            where: { id },
+            data: { dismissedBy: { push: userId } },
+          }),
+        ),
+      ]);
+
+      return { count: deleted.count + broadcastIds.length };
     } catch (error) {
       console.error("Error in deleteMultipleNotifications:", error);
       throw error;
@@ -862,13 +900,28 @@ export class NotificationService {
     }
 
     // Simple filter without group_activity
+    //
+    // `to` is the intended audience ROLE (e.g. "STUDENT"), not a specific
+    // recipient — a personal, per-student notification (like a tutor's
+    // "Keep learning!" reminder) still carries `to: "STUDENT"` alongside its
+    // own `userId`. Matching on `to` alone, as this used to, leaked every
+    // student's personal notifications to every other student with the same
+    // role. A notification only belongs to this user if it's actually theirs
+    // (userId matches) or it's a genuine role-wide broadcast (no userId set).
     const baseWhere: any = {
-      OR: [{ to: userRole }, { userId: userId }],
+      AND: [
+        { OR: [{ userId: userId }, { to: userRole, userId: null }] },
+        // A broadcast row is shared by everyone in the role, so "clearing"
+        // it for this user can't delete the row — it records the dismissal
+        // here instead. Personal notifications are hard-deleted and never
+        // get a dismissedBy entry, so this is a no-op for them.
+        { NOT: { dismissedBy: { has: userId } } },
+      ],
     };
 
     // Only exclude course notifications if disabled
     if (disableCourseNotifications) {
-      baseWhere.NOT = { courseId: { not: null } };
+      baseWhere.AND.push({ NOT: { courseId: { not: null } } });
     }
 
     return {
