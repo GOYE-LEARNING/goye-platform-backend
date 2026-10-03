@@ -25,6 +25,9 @@ import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
 import { useCacheAside, CacheKeys, TTL, invalidateOrgCaches } from "../utils/redis";
 import { assertOrgAdminOf, decodeOptionalRequester } from "../utils/orgPermissions";
 import { Role } from "../services/notificationServices";
+import { Church, School, Club } from "../interface/interfaces";
+import { firebaseAuthService } from "../services/firebaseService";
+import { generateDeviceId, generateTokens, getDeviceType } from "../utils/jwtHelper";
 
 @Route("organizations")
 @Tags("Organization Controllers")
@@ -217,6 +220,318 @@ export class OrganizationController extends Controller {
       console.error(error);
       this.setStatus(500);
       return {
+        message: "Organization creation failed.",
+        error: error.message,
+      };
+    }
+  }
+
+  // Mirrors CreateOrganization above, but for an owner who signed up with
+  // Google instead of email/password: the owner's name/email/picture come
+  // from the verified Google token (same as UserController.GoogleAuth's
+  // individual path) instead of free-typed form fields, and no password is
+  // ever set (organization_password stays null, same as a Google individual
+  // user's password column). Issues tokens directly since there's no
+  // separate org/login step possible for an account with no password.
+  @Post("/auth/create-organization-google")
+  public async CreateOrganizationWithGoogle(
+    @Body()
+    body: {
+      idToken: string;
+      deviceId?: string;
+      organization_name: string;
+      organization_type: string;
+      organization_email: string;
+      organization_phone_number: string;
+      organization_country: string;
+      organization_state: string;
+      organization_description: string;
+      organization_role: string;
+      organization_year: string;
+      language: string;
+      languageCode: string;
+      user_country: string;
+      user_state: string;
+      user_phone_number: string;
+      church?: Church;
+      school?: School;
+      club?: Club;
+    },
+    @Request() req: any,
+  ): Promise<any> {
+    const orgTypeMap: Record<string, "CHURCH" | "SCHOOL" | "CLUB" | "OTHER"> = {
+      church: "CHURCH",
+      school: "SCHOOL",
+      club: "CLUB",
+      other: "OTHER",
+    };
+
+    try {
+      const googleUser = await firebaseAuthService.verifyGoogleToken(body.idToken);
+      if (!googleUser) {
+        this.setStatus(401);
+        return { success: false, message: "Invalid Google token" };
+      }
+
+      if (
+        (body.church?.church_email &&
+          normalizeEmail(body.church.church_email) === normalizeEmail(googleUser.email)) ||
+        (body.school?.school_email &&
+          normalizeEmail(body.school.school_email) === normalizeEmail(googleUser.email))
+      ) {
+        return {
+          errorType: "SAME_EMAIL_ISSUE",
+          message:
+            "Your personal information email address should not be the same as your organization email address.",
+        };
+      }
+
+      if (await emailAlreadyRegistered(googleUser.email)) {
+        this.setStatus(409);
+        return {
+          errorType: "EMAIL_ALREADY_REGISTERED",
+          message:
+            "An account with this email already exists. Please log in instead, or use a different Google account for the organization owner.",
+        };
+      }
+
+      const existingOrgEmail = await prisma.organization.findFirst({
+        where: {
+          organization_email: {
+            equals: normalizeEmail(body.organization_email),
+            mode: "insensitive",
+          },
+        },
+      });
+      if (existingOrgEmail) {
+        this.setStatus(409);
+        return {
+          errorType: "ORG_EMAIL_TAKEN",
+          message: "An organization is already registered with this email address.",
+        };
+      }
+
+      const nameParts = googleUser.name.split(" ");
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(" ") || "";
+
+      const createOrganization = await prisma.organization.create({
+        data: {
+          organization_name: body.organization_name,
+          organization_email: normalizeEmail(body.organization_email),
+          lastActive: new Date(),
+          organization_role: body.organization_role,
+          organization_description: body.organization_description,
+          organization_country: body.organization_country,
+          organization_state: body.organization_state,
+          organization_phone_number: body.organization_phone_number,
+          organization_year: body.organization_year,
+          organization_type: orgTypeMap[body.organization_type],
+          language: body.language,
+          languageCode: body.languageCode,
+
+          user: {
+            create: {
+              first_name: firstName,
+              last_name: lastName,
+              email_address: normalizeEmail(googleUser.email),
+              country: body.user_country,
+              state: body.user_state,
+              phone_number: body.user_phone_number,
+              role: "org_admin",
+              form_type: "ORGANIZATION",
+              level: "ORGANIZATION",
+              userType: "ORGANIZATION_OWNER",
+              firebase_uid: googleUser.uid,
+              provider: "GOOGLE",
+              user_pic: googleUser.picture,
+              password: null,
+            },
+          },
+
+          ...(body.church && {
+            Church: {
+              create: {
+                church_min_name: body.church.church_ministry_name,
+                church_ld_pastor: body.church.church_lead_pastor,
+                church_role: body.church.church_leadership_role,
+                church_email: body.church.church_email,
+                church_address: body.church.church_address,
+                church_logo: body.church.church_logo,
+                church_website: body.church.church_website,
+                church_weekly_service: body.church.church_weekly_service,
+              },
+            },
+          }),
+
+          ...(body.school && {
+            school: {
+              create: {
+                school_name: body.school.school_name,
+                school_type: body.school.school_type,
+                school_address: body.school.school_address,
+                school_admin_name: body.school.school_admin_name,
+                school_role: body.school.school_role,
+                school_accreditation_number: body.school.school_accreditation_number,
+                school_document: body.school.school_document,
+                school_email: body.school.school_email,
+                school_website: body.school.school_website,
+              },
+            },
+          }),
+
+          ...(body.club && {
+            Club: {
+              create: {
+                club_name: body.club.club_name,
+                club_type: body.club.club_type,
+                club_leader_name: body.club.club_leader_name,
+                club_description: body.club.club_description,
+                club_document: body.club.club_document,
+                club_meeting_frequency: body.club.club_meeting_frequency,
+                club_parent_org: body.club.club_parent_org,
+                club_role: body.club.club_role,
+                club_social_link: body.club.club_social_link,
+              },
+            },
+          }),
+        },
+        include: { user: true },
+      });
+
+      await prisma.organizationMember.create({
+        data: {
+          userId: createOrganization.user!.id,
+          organizationId: createOrganization.id,
+          role: "org_admin",
+          joinedVia: "CREATED",
+          isActive: true,
+        },
+      });
+
+      await prisma.settings.create({
+        data: {
+          enable_push_notification: true,
+          course_updates: true,
+          event: true,
+          achievement: true,
+          daily_reminders: true,
+          darkMode: false,
+          email_notification: true,
+          updatedAt: new Date(),
+          userId: null,
+          organizationId: createOrganization.id,
+        },
+      });
+
+      await PricingService.GenerateNewPaymentForNewUser({
+        userId: null,
+        orgId: createOrganization.id,
+        type: "ORGANIZATION",
+      });
+
+      // Issue tokens immediately - a Google-authed org owner has no password
+      // to come back and log in with via /auth/org/login, so this endpoint
+      // doubles as their first sign-in, same as GoogleAuth's existing
+      // ORGANIZATION OWNER branch for a returning org owner.
+      const userAgent = req.headers["user-agent"] || "unknown";
+      const deviceType = getDeviceType(userAgent);
+      const deviceId =
+        (req.headers["x-device-id"] as string) || body.deviceId || generateDeviceId();
+      const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
+      const isProduction = process.env.NODE_ENV === "production";
+
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ORGANIZATION",
+        id: createOrganization.user!.id,
+        email: createOrganization.user!.email_address,
+        role: createOrganization.user!.role,
+        userType: createOrganization.user!.userType,
+        organizationId: createOrganization.id,
+        organization_name: createOrganization.organization_name,
+        organization_email: createOrganization.organization_email,
+        organization_role: createOrganization.user!.role,
+        userId: createOrganization.user!.id,
+        provider: "GOOGLE",
+        level: "ORGANIZATION",
+        firebase_uid: createOrganization.user!.firebase_uid,
+        deviceId,
+        deviceType,
+        full_name: `${createOrganization.user!.first_name} ${createOrganization.user!.last_name}`,
+      });
+
+      await prisma.userSession.upsert({
+        where: { deviceId },
+        update: {
+          userId: createOrganization.user!.id,
+          refreshToken,
+          accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: createOrganization.user!.id,
+          deviceId,
+          deviceType,
+          refreshToken,
+          accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          ipAddress,
+          isRevoked: false,
+        },
+      });
+
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(201);
+      return {
+        success: true,
+        message: "Organization created successfully.",
+        accessToken,
+        refreshToken,
+        user: {
+          type: "ORGANIZATION",
+          userType: createOrganization.user!.userType,
+          id: createOrganization.id,
+          organization_name: createOrganization.organization_name,
+          organization_email: createOrganization.organization_email,
+          organization_role: createOrganization.user!.role,
+        },
+        data: createOrganization,
+      };
+    } catch (error: any) {
+      console.error(error);
+      this.setStatus(500);
+      return {
+        success: false,
         message: "Organization creation failed.",
         error: error.message,
       };

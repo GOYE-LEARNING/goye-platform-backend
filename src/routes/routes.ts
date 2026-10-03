@@ -3562,6 +3562,37 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
             }
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_CreateOrganizationWithGoogle: Record<string, TsoaRoute.ParameterSchema> = {
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"club":{"ref":"Club"},"school":{"ref":"School"},"church":{"ref":"Church"},"user_phone_number":{"dataType":"string","required":true},"user_state":{"dataType":"string","required":true},"user_country":{"dataType":"string","required":true},"languageCode":{"dataType":"string","required":true},"language":{"dataType":"string","required":true},"organization_year":{"dataType":"string","required":true},"organization_role":{"dataType":"string","required":true},"organization_description":{"dataType":"string","required":true},"organization_state":{"dataType":"string","required":true},"organization_country":{"dataType":"string","required":true},"organization_phone_number":{"dataType":"string","required":true},"organization_email":{"dataType":"string","required":true},"organization_type":{"dataType":"string","required":true},"organization_name":{"dataType":"string","required":true},"deviceId":{"dataType":"string"},"idToken":{"dataType":"string","required":true}}},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.post('/api/organizations/auth/create-organization-google',
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.CreateOrganizationWithGoogle)),
+
+            async function OrganizationController_CreateOrganizationWithGoogle(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_CreateOrganizationWithGoogle, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'CreateOrganizationWithGoogle',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsOrganizationController_OrgLogin: Record<string, TsoaRoute.ParameterSchema> = {
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
                 credential: {"in":"body","name":"credential","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"org_password":{"dataType":"string","required":true},"org_email":{"dataType":"string","required":true}}},

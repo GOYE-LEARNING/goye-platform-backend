@@ -7753,6 +7753,112 @@
 				}
 			}
 		},
+		"/organizations/auth/create-organization-google": {
+			"post": {
+				"operationId": "CreateOrganizationWithGoogle",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"tags": [
+					"Organization Controllers"
+				],
+				"security": [],
+				"parameters": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"club": {
+										"$ref": "#/components/schemas/Club"
+									},
+									"school": {
+										"$ref": "#/components/schemas/School"
+									},
+									"church": {
+										"$ref": "#/components/schemas/Church"
+									},
+									"user_phone_number": {
+										"type": "string"
+									},
+									"user_state": {
+										"type": "string"
+									},
+									"user_country": {
+										"type": "string"
+									},
+									"languageCode": {
+										"type": "string"
+									},
+									"language": {
+										"type": "string"
+									},
+									"organization_year": {
+										"type": "string"
+									},
+									"organization_role": {
+										"type": "string"
+									},
+									"organization_description": {
+										"type": "string"
+									},
+									"organization_state": {
+										"type": "string"
+									},
+									"organization_country": {
+										"type": "string"
+									},
+									"organization_phone_number": {
+										"type": "string"
+									},
+									"organization_email": {
+										"type": "string"
+									},
+									"organization_type": {
+										"type": "string"
+									},
+									"organization_name": {
+										"type": "string"
+									},
+									"deviceId": {
+										"type": "string"
+									},
+									"idToken": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"user_phone_number",
+									"user_state",
+									"user_country",
+									"languageCode",
+									"language",
+									"organization_year",
+									"organization_role",
+									"organization_description",
+									"organization_state",
+									"organization_country",
+									"organization_phone_number",
+									"organization_email",
+									"organization_type",
+									"organization_name",
+									"idToken"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
 		"/organizations/auth/org/login": {
 			"post": {
 				"operationId": "OrgLogin",
