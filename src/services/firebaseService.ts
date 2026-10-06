@@ -86,7 +86,9 @@ export class FirebaseAuthService {
           data: {
             firebase_uid: googleUser.uid,
             provider: "GOOGLE",
-            user_pic: googleUser.picture || user.user_pic,
+            // A prior upload is the user's deliberate choice — don't let
+            // linking Google clobber it with the OAuth photo.
+            user_pic: user.user_pic || googleUser.picture,
             isProfileComplete: isProfileComplete
           }
         });

@@ -1849,12 +1849,15 @@ export class UserController extends Controller {
         select: { first_name: true, user_pic: true },
       });
 
+      await updateDataWithRedis(userId, ["profile"]);
+
       this.setStatus(200);
       return { message: "Avatar uploaded successfully", user: updatedUser };
     } catch (error: any) {
       if (error.message.includes("row-level security")) {
         try {
           await prisma.$executeRaw`UPDATE "User" SET user_pic = ${url} WHERE id = ${userId}`;
+          await updateDataWithRedis(userId, ["profile"]);
           this.setStatus(200);
           return { message: "Avatar uploaded successfully (used fallback)", user: { user_pic: url } };
         } catch (rawError) {
