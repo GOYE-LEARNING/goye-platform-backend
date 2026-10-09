@@ -96,6 +96,29 @@ const perUserLimiter = rateLimit({
   keyGenerator: userOrIpKey,
 });
 
+// ---- Limiter for content submission (each one triggers an AI moderation call) ----
+// Applies only to the create/edit routes, so likes, reads and private messages
+// are untouched. Bounds how fast one user can spend the moderation budget.
+const SUBMISSION_PATHS = [
+  /^\/api\/socials\/(create-post|create-reply|update-reply)\//,
+  /^\/api\/discussion\/public(\/[^/]+\/reply)?$/,
+  /^\/api\/discussion\/reply\/[^/]+\/nested$/,
+  /^\/api\/discussion\/[^/]+$/,
+];
+const contentSubmissionLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.SUBMISSION_RATE_LIMIT) || 10,
+  message: { status: 429, message: "You're posting a bit fast — please wait a moment and try again." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: userOrIpKey,
+  skip: (req) => {
+    if (req.method !== "POST" && req.method !== "PUT") return true;
+    const path = req.originalUrl.split("?")[0];
+    return !SUBMISSION_PATHS.some((r) => r.test(path));
+  },
+});
+
 // ---- Dedicated limiter for the AI/TTS endpoint ----
 // Keeps this feature's usage from eating into the shared 100/15min
 // general budget, and keeps it separate from your provider-side
@@ -211,6 +234,7 @@ export const createApp = async (socketService?: SocketService) => {
   app.use(helmet())
 
   app.use(generalLimiter);
+  app.use(contentSubmissionLimiter);
   app.use("/api/user/signup", authLimiter);
   app.use("/api/user/login", authLimiter);
 

@@ -17,6 +17,8 @@ import prisma from "../db";
 import { decodeBase64Upload } from "../utils/uploads";
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
+import { submitNew, submitEdit } from "../moderation/moderationGate";
+import { validateText } from "../moderation/validation";
 import { GrowthService } from "../services/growthService";
 import {
   ActionType,
@@ -42,14 +44,22 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
     const orgId = req.org?.id;
 
+    const invalid = validateText({ title: body.title, content: body.content });
+    if (invalid) {
+      this.setStatus(400);
+      return { message: invalid };
+    }
+
     try {
       const createPost = await prisma.post.create({
         data: {
-          title: body.title,
-          content: body.content,
+          title: body.title.trim(),
+          content: body.content.trim(),
           userId: orgId ? null : (userId ?? null),
           organizationId: orgId ?? null,
           courseId,
+          // Never public until the moderation gate says so.
+          moderationStatus: "PENDING_REVIEW",
         },
         include: {
           user: userId
@@ -107,19 +117,21 @@ export class SocialController extends Controller {
         },
       });
 
-      // Award XP for creating a post (discussion participation)
-      if (userId) {
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.DISCUSSION_PARTICIPATION,
-          { courseId },
-        );
-      }
+      // XP is awarded by the gate, only once the post is actually published.
+      const moderation = await submitNew({
+        type: "POST",
+        contentId: createPost.id,
+        authorId: orgId ? null : (userId ?? null),
+        organizationId: orgId ?? null,
+        title: createPost.title,
+        plaintext: createPost.content,
+      });
 
       this.setStatus(201);
       return {
-        message: "Post created successfully",
-        data: createPost,
+        message: moderation.message,
+        data: { ...createPost, moderationStatus: moderation.status },
+        moderation: { status: moderation.status },
       };
     } catch (error: any) {
       console.error("Error creating post:", error);
@@ -140,10 +152,16 @@ export class SocialController extends Controller {
   ): Promise<any> {
     const userId = req.user?.id;
 
+    const invalid = validateText({ content: body.content });
+    if (invalid) {
+      this.setStatus(400);
+      return { message: invalid };
+    }
+
     try {
-      // Validate post exists
-      const post = await prisma.post.findUnique({
-        where: { id: postId },
+      // Validate post exists (and is public: nobody replies to held content)
+      const post = await prisma.post.findFirst({
+        where: { id: postId, moderationStatus: "PUBLISHED" },
         select: { courseId: true, id: true },
       });
 
@@ -154,8 +172,8 @@ export class SocialController extends Controller {
 
       // If this is a nested reply (replying to another reply), validate parent exists
       if (body.parentId) {
-        const parentReply = await prisma.reply.findUnique({
-          where: { id: body.parentId },
+        const parentReply = await prisma.reply.findFirst({
+          where: { id: body.parentId, moderationStatus: "PUBLISHED" },
         });
 
         if (!parentReply) {
@@ -172,10 +190,11 @@ export class SocialController extends Controller {
 
       const createReply = await prisma.reply.create({
         data: {
-          content: body.content,
+          content: body.content.trim(),
           userId,
           postId: postId,
           parentId: body.parentId || null,
+          moderationStatus: "PENDING_REVIEW",
         },
         include: {
           user: {
@@ -225,40 +244,20 @@ export class SocialController extends Controller {
         },
       });
 
-      // Award XP for creating a reply (discussion participation)
-      await GamificationService.AddPointsWithGamification(
-        userId,
-        ActionType.DISCUSSION_PARTICIPATION,
-        { courseId: post.courseId },
-      );
-
-      // Send notification to the user being replied to
-      if (body.parentId) {
-        const parentReply = await prisma.reply.findUnique({
-          where: { id: body.parentId },
-          include: { user: true },
-        });
-
-        if (parentReply && parentReply.userId !== userId) {
-          await NotificationService.createNotification({
-            message: `${createReply.user?.first_name || "Someone"} replied to your comment`,
-            title: "New Reply",
-            type: "reply",
-            role: Role.STUDENT,
-            to: Role.STUDENT,
-            userId: parentReply.userId,
-            postId: postId,
-            replyId: createReply.id,
-          });
-        }
-      }
+      // XP and the "someone replied" notification run in the gate, once published.
+      const moderation = await submitNew({
+        type: "REPLY",
+        contentId: createReply.id,
+        authorId: userId,
+        organizationId: null,
+        plaintext: createReply.content,
+      });
 
       this.setStatus(201);
       return {
-        message: body.parentId
-          ? "Nested reply created successfully"
-          : "Reply created successfully",
-        data: createReply,
+        message: moderation.message,
+        data: { ...createReply, moderationStatus: moderation.status },
+        moderation: { status: moderation.status },
       };
     } catch (error: any) {
       console.error("Error creating reply:", error);
@@ -281,6 +280,7 @@ export class SocialController extends Controller {
         where: {
           postId: postId,
           parentId: null, // Only get top-level replies
+          moderationStatus: "PUBLISHED",
         },
         include: {
           user: {
@@ -298,9 +298,15 @@ export class SocialController extends Controller {
             },
             take: 5,
           },
-          _count: { select: { likes: true, children: true } },
+          _count: {
+            select: {
+              likes: true,
+              children: { where: { moderationStatus: "PUBLISHED" } },
+            },
+          },
           children: {
             take: 2,
+            where: { moderationStatus: "PUBLISHED" },
             include: {
               user: {
                 select: {
@@ -322,7 +328,7 @@ export class SocialController extends Controller {
       });
 
       const totalCount = await prisma.reply.count({
-        where: { postId: postId, parentId: null },
+        where: { postId: postId, parentId: null, moderationStatus: "PUBLISHED" },
       });
 
       this.setStatus(200);
@@ -352,8 +358,8 @@ export class SocialController extends Controller {
   ): Promise<any> {
     try {
       // First, fetch the post itself
-      const post = await prisma.post.findUnique({
-        where: { id: postId },
+      const post = await prisma.post.findFirst({
+        where: { id: postId, moderationStatus: "PUBLISHED" },
         include: {
           user: {
             select: {
@@ -371,7 +377,12 @@ export class SocialController extends Controller {
               },
             },
           },
-          _count: { select: { likes: true, replies: true } },
+          _count: {
+            select: {
+              likes: true,
+              replies: { where: { moderationStatus: "PUBLISHED" } },
+            },
+          },
         },
       });
 
@@ -398,7 +409,7 @@ export class SocialController extends Controller {
         }
 
         const replies = await prisma.reply.findMany({
-          where: { postId, parentId },
+          where: { postId, parentId, moderationStatus: "PUBLISHED" },
           include: {
             user: {
               select: {
@@ -421,7 +432,12 @@ export class SocialController extends Controller {
             // replaces what used to be a separate `prisma.reply.count()`
             // fired for every single reply at every depth of the recursion
             // below — that scaled as replies × depth on any busy thread.
-            _count: { select: { likes: true, children: true } },
+            _count: {
+              select: {
+                likes: true,
+                children: { where: { moderationStatus: "PUBLISHED" } },
+              },
+            },
           },
           orderBy: { createdAt: "asc" },
           skip: parentId === null ? skipCount : 0,
@@ -463,7 +479,7 @@ export class SocialController extends Controller {
       );
 
       const totalTopLevelReplies = await prisma.reply.count({
-        where: { postId, parentId: null },
+        where: { postId, parentId: null, moderationStatus: "PUBLISHED" },
       });
 
       this.setStatus(200);
@@ -497,8 +513,8 @@ export class SocialController extends Controller {
   ): Promise<any> {
     try {
       // Fetch the reply and its parent chain
-      const reply = await prisma.reply.findUnique({
-        where: { id: replyId },
+      const reply = await prisma.reply.findFirst({
+        where: { id: replyId, moderationStatus: "PUBLISHED" },
         include: {
           user: {
             select: {
@@ -546,7 +562,7 @@ export class SocialController extends Controller {
         }
 
         const children = await prisma.reply.findMany({
-          where: { parentId },
+          where: { parentId, moderationStatus: "PUBLISHED" },
           include: {
             user: {
               select: {
@@ -568,7 +584,12 @@ export class SocialController extends Controller {
             // Same fix as GetPostWithReplies above: counting `children`
             // in this query replaces a separate `prisma.reply.count()`
             // that used to fire per child at every depth of the recursion.
-            _count: { select: { likes: true, children: true } },
+            _count: {
+              select: {
+                likes: true,
+                children: { where: { moderationStatus: "PUBLISHED" } },
+              },
+            },
           },
           orderBy: { createdAt: "asc" },
         });
@@ -593,7 +614,7 @@ export class SocialController extends Controller {
           ...reply,
           children,
           totalRepliesInThread: await prisma.reply.count({
-            where: { postId: reply.postId, parentId: replyId },
+            where: { postId: reply.postId, parentId: replyId, moderationStatus: "PUBLISHED" },
           }),
         },
       };
@@ -614,8 +635,8 @@ export class SocialController extends Controller {
       const skip = page && limit ? (page - 1) * limit : 0;
       const take = limit || 10;
 
-      const reply = await prisma.reply.findUnique({
-        where: { id: replyId },
+      const reply = await prisma.reply.findFirst({
+        where: { id: replyId, moderationStatus: "PUBLISHED" },
         select: { id: true },
       });
 
@@ -625,7 +646,7 @@ export class SocialController extends Controller {
       }
 
       const children = await prisma.reply.findMany({
-        where: { parentId: replyId },
+        where: { parentId: replyId, moderationStatus: "PUBLISHED" },
         include: {
           user: {
             select: {
@@ -642,7 +663,12 @@ export class SocialController extends Controller {
             },
             take: 5,
           },
-          _count: { select: { likes: true, children: true } },
+          _count: {
+            select: {
+              likes: true,
+              children: { where: { moderationStatus: "PUBLISHED" } },
+            },
+          },
         },
         orderBy: { createdAt: "asc" },
         skip,
@@ -650,7 +676,7 @@ export class SocialController extends Controller {
       });
 
       const totalCount = await prisma.reply.count({
-        where: { parentId: replyId },
+        where: { parentId: replyId, moderationStatus: "PUBLISHED" },
       });
 
       this.setStatus(200);
@@ -680,8 +706,8 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const findPost = await prisma.post.findUnique({
-        where: { id: postId },
+      const findPost = await prisma.post.findFirst({
+        where: { id: postId, moderationStatus: "PUBLISHED" },
         select: { courseId: true },
       });
 
@@ -738,8 +764,8 @@ export class SocialController extends Controller {
     const userId = req.user?.id;
 
     try {
-      const reply = await prisma.reply.findUnique({
-        where: { id: replyId },
+      const reply = await prisma.reply.findFirst({
+        where: { id: replyId, moderationStatus: "PUBLISHED" },
         include: { post: { select: { courseId: true } } },
       });
 
@@ -885,6 +911,7 @@ export class SocialController extends Controller {
         TTL.short,
         async () => {
           const posts = await prisma.post.findMany({
+            where: { moderationStatus: "PUBLISHED" },
             include: {
               user: {
                 select: {
@@ -896,7 +923,7 @@ export class SocialController extends Controller {
                 },
               },
               replies: {
-                where: { parentId: null },
+                where: { parentId: null, moderationStatus: "PUBLISHED" },
                 take: 3,
                 include: {
                   user: {
@@ -907,7 +934,7 @@ export class SocialController extends Controller {
                       user_pic: true,
                     },
                   },
-                  _count: { select: { children: true } },
+                  _count: { select: { children: { where: { moderationStatus: "PUBLISHED" } } } },
                 },
                 orderBy: { createdAt: "asc" },
               },
@@ -916,14 +943,19 @@ export class SocialController extends Controller {
                   user: { select: { id: true, first_name: true, last_name: true } },
                 },
               },
-              _count: { select: { replies: true, likes: true } },
+              _count: {
+                select: {
+                  replies: { where: { moderationStatus: "PUBLISHED" } },
+                  likes: true,
+                },
+              },
             },
             orderBy: { createdAt: "desc" },
             skip,
             take,
           });
 
-          const totalCount = await prisma.post.count();
+          const totalCount = await prisma.post.count({ where: { moderationStatus: "PUBLISHED" } });
 
           return { posts, totalCount };
         },
@@ -972,7 +1004,7 @@ export class SocialController extends Controller {
         TTL.short,
         async () => {
           const getPost = await prisma.post.findMany({
-            where: { courseId },
+            where: { courseId, moderationStatus: "PUBLISHED" },
             include: {
               user: {
                 select: {
@@ -983,7 +1015,7 @@ export class SocialController extends Controller {
                 },
               },
               replies: {
-                where: { parentId: null },
+                where: { parentId: null, moderationStatus: "PUBLISHED" },
                 take: 2,
                 select: {
                   id: true,
@@ -997,18 +1029,25 @@ export class SocialController extends Controller {
                     },
                   },
                   createdAt: true,
-                  _count: { select: { children: true } },
+                  _count: { select: { children: { where: { moderationStatus: "PUBLISHED" } } } },
                 },
                 orderBy: { createdAt: "desc" },
               },
-              _count: { select: { likes: true, replies: true } },
+              _count: {
+                select: {
+                  likes: true,
+                  replies: { where: { moderationStatus: "PUBLISHED" } },
+                },
+              },
             },
             orderBy: { createdAt: "desc" },
             skip,
             take,
           });
 
-          const totalCount = await prisma.post.count({ where: { courseId } });
+          const totalCount = await prisma.post.count({
+            where: { courseId, moderationStatus: "PUBLISHED" },
+          });
 
           return { getPost, totalCount };
         },
@@ -1041,6 +1080,12 @@ export class SocialController extends Controller {
   ): Promise<any> {
     const userId = req.user?.id;
 
+    const invalid = validateText({ content: body.content });
+    if (invalid) {
+      this.setStatus(400);
+      return { message: invalid };
+    }
+
     try {
       const existingReply = await prisma.reply.findFirst({
         where: { id: replyId, userId },
@@ -1051,9 +1096,25 @@ export class SocialController extends Controller {
         return { message: "Reply not found or no permission to edit" };
       }
 
+      const newContent = body.content.trim();
+
+      // Editing live content: the live text stays untouched until the edit is
+      // approved. Editing held/rejected content rewrites it and re-submits.
+      const wasPublished = existingReply.moderationStatus === "PUBLISHED";
+      const editModeration = wasPublished
+        ? await submitEdit({
+            type: "REPLY",
+            contentId: replyId,
+            authorId: userId,
+            plaintext: newContent,
+          })
+        : null;
+
       const updatedReply = await prisma.reply.update({
         where: { id: replyId },
-        data: { content: body.content },
+        data: wasPublished
+          ? { content: existingReply.content }
+          : { content: newContent, moderationStatus: "PENDING_REVIEW" },
         include: {
           user: {
             select: {
@@ -1078,8 +1139,25 @@ export class SocialController extends Controller {
         },
       });
 
+      const finalModeration =
+        editModeration ??
+        (await submitNew({
+          type: "REPLY",
+          contentId: replyId,
+          authorId: userId,
+          organizationId: null,
+          plaintext: newContent,
+        }));
+
       this.setStatus(200);
-      return { message: "Reply updated successfully", data: updatedReply };
+      return {
+        message: finalModeration.message,
+        data: {
+          ...updatedReply,
+          moderationStatus: wasPublished ? "PUBLISHED" : finalModeration.status,
+        },
+        moderation: { status: finalModeration.status, isEdit: wasPublished },
+      };
     } catch (error: any) {
       this.setStatus(500);
       return { message: "Failed to update reply", error: error.message };

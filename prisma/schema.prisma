@@ -882,7 +882,9 @@ model Post {
   organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   courseId       String
   organizationId String?
+  moderationStatus ModerationStatus @default(PENDING_REVIEW)
 
+  @@index([moderationStatus])
   @@map("posts")
 }
 
@@ -899,8 +901,10 @@ model Reply {
   parent       Reply?         @relation("ReplyChildren", fields: [parentId], references: [id], onDelete: Cascade)
   children     Reply[]        @relation("ReplyChildren")
   likes        Likes[]
+  moderationStatus ModerationStatus @default(PENDING_REVIEW)
 
   @@index([parentId])
+  @@index([moderationStatus])
 }
 
 model Likes {
@@ -1229,11 +1233,13 @@ model Discussion {
   parent    Discussion?      @relation("DiscussionReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   Discussion[]     @relation("DiscussionReplies")
   likes     DiscussionLike[]
+  moderationStatus ModerationStatus @default(PENDING_REVIEW)
 
   @@index([authorId])
   @@index([parentId])
   @@index([createdAt])
   @@index([isPublic])
+  @@index([moderationStatus])
 }
 
 model DiscussionLike {
@@ -1264,4 +1270,68 @@ model Feedback {
   userId         String?
   organization   Organization? @relation(fields: [organizationId], references: [id])
   organizationId String?
+}
+
+
+// ─────────────────────────────────────────────
+// CONTENT MODERATION (review-before-publication)
+// ─────────────────────────────────────────────
+
+enum ModerationStatus {
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  HUMAN_REVIEW
+}
+
+enum ModerationContentType {
+  POST
+  REPLY
+  DISCUSSION
+}
+
+// One row per moderation evaluation (initial submission or an edit). The AI's
+// recommendation and the human moderator's decision are stored in separate
+// columns so the audit trail never overwrites what the model originally said.
+model ModerationRecord {
+  id             String                @id @default(cuid())
+  contentType    ModerationContentType
+  contentId      String
+  authorId       String?
+  organizationId String?
+  isEdit         Boolean               @default(false)
+  contentHash    String
+
+  // Proposed text of a pending EDIT. The live row keeps the last approved
+  // version until this is approved; cleared once a decision is applied.
+  pendingTitle   String?
+  pendingContent String?
+
+  // AI recommendation
+  aiDecision          String?
+  riskLevel           String?
+  categories          String[]
+  confidence          Float?
+  reason              String?
+  requiresHumanReview Boolean  @default(false)
+  escalated           Boolean  @default(false)
+  model               String?
+  policyVersion       String
+  providerError       String?
+
+  // Outcome for this record, and the human's separate decision
+  status        ModerationStatus @default(PENDING_REVIEW)
+  humanDecision String?
+  humanReason   String?
+  reviewedById  String?
+  reviewedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([contentType, contentId])
+  @@index([organizationId])
+  @@index([contentHash, contentType, contentId])
+  @@map("moderation_records")
 }

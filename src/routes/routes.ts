@@ -24,6 +24,8 @@ import { OrganizationController } from './../controllers/OrganizationController'
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { NotificationController } from './../controllers/NotificationController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+import { ModerationController } from './../controllers/ModerationController';
+// WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { MentorMatchController } from './../controllers/MentorMatchController';
 // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
 import { LevelSystem } from './../controllers/LevelSystemController';
@@ -182,6 +184,11 @@ const models: TsoaRoute.Models = {
     "Omit_ReplyDTO.id-or-userId_": {
         "dataType": "refAlias",
         "type": {"ref":"Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__","validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.ModerationStatus": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["PUBLISHED"]},{"dataType":"enum","enums":["PENDING_REVIEW"]},{"dataType":"enum","enums":["REJECTED"]},{"dataType":"enum","enums":["HUMAN_REVIEW"]}],"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_Group.Exclude_keyofGroup.id__": {
@@ -5317,6 +5324,169 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'FetchAnnouncementByAdmin',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsModerationController_GetQueue: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                status: {"in":"query","name":"status","dataType":"string"},
+                page: {"in":"query","name":"page","dataType":"double"},
+                limit: {"in":"query","name":"limit","dataType":"double"},
+        };
+        app.get('/api/moderation/queue',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController)),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController.prototype.GetQueue)),
+
+            async function ModerationController_GetQueue(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsModerationController_GetQueue, request, response });
+
+                const controller = new ModerationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetQueue',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsModerationController_GetContentHistory: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                contentType: {"in":"path","name":"contentType","required":true,"dataType":"union","subSchemas":[{"dataType":"enum","enums":["POST"]},{"dataType":"enum","enums":["REPLY"]},{"dataType":"enum","enums":["DISCUSSION"]}]},
+                contentId: {"in":"path","name":"contentId","required":true,"dataType":"string"},
+        };
+        app.get('/api/moderation/history/:contentType/:contentId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController)),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController.prototype.GetContentHistory)),
+
+            async function ModerationController_GetContentHistory(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsModerationController_GetContentHistory, request, response });
+
+                const controller = new ModerationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetContentHistory',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsModerationController_Decide: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                recordId: {"in":"path","name":"recordId","required":true,"dataType":"string"},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"reason":{"dataType":"string"},"decision":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["approve"]},{"dataType":"enum","enums":["reject"]}],"required":true}}},
+        };
+        app.post('/api/moderation/decide/:recordId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController)),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController.prototype.Decide)),
+
+            async function ModerationController_Decide(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsModerationController_Decide, request, response });
+
+                const controller = new ModerationController();
+
+              await templateService.apiHandler({
+                methodName: 'Decide',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsModerationController_Rerun: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+                recordId: {"in":"path","name":"recordId","required":true,"dataType":"string"},
+        };
+        app.post('/api/moderation/rerun/:recordId',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController)),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController.prototype.Rerun)),
+
+            async function ModerationController_Rerun(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsModerationController_Rerun, request, response });
+
+                const controller = new ModerationController();
+
+              await templateService.apiHandler({
+                methodName: 'Rerun',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsModerationController_GetMetrics: Record<string, TsoaRoute.ParameterSchema> = {
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.get('/api/moderation/metrics',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController)),
+            ...(fetchMiddlewares<RequestHandler>(ModerationController.prototype.GetMetrics)),
+
+            async function ModerationController_GetMetrics(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsModerationController_GetMetrics, request, response });
+
+                const controller = new ModerationController();
+
+              await templateService.apiHandler({
+                methodName: 'GetMetrics',
                 controller,
                 response,
                 next,
