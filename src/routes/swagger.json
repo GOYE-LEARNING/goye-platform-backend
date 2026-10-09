@@ -7980,7 +7980,7 @@
 						}
 					}
 				},
-				"description": "GET: Fetch organization activities (course joins, completions, event joins)\nReturns recent activities for the organization dashboard",
+				"description": "GET: Fetch organization activities (course joins, completions, event joins)\r\nReturns recent activities for the organization dashboard",
 				"tags": [
 					"Organization Controllers"
 				],
@@ -8014,7 +8014,7 @@
 						}
 					}
 				},
-				"description": "GET: Chart-ready analytics for an organization's admin dashboard.\n\nThe existing /overview-stats and /user-breakdown endpoints return point-in-time\ntotals only — nothing in this controller was time-bucketed, so there was no\nseries to plot. This adds the shapes the dashboard's line/bar/pie charts need.\n\nEnrollments are resolved through member ids rather than `Enrollment.organizationId`:\nthat column is nullable and is not consistently populated, whereas every other\naggregate in this file already goes via OrganizationMember. Using it here would\nsilently under-count.",
+				"description": "GET: Chart-ready analytics for an organization's admin dashboard.\r\n\r\nThe existing /overview-stats and /user-breakdown endpoints return point-in-time\r\ntotals only — nothing in this controller was time-bucketed, so there was no\r\nseries to plot. This adds the shapes the dashboard's line/bar/pie charts need.\r\n\r\nEnrollments are resolved through member ids rather than `Enrollment.organizationId`:\r\nthat column is nullable and is not consistently populated, whereas every other\r\naggregate in this file already goes via OrganizationMember. Using it here would\r\nsilently under-count.",
 				"tags": [
 					"Organization Controllers"
 				],
@@ -8048,7 +8048,7 @@
 						}
 					}
 				},
-				"description": "GET: Fetch user breakdown for organization dashboard\nReturns counts for: total members, students, instructors, admins, online users, etc.",
+				"description": "GET: Fetch user breakdown for organization dashboard\r\nReturns counts for: total members, students, instructors, admins, online users, etc.",
 				"tags": [
 					"Organization Controllers"
 				],
@@ -12923,15 +12923,18 @@
 										{
 											"properties": {
 												"error": {},
-												"success": {},
 												"data": {},
 												"status": {},
 												"message": {
 													"type": "string"
+												},
+												"success": {
+													"type": "boolean"
 												}
 											},
 											"required": [
-												"message"
+												"message",
+												"success"
 											],
 											"type": "object"
 										},
@@ -13109,8 +13112,7 @@
 									"achievement",
 									"event",
 									"course_updates",
-									"enable_push_notification",
-									"organizationId"
+									"enable_push_notification"
 								],
 								"type": "object"
 							}

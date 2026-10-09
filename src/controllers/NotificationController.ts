@@ -543,7 +543,7 @@ export class NotificationController extends Controller {
     @Body()
     body: {
       userId?: string | null;
-      organizationId: string | null;
+      organizationId?: string | null;
       enable_push_notification: boolean;
       course_updates: boolean;
       event: boolean;
@@ -556,107 +556,58 @@ export class NotificationController extends Controller {
     @Request() req: any,
     @Path() settingsId: string,
   ) {
-    const userId = req.user?.id;
-    const orgId = req.org?.id;
-    const settingsUserId = req.user?.settingsId;
-    const settingsOrganizationId = req.org?.settingsId;
+    const userId: string | undefined = req.user?.id;
+    const orgId: string | undefined = req.org?.id;
 
     try {
-      const user = await prisma.user.findUnique({
-        where: {
-          id: userId,
-        },
+      if (!userId && !orgId) {
+        this.setStatus(401);
+        return { success: false, message: "Unauthorized" };
+      }
+
+      // The row is addressed by the URL, but a caller may only change a row
+      // that belongs to them. The old code trusted a settingsId copied into
+      // the JWT, which is missing for accounts without a settings row and made
+      // Prisma throw on `where: { id: undefined }` (and org accounts crashed
+      // on the user lookup before ever reaching their own branch).
+      const existing = await prisma.settings.findUnique({
+        where: { id: settingsId },
       });
 
-      if (user) {
-        const checkSettingsExists = await prisma.settings.findUnique({
-          where: {
-            id: settingsUserId,
-          },
-        });
+      const owned =
+        !!existing &&
+        ((!!userId && existing.userId === userId) ||
+          (!!orgId && existing.organizationId === orgId));
 
-        if (!checkSettingsExists) {
-          this.setStatus(200);
-          return {
-            message:
-              "You are not eligible for any type of settings contact us for more detailed help.",
-          };
-        }
-
-        const changeSettings = await prisma.settings.update({
-          where: {
-            id: settingsUserId,
-          },
-          data: {
-            enable_push_notification: body.enable_push_notification,
-            course_updates: body.course_updates,
-            event: body.event,
-            achievement: body.achievement,
-            daily_reminders: body.daily_reminders,
-            darkMode: body.darkMode,
-            email_notification: body.email_notification,
-            group_activity: body.group_activity, // ✅ Added this
-            updatedAt: new Date(),
-            userId,
-            organizationId: null,
-          },
-        });
-
-        this.setStatus(200);
+      if (!existing || !owned) {
+        this.setStatus(404);
         return {
-          message: "Updated Successfully",
-          status: 200,
-          data: changeSettings,
+          success: false,
+          message: "Notification settings were not found for this account.",
         };
       }
 
-      const organization = await prisma.organization.findUnique({
-        where: {
-          id: orgId,
+      const changeSettings = await prisma.settings.update({
+        where: { id: existing.id },
+        data: {
+          enable_push_notification: body.enable_push_notification,
+          course_updates: body.course_updates,
+          event: body.event,
+          achievement: body.achievement,
+          daily_reminders: body.daily_reminders,
+          darkMode: body.darkMode,
+          email_notification: body.email_notification,
+          group_activity: body.group_activity,
+          updatedAt: new Date(),
         },
       });
 
-      if (organization) {
-        const checkSettingsExists = await prisma.settings.findUnique({
-          where: {
-            id: settingsOrganizationId,
-          },
-        });
-
-        if (!checkSettingsExists) {
-          this.setStatus(200);
-          return {
-            message:
-              "You are not eligible for any type of settings contact us for more detailed help.",
-          };
-        }
-
-        const changeSettings = await prisma.settings.update({
-          where: {
-            id: settingsId,
-          },
-          data: {
-            enable_push_notification: body.enable_push_notification,
-            course_updates: body.course_updates,
-            event: body.event,
-            achievement: body.achievement,
-            daily_reminders: body.daily_reminders,
-            darkMode: body.darkMode,
-            email_notification: body.email_notification,
-            group_activity: body.group_activity, // ✅ Added this
-            updatedAt: new Date(),
-            userId: null,
-            organizationId: organization.id,
-          },
-        });
-
-        this.setStatus(200);
-        return {
-          message: "Updated Successfully",
-          status: 200,
-          data: changeSettings,
-        };
-      }
+      this.setStatus(200);
+      return {
+        message: "Updated Successfully",
+        status: 200,
+        data: changeSettings,
+      };
     } catch (error: any) {
       console.log(`An error occured ${error.message}`);
       this.setStatus(500);
