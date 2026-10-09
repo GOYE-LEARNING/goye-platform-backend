@@ -59,7 +59,6 @@ export class SocketService {
   private onlineUsers: Map<string, SocketUser> = new Map();
   private pendingAuthSockets: Map<string, NodeJS.Timeout> = new Map();
   private userRooms: Map<string, Set<string>> = new Map();
-  private lastChecked: Date = new Date();
   private pingInterval: NodeJS.Timeout | null = null;
 
   constructor(server: any) {
@@ -74,7 +73,6 @@ export class SocketService {
     });
     this.setupMiddleware();
     this.setupEventHandlers();
-    this.setupNotificationListener();
     this.setupPingInterval();
   }
 
@@ -487,71 +485,6 @@ export class SocketService {
       
       console.log(`User ${userId} joined group room: ${room}`);
     });
-  }
-
-  private setupNotificationListener() {
-    // Poll for new notifications
-    this.pollForNotifications();
-  }
-
-  private async pollForNotifications() {
-    setInterval(async () => {
-      try {
-        const newNotifications = await prisma.notification.findMany({
-          where: {
-            createdAt: {
-              gt: this.lastChecked
-            }
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                user_pic: true,
-              },
-            },
-            course: {
-              select: {
-                id: true,
-                course_title: true,
-                course_image: true,
-              },
-            },
-            group: {
-              select: {
-                id: true,
-                group_title: true,
-                group_image: true,
-              },
-            },
-            organization: {
-              select: {
-                id: true,
-                organization_name: true,
-                organization_image: true,
-              },
-            },
-            post: {
-              select: {
-                id: true,
-                title: true,
-              },
-            },
-          },
-        });
-
-        if (newNotifications.length > 0) {
-          for (const notification of newNotifications) {
-            await this.broadcastNotification(notification);
-          }
-          this.lastChecked = new Date();
-        }
-      } catch (error) {
-        console.error("Error polling for notifications:", error);
-      }
-    }, 2000); // Poll every 2 seconds
   }
 
   /**

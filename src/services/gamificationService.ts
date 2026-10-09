@@ -1394,16 +1394,16 @@ static calculateLevel(totalXP: number): {
     type: string,
   ): Promise<void> {
     try {
-      await prisma.notification.create({
-        data: {
-          title,
-          message,
-          type,
-          to: userId,
-          role: "student",
-          userId,
-          isRead: false,
-        },
+      // Lazy import: notificationServices -> socketService pulls in a lot, and
+      // this runs inside the gamification module's own import chain.
+      const { NotificationService, Role } = await import("./notificationServices.js");
+      await NotificationService.createNotification({
+        title,
+        message,
+        type,
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId,
       });
     } catch (error) {
       console.error("Error creating notification:", error);

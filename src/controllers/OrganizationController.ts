@@ -24,7 +24,7 @@ import { TranslateText } from "../utils/ai_utils/translator";
 import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
 import { useCacheAside, CacheKeys, TTL, invalidateOrgCaches } from "../utils/redis";
 import { assertOrgAdminOf, decodeOptionalRequester } from "../utils/orgPermissions";
-import { Role } from "../services/notificationServices";
+import { NotificationService, Role } from "../services/notificationServices";
 import { Church, School, Club } from "../interface/interfaces";
 import { firebaseAuthService } from "../services/firebaseService";
 import { generateDeviceId, generateTokens, getDeviceType } from "../utils/jwtHelper";
@@ -5409,7 +5409,7 @@ public async GetOrganizationCoursesWithStats(
       }));
 
       if (notifications.length > 0) {
-        await prisma.notification.createMany({ data: notifications as any });
+        await NotificationService.createBulkNotifications(notifications);
       }
 
       this.setStatus(201);
