@@ -1351,6 +1351,8 @@ export class UserController extends Controller {
       phone_number: string;
       role: string;
       level: string;
+      language?: string;
+      languageCode?: string;
       bio?: string;
       church_name?: string;
       church_role?: string;
@@ -1382,6 +1384,20 @@ export class UserController extends Controller {
       }
 
       const userLevel = body.level || "1";
+
+      // Same rule as /signup: a client may only pick a learner or tutor role.
+      const requestedRole = (body.role || "student").toString().toLowerCase();
+      if (!["student", "instructor", "tutor"].includes(requestedRole)) {
+        this.setStatus(400);
+        return { success: false, message: "Invalid role" };
+      }
+      const isTutor = requestedRole === "instructor" || requestedRole === "tutor";
+      const clip = (value: unknown, max: number): string | undefined => {
+        if (typeof value !== "string") return undefined;
+        const trimmed = value.trim();
+        return trimmed ? trimmed.slice(0, max) : undefined;
+      };
+
       const hashPassword = await bcrypt.hash(body.password, 10);
 
       const updatedUser = await prisma.user.update({
@@ -1393,16 +1409,22 @@ export class UserController extends Controller {
           state: body.state,
           password: hashPassword,
           phone_number: body.phone_number,
-          role: body.role,
+          role: requestedRole,
           level: userLevel,
           isProfileComplete: true,
+          ...(body.language ? { language: body.language } : {}),
+          ...(body.languageCode ? { languageCode: toDbLanguageCode(body.languageCode) as any } : {}),
           // ✅ userType stays as INDIVIDUAL — no change needed on profile completion
           // Only ever sent by the frontend for role === "instructor"; stays
           // null for students since the form doesn't collect it from them.
-          ...(body.bio !== undefined ? { bio: body.bio } : {}),
-          ...(body.church_name !== undefined ? { church_name: body.church_name } : {}),
-          ...(body.church_role !== undefined ? { church_role: body.church_role } : {}),
-          ...(body.social_media !== undefined ? { social_media: body.social_media } : {}),
+          ...(isTutor
+            ? {
+                bio: clip(body.bio, 2000),
+                church_name: clip(body.church_name, 200),
+                church_role: clip(body.church_role, 100),
+                social_media: clip(body.social_media, 300),
+              }
+            : {}),
         },
       });
 

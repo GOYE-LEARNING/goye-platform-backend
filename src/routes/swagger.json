@@ -2550,6 +2550,12 @@
 									"bio": {
 										"type": "string"
 									},
+									"languageCode": {
+										"type": "string"
+									},
+									"language": {
+										"type": "string"
+									},
 									"level": {
 										"type": "string"
 									},
@@ -7164,21 +7170,6 @@
 													"allOf": [
 														{
 															"properties": {
-																"student": {
-																	"properties": {
-																		"last_name": {
-																			"type": "string"
-																		},
-																		"first_name": {
-																			"type": "string"
-																		}
-																	},
-																	"required": [
-																		"last_name",
-																		"first_name"
-																	],
-																	"type": "object"
-																},
 																"group": {
 																	"properties": {
 																		"achievement": {
@@ -7200,11 +7191,26 @@
 																		"achievement"
 																	],
 																	"type": "object"
+																},
+																"student": {
+																	"properties": {
+																		"last_name": {
+																			"type": "string"
+																		},
+																		"first_name": {
+																			"type": "string"
+																		}
+																	},
+																	"required": [
+																		"last_name",
+																		"first_name"
+																	],
+																	"type": "object"
 																}
 															},
 															"required": [
-																"student",
-																"group"
+																"group",
+																"student"
 															],
 															"type": "object"
 														},
