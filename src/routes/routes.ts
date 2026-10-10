@@ -184,6 +184,11 @@ const models: TsoaRoute.Models = {
         "type": {"ref":"Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__","validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+    "_36_Enums.ModerationStatus": {
+        "dataType": "refAlias",
+        "type": {"dataType":"union","subSchemas":[{"dataType":"enum","enums":["PENDING_REVIEW"]},{"dataType":"enum","enums":["PUBLISHED"]},{"dataType":"enum","enums":["REJECTED"]},{"dataType":"enum","enums":["HUMAN_REVIEW"]}],"validators":{}},
+    },
+    // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_Group.Exclude_keyofGroup.id__": {
         "dataType": "refAlias",
         "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"group_title":{"dataType":"string","required":true},"group_short_description":{"dataType":"string","required":true},"group_description":{"dataType":"string","required":true},"group_image":{"dataType":"string"}},"validators":{}},
@@ -710,7 +715,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_CreateUser: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"intersection","subSchemas":[{"ref":"Omit_User.id_"},{"dataType":"nestedObjectLiteral","nestedProperties":{"deviceId":{"dataType":"string"}}}]},
+                body: {"in":"body","name":"body","required":true,"dataType":"intersection","subSchemas":[{"ref":"Omit_User.id_"},{"dataType":"nestedObjectLiteral","nestedProperties":{"social_media":{"dataType":"string"},"church_role":{"dataType":"string"},"church_name":{"dataType":"string"},"bio":{"dataType":"string"},"deviceId":{"dataType":"string"}}}]},
                 req: {"in":"request","name":"req","required":true,"dataType":"object"},
         };
         app.post('/api/user/signup',
@@ -865,7 +870,7 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
         });
         // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
         const argsUserController_SendOtp: Record<string, TsoaRoute.ParameterSchema> = {
-                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"email":{"dataType":"string","required":true}}},
+                body: {"in":"body","name":"body","required":true,"dataType":"nestedObjectLiteral","nestedProperties":{"purpose":{"dataType":"union","subSchemas":[{"dataType":"enum","enums":["signup"]},{"dataType":"enum","enums":["reset"]}]},"email":{"dataType":"string","required":true}}},
         };
         app.post('/api/user/sendOtp',
             ...(fetchMiddlewares<RequestHandler>(UserController)),

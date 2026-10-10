@@ -325,6 +325,15 @@
 				"$ref": "#/components/schemas/Pick_ReplyDTO.Exclude_keyofReplyDTO.id-or-userId__",
 				"description": "Construct a type with the properties of T except for those in type K."
 			},
+			"_36_Enums.ModerationStatus": {
+				"type": "string",
+				"enum": [
+					"PENDING_REVIEW",
+					"PUBLISHED",
+					"REJECTED",
+					"HUMAN_REVIEW"
+				]
+			},
 			"Pick_Group.Exclude_keyofGroup.id__": {
 				"properties": {
 					"group_title": {
@@ -2267,6 +2276,18 @@
 									},
 									{
 										"properties": {
+											"social_media": {
+												"type": "string"
+											},
+											"church_role": {
+												"type": "string"
+											},
+											"church_name": {
+												"type": "string"
+											},
+											"bio": {
+												"type": "string"
+											},
 											"deviceId": {
 												"type": "string"
 											}
@@ -2671,6 +2692,13 @@
 						"application/json": {
 							"schema": {
 								"properties": {
+									"purpose": {
+										"type": "string",
+										"enum": [
+											"signup",
+											"reset"
+										]
+									},
 									"email": {
 										"type": "string"
 									}
@@ -6229,6 +6257,9 @@
 															},
 															{
 																"properties": {
+																	"moderationStatus": {
+																		"$ref": "#/components/schemas/_36_Enums.ModerationStatus"
+																	},
 																	"content": {
 																		"type": "string"
 																	},
@@ -6253,6 +6284,7 @@
 																	}
 																},
 																"required": [
+																	"moderationStatus",
 																	"content",
 																	"title",
 																	"userId",
@@ -14531,7 +14563,7 @@
 						}
 					}
 				},
-				"description": "Reply to a specific reply (nested reply)\nThis creates a nested comment showing \"User replied to",
+				"description": "Reply to a specific reply (nested reply)\r\nThis creates a nested comment showing \"User replied to",
 				"tags": [
 					"Discussion & Messaging APIs"
 				],
@@ -15002,7 +15034,7 @@
 						}
 					}
 				},
-				"description": "Get tutors/instructors based on student's enrolled courses and groups\nThis returns all instructors/tutors that the student can message",
+				"description": "Get tutors/instructors based on student's enrolled courses and groups\r\nThis returns all instructors/tutors that the student can message",
 				"tags": [
 					"Discussion & Messaging APIs"
 				],
@@ -15125,7 +15157,7 @@
 						}
 					}
 				},
-				"description": "Get students for tutors/instructors to communicate with\nReturns all students enrolled in the tutor's courses or groups",
+				"description": "Get students for tutors/instructors to communicate with\r\nReturns all students enrolled in the tutor's courses or groups",
 				"tags": [
 					"Discussion & Messaging APIs"
 				],

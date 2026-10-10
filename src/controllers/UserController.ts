@@ -581,7 +581,15 @@ export class UserController extends Controller {
 
   @Post("/signup")
   public async CreateUser(
-    @Body() body: Omit<User, "id"> & { deviceId?: string },
+    @Body()
+    body: Omit<User, "id"> & {
+      deviceId?: string;
+      // Tutor (instructor) profile, collected on the last signup step.
+      bio?: string;
+      church_name?: string;
+      church_role?: string;
+      social_media?: string;
+    },
     @Request() req: any,
   ): Promise<any> {
     const userAgent = req.headers["user-agent"] || "unknown";
@@ -610,20 +618,49 @@ export class UserController extends Controller {
       return { message: "Password must be filled" };
     }
 
+    // Public signup may only create learner/tutor accounts. The role used to be
+    // copied straight from the request body, so anyone could register as an admin.
+    const SIGNUP_ROLES = ["student", "instructor", "tutor"];
+    const requestedRole = (body.role || "student").toString().toLowerCase();
+    if (!SIGNUP_ROLES.includes(requestedRole)) {
+      this.setStatus(400);
+      return { message: "Invalid role" };
+    }
+
+    const clip = (value: unknown, max: number): string | undefined => {
+      if (typeof value !== "string") return undefined;
+      const trimmed = value.trim();
+      return trimmed ? trimmed.slice(0, max) : undefined;
+    };
+    const isTutor = requestedRole === "instructor" || requestedRole === "tutor";
+
     const hashedPassword = await bcrypt.hash(body.password, 10);
 
     const user = await prisma.user.create({
       data: {
-        ...body,
+        // Explicit fields only, so nothing else the client sends reaches the row.
+        first_name: body.first_name,
+        last_name: body.last_name,
         // Stored normalized so no future duplicate can differ only by case.
         email_address: normalizeEmail(body.email_address),
         password: hashedPassword,
+        country: body.country,
+        state: body.state,
+        phone_number: body.phone_number,
+        role: requestedRole,
         level: body.level,
         language: body.language,
         languageCode: toDbLanguageCode(body.languageCode) as any,
         userType: "INDIVIDUAL", // ✅ explicit on signup
+        ...(isTutor
+          ? {
+              bio: clip(body.bio, 2000),
+              church_name: clip(body.church_name, 200),
+              church_role: clip(body.church_role, 100),
+              social_media: clip(body.social_media, 300),
+            }
+          : {}),
       },
-
     });
 
     const createSettings = await prisma.settings.create({
@@ -1669,9 +1706,12 @@ export class UserController extends Controller {
   }
 
   @Post("/sendOtp")
-  public async SendOtp(@Body() body: { email: string }): Promise<any> {
+  public async SendOtp(
+    @Body() body: { email: string; purpose?: "signup" | "reset" },
+  ): Promise<any> {
     try {
       const { email } = body;
+      const isSignup = body.purpose === "signup";
 
       if (!email) {
         this.setStatus(400);
@@ -1688,7 +1728,17 @@ export class UserController extends Controller {
         select: { id: true, organization_email: true },
       });
 
-      if (!user && !organization) {
+      if (isSignup) {
+        // Signup verifies an email that has no account yet. An address that is
+        // already registered must log in instead.
+        if (user || organization) {
+          this.setStatus(409);
+          return {
+            success: false,
+            message: "An account with this email already exists. Please log in instead.",
+          };
+        }
+      } else if (!user && !organization) {
         this.setStatus(404);
         return {
           success: false,
