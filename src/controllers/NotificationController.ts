@@ -619,47 +619,55 @@ export class NotificationController extends Controller {
     }
   }
 
+  /**
+   * Announcements for the signed-in user's dashboard banner.
+   *
+   * This used to return EVERY notification sent from an admin to a role, which
+   * included automatic "Course Update" notifications (one row per student) and
+   * other people's announcements, so the banner showed placeholder-looking
+   * text. It now returns only real announcements addressed to this user:
+   * SYSTEM_ANNOUNCEMENT (platform admin) and ANNOUNCEMENT (organization admin),
+   * newest first, de-duplicated, and only ones not yet read. Dismissing the
+   * banner marks it read (PUT /notifications/{id}/read), so it stays gone.
+   */
   @Security("bearerAuth")
   @Get("/fetch-annocucment-by-admin")
   public async FetchAnnouncementByAdmin(@Request() req: any) {
-    const role = req.user?.role;
+    const userId = req.user?.id;
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "Unauthorized", data: [] };
+    }
+
     try {
-      if (role == "student") {
-        const annocumentForStudent = await prisma.notification.findMany({
-          where: {
-            role: "ADMIN",
-            to: "STUDENT",
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-        return {
-          message: "Annoucement Fetched successfully",
-          data: annocumentForStudent,
-        };
-      } else if (role == "tutor" || role == "instructor") {
-        const annocumentForTutors = await prisma.notification.findMany({
-          where: {
-            role: "ADMIN",
-            to: "TUTOR",
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        });
-        return {
-          message: "Annoucement Fetched successfully",
-          data: annocumentForTutors,
-        };
-      }
-      // Any other role (org admin, invited member, etc.) has no announcement
-      // feed defined yet — an empty list rather than an unhandled fallthrough
-      // (which returned no body at all, breaking the frontend's `data.data`
-      // read for anyone besides student/tutor/instructor).
-      return { message: "No announcements for this role", data: [] };
+      const rows = await prisma.notification.findMany({
+        where: {
+          userId,
+          type: { in: ["SYSTEM_ANNOUNCEMENT", "ANNOUNCEMENT"] },
+          isRead: false,
+          NOT: { dismissedBy: { has: userId } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        select: { id: true, title: true, message: true, type: true, createdAt: true },
+      });
+
+      // A resend of the same announcement shouldn't stack up in the banner.
+      const seen = new Set<string>();
+      const announcements = rows
+        .filter((r) => {
+          const key = `${r.title}\u0000${r.message}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .slice(0, 5);
+
+      this.setStatus(200);
+      return { message: "Announcements fetched successfully", data: announcements };
     } catch (error) {
       console.error(error);
+      this.setStatus(500);
       return { message: "Failed to fetch announcements", data: [] };
     }
   }
