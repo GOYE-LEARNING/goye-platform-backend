@@ -21,7 +21,9 @@ import {
 } from "../utils/redis";
 
 interface GenerateCertificateBody {
-  enrollmentId: string;
+  // Optional: mobile only knows the course. The caller's COMPLETED enrollment
+  // for that course is looked up when it is omitted.
+  enrollmentId?: string;
   courseId: string;
 }
 
@@ -51,7 +53,7 @@ export class CertificateController extends Controller {
       // Check if enrollment exists and is completed
       const enrollment = await prisma.enrollment.findFirst({
         where: {
-          id: enrollmentId,
+          ...(enrollmentId ? { id: enrollmentId } : {}),
           userId: userId,
           courseId: courseId,
           status: "COMPLETED",

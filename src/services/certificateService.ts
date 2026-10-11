@@ -1,5 +1,6 @@
 import prisma from "../db";
 import { generateCertificate } from "./bannerService";
+import { CacheKeys, invalidateKeys, updateDataWithRedis } from "../utils/redis";
 
 /**
  * Auto-generates a certificate when a course is completed.
@@ -56,6 +57,11 @@ export async function awardCertificateIfCompleted(
         enrollmentId,
       },
     });
+
+    // The certificates list is cached for an hour; without this a certificate
+    // issued automatically on completion is missing from it until the TTL lapses.
+    await updateDataWithRedis(userId, ["certificates"]);
+    await invalidateKeys(CacheKeys.userCertificateForCourse(userId, courseId));
 
     return { certificateUrl, isNew: true };
   } catch (error) {

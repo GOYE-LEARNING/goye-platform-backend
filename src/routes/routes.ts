@@ -497,7 +497,7 @@ const models: TsoaRoute.Models = {
     "GenerateCertificateBody": {
         "dataType": "refObject",
         "properties": {
-            "enrollmentId": {"dataType":"string","required":true},
+            "enrollmentId": {"dataType":"string"},
             "courseId": {"dataType":"string","required":true},
         },
         "additionalProperties": false,

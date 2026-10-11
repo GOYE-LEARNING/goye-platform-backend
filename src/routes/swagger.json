@@ -1219,7 +1219,6 @@
 					}
 				},
 				"required": [
-					"enrollmentId",
 					"courseId"
 				],
 				"type": "object",
@@ -13172,30 +13171,6 @@
 										"data": {
 											"items": {
 												"properties": {
-													"replyId": {
-														"type": "string"
-													},
-													"dismissedBy": {
-														"items": {
-															"type": "string"
-														},
-														"type": "array"
-													},
-													"isRead": {
-														"type": "boolean"
-													},
-													"to": {
-														"type": "string"
-													},
-													"postId": {
-														"type": "string"
-													},
-													"achievementId": {
-														"type": "string"
-													},
-													"groupId": {
-														"type": "string"
-													},
 													"title": {
 														"type": "string"
 													},
@@ -13205,47 +13180,19 @@
 													"message": {
 														"type": "string"
 													},
-													"role": {
-														"type": "string"
-													},
-													"userId": {
-														"type": "string"
-													},
-													"organizationId": {
-														"type": "string"
-													},
-													"updatedAt": {
-														"type": "string",
-														"format": "date-time"
-													},
 													"createdAt": {
 														"type": "string",
 														"format": "date-time"
-													},
-													"courseId": {
-														"type": "string"
 													},
 													"id": {
 														"type": "string"
 													}
 												},
 												"required": [
-													"replyId",
-													"dismissedBy",
-													"isRead",
-													"to",
-													"postId",
-													"achievementId",
-													"groupId",
 													"title",
 													"type",
 													"message",
-													"role",
-													"userId",
-													"organizationId",
-													"updatedAt",
 													"createdAt",
-													"courseId",
 													"id"
 												],
 												"type": "object"
@@ -13266,6 +13213,7 @@
 						}
 					}
 				},
+				"description": "Announcements for the signed-in user's dashboard banner.\r\n\r\nThis used to return EVERY notification sent from an admin to a role, which\r\nincluded automatic \"Course Update\" notifications (one row per student) and\r\nother people's announcements, so the banner showed placeholder-looking\r\ntext. It now returns only real announcements addressed to this user:\r\nSYSTEM_ANNOUNCEMENT (platform admin) and ANNOUNCEMENT (organization admin),\r\nnewest first, de-duplicated, and only ones not yet read. Dismissing the\r\nbanner marks it read (PUT /notifications/{id}/read), so it stays gone.",
 				"tags": [
 					"Notification Controller"
 				],
