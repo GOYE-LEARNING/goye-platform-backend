@@ -328,8 +328,8 @@
 			"_36_Enums.ModerationStatus": {
 				"type": "string",
 				"enum": [
-					"PENDING_REVIEW",
 					"PUBLISHED",
+					"PENDING_REVIEW",
 					"REJECTED",
 					"HUMAN_REVIEW"
 				]
@@ -13216,6 +13216,223 @@
 				"description": "Announcements for the signed-in user's dashboard banner.\r\n\r\nThis used to return EVERY notification sent from an admin to a role, which\r\nincluded automatic \"Course Update\" notifications (one row per student) and\r\nother people's announcements, so the banner showed placeholder-looking\r\ntext. It now returns only real announcements addressed to this user:\r\nSYSTEM_ANNOUNCEMENT (platform admin) and ANNOUNCEMENT (organization admin),\r\nnewest first, de-duplicated, and only ones not yet read. Dismissing the\r\nbanner marks it read (PUT /notifications/{id}/read), so it stays gone.",
 				"tags": [
 					"Notification Controller"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": []
+			}
+		},
+		"/moderation/queue": {
+			"get": {
+				"operationId": "GetQueue",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Items waiting for a person (default), or filter by status.",
+				"tags": [
+					"Moderation"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "query",
+						"name": "status",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"in": "query",
+						"name": "page",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					},
+					{
+						"in": "query",
+						"name": "limit",
+						"required": false,
+						"schema": {
+							"format": "double",
+							"type": "number"
+						}
+					}
+				]
+			}
+		},
+		"/moderation/history/{contentType}/{contentId}": {
+			"get": {
+				"operationId": "GetContentHistory",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Every moderation event for one piece of content, AI and human kept separate.",
+				"tags": [
+					"Moderation"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "contentType",
+						"required": true,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"POST",
+								"REPLY",
+								"DISCUSSION"
+							]
+						}
+					},
+					{
+						"in": "path",
+						"name": "contentId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/moderation/decide/{recordId}": {
+			"post": {
+				"operationId": "Decide",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Approve or reject held content. The AI's own recommendation is never overwritten.",
+				"tags": [
+					"Moderation"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "recordId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"properties": {
+									"reason": {
+										"type": "string"
+									},
+									"decision": {
+										"type": "string",
+										"enum": [
+											"approve",
+											"reject"
+										]
+									}
+								},
+								"required": [
+									"decision"
+								],
+								"type": "object"
+							}
+						}
+					}
+				}
+			}
+		},
+		"/moderation/rerun/{recordId}": {
+			"post": {
+				"operationId": "Rerun",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Ask the AI to look again, for example after a provider outage left an item pending.",
+				"tags": [
+					"Moderation"
+				],
+				"security": [
+					{
+						"bearerAuth": []
+					}
+				],
+				"parameters": [
+					{
+						"in": "path",
+						"name": "recordId",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				]
+			}
+		},
+		"/moderation/metrics": {
+			"get": {
+				"operationId": "GetMetrics",
+				"responses": {
+					"200": {
+						"description": "Ok",
+						"content": {
+							"application/json": {
+								"schema": {}
+							}
+						}
+					}
+				},
+				"description": "Counters since the server started. Platform admins only.",
+				"tags": [
+					"Moderation"
 				],
 				"security": [
 					{

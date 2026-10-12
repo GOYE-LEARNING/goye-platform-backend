@@ -998,7 +998,7 @@ static calculateLevel(totalXP: number): {
     // Community Badge (Active participation - 10 discussions)
     if (actionType === ActionType.DISCUSSION_PARTICIPATION) {
       const participationCount = await prisma.post.count({
-        where: { userId },
+        where: { userId, moderationStatus: "PUBLISHED" },
       });
 
       if (

@@ -20,6 +20,8 @@ import {
   GamificationService,
 } from "../services/gamificationService";
 import { EncryptionUtil } from "../utils/encryption";
+import { submitNew, submitEdit } from "../moderation/moderationGate";
+import { MAX_CONTENT_CHARS } from "../moderation/validation";
 import { MediaService } from "../services/mediaServices";
 import { CacheKeys, TTL, useCacheAside } from "../utils/redis";
 import { assertCanStartPrivateChat, ORG_LEADER_ROLES } from "../utils/chatPermissions";
@@ -188,8 +190,14 @@ export class DiscussionController extends Controller {
         };
       }
 
+      const rawText = (body.content ?? "").trim();
+      if (rawText.length > MAX_CONTENT_CHARS) {
+        this.setStatus(400);
+        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+      }
+
       // ENCRYPT the public discussion content
-      const encryptedContent = EncryptionUtil.encrypt(body.content);
+      const encryptedContent = EncryptionUtil.encrypt(rawText);
       const discussion = await prisma.discussion.create({
         data: {
           content: encryptedContent,
@@ -197,6 +205,7 @@ export class DiscussionController extends Controller {
           mediaUrls: (body.mediaUrls as any) || [],
           isPublic: true,
           authorId: userId,
+          moderationStatus: "PENDING_REVIEW",
         },
         include: {
           author: {
@@ -217,19 +226,25 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const gamificationResult =
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.DISCUSSION_PARTICIPATION,
-        );
+      // XP is awarded by the gate, only once the discussion is published.
+      const moderation = await submitNew({
+        type: "DISCUSSION",
+        contentId: discussion.id,
+        authorId: userId,
+        plaintext: rawText,
+        hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
+      });
+      const gamificationResult = moderation.sideEffects?.gamification;
 
       this.setStatus(201);
       return {
-        message: "Discussion created successfully",
+        message: moderation.message,
         data: {
           ...discussion,
-          content: body.content,
+          content: rawText,
+          moderationStatus: moderation.status,
         },
+        moderation: { status: moderation.status },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -275,6 +290,7 @@ export class DiscussionController extends Controller {
             where: {
               isPublic: true,
               parentId: null,
+              moderationStatus: "PUBLISHED",
             },
             include: {
               author: {
@@ -288,7 +304,7 @@ export class DiscussionController extends Controller {
               },
               _count: {
                 select: {
-                  replies: true,
+                  replies: { where: { moderationStatus: "PUBLISHED" } },
                   likes: true,
                 },
               },
@@ -306,6 +322,7 @@ export class DiscussionController extends Controller {
             where: {
               isPublic: true,
               parentId: null,
+              moderationStatus: "PUBLISHED",
             },
           });
 
@@ -362,7 +379,7 @@ export class DiscussionController extends Controller {
       const skip = (page - 1) * limit;
 
       const discussion = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true },
+        where: { id: discussionId, isPublic: true, moderationStatus: "PUBLISHED" },
         include: {
           author: {
             select: {
@@ -375,7 +392,7 @@ export class DiscussionController extends Controller {
           },
           _count: {
             select: {
-              replies: true,
+              replies: { where: { moderationStatus: "PUBLISHED" } },
               likes: true,
             },
           },
@@ -385,7 +402,7 @@ export class DiscussionController extends Controller {
             select: { userId: true },
           },
           replies: {
-            where: { parentId: null },
+            where: { parentId: null, moderationStatus: "PUBLISHED" },
             orderBy: { createdAt: "asc" },
             skip,
             take: limit,
@@ -410,6 +427,7 @@ export class DiscussionController extends Controller {
                 select: { userId: true },
               },
               replies: {
+                where: { moderationStatus: "PUBLISHED" },
                 orderBy: { createdAt: "asc" },
                 include: {
                   author: {
@@ -482,6 +500,7 @@ export class DiscussionController extends Controller {
       const totalReplies = await prisma.discussion.count({
         where: {
           parentId: discussionId,
+          moderationStatus: "PUBLISHED",
         },
       });
 
@@ -527,7 +546,7 @@ export class DiscussionController extends Controller {
 
     try {
       const parent = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true },
+        where: { id: discussionId, isPublic: true, moderationStatus: "PUBLISHED" },
         include: {
           author: {
             select: {
@@ -545,7 +564,17 @@ export class DiscussionController extends Controller {
         return { message: "Discussion not found" };
       }
 
-      const encryptedContent = EncryptionUtil.encrypt(body.content);
+      const rawText = (body.content ?? "").trim();
+      if (!rawText && !(Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0)) {
+        this.setStatus(400);
+        return { message: "Content or media is required" };
+      }
+      if (rawText.length > MAX_CONTENT_CHARS) {
+        this.setStatus(400);
+        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+      }
+
+      const encryptedContent = EncryptionUtil.encrypt(rawText);
 
       const reply = await prisma.discussion.create({
         data: {
@@ -554,6 +583,7 @@ export class DiscussionController extends Controller {
           isPublic: true,
           authorId: userId,
           parentId: discussionId,
+          moderationStatus: "PENDING_REVIEW",
         },
         include: {
           author: {
@@ -573,36 +603,25 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const gamificationResult =
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.DISCUSSION_PARTICIPATION,
-        );
-
-      if (parent.authorId !== userId) {
-        await NotificationService.createNotification({
-          message: `${reply.author.first_name} ${reply.author.last_name} replied to your discussion`,
-          title: "New Reply",
-          type: "discussion",
-          role:
-            parent.author.role === "instructor"
-              ? Role.INSTRUCTOR
-              : Role.STUDENT,
-          to:
-            parent.author.role === "instructor"
-              ? Role.INSTRUCTOR
-              : Role.STUDENT,
-          userId: parent.authorId,
-        });
-      }
+      // XP and the reply notification are sent by the gate, once published.
+      const moderation = await submitNew({
+        type: "DISCUSSION",
+        contentId: reply.id,
+        authorId: userId,
+        plaintext: rawText,
+        hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
+      });
+      const gamificationResult = moderation.sideEffects?.gamification;
 
       this.setStatus(201);
       return {
-        message: "Reply added successfully",
+        message: moderation.message,
         data: {
           ...reply,
-          content: body.content,
+          content: rawText,
+          moderationStatus: moderation.status,
         },
+        moderation: { status: moderation.status },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -640,7 +659,7 @@ export class DiscussionController extends Controller {
     try {
       // Find the parent reply
       const parentReply = await prisma.discussion.findUnique({
-        where: { id: replyId, isPublic: true },
+        where: { id: replyId, isPublic: true, moderationStatus: "PUBLISHED" },
         include: {
           author: {
             select: {
@@ -685,9 +704,17 @@ export class DiscussionController extends Controller {
 
       // Create the nested reply with reference to who they're replying to
       const replyToName = `${parentReply.author.first_name} ${parentReply.author.last_name}`;
-      const contentWithMention = `${body.content}`;
+      const rawText = (body.content ?? "").trim();
+      if (!rawText && !(Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0)) {
+        this.setStatus(400);
+        return { message: "Content or media is required" };
+      }
+      if (rawText.length > MAX_CONTENT_CHARS) {
+        this.setStatus(400);
+        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+      }
 
-      const encryptedContent = EncryptionUtil.encrypt(contentWithMention);
+      const encryptedContent = EncryptionUtil.encrypt(rawText);
 
       const nestedReply = await prisma.discussion.create({
         data: {
@@ -696,6 +723,7 @@ export class DiscussionController extends Controller {
           isPublic: true,
           authorId: userId,
           parentId: replyId, // This makes it a child of the parent reply
+          moderationStatus: "PENDING_REVIEW",
         },
         include: {
           author: {
@@ -715,41 +743,29 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const gamificationResult =
-        await GamificationService.AddPointsWithGamification(
-          userId,
-          ActionType.DISCUSSION_PARTICIPATION,
-        );
-
-      // Send notification to the user being replied to
-      if (parentReply.authorId !== userId) {
-        await NotificationService.createNotification({
-          message: `${nestedReply.author.first_name} ${nestedReply.author.last_name} replied to your comment: "${body.content.substring(0, 50)}..."`,
-          title: "New Reply",
-          type: "discussion",
-          role:
-            parentReply.author.role === "instructor"
-              ? Role.INSTRUCTOR
-              : Role.STUDENT,
-          to:
-            parentReply.author.role === "instructor"
-              ? Role.INSTRUCTOR
-              : Role.STUDENT,
-          userId: parentReply.authorId,
-        });
-      }
+      // XP and the reply notification are sent by the gate, once published.
+      const moderation = await submitNew({
+        type: "DISCUSSION",
+        contentId: nestedReply.id,
+        authorId: userId,
+        plaintext: rawText,
+        hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
+      });
+      const gamificationResult = moderation.sideEffects?.gamification;
 
       this.setStatus(201);
       return {
-        message: "Nested reply added successfully",
+        message: moderation.message,
         data: {
           ...nestedReply,
-          content: body.content,
+          content: rawText,
+          moderationStatus: moderation.status,
           replyTo: {
             id: parentReply.author.id,
             name: replyToName,
           },
         },
+        moderation: { status: moderation.status },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -779,7 +795,7 @@ export class DiscussionController extends Controller {
       const skip = (page - 1) * limit;
 
       const reply = await prisma.discussion.findUnique({
-        where: { id: replyId, isPublic: true },
+        where: { id: replyId, isPublic: true, moderationStatus: "PUBLISHED" },
         include: {
           author: {
             select: {
@@ -793,7 +809,7 @@ export class DiscussionController extends Controller {
           _count: {
             select: {
               likes: true,
-              replies: true,
+              replies: { where: { moderationStatus: "PUBLISHED" } },
             },
           },
           parent: {
@@ -808,6 +824,7 @@ export class DiscussionController extends Controller {
             },
           },
           replies: {
+            where: { moderationStatus: "PUBLISHED" },
             orderBy: { createdAt: "asc" },
             skip,
             take: limit,
@@ -872,6 +889,7 @@ export class DiscussionController extends Controller {
       const totalReplies = await prisma.discussion.count({
         where: {
           parentId: replyId,
+          moderationStatus: "PUBLISHED",
         },
       });
 
@@ -914,8 +932,8 @@ export class DiscussionController extends Controller {
     }
 
     try {
-      const discussion = await prisma.discussion.findUnique({
-        where: { id: discussionId },
+      const discussion = await prisma.discussion.findFirst({
+        where: { id: discussionId, moderationStatus: "PUBLISHED" },
       });
 
       if (!discussion) {
@@ -1016,38 +1034,94 @@ export class DiscussionController extends Controller {
         };
       }
 
-      const encryptedContent = EncryptionUtil.encrypt(body.content);
+      const rawText = (body.content ?? "").trim();
+      if (rawText.length > MAX_CONTENT_CHARS) {
+        this.setStatus(400);
+        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+      }
 
+      const wasPublished = discussion.moderationStatus === "PUBLISHED";
+      const incomingMedia = (body.mediaUrls as any[]) ?? null;
+
+      if (wasPublished) {
+        // The live row must keep showing the last approved version, so media
+        // may only be removed here, never swapped in unreviewed.
+        if (incomingMedia) {
+          const existing = ((discussion.mediaUrls as any[]) ?? []).map((m) => JSON.stringify(m));
+          const addsNew = incomingMedia.some((m) => !existing.includes(JSON.stringify(m)));
+          if (addsNew) {
+            this.setStatus(400);
+            return {
+              message: "New media can't be added to a published post. Create a new post instead.",
+            };
+          }
+        }
+
+        const edit = await submitEdit({
+          type: "DISCUSSION",
+          contentId: discussionId,
+          authorId: userId,
+          plaintext: rawText,
+          hasMedia: Array.isArray(incomingMedia ?? discussion.mediaUrls) && ((incomingMedia ?? (discussion.mediaUrls as any[])) as any[]).length > 0,
+        });
+
+        const live = await prisma.discussion.update({
+          where: { id: discussionId },
+          data: {
+            category: normalizedCategory as any,
+            ...(incomingMedia ? { mediaUrls: incomingMedia as any } : {}),
+          },
+          include: {
+            author: {
+              select: { id: true, first_name: true, last_name: true, user_pic: true, role: true },
+            },
+            _count: { select: { replies: true, likes: true } },
+          },
+        });
+
+        this.setStatus(200);
+        return {
+          message: edit.message,
+          data: {
+            ...live,
+            // Still the approved text until the edit clears review.
+            content: EncryptionUtil.decrypt(live.content),
+            moderationStatus: "PUBLISHED",
+          },
+          moderation: { status: edit.status, isEdit: true },
+        };
+      }
+
+      // Not live (pending, held, or rejected): rewrite it and send it back through review.
       const updated = await prisma.discussion.update({
         where: { id: discussionId },
         data: {
-          content: encryptedContent,
+          content: EncryptionUtil.encrypt(rawText),
           category: normalizedCategory as any,
-          mediaUrls: (body.mediaUrls as any) || discussion.mediaUrls,
+          mediaUrls: (incomingMedia as any) || discussion.mediaUrls,
+          moderationStatus: "PENDING_REVIEW",
         },
         include: {
           author: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
-            },
+            select: { id: true, first_name: true, last_name: true, user_pic: true, role: true },
           },
-          _count: {
-            select: { replies: true, likes: true },
-          },
+          _count: { select: { replies: true, likes: true } },
         },
+      });
+
+      const resubmitted = await submitNew({
+        type: "DISCUSSION",
+        contentId: discussionId,
+        authorId: userId,
+        plaintext: rawText,
+        hasMedia: Array.isArray(updated.mediaUrls) && (updated.mediaUrls as any[]).length > 0,
       });
 
       this.setStatus(200);
       return {
-        message: "Post updated successfully",
-        data: {
-          ...updated,
-          content: body.content, // return decrypted
-        },
+        message: resubmitted.message,
+        data: { ...updated, content: rawText, moderationStatus: resubmitted.status },
+        moderation: { status: resubmitted.status, isEdit: false },
       };
     } catch (error: any) {
       console.error("Error updating discussion:", error);
@@ -1430,7 +1504,7 @@ export class DiscussionController extends Controller {
 
       // Check discussion exists
       const discussion = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true },
+        where: { id: discussionId, isPublic: true, moderationStatus: "PUBLISHED" },
         select: { id: true },
       });
 
@@ -1444,6 +1518,7 @@ export class DiscussionController extends Controller {
         where: {
           parentId: discussionId,
           isPublic: true,
+          moderationStatus: "PUBLISHED",
         },
         include: {
           author: {
@@ -1458,11 +1533,12 @@ export class DiscussionController extends Controller {
           _count: {
             select: {
               likes: true,
-              replies: true,
+              replies: { where: { moderationStatus: "PUBLISHED" } },
             },
           },
           // Fetch nested replies too
           replies: {
+            where: { moderationStatus: "PUBLISHED" },
             orderBy: { createdAt: "asc" },
             include: {
               author: {
@@ -1515,6 +1591,7 @@ export class DiscussionController extends Controller {
         where: {
           parentId: discussionId,
           isPublic: true,
+          moderationStatus: "PUBLISHED",
         },
       });
 
