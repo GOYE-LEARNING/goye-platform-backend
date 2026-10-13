@@ -17,7 +17,7 @@ import prisma from "../db";
 import { decodeBase64Upload } from "../utils/uploads";
 import { MediaService } from "../services/mediaServices";
 import { NotificationService, Role } from "../services/notificationServices";
-import { submitNew, submitEdit } from "../moderation/moderationGate";
+import { submitNewWithBudget, submitEditWithBudget } from "../moderation/moderationGate";
 import { validateText } from "../moderation/validation";
 import { GrowthService } from "../services/growthService";
 import {
@@ -118,7 +118,7 @@ export class SocialController extends Controller {
       });
 
       // XP is awarded by the gate, only once the post is actually published.
-      const moderation = await submitNew({
+      const moderation = await submitNewWithBudget({
         type: "POST",
         contentId: createPost.id,
         authorId: orgId ? null : (userId ?? null),
@@ -131,7 +131,7 @@ export class SocialController extends Controller {
       return {
         message: moderation.message,
         data: { ...createPost, moderationStatus: moderation.status },
-        moderation: { status: moderation.status },
+        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
       };
     } catch (error: any) {
       console.error("Error creating post:", error);
@@ -245,7 +245,7 @@ export class SocialController extends Controller {
       });
 
       // XP and the "someone replied" notification run in the gate, once published.
-      const moderation = await submitNew({
+      const moderation = await submitNewWithBudget({
         type: "REPLY",
         contentId: createReply.id,
         authorId: userId,
@@ -257,7 +257,7 @@ export class SocialController extends Controller {
       return {
         message: moderation.message,
         data: { ...createReply, moderationStatus: moderation.status },
-        moderation: { status: moderation.status },
+        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
       };
     } catch (error: any) {
       console.error("Error creating reply:", error);
@@ -1102,7 +1102,7 @@ export class SocialController extends Controller {
       // approved. Editing held/rejected content rewrites it and re-submits.
       const wasPublished = existingReply.moderationStatus === "PUBLISHED";
       const editModeration = wasPublished
-        ? await submitEdit({
+        ? await submitEditWithBudget({
             type: "REPLY",
             contentId: replyId,
             authorId: userId,
@@ -1141,7 +1141,7 @@ export class SocialController extends Controller {
 
       const finalModeration =
         editModeration ??
-        (await submitNew({
+        (await submitNewWithBudget({
           type: "REPLY",
           contentId: replyId,
           authorId: userId,
@@ -1156,7 +1156,7 @@ export class SocialController extends Controller {
           ...updatedReply,
           moderationStatus: wasPublished ? "PUBLISHED" : finalModeration.status,
         },
-        moderation: { status: finalModeration.status, isEdit: wasPublished },
+        moderation: { status: finalModeration.status, authorMessage: finalModeration.authorMessage, flagged: finalModeration.flagged, isEdit: wasPublished },
       };
     } catch (error: any) {
       this.setStatus(500);

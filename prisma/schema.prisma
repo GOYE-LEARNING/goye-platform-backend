@@ -1313,6 +1313,8 @@ model ModerationRecord {
   categories          String[]
   confidence          Float?
   reason              String?
+  authorMessage       String?
+  flaggedPhrases      String[]
   requiresHumanReview Boolean  @default(false)
   escalated           Boolean  @default(false)
   model               String?

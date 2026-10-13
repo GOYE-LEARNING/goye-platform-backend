@@ -4,6 +4,7 @@ import { createServer } from "http";
 import { createApp, socketRoutes } from "./app"; // ✅ import the placeholder router
 import { SocketService } from "./services/socketService";
 import { NotificationService } from "./services/notificationServices";
+import { startModerationSweep } from "./moderation/moderationGate";
 import { PORT } from "./utils/constant";
 import { initRedis, closeRedis, startNotificationWorker } from "./utils/redis";
 import { VerifyToken } from "./middleware/verifytoken";
@@ -69,6 +70,7 @@ const startServer = async () => {
     // notificationServices and then sat in Redis unprocessed forever, so
     // those emails were never actually delivered.
     startNotificationWorker();
+    startModerationSweep();
 
     const app = await createApp(); // socketRoutes is mounted but empty right now
     const httpServer = createServer(app);

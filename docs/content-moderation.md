@@ -68,3 +68,15 @@ against a hosted one; Groq is mocked).
 - Groups, events and bios are not yet covered.
 - The model can be wrong in both directions. That is why borderline items go to
   a person and why only confident results are automatic.
+
+## Instant feedback (policy v2)
+
+Nobody is left waiting. A post is stored the moment it is submitted and the AI checks it straight away.
+
+- The create/edit endpoints give the AI a short window (`MODERATION_RESPONSE_BUDGET_MS`, default 2500 ms). Usually the answer arrives inside it and the response includes `moderation: { status, authorMessage, flagged }`.
+- `authorMessage` is a kind, specific note to the author (which part is the problem, what to change). `flagged` holds up to three short quotes **taken from the author's own text**; the service drops any quote that does not literally appear in the submission.
+- If the AI is slower, the response is "saved and being checked" (`background: true`), the check finishes in the background and the author gets a notification (type `moderation`).
+- If the provider is unreachable, the item retries itself after 15 s, 45 s and 120 s (event-driven timers, no polling), plus one sweep at server start for items that were waiting when the server stopped. Only then does it wait for a human.
+- When a moderator decides, the author is notified, including the moderator's reason on a rejection.
+
+Database: apply `prisma/manual/2026-10-moderation-author-feedback.sql` (additive, idempotent) before deploying.

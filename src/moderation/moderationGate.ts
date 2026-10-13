@@ -20,6 +20,12 @@ export interface GateResult {
   status: ModerationStatusValue;
   recordId: string;
   message: string;
+  /** Kind, specific feedback for the author (only when something was flagged). */
+  authorMessage?: string;
+  /** Short quotes from the author's own text that show where the concern is. */
+  flagged?: string[];
+  /** True when the AI was too slow to wait for: the answer is still being worked out. */
+  background?: boolean;
   /** Present only when the content went live during this call. */
   sideEffects?: { gamification?: any };
 }
@@ -42,19 +48,42 @@ export class ModerationError extends Error {
 
 // ── User-facing wording: neutral, never asserts a violation was proven ──────
 
-function messageFor(status: ModerationStatusValue, isEdit: boolean): string {
+function messageFor(status: ModerationStatusValue, isEdit: boolean, authorMessage = ""): string {
+  const note = authorMessage ? ` ${authorMessage}` : "";
   switch (status) {
     case "PUBLISHED":
       return isEdit ? "Your changes are live." : "Posted successfully.";
     case "REJECTED":
       return isEdit
-        ? "These changes can't be published because they don't meet GOYE's community guidelines. Your previous version is unchanged."
-        : "This can't be published because it doesn't meet GOYE's community guidelines. You can edit it and try again.";
+        ? `These changes can't be published yet.${note} Your previous version is unchanged.`
+        : `This can't be published yet.${note} You can edit it and try again.`;
+    case "HUMAN_REVIEW":
+      return isEdit
+        ? `Your changes were received and a person will review them before they appear.${note} Your previous version stays visible until then.`
+        : `Your post was received and a person will review it before it appears.${note}`;
     default:
       return isEdit
-        ? "Your changes were received and will appear after review. Your previous version stays visible until then."
-        : "Your post was received and will appear once it has been reviewed.";
+        ? "Your changes are saved and being checked. We'll let you know. Your previous version stays visible until then."
+        : "Your post is saved and being checked. We'll let you know as soon as it's decided.";
   }
+}
+
+function resultFrom(
+  status: ModerationStatusValue,
+  recordId: string,
+  isEdit: boolean,
+  fields: Record<string, any>,
+  sideEffects?: GateResult["sideEffects"],
+): GateResult {
+  const authorMessage = (fields.authorMessage as string) || "";
+  return {
+    status,
+    recordId,
+    message: messageFor(status, isEdit, authorMessage),
+    authorMessage: authorMessage || undefined,
+    flagged: (fields.flaggedPhrases as string[]) || [],
+    sideEffects,
+  };
 }
 
 // ── Cache ───────────────────────────────────────────────────────────────────
@@ -273,6 +302,7 @@ async function evaluate(args: {
       escalated: false,
       fields: {
         reason: "Media-only submission: there is no text for the AI to evaluate.",
+        authorMessage: "Because it has no text for the AI to read, a person will look at it before it appears.",
         requiresHumanReview: true,
         policyVersion: POLICY_VERSION,
         providerError: null,
@@ -289,6 +319,7 @@ async function evaluate(args: {
         ...ev.fields,
         requiresHumanReview: true,
         reason: `${ev.fields.reason ?? ""} Includes attached media, which needs a person to review.`.trim(),
+        authorMessage: "Because your post includes media, a person will look at it before it appears.",
       },
     };
   }
@@ -317,6 +348,8 @@ async function evaluateCore(args: {
       confidence: prior.confidence ?? 0,
       reason: prior.reason ?? "",
       requiresHumanReview: prior.requiresHumanReview,
+      authorMessage: prior.authorMessage ?? "",
+      flaggedPhrases: prior.flaggedPhrases ?? [],
     };
     const d = decideStatus(verdict);
     return { status: d.status, escalated: d.escalated, fields: reuseFields(prior) };
@@ -345,6 +378,8 @@ async function evaluateCore(args: {
       categories: result.verdict.categories,
       confidence: result.verdict.confidence,
       reason: result.verdict.reason,
+      authorMessage: result.verdict.authorMessage || null,
+      flaggedPhrases: result.verdict.flaggedPhrases,
       requiresHumanReview: result.verdict.requiresHumanReview || result.truncated,
       model: result.model,
       policyVersion: POLICY_VERSION,
@@ -360,6 +395,8 @@ function reuseFields(prior: any): Record<string, any> {
     categories: prior.categories,
     confidence: prior.confidence,
     reason: prior.reason,
+    authorMessage: prior.authorMessage,
+    flaggedPhrases: prior.flaggedPhrases,
     requiresHumanReview: prior.requiresHumanReview,
     model: prior.model,
     policyVersion: prior.policyVersion,
@@ -429,7 +466,8 @@ export async function submitNew(args: {
     }
   }
 
-  return { status: ev.status, recordId: record.id, message: messageFor(ev.status, false), sideEffects };
+  if (ev.status === "PENDING_REVIEW" && ev.fields.providerError) scheduleRetry(record.id, 1);
+  return resultFrom(ev.status, record.id, false, ev.fields, sideEffects);
 }
 
 /**
@@ -484,7 +522,8 @@ export async function submitEdit(args: {
     await invalidateContentCaches();
   }
 
-  return { status: ev.status, recordId: record.id, message: messageFor(ev.status, true) };
+  if (ev.status === "PENDING_REVIEW" && ev.fields.providerError) scheduleRetry(record.id, 1);
+  return resultFrom(ev.status, record.id, true, ev.fields);
 }
 
 // ── Human review ────────────────────────────────────────────────────────────
@@ -542,6 +581,17 @@ export async function humanDecide(args: {
     if (moved > 0 && newStatus === "PUBLISHED") await runPublishSideEffects(type, record.contentId);
   }
   await invalidateContentCaches();
+
+  const reason = args.reason?.trim().slice(0, 300);
+  if (args.decision === "approve") {
+    void notifyAuthor(record.authorId, record.isEdit ? "Your changes are live" : "Your post is live", record.isEdit ? "A moderator approved your changes and they are now live." : "A moderator approved your post and it is now live.");
+  } else {
+    void notifyAuthor(
+      record.authorId,
+      "Your post wasn't approved",
+      `A moderator reviewed your ${record.isEdit ? "changes" : "post"} and didn't approve ${record.isEdit ? "them" : "it"}.${reason ? ` Reason: ${reason}` : ""} You can edit it and try again.`,
+    );
+  }
   return { status: newStatus };
 }
 
@@ -552,7 +602,11 @@ export async function rerunRecord(recordId: string, moderator: Moderator): Promi
   if (!OPEN_STATUSES.includes(record.status as ModerationStatusValue)) {
     throw new ModerationError(409, "This item has already been decided");
   }
+  return reevaluate(record);
+}
 
+/** Asks the AI again about an open record and applies the answer. No permission check: callers do that. */
+async function reevaluate(record: any): Promise<GateResult> {
   const type = record.contentType as ContentType;
   const plaintext = record.isEdit
     ? fromStored(type, record.pendingContent ?? "")
@@ -571,18 +625,23 @@ export async function rerunRecord(recordId: string, moderator: Moderator): Promi
 
   const d = decideStatus(result.verdict, result.truncated);
   const decided = d.status === "PUBLISHED" || d.status === "REJECTED";
+  const fields = {
+    aiDecision: result.verdict.decision,
+    riskLevel: result.verdict.riskLevel,
+    categories: result.verdict.categories,
+    confidence: result.verdict.confidence,
+    reason: result.verdict.reason,
+    authorMessage: result.verdict.authorMessage || null,
+    flaggedPhrases: result.verdict.flaggedPhrases,
+    requiresHumanReview: result.verdict.requiresHumanReview || result.truncated,
+    model: result.model,
+    policyVersion: POLICY_VERSION,
+    providerError: null,
+  };
   await prisma.moderationRecord.update({
     where: { id: record.id },
     data: {
-      aiDecision: result.verdict.decision,
-      riskLevel: result.verdict.riskLevel,
-      categories: result.verdict.categories,
-      confidence: result.verdict.confidence,
-      reason: result.verdict.reason,
-      requiresHumanReview: result.verdict.requiresHumanReview || result.truncated,
-      model: result.model,
-      policyVersion: POLICY_VERSION,
-      providerError: null,
+      ...fields,
       contentHash: hash,
       escalated: d.escalated,
       status: d.status,
@@ -599,8 +658,122 @@ export async function rerunRecord(recordId: string, moderator: Moderator): Promi
     if (moved > 0 && d.status === "PUBLISHED") await runPublishSideEffects(type, record.contentId);
   }
   await invalidateContentCaches();
-  return { status: d.status, recordId: record.id, message: messageFor(d.status, record.isEdit) };
+  return resultFrom(d.status, record.id, record.isEdit, fields);
 }
+
+// ── Not leaving anyone waiting ──────────────────────────────────────────────
+
+async function notifyAuthor(authorId: string | null | undefined, title: string, message: string): Promise<void> {
+  if (!authorId) return; // organization posts have no personal author to notify
+  try {
+    await NotificationService.createNotification({
+      title,
+      message,
+      type: "moderation",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId: authorId,
+    });
+  } catch (err: any) {
+    console.error("[Moderation] could not notify the author:", err?.message ?? err);
+  }
+}
+
+/** Tells the author how it turned out, once a decision made after the request has ended. */
+async function notifyDecided(authorId: string | null | undefined, r: GateResult, isEdit: boolean): Promise<void> {
+  if (r.status === "PUBLISHED") {
+    await notifyAuthor(authorId, isEdit ? "Your changes are live" : "Your post is live", isEdit ? "Your changes were approved and are now live." : "Your post was approved and is now live.");
+  } else if (r.status === "REJECTED" || r.status === "HUMAN_REVIEW") {
+    await notifyAuthor(authorId, "Your post needs attention", r.message);
+  }
+}
+
+const RETRY_DELAYS_MS = [15_000, 45_000, 120_000];
+
+/**
+ * If the AI could not be reached, try again by itself a few times instead of leaving the item
+ * waiting for a moderator. Event-driven timers only: nothing polls the database.
+ */
+function scheduleRetry(recordId: string, attempt: number): void {
+  const delay = RETRY_DELAYS_MS[attempt - 1];
+  if (delay === undefined) return;
+  const t = setTimeout(async () => {
+    try {
+      const record = await prisma.moderationRecord.findUnique({ where: { id: recordId } });
+      if (!record || record.status !== "PENDING_REVIEW") return;
+      const r = await reevaluate(record);
+      if (r.status === "PENDING_REVIEW") scheduleRetry(recordId, attempt + 1);
+      else await notifyDecided(record.authorId, r, record.isEdit);
+    } catch (err: any) {
+      console.error("[Moderation] automatic retry failed:", err?.message ?? err);
+      scheduleRetry(recordId, attempt + 1);
+    }
+  }, delay);
+  t.unref?.();
+}
+
+/** Once at start-up: pick up anything that was waiting when the server last stopped. */
+export function startModerationSweep(): void {
+  const t = setTimeout(async () => {
+    try {
+      const rows = await prisma.moderationRecord.findMany({
+        where: { status: "PENDING_REVIEW", aiDecision: null, createdAt: { lt: new Date(Date.now() - 20_000) } },
+        orderBy: { createdAt: "asc" },
+        take: 20,
+      });
+      for (const record of rows) {
+        try {
+          const r = await reevaluate(record);
+          if (r.status !== "PENDING_REVIEW") await notifyDecided(record.authorId, r, record.isEdit);
+        } catch (err: any) {
+          console.error("[Moderation] sweep could not re-check", record.id, err?.message ?? err);
+        }
+      }
+      if (rows.length) console.log(`[Moderation] start-up sweep re-checked ${rows.length} waiting item(s)`);
+    } catch (err: any) {
+      console.error("[Moderation] start-up sweep failed:", err?.message ?? err);
+    }
+  }, 5_000);
+  t.unref?.();
+}
+
+const responseBudgetMs = () => Number(process.env.MODERATION_RESPONSE_BUDGET_MS) || 2500;
+
+/**
+ * Gives the AI a short window to answer so the person usually gets the verdict, and the reason if
+ * something is flagged, straight away. If it is slower than that, answer now ("saved, being
+ * checked") and let it finish in the background, then notify the author.
+ */
+async function withBudget(
+  run: () => Promise<GateResult>,
+  ctx: { authorId: string | null; isEdit: boolean },
+  budgetMs?: number,
+): Promise<GateResult> {
+  const pending: GateResult = { status: "PENDING_REVIEW", recordId: "", message: messageFor("PENDING_REVIEW", ctx.isEdit), background: true };
+  const work: Promise<GateResult | null> = run().catch((err) => {
+    console.error("[Moderation] check failed:", err?.message ?? err);
+    return null;
+  });
+
+  let timer: NodeJS.Timeout | undefined;
+  const slow = new Promise<"slow">((resolve) => {
+    timer = setTimeout(() => resolve("slow"), budgetMs ?? responseBudgetMs());
+  });
+  const first = await Promise.race([work, slow]);
+  if (timer) clearTimeout(timer);
+
+  if (first === "slow") {
+    void work.then((r) => (r ? notifyDecided(ctx.authorId, r, ctx.isEdit) : undefined));
+    return pending;
+  }
+  return first ?? pending;
+}
+
+export const submitNewWithBudget = (args: Parameters<typeof submitNew>[0], budgetMs?: number) =>
+  withBudget(() => submitNew(args), { authorId: args.authorId, isEdit: false }, budgetMs);
+
+export const submitEditWithBudget = (args: Parameters<typeof submitEdit>[0], budgetMs?: number) =>
+  withBudget(() => submitEdit(args), { authorId: args.authorId, isEdit: true }, budgetMs);
 
 // ── Moderator views ─────────────────────────────────────────────────────────
 

@@ -4,7 +4,7 @@ import path from "path";
 import { after, afterEach, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import prisma from "../../db";
-import { ModerationError, humanDecide, submitEdit, submitNew } from "../moderationGate";
+import { ModerationError, humanDecide, submitEdit, submitNew, submitNewWithBudget } from "../moderationGate";
 import { SocialController } from "../../controllers/SocialController";
 import { DiscussionController } from "../../controllers/DiscussionController";
 import { ModerationController } from "../../controllers/ModerationController";
@@ -383,5 +383,57 @@ describe("moderator access control", () => {
       50,
     );
     assert.ok(!none.data.some((i: any) => i.id === rec.id));
+  });
+});
+
+describe("gate: instant feedback", () => {
+  it("a flagged post returns the author's own words and a specific message at once", async () => {
+    const text = "You people are all fools and God hates you";
+    mockProvider(
+      verdict({
+        decision: "block",
+        riskLevel: "high",
+        categories: ["harassment"],
+        confidence: 0.95,
+        authorMessage: "The second half attacks other people; please share it as your own view.",
+        flaggedPhrases: ["God hates you", "not in the text at all"],
+      }),
+    );
+    const p = await newPost("PENDING_REVIEW", text);
+    const res = await submitNewWithBudget({ type: "POST", contentId: p.id, authorId: u1.id, plaintext: text, title: "T" });
+    assert.equal(res.status, "REJECTED");
+    assert.deepEqual(res.flagged, ["God hates you"]); // invented quotes are dropped
+    assert.match(res.message, /attacks other people/);
+    const rec = await record(p.id);
+    assert.equal(rec?.authorMessage, res.authorMessage);
+  });
+
+  it("a slow AI does not keep the author waiting: saved now, notified when decided", async () => {
+    const text = "Slow but fine";
+    globalThis.fetch = (async (_u: any, init: any) => {
+      await new Promise((r) => setTimeout(r, 400));
+      return {
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({ choices: [{ message: { content: JSON.stringify(verdict()) } }] }),
+      } as any;
+    }) as any;
+    const p = await newPost("PENDING_REVIEW", text);
+    const t0 = Date.now();
+    const res = await submitNewWithBudget({ type: "POST", contentId: p.id, authorId: u1.id, plaintext: text, title: "T" }, 50);
+    assert.ok(Date.now() - t0 < 300, "responded within the budget");
+    assert.equal(res.status, "PENDING_REVIEW");
+    assert.equal(res.background, true);
+
+    await new Promise((r) => setTimeout(r, 1500)); // let the background check finish
+    const after = await prisma.post.findUnique({ where: { id: p.id }, select: { moderationStatus: true } });
+    assert.equal(after?.moderationStatus, "PUBLISHED");
+    const note = await prisma.notification.findFirst({
+      where: { userId: u1.id, type: "moderation", title: "Your post is live" },
+      orderBy: { createdAt: "desc" },
+    });
+    assert.ok(note, "author was notified");
+    await prisma.notification.deleteMany({ where: { userId: u1.id, type: "moderation" } });
   });
 });

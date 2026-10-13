@@ -20,6 +20,10 @@ export interface AiVerdict {
   confidence: number;
   reason: string;
   requiresHumanReview: boolean;
+  /** Kind, specific feedback written to the person who posted. */
+  authorMessage: string;
+  /** Short quotes from their own text that show where the concern is. */
+  flaggedPhrases: string[];
 }
 
 // Flat shape (not a discriminated union): the project compiles without
@@ -41,6 +45,9 @@ export interface ModerationInput {
 /** Longest text sent to the model. Longer submissions are force-routed to a human. */
 export const MAX_MODERATED_CHARS = 8000;
 const MAX_REASON_CHARS = 300;
+const MAX_AUTHOR_MESSAGE_CHARS = 320;
+const MAX_FLAGGED = 3;
+const MAX_FLAGGED_CHARS = 100;
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const ALLOW_MIN_CONFIDENCE = 0.7;
@@ -69,7 +76,11 @@ function config() {
 }
 
 /** Validates the untrusted model output. Returns null if anything is off. */
-export function validateVerdict(raw: unknown): AiVerdict | null {
+/**
+ * @param source the text the model was shown. A flagged phrase is only kept if it really appears
+ * in it, so the author is never quoted words they did not write.
+ */
+export function validateVerdict(raw: unknown, source = ""): AiVerdict | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
 
@@ -83,6 +94,17 @@ export function validateVerdict(raw: unknown): AiVerdict | null {
   if (typeof r.reason !== "string") return null;
   if (typeof r.requiresHumanReview !== "boolean") return null;
 
+  // Optional so a model that omits them still gives a usable verdict.
+  const authorMessage = typeof r.authorMessage === "string" ? r.authorMessage.trim().slice(0, MAX_AUTHOR_MESSAGE_CHARS) : "";
+  const lowerSource = source.toLowerCase();
+  const flaggedPhrases = Array.isArray(r.flaggedPhrases)
+    ? (r.flaggedPhrases as unknown[])
+        .filter((p): p is string => typeof p === "string")
+        .map((p) => p.trim().slice(0, MAX_FLAGGED_CHARS))
+        .filter((p) => p.length > 1 && lowerSource.includes(p.toLowerCase()))
+        .slice(0, MAX_FLAGGED)
+    : [];
+
   return {
     decision: r.decision as ModerationDecision,
     riskLevel: r.riskLevel as RiskLevel,
@@ -90,6 +112,8 @@ export function validateVerdict(raw: unknown): AiVerdict | null {
     confidence: r.confidence,
     reason: r.reason.trim().slice(0, MAX_REASON_CHARS),
     requiresHumanReview: r.requiresHumanReview,
+    authorMessage,
+    flaggedPhrases,
   };
 }
 
@@ -187,7 +211,7 @@ export async function evaluateContent(input: ModerationInput): Promise<Evaluatio
     const result = await callGroqOnce(apiKey, model, system, user, timeoutMs);
 
     if (result.status === "ok") {
-      const verdict = validateVerdict(parseModelJson(result.text));
+      const verdict = validateVerdict(parseModelJson(result.text), text);
       if (!verdict) {
         moderationMetrics.invalidResponses++;
         return fail("invalid_provider_response");
