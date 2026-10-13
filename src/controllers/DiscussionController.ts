@@ -20,7 +20,7 @@ import {
   GamificationService,
 } from "../services/gamificationService";
 import { EncryptionUtil } from "../utils/encryption";
-import { submitNew, submitEdit } from "../moderation/moderationGate";
+import { submitNewWithBudget, submitEditWithBudget } from "../moderation/moderationGate";
 import { MAX_CONTENT_CHARS } from "../moderation/validation";
 import { MediaService } from "../services/mediaServices";
 import { CacheKeys, TTL, useCacheAside } from "../utils/redis";
@@ -227,7 +227,7 @@ export class DiscussionController extends Controller {
       });
 
       // XP is awarded by the gate, only once the discussion is published.
-      const moderation = await submitNew({
+      const moderation = await submitNewWithBudget({
         type: "DISCUSSION",
         contentId: discussion.id,
         authorId: userId,
@@ -244,7 +244,7 @@ export class DiscussionController extends Controller {
           content: rawText,
           moderationStatus: moderation.status,
         },
-        moderation: { status: moderation.status },
+        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -604,7 +604,7 @@ export class DiscussionController extends Controller {
       });
 
       // XP and the reply notification are sent by the gate, once published.
-      const moderation = await submitNew({
+      const moderation = await submitNewWithBudget({
         type: "DISCUSSION",
         contentId: reply.id,
         authorId: userId,
@@ -621,7 +621,7 @@ export class DiscussionController extends Controller {
           content: rawText,
           moderationStatus: moderation.status,
         },
-        moderation: { status: moderation.status },
+        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -744,7 +744,7 @@ export class DiscussionController extends Controller {
       });
 
       // XP and the reply notification are sent by the gate, once published.
-      const moderation = await submitNew({
+      const moderation = await submitNewWithBudget({
         type: "DISCUSSION",
         contentId: nestedReply.id,
         authorId: userId,
@@ -765,7 +765,7 @@ export class DiscussionController extends Controller {
             name: replyToName,
           },
         },
-        moderation: { status: moderation.status },
+        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
         gamification: {
           pointsEarned: gamificationResult.data?.pointsAdded,
           leveledUp: gamificationResult.data?.leveledUp,
@@ -1057,7 +1057,7 @@ export class DiscussionController extends Controller {
           }
         }
 
-        const edit = await submitEdit({
+        const edit = await submitEditWithBudget({
           type: "DISCUSSION",
           contentId: discussionId,
           authorId: userId,
@@ -1088,7 +1088,7 @@ export class DiscussionController extends Controller {
             content: EncryptionUtil.decrypt(live.content),
             moderationStatus: "PUBLISHED",
           },
-          moderation: { status: edit.status, isEdit: true },
+          moderation: { status: edit.status, authorMessage: edit.authorMessage, flagged: edit.flagged, isEdit: true },
         };
       }
 
@@ -1109,7 +1109,7 @@ export class DiscussionController extends Controller {
         },
       });
 
-      const resubmitted = await submitNew({
+      const resubmitted = await submitNewWithBudget({
         type: "DISCUSSION",
         contentId: discussionId,
         authorId: userId,
@@ -1121,7 +1121,7 @@ export class DiscussionController extends Controller {
       return {
         message: resubmitted.message,
         data: { ...updated, content: rawText, moderationStatus: resubmitted.status },
-        moderation: { status: resubmitted.status, isEdit: false },
+        moderation: { status: resubmitted.status, authorMessage: resubmitted.authorMessage, flagged: resubmitted.flagged, isEdit: false },
       };
     } catch (error: any) {
       console.error("Error updating discussion:", error);

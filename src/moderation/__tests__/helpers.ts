@@ -10,6 +10,8 @@ export function verdict(overrides: Partial<AiVerdict> = {}): AiVerdict {
     confidence: 0.97,
     reason: "Fine.",
     requiresHumanReview: false,
+    authorMessage: "",
+    flaggedPhrases: [],
     ...overrides,
   };
 }

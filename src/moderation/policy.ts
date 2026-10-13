@@ -10,7 +10,7 @@
  * and own it: the model is told to apply ONLY what is written here and to send
  * anything uncertain to a human, never to invent doctrinal rules of its own.
  */
-export const POLICY_VERSION = "GOYE-CHRISTIAN-COMMUNITY-v1";
+export const POLICY_VERSION = "GOYE-CHRISTIAN-COMMUNITY-v2";
 
 export const MODERATION_CATEGORIES = [
   "harassment",
@@ -70,9 +70,11 @@ HOW TO DECIDE:
 - riskLevel "critical" is for possible imminent harm, sexual content involving minors, or credible threats. A human will handle it.
 - confidence is your certainty in the decision, from 0 to 1.
 - reason: one short neutral sentence for a moderator. Do not quote the submission and do not accuse the author.
+- authorMessage: written TO the person who posted, in one or two kind but clear sentences: say which part is the problem and what to change so it can be published (for example "The last sentence attacks a person; please rephrase it as your own view."). Never lecture, never say they were proven to have broken a rule, and never mention scores or policies. Use an empty string when decision is "allow".
+- flaggedPhrases: up to three SHORT snippets (at most 80 characters each) copied EXACTLY, word for word, from the submission, showing where the concern is. Empty array when decision is "allow" or when nothing specific can be quoted.
 
 OUTPUT: a single JSON object with exactly these keys:
-{"decision":"allow"|"review"|"block","riskLevel":"low"|"medium"|"high"|"critical","categories":[zero or more of ${MODERATION_CATEGORIES.join(", ")}],"confidence":number,"reason":string,"requiresHumanReview":boolean}`;
+{"decision":"allow"|"review"|"block","riskLevel":"low"|"medium"|"high"|"critical","categories":[zero or more of ${MODERATION_CATEGORIES.join(", ")}],"confidence":number,"reason":string,"requiresHumanReview":boolean,"authorMessage":string,"flaggedPhrases":[string]}`;
 }
 
 export const MODERATION_JSON_SCHEMA = {
@@ -81,7 +83,7 @@ export const MODERATION_JSON_SCHEMA = {
   schema: {
     type: "object",
     additionalProperties: false,
-    required: ["decision", "riskLevel", "categories", "confidence", "reason", "requiresHumanReview"],
+    required: ["decision", "riskLevel", "categories", "confidence", "reason", "requiresHumanReview", "authorMessage", "flaggedPhrases"],
     properties: {
       decision: { type: "string", enum: [...MODERATION_DECISIONS] },
       riskLevel: { type: "string", enum: [...RISK_LEVELS] },
@@ -89,6 +91,8 @@ export const MODERATION_JSON_SCHEMA = {
       confidence: { type: "number" },
       reason: { type: "string" },
       requiresHumanReview: { type: "boolean" },
+      authorMessage: { type: "string" },
+      flaggedPhrases: { type: "array", items: { type: "string" } },
     },
   },
 } as const;
