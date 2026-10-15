@@ -78,3 +78,66 @@ export async function assertOrgAdminOf(
   }
   return { ok: true };
 }
+
+export type MemberAction = "remove" | "suspend" | "demote";
+
+const isAdminRole = (role?: string | null) => role === "admin" || role === "org_admin";
+
+/**
+ * Who may act on WHICH member. assertOrgAdminOf only proves the requester administers the
+ * organization; it says nothing about the person they are acting on. Without this an admin could
+ * suspend any account on the platform by id, or remove the organization's owner.
+ *
+ *  - the target must really be a member of THIS organization
+ *  - nobody can act on the owner, or on themselves
+ *  - only the owner may act on another admin (admins manage members, not each other)
+ *  - demoting is the owner's call alone
+ */
+export async function assertCanManageMember(
+  req: any,
+  organizationId: string,
+  targetUserId: string,
+  action: MemberAction,
+): Promise<
+  | { ok: true; ownerId: string | null; membershipRole: string }
+  | { ok: false; status: number; message: string }
+> {
+  const base = await assertOrgAdminOf(req, organizationId);
+  if (base.ok === false) return base;
+
+  const requesterId = req.user?.id as string;
+  const [org, membership] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: organizationId }, select: { userId: true } }),
+    prisma.organizationMember.findUnique({
+      where: { userId_organizationId: { userId: targetUserId, organizationId } },
+      select: { role: true, joinedVia: true },
+    }),
+  ]);
+
+  if (!membership) {
+    return { ok: false, status: 404, message: "This user is not a member of this organization" };
+  }
+
+  const ownerId = org?.userId ?? null;
+  const targetIsOwner = (!!ownerId && ownerId === targetUserId) || membership.joinedVia === "CREATED";
+  const requesterIsOwner = !!ownerId && ownerId === requesterId;
+
+  if (targetIsOwner) {
+    return { ok: false, status: 403, message: `The organization owner can't be ${action === "demote" ? "demoted" : action === "remove" ? "removed" : "suspended"}` };
+  }
+  if (requesterId === targetUserId) {
+    return { ok: false, status: 400, message: `You can't ${action} yourself` };
+  }
+  if (action === "demote") {
+    if (!requesterIsOwner) {
+      return { ok: false, status: 403, message: "Only the organization owner can remove admin rights" };
+    }
+    if (!isAdminRole(membership.role)) {
+      return { ok: false, status: 409, message: "This member is not an admin" };
+    }
+  } else if (isAdminRole(membership.role) && !requesterIsOwner) {
+    return { ok: false, status: 403, message: `Only the organization owner can ${action} another admin` };
+  }
+
+  return { ok: true, ownerId, membershipRole: membership.role };
+}

@@ -23,7 +23,7 @@ import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
 import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
 import { useCacheAside, CacheKeys, TTL, invalidateOrgCaches } from "../utils/redis";
-import { assertOrgAdminOf, decodeOptionalRequester } from "../utils/orgPermissions";
+import { assertOrgAdminOf, assertCanManageMember, decodeOptionalRequester } from "../utils/orgPermissions";
 import { NotificationService, Role } from "../services/notificationServices";
 import { Church, School, Club } from "../interface/interfaces";
 import { firebaseAuthService } from "../services/firebaseService";
@@ -4292,6 +4292,7 @@ public async InviteUsersToOrganization(
               joinedAt: user.joinedAt,
               joinedVia: user.joinedVia,
               membershipRole: user.membershipRole,
+              isOwner: user.id === organization.userId,
               isActive: user.isActive,
               createdAt: user.createdAt,
               isSuspended: user.isSuspended,
@@ -4302,6 +4303,7 @@ public async InviteUsersToOrganization(
               pendingInvitations: pendingInvitations,
               organizationId: organizationId,
               organizationName: organization.organization_name,
+              ownerId: organization.userId,
             },
           };
         },
@@ -5243,7 +5245,7 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const permission = await assertOrgAdminOf(req, organizationId);
+      const permission = await assertCanManageMember(req, organizationId, userId, "remove");
       if (permission.ok === false) {
         this.setStatus(permission.status);
         return { success: false, message: permission.message };
@@ -5277,7 +5279,7 @@ public async GetOrganizationCoursesWithStats(
     @Request() req: any
   ): Promise<any> {
     try {
-      const permission = await assertOrgAdminOf(req, organizationId);
+      const permission = await assertCanManageMember(req, organizationId, userId, "suspend");
       if (permission.ok === false) {
         this.setStatus(permission.status);
         return { success: false, message: permission.message };
@@ -5348,6 +5350,63 @@ public async GetOrganizationCoursesWithStats(
       console.error("Error promoting member:", error);
       this.setStatus(500);
       return { success: false, message: "Failed to promote member", error: error.message };
+    }
+  }
+
+  // Takes admin rights away again. Only the organization's owner can do it. The account-wide
+  // `User.role` goes back to what an ordinary member has, unless they still administer another
+  // organization, in which case they stay `org_admin` there.
+  @Security("bearerAuth")
+  @Put("/members/{organizationId}/{userId}/demote")
+  public async DemoteMember(
+    @Path() organizationId: string,
+    @Path() userId: string,
+    @Request() req: any
+  ): Promise<any> {
+    try {
+      const permission = await assertCanManageMember(req, organizationId, userId, "demote");
+      if (permission.ok === false) {
+        this.setStatus(permission.status);
+        return { success: false, message: permission.message };
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { userType: true },
+      });
+
+      const [ownsAnother, adminElsewhere] = await Promise.all([
+        prisma.organization.count({ where: { userId, NOT: { id: organizationId } } }),
+        prisma.organizationMember.count({
+          where: {
+            userId,
+            isActive: true,
+            NOT: { organizationId },
+            role: { in: ["admin", "org_admin"] },
+          },
+        }),
+      ]);
+      const stillAdmin = ownsAnother > 0 || adminElsewhere > 0;
+      const ordinaryRole = user?.userType === "INVITED_MEMBER" ? "invited_user" : "student";
+
+      await prisma.$transaction([
+        prisma.organizationMember.update({
+          where: { userId_organizationId: { userId, organizationId } },
+          data: { role: "member" },
+        }),
+        ...(stillAdmin
+          ? []
+          : [prisma.user.update({ where: { id: userId }, data: { role: ordinaryRole } })]),
+      ]);
+
+      await invalidateOrgCaches(organizationId);
+
+      this.setStatus(200);
+      return { success: true, message: "Admin rights removed" };
+    } catch (error: any) {
+      console.error("Error demoting member:", error);
+      this.setStatus(500);
+      return { success: false, message: "Failed to remove admin rights", error: error.message };
     }
   }
 
