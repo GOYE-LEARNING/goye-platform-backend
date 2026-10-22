@@ -8,7 +8,7 @@ export interface User {
   state: string;
   phone_number: string;
   language?: string;
-  languageCode: string;
+  languageCode?: string;
   role: string;
   level: string;
   createAt?: any;

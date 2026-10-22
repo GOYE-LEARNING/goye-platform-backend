@@ -36,6 +36,7 @@ import { otpRateLimit } from "../utils/otp";
 import { normalizeEmail, findUserByEmail } from "../utils/email";
 import { WeirdService } from "../services/weridService";
 import { toDbLanguageCode, toWireLanguageCode } from "../utils/languageCode";
+import { timed, withTimeout } from "../utils/signup.handler";
 
 const forgotPasswordRateLimit = new Map<string, number[]>();
 // A 6-digit numeric OTP has only 1,000,000 combinations — without a
@@ -579,7 +580,7 @@ export class UserController extends Controller {
     }
   }
 
-  @Post("/signup")
+@Post("/signup")
   public async CreateUser(
     @Body()
     body: Omit<User, "id"> & {
@@ -594,214 +595,254 @@ export class UserController extends Controller {
   ): Promise<any> {
     const userAgent = req.headers["user-agent"] || "unknown";
     const deviceType = getDeviceType(userAgent);
-    // Same reasoning as GoogleAuth: use the client's device ID when it sent
-    // one, rather than a server-only ID that never matches what the client
-    // sends on its very next request.
     const deviceId =
       (req.headers["x-device-id"] as string) ||
       body.deviceId ||
       generateDeviceId();
     const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
     const isProduction = process.env.NODE_ENV === "production";
-
-    // Case-insensitive: the DB unique index is case-sensitive, so an exact
-    // findUnique let "Sean@x.com" slip past an existing "sean@x.com".
+ 
+    // "unknown" is your schema default, so it is always a valid enum value.
+    const languageCode = body.languageCode ?? "unknown";
+ 
+    // ── Validation ──────────────────────────────────────────────────────────
+    if (!body.email_address) {
+      this.setStatus(400);
+      return { message: "Email is required" };
+    }
+ 
+    if (!body.password || body.password.trim() === "") {
+      this.setStatus(400);
+      return { message: "Password must be filled" };
+    }
+ 
     const existingUser = await findUserByEmail(body.email_address);
-
     if (existingUser) {
       this.setStatus(400);
       return { message: "User with this email already exists" };
     }
-
-    if (body.password === "") {
-      this.setStatus(400);
-      return { message: "Password must be filled" };
-    }
-
-    // Public signup may only create learner/tutor accounts. The role used to be
-    // copied straight from the request body, so anyone could register as an admin.
+ 
     const SIGNUP_ROLES = ["student", "instructor", "tutor"];
     const requestedRole = (body.role || "student").toString().toLowerCase();
     if (!SIGNUP_ROLES.includes(requestedRole)) {
       this.setStatus(400);
       return { message: "Invalid role" };
     }
-
+ 
     const clip = (value: unknown, max: number): string | undefined => {
       if (typeof value !== "string") return undefined;
       const trimmed = value.trim();
       return trimmed ? trimmed.slice(0, max) : undefined;
     };
     const isTutor = requestedRole === "instructor" || requestedRole === "tutor";
-
+ 
     const hashedPassword = await bcrypt.hash(body.password, 10);
-
-    const user = await prisma.user.create({
-      data: {
-        // Explicit fields only, so nothing else the client sends reaches the row.
-        first_name: body.first_name,
-        last_name: body.last_name,
-        // Stored normalized so no future duplicate can differ only by case.
-        email_address: normalizeEmail(body.email_address),
-        password: hashedPassword,
-        country: body.country,
-        state: body.state,
-        phone_number: body.phone_number,
-        role: requestedRole,
-        level: body.level,
-        language: body.language,
-        languageCode: toDbLanguageCode(body.languageCode) as any,
-        userType: "INDIVIDUAL", // ✅ explicit on signup
-        ...(isTutor
-          ? {
-              bio: clip(body.bio, 2000),
-              church_name: clip(body.church_name, 200),
-              church_role: clip(body.church_role, 100),
-              social_media: clip(body.social_media, 300),
-            }
-          : {}),
-      },
-    });
-
-    const createSettings = await prisma.settings.create({
-      data: {
-        enable_push_notification: true,
-        course_updates: true,
-        event: true,
-        achievement: true,
-        daily_reminders: true,
-        darkMode: false,
-        email_notification: true,
-        updatedAt: new Date(),
-        userId: user.id,
-        organizationId: null,
-      },
-    });
-
-    await NotificationService.createNotification({
-      message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
-      title: "Welcome New User",
-      type: "greeting",
-      role: Role.STUDENT,
-      to: Role.STUDENT,
-      userId: user.id,
-    });
-
-    const updateUser = await prisma.user.update({
-      where: { id: user.id },
-      data: { isOnline: true, lastActive: new Date() },
-    });
-
-    const plan = await PricingService.GenerateNewPaymentForNewUser({
-      userId: updateUser.id,
-      type: "INDIVIDUAL",
-      orgId: null,
-    });
-
-    const startJourney = await prisma.progress.create({
-      data: {
-        userId: updateUser.id,
-        startedJourney: true,
-        progressBar: 0,
-      },
-      include: {
-        user: { select: { first_name: true, last_name: true } },
-      },
-    });
-
-    const achievementResult = await GrowthService.AchievementMessage({
-      message_title: "Christian Cadet",
-      message_content: `${startJourney.user.first_name} you just joined the rest of the soldiers to join the army`,
-      point: 10,
-      progress_message: "",
-      userId: updateUser.id,
-      badge: "CADET_BADGE",
-      progressId: startJourney.id,
-    });
-
-    if (achievementResult.error) {
-      console.error("Achievement creation failed:", achievementResult.error);
-      this.setStatus(200);
-      return {
-        message: "Journey created successfully, but achievement creation failed",
-        data: startJourney,
-        achievementError: achievementResult.error,
-      };
-    }
-
-    const { accessToken, refreshToken } = generateTokens({
-      id: updateUser.id,
-      email: updateUser.email_address,
-      role: updateUser.role,
-      language: updateUser.language,
-      languageCode: updateUser.languageCode,
-      type: updateUser.form_type || "INDIVIDUAL",
-      userType: updateUser.userType,   // ✅
-      settingsId: createSettings.id,
-      full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-      progressId: startJourney.id,
-      updateStatus: updateUser.isOnline,
-      planId: plan.id,
-      deviceId,
-      deviceType,
-      level: updateUser.level,
-    });
-
-    await prisma.userSession.create({
-      data: {
-        userId: updateUser.id,
+ 
+    // IDs we create, kept so we can clean up if a later critical step fails.
+    let createdUserId: string | null = null;
+ 
+    try {
+      // ── 1. Core records, all-or-nothing ────────────────────────────────────
+      const core = await timed("core-transaction", () =>
+        prisma.$transaction(
+          async (tx) => {
+            const user = await tx.user.create({
+              data: {
+                first_name: body.first_name,
+                last_name: body.last_name,
+                email_address: normalizeEmail(body.email_address),
+                password: hashedPassword,
+                country: body.country,
+                state: body.state,
+                phone_number: body.phone_number,
+                role: requestedRole,
+                level: body.level,
+                language: body.language,
+                languageCode: languageCode as any,
+                userType: "INDIVIDUAL",
+                isOnline: true,
+                lastActive: new Date(),
+                ...(isTutor
+                  ? {
+                      bio: clip(body.bio, 2000),
+                      church_name: clip(body.church_name, 200),
+                      church_role: clip(body.church_role, 100),
+                      social_media: clip(body.social_media, 300),
+                    }
+                  : {}),
+              },
+            });
+ 
+            const settings = await tx.settings.create({
+              data: {
+                enable_push_notification: true,
+                course_updates: true,
+                event: true,
+                achievement: true,
+                daily_reminders: true,
+                darkMode: false,
+                email_notification: true,
+                updatedAt: new Date(),
+                userId: user.id,
+                organizationId: null,
+              },
+            });
+ 
+            const progress = await tx.progress.create({
+              data: {
+                userId: user.id,
+                startedJourney: true,
+                progressBar: 0,
+              },
+            });
+ 
+            return { user, settings, progress };
+          },
+          { timeout: 15000, maxWait: 5000 },
+        ),
+      );
+ 
+      const { user, settings, progress } = core;
+      createdUserId = user.id;
+ 
+      // ── 2. Plan (external/service call) with a timeout ────────────────────
+      const plan = await timed("pricing", () =>
+        withTimeout(
+          PricingService.GenerateNewPaymentForNewUser({
+            userId: user.id,
+            type: "INDIVIDUAL",
+            orgId: null,
+          }),
+          10000,
+          "Pricing service",
+        ),
+      );
+ 
+      // ── 3. Tokens + session ────────────────────────────────────────────────
+      const { accessToken, refreshToken } = generateTokens({
+        id: user.id,
+        email: user.email_address,
+        role: user.role,
+        language: user.language,
+        languageCode: user.languageCode,
+        type: user.form_type || "INDIVIDUAL",
+        userType: user.userType,
+        settingsId: settings.id,
+        full_name: `${user.first_name} ${user.last_name}`,
+        progressId: progress.id,
+        updateStatus: user.isOnline,
+        planId: plan.id,
         deviceId,
         deviceType,
-        refreshToken,
+        level: user.level,
+      });
+ 
+      await timed("session", () =>
+        prisma.userSession.create({
+          data: {
+            userId: user.id,
+            deviceId,
+            deviceType,
+            refreshToken,
+            accessToken,
+            userType: "USER",
+            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            userAgent,
+            ipAddress,
+            isRevoked: false,
+          },
+        }),
+      );
+ 
+      // ── 4. Non-critical extras: never block or break signup ───────────────
+      void NotificationService.createNotification({
+        message: `Hello ${user.first_name}, you joined GOYE, get ready to encounter the best JESUS.`,
+        title: "Welcome New User",
+        type: "greeting",
+        role: Role.STUDENT,
+        to: Role.STUDENT,
+        userId: user.id,
+      }).catch((e: any) =>
+        console.error("[signup] notification failed:", e?.message || e),
+      );
+ 
+      void GrowthService.AchievementMessage({
+        message_title: "Christian Cadet",
+        message_content: `${user.first_name} you just joined the rest of the soldiers to join the army`,
+        point: 10,
+        progress_message: "",
+        userId: user.id,
+        badge: "CADET_BADGE",
+        progressId: progress.id,
+      })
+        .then((r: any) => {
+          if (r?.error) {
+            console.error("[signup] achievement failed:", r.error);
+          }
+        })
+        .catch((e: any) =>
+          console.error("[signup] achievement threw:", e?.message || e),
+        );
+ 
+      // ── 5. Cookies ─────────────────────────────────────────────────────────
+      if (req.res) {
+        const base = {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: (isProduction ? "none" : "lax") as "none" | "lax",
+          path: "/",
+        };
+        const day = 24 * 60 * 60 * 1000;
+        req.res.cookie("accessToken", accessToken, { ...base, maxAge: 15 * 60 * 1000 });
+        req.res.cookie("refreshToken", refreshToken, { ...base, maxAge: 7 * day });
+        req.res.cookie("deviceId", deviceId, { ...base, maxAge: 365 * day });
+        req.res.cookie("progress_id", progress.id, { ...base, maxAge: 7 * day });
+        req.res.cookie("plan_id", plan.id, { ...base, maxAge: 7 * day });
+      }
+ 
+      this.setStatus(201);
+      return {
+        message: "Signup successful",
         accessToken,
-        userType: "USER",
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        userAgent,
-        ipAddress,
-        isRevoked: false,
-      },
-    });
-
-    if (req.res) {
-      req.res.cookie("accessToken", accessToken, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
-      });
-      req.res.cookie("refreshToken", refreshToken, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-      req.res.cookie("deviceId", deviceId, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
-      });
-      req.res.cookie("progress_id", startJourney.id, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-      req.res.cookie("plan_id", plan.id, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
+        refreshToken,
+        deviceId,
+        user: {
+          id: user.id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          email_address: user.email_address,
+          userType: user.userType,
+          planId: plan.id,
+          progressId: progress.id,
+        },
+      };
+    } catch (error: any) {
+      console.error("[signup] failed:", error);
+ 
+      // Race: two requests with the same email passed the earlier check.
+      if (error?.code === "P2002") {
+        this.setStatus(400);
+        return { message: "User with this email already exists" };
+      }
+ 
+      // Best-effort cleanup so a failed signup doesn't leave an orphan user
+      // that blocks the next attempt with "account already exists".
+      // If your relations use onDelete: Cascade, the user delete alone is enough.
+      if (createdUserId) {
+        const uid = createdUserId;
+        await prisma.userSession.deleteMany({ where: { userId: uid } }).catch(() => {});
+        await prisma.progress.deleteMany({ where: { userId: uid } }).catch(() => {});
+        await prisma.settings.deleteMany({ where: { userId: uid } }).catch(() => {});
+        await prisma.user.delete({ where: { id: uid } }).catch((e: any) =>
+          console.error("[signup] cleanup could not delete user:", e?.message || e),
+        );
+      }
+ 
+      this.setStatus(500);
+      return { message: "Signup failed. Please try again." };
     }
-
-    this.setStatus(201);
-    return {
-      message: "Signup successful",
-      accessToken,
-      refreshToken,
-      deviceId,
-      user: {
-        id: updateUser.id,
-        first_name: updateUser.first_name,
-        last_name: updateUser.last_name,
-        email_address: updateUser.email_address,
-        userType: updateUser.userType, // ✅
-        planId: plan.id,
-        progressId: startJourney.id,
-      },
-    };
   }
+ 
 
   @Post("/login")
   public async Login(

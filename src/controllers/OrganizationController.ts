@@ -18,17 +18,29 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { MediaService } from "../services/mediaServices";
-import { SendEmail } from "../utils/sendmail";
 import { PricingService } from "../services/pricingService";
 import { TranslateText } from "../utils/ai_utils/translator";
 import { normalizeEmail, emailAlreadyRegistered } from "../utils/email";
-import { useCacheAside, CacheKeys, TTL, invalidateOrgCaches } from "../utils/redis";
-import { assertOrgAdminOf, assertCanManageMember, decodeOptionalRequester } from "../utils/orgPermissions";
+import {
+  useCacheAside,
+  CacheKeys,
+  TTL,
+  invalidateOrgCaches,
+} from "../utils/redis";
+import {
+  assertOrgAdminOf,
+  assertCanManageMember,
+  decodeOptionalRequester,
+} from "../utils/orgPermissions";
 import { NotificationService, Role } from "../services/notificationServices";
 import { Church, School, Club } from "../interface/interfaces";
 import { firebaseAuthService } from "../services/firebaseService";
-import { generateDeviceId, generateTokens, getDeviceType } from "../utils/jwtHelper";
-
+import {
+  generateDeviceId,
+  generateTokens,
+  getDeviceType,
+} from "../utils/jwtHelper";
+import { SendEmail, sendOrganizationVerificationOTP } from "../utils/sendmail";
 @Route("organizations")
 @Tags("Organization Controllers")
 export class OrganizationController extends Controller {
@@ -59,7 +71,7 @@ export class OrganizationController extends Controller {
         return {
           errorType: "SAME_EMAIL_ISSUE",
           message:
-            "Your personal information email address should not be the same as your organization email address.",
+            "Your personal information email address should not be the same as your organization email address, because we will be sending a verification to your personal email address.",
         };
       }
 
@@ -87,7 +99,8 @@ export class OrganizationController extends Controller {
         this.setStatus(409);
         return {
           errorType: "ORG_EMAIL_TAKEN",
-          message: "An organization is already registered with this email address.",
+          message:
+            "An organization is already registered with this email address.",
         };
       }
 
@@ -267,7 +280,9 @@ export class OrganizationController extends Controller {
     };
 
     try {
-      const googleUser = await firebaseAuthService.verifyGoogleToken(body.idToken);
+      const googleUser = await firebaseAuthService.verifyGoogleToken(
+        body.idToken,
+      );
       if (!googleUser) {
         this.setStatus(401);
         return { success: false, message: "Invalid Google token" };
@@ -275,9 +290,11 @@ export class OrganizationController extends Controller {
 
       if (
         (body.church?.church_email &&
-          normalizeEmail(body.church.church_email) === normalizeEmail(googleUser.email)) ||
+          normalizeEmail(body.church.church_email) ===
+            normalizeEmail(googleUser.email)) ||
         (body.school?.school_email &&
-          normalizeEmail(body.school.school_email) === normalizeEmail(googleUser.email))
+          normalizeEmail(body.school.school_email) ===
+            normalizeEmail(googleUser.email))
       ) {
         return {
           errorType: "SAME_EMAIL_ISSUE",
@@ -307,7 +324,8 @@ export class OrganizationController extends Controller {
         this.setStatus(409);
         return {
           errorType: "ORG_EMAIL_TAKEN",
-          message: "An organization is already registered with this email address.",
+          message:
+            "An organization is already registered with this email address.",
         };
       }
 
@@ -372,7 +390,8 @@ export class OrganizationController extends Controller {
                 school_address: body.school.school_address,
                 school_admin_name: body.school.school_admin_name,
                 school_role: body.school.school_role,
-                school_accreditation_number: body.school.school_accreditation_number,
+                school_accreditation_number:
+                  body.school.school_accreditation_number,
                 school_document: body.school.school_document,
                 school_email: body.school.school_email,
                 school_website: body.school.school_website,
@@ -437,7 +456,9 @@ export class OrganizationController extends Controller {
       const userAgent = req.headers["user-agent"] || "unknown";
       const deviceType = getDeviceType(userAgent);
       const deviceId =
-        (req.headers["x-device-id"] as string) || body.deviceId || generateDeviceId();
+        (req.headers["x-device-id"] as string) ||
+        body.deviceId ||
+        generateDeviceId();
       const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
       const isProduction = process.env.NODE_ENV === "production";
 
@@ -637,78 +658,79 @@ export class OrganizationController extends Controller {
 
   // Add this to your OrganizationController class
 
-@Security("bearerAuth")
-@Get("/user-details/{userId}")
-public async GetUserDetails(
-  @Path() userId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Get the requesting user's organization
-    const requestingOrgId = req.org?.id;
-    
-    if (!requestingOrgId) {
-      this.setStatus(401);
-      return {
-        success: false,
-        message: "Unauthorized - Organization not found",
-      };
-    }
+  @Security("bearerAuth")
+  @Get("/user-details/{userId}")
+  public async GetUserDetails(
+    @Path() userId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Get the requesting user's organization
+      const requestingOrgId = req.org?.id;
 
-    // Check if the user belongs to this organization
-    const membership = await prisma.organizationMember.findFirst({
-      where: {
-        userId: userId,
-        organizationId: requestingOrgId,
-        isActive: true,
-      },
-    });
+      if (!requestingOrgId) {
+        this.setStatus(401);
+        return {
+          success: false,
+          message: "Unauthorized - Organization not found",
+        };
+      }
 
-    if (!membership) {
-      this.setStatus(403);
-      return {
-        success: false,
-        message: "User does not belong to this organization",
-      };
-    }
-
-    // Get user details with comprehensive information
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        // Basic user info is included by default
-        organizationMemberships: {
-          where: {
-            organizationId: requestingOrgId,
-          },
-          select: {
-            role: true,
-            joinedAt: true,
-            joinedVia: true,
-            isActive: true,
-          },
+      // Check if the user belongs to this organization
+      const membership = await prisma.organizationMember.findFirst({
+        where: {
+          userId: userId,
+          organizationId: requestingOrgId,
+          isActive: true,
         },
-        // Get courses the user is enrolled in (as student)
-        enrollment: {
-          include: {
-            course: {
-              select: {
-                id: true,
-                course_title: true,
-                course_description: true,
-                course_image: true,
-                course_level: true,
-                createdBy: true,
-                organizationName: true,
-                module: {
-                  select: {
-                    id: true,
-                    module_title: true,
-                    lesson: {
-                      select: {
-                        id: true,
-                        lesson_title: true,
-                        duration: true,
+      });
+
+      if (!membership) {
+        this.setStatus(403);
+        return {
+          success: false,
+          message: "User does not belong to this organization",
+        };
+      }
+
+      // Get user details with comprehensive information
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          // Basic user info is included by default
+          organizationMemberships: {
+            where: {
+              organizationId: requestingOrgId,
+            },
+            select: {
+              role: true,
+              joinedAt: true,
+              joinedVia: true,
+              isActive: true,
+            },
+          },
+          // Get courses the user is enrolled in (as student)
+          enrollment: {
+            include: {
+              course: {
+                select: {
+                  id: true,
+                  course_title: true,
+                  course_description: true,
+                  course_image: true,
+                  course_level: true,
+                  createdBy: true,
+                  organizationName: true,
+                  module: {
+                    select: {
+                      id: true,
+                      module_title: true,
+                      lesson: {
+                        select: {
+                          id: true,
+                          lesson_title: true,
+                          duration: true,
+                        },
                       },
                     },
                   },
@@ -716,257 +738,255 @@ public async GetUserDetails(
               },
             },
           },
-        },
-        // Get courses the user has created (as tutor/instructor)
-        Courses: {
-          select: {
-            id: true,
-            course_title: true,
-            course_description: true,
-            course_image: true,
-            course_level: true,
-            organizationName: true,
-            _count: {
-              select: {
-                enrollment: true,
+          // Get courses the user has created (as tutor/instructor)
+          Courses: {
+            select: {
+              id: true,
+              course_title: true,
+              course_description: true,
+              course_image: true,
+              course_level: true,
+              organizationName: true,
+              _count: {
+                select: {
+                  enrollment: true,
+                },
               },
             },
           },
-        },
-        // Get achievements
-        achievement: {
-          select: {
-            id: true,
-            title: true,
-            content: true,
-            point: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 10,
-        },
-        // Get badges
-        badges: {
-          select: {
-            id: true,
-            badges: true,
-            createdAt: true,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-        },
-        // Get quiz attempts
-        quizAttempt: {
-          select: {
-            id: true,
-            quiz: {
-              select: {
-                id: true,
-                title: true,
-              },
+          // Get achievements
+          achievement: {
+            select: {
+              id: true,
+              title: true,
+              content: true,
+              point: true,
+              createdAt: true,
             },
-            score: true,
-            completed: true,
-            startedAt: true,
-            completedAt: true,
-            timeFinished: true,
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 10,
           },
-          orderBy: {
-            startedAt: "desc",
+          // Get badges
+          badges: {
+            select: {
+              id: true,
+              badges: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
           },
-          take: 10,
+          // Get quiz attempts
+          quizAttempt: {
+            select: {
+              id: true,
+              quiz: {
+                select: {
+                  id: true,
+                  title: true,
+                },
+              },
+              score: true,
+              completed: true,
+              startedAt: true,
+              completedAt: true,
+              timeFinished: true,
+            },
+            orderBy: {
+              startedAt: "desc",
+            },
+            take: 10,
+          },
+          // Get user progress
+          progress: {
+            select: {
+              id: true,
+              progressBar: true,
+              startedJourney: true,
+              createdAt: true,
+              updatedAt: true,
+            },
+          },
+          // Get settings
+          settings: {
+            select: {
+              darkMode: true,
+              email_notification: true,
+              enable_push_notification: true,
+            },
+          },
+          // Get invitation details if invited
+          inviteUser: {
+            where: {
+              organizationId: requestingOrgId,
+            },
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              expiresIn: true,
+              createdAt: true,
+            },
+          },
         },
-        // Get user progress
-        progress: {
-          select: {
-            id: true,
-            progressBar: true,
-            startedJourney: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-        // Get settings
-        settings: {
-          select: {
-            darkMode: true,
-            email_notification: true,
-            enable_push_notification: true,
-          },
-        },
-        // Get invitation details if invited
-        inviteUser: {
-          where: {
-            organizationId: requestingOrgId,
-          },
-          select: {
-            id: true,
-            email: true,
-            role: true,
-            expiresIn: true,
-            createdAt: true,
-          },
-        },
-      },
-    });
+      });
 
-    if (!user) {
-      this.setStatus(404);
+      if (!user) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "User not found",
+        };
+      }
+
+      // Calculate course statistics
+      const totalEnrolledCourses = user.enrollment.length;
+      const completedCourses = user.enrollment.filter(
+        (e) => e.status === "COMPLETED",
+      ).length;
+      const inProgressCourses = user.enrollment.filter(
+        (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
+      ).length;
+
+      // Calculate total lessons and progress
+      let totalLessons = 0;
+      let completedLessons = 0;
+      let totalQuizScore = 0;
+      let quizCount = 0;
+
+      user.enrollment.forEach((enrollment) => {
+        const courseLessons = enrollment.course.module.flatMap(
+          (m) => m.lesson,
+        ).length;
+        totalLessons += courseLessons;
+      });
+
+      // Get completed lessons from progress
+      const userProgress = await prisma.progress.findMany({
+        where: {
+          userId: userId,
+          progressBar: { gte: 100 },
+        },
+        select: {
+          id: true,
+        },
+      });
+      completedLessons = userProgress.length;
+
+      // Calculate average quiz score
+      user.quizAttempt.forEach((attempt) => {
+        if (attempt.completed && attempt.score !== null) {
+          totalQuizScore += attempt.score || 0;
+          quizCount++;
+        }
+      });
+      const averageQuizScore =
+        quizCount > 0 ? Math.round(totalQuizScore / quizCount) : 0;
+
+      // Calculate overall progress percentage
+      const overallProgress =
+        totalLessons > 0
+          ? Math.round((completedLessons / totalLessons) * 100)
+          : 0;
+
+      // Get user's role from membership
+      const userRole = membership.role || user.role || "member";
+
+      // Format the response
+      const response = {
+        success: true,
+        message: "User details fetched successfully",
+        data: {
+          user: {
+            id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            full_name: `${user.first_name} ${user.last_name}`,
+            email_address: user.email_address,
+            phone_number: user.phone_number,
+            country: user.country,
+            state: user.state,
+            user_pic: user.user_pic || null,
+            role: userRole,
+            userType: user.userType,
+            level: user.level || "Beginner",
+            isOnline: user.isOnline,
+            lastActive: user.lastActive,
+            createdAt: user.createdAt,
+            updatedAt: user.updatedAt,
+            isProfileComplete: user.isProfileComplete,
+            isVerified: user.isVerified,
+            verifiedAt: user.verifiedAt,
+          },
+          organization: {
+            role: userRole,
+            joinedAt: membership.joinedAt,
+            joinedVia: membership.joinedVia,
+            isActive: membership.isActive,
+          },
+          stats: {
+            totalEnrolledCourses,
+            completedCourses,
+            inProgressCourses,
+            totalLessons,
+            completedLessons,
+            overallProgress,
+            averageQuizScore,
+            totalQuizAttempts: quizCount,
+            totalAchievements: user.achievement.length,
+            totalBadges: user.badges.length,
+            coursesCreated: user.Courses.length,
+          },
+          courses: {
+            enrolled: user.enrollment.map((e) => ({
+              id: e.course.id,
+              title: e.course.course_title,
+              description: e.course.course_description,
+              image: e.course.course_image,
+              level: e.course.course_level,
+              createdBy: e.course.createdBy,
+              status: e.status,
+              enrolledAt: e.enrolledAt,
+              completedAt: e.completedAt,
+              progress: overallProgress,
+              moduleCount: e.course.module.length,
+              lessonCount: e.course.module.reduce(
+                (acc, m) => acc + m.lesson.length,
+                0,
+              ),
+            })),
+            created: user.Courses.map((c) => ({
+              id: c.id,
+              title: c.course_title,
+              description: c.course_description,
+              image: c.course_image,
+              level: c.course_level,
+              totalStudents: c._count.enrollment,
+            })),
+          },
+          achievements: user.achievement,
+          badges: user.badges,
+          settings: user.settings,
+          quizHistory: user.quizAttempt,
+          invitation: user.inviteUser[0] || null,
+        },
+      };
+
+      this.setStatus(200);
+      return response;
+    } catch (error: any) {
+      console.error("Error fetching user details:", error);
+      this.setStatus(500);
       return {
         success: false,
-        message: "User not found",
+        message: "Failed to fetch user details",
+        error: error.message,
       };
     }
-
-    // Calculate course statistics
-    const totalEnrolledCourses = user.enrollment.length;
-    const completedCourses = user.enrollment.filter(
-      (e) => e.status === "COMPLETED"
-    ).length;
-    const inProgressCourses = user.enrollment.filter(
-      (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
-    ).length;
-
-    // Calculate total lessons and progress
-    let totalLessons = 0;
-    let completedLessons = 0;
-    let totalQuizScore = 0;
-    let quizCount = 0;
-
-    user.enrollment.forEach((enrollment) => {
-      const courseLessons = enrollment.course.module.flatMap(
-        (m) => m.lesson
-      ).length;
-      totalLessons += courseLessons;
-    });
-
-    // Get completed lessons from progress
-    const userProgress = await prisma.progress.findMany({
-      where: {
-        userId: userId,
-        progressBar: { gte: 100 },
-      },
-      select: {
-        id: true,
-      },
-    });
-    completedLessons = userProgress.length;
-
-    // Calculate average quiz score
-    user.quizAttempt.forEach((attempt) => {
-      if (attempt.completed && attempt.score !== null) {
-        totalQuizScore += attempt.score || 0;
-        quizCount++;
-      }
-    });
-    const averageQuizScore = quizCount > 0 
-      ? Math.round(totalQuizScore / quizCount) 
-      : 0;
-
-    // Calculate overall progress percentage
-    const overallProgress = totalLessons > 0
-      ? Math.round((completedLessons / totalLessons) * 100)
-      : 0;
-
-    // Get user's role from membership
-    const userRole = membership.role || user.role || "member";
-
-    // Format the response
-    const response = {
-      success: true,
-      message: "User details fetched successfully",
-      data: {
-        user: {
-          id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          full_name: `${user.first_name} ${user.last_name}`,
-          email_address: user.email_address,
-          phone_number: user.phone_number,
-          country: user.country,
-          state: user.state,
-          user_pic: user.user_pic || null,
-          role: userRole,
-          userType: user.userType,
-          level: user.level || "Beginner",
-          isOnline: user.isOnline,
-          lastActive: user.lastActive,
-          createdAt: user.createdAt,
-          updatedAt: user.updatedAt,
-          isProfileComplete: user.isProfileComplete,
-          isVerified: user.isVerified,
-          verifiedAt: user.verifiedAt,
-        },
-        organization: {
-          role: userRole,
-          joinedAt: membership.joinedAt,
-          joinedVia: membership.joinedVia,
-          isActive: membership.isActive,
-        },
-        stats: {
-          totalEnrolledCourses,
-          completedCourses,
-          inProgressCourses,
-          totalLessons,
-          completedLessons,
-          overallProgress,
-          averageQuizScore,
-          totalQuizAttempts: quizCount,
-          totalAchievements: user.achievement.length,
-          totalBadges: user.badges.length,
-          coursesCreated: user.Courses.length,
-        },
-        courses: {
-          enrolled: user.enrollment.map((e) => ({
-            id: e.course.id,
-            title: e.course.course_title,
-            description: e.course.course_description,
-            image: e.course.course_image,
-            level: e.course.course_level,
-            createdBy: e.course.createdBy,
-            status: e.status,
-            enrolledAt: e.enrolledAt,
-            completedAt: e.completedAt,
-            progress: overallProgress,
-            moduleCount: e.course.module.length,
-            lessonCount: e.course.module.reduce(
-              (acc, m) => acc + m.lesson.length,
-              0
-            ),
-          })),
-          created: user.Courses.map((c) => ({
-            id: c.id,
-            title: c.course_title,
-            description: c.course_description,
-            image: c.course_image,
-            level: c.course_level,
-            totalStudents: c._count.enrollment,
-          })),
-        },
-        achievements: user.achievement,
-        badges: user.badges,
-        settings: user.settings,
-        quizHistory: user.quizAttempt,
-        invitation: user.inviteUser[0] || null,
-      },
-    };
-
-    this.setStatus(200);
-    return response;
-
-  } catch (error: any) {
-    console.error("Error fetching user details:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to fetch user details",
-      error: error.message,
-    };
   }
-}
 
   // ─────────────────────────────────────────────────────────────────────────
   // ORG OVERVIEW STATS — supports date range filtering + live online count
@@ -1148,521 +1168,521 @@ public async GetUserDetails(
         CacheKeys.orgActivities(organizationId),
         TTL.short,
         async () => {
-      // Get all active members of the organization
-      const members = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          isActive: true,
-        },
-        select: { userId: true },
-      });
-      const memberIds = members.map((m) => m.userId);
+          // Get all active members of the organization
+          const members = await prisma.organizationMember.findMany({
+            where: {
+              organizationId: organizationId,
+              isActive: true,
+            },
+            select: { userId: true },
+          });
+          const memberIds = members.map((m) => m.userId);
 
-      // ── 1. COURSE JOIN ACTIVITIES ──────────────────────────────────────────
-      // Get recent enrollments (course joins)
-      const courseJoins = await prisma.enrollment.findMany({
-        where: {
-          userId: { in: memberIds },
-          enrolledAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          enrolledAt: "desc",
-        },
-        take: 20,
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
+          // ── 1. COURSE JOIN ACTIVITIES ──────────────────────────────────────────
+          // Get recent enrollments (course joins)
+          const courseJoins = await prisma.enrollment.findMany({
+            where: {
+              userId: { in: memberIds },
+              enrolledAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+              },
             },
-          },
-          course: {
-            select: {
-              id: true,
-              course_title: true,
-              course_image: true,
+            orderBy: {
+              enrolledAt: "desc",
             },
-          },
-        },
-      });
-
-      // ── 2. COURSE COMPLETION ACTIVITIES ────────────────────────────────────
-      // Get recent course completions
-      const courseCompletions = await prisma.enrollment.findMany({
-        where: {
-          userId: { in: memberIds },
-          status: "COMPLETED",
-          completedAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          completedAt: "desc",
-        },
-        take: 20,
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-            },
-          },
-          course: {
-            select: {
-              id: true,
-              course_title: true,
-              course_image: true,
-            },
-          },
-        },
-      });
-
-      // ── 3. EVENT JOIN ACTIVITIES ───────────────────────────────────────────
-      // Get recent event joins
-      const eventJoins = await prisma.joinedEvent.findMany({
-        where: {
-          group: {
-            createdBy: { id: { in: memberIds } },
-          },
-          createdAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 20,
-        include: {
-          event: {
-            select: {
-              id: true,
-              event_name: true,
-              event_description: true,
-              event_time: true,
-              event_date: true,
-            },
-          },
-          group: {
-            select: {
-              id: true,
-              group_title: true,
-            },
-          },
-        },
-      });
-
-      // ── 4. GROUP JOIN ACTIVITIES ───────────────────────────────────────────
-      // Get recent group joins
-      const groupJoins = await prisma.joinedGroup.findMany({
-        where: {
-          studentId: { in: memberIds },
-          joinedAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          joinedAt: "desc",
-        },
-        take: 20,
-        include: {
-          student: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-            },
-          },
-          group: {
-            select: {
-              id: true,
-              group_title: true,
-              group_image: true,
-            },
-          },
-        },
-      });
-
-      // ── 5. POST ACTIVITIES ─────────────────────────────────────────────────
-      // Get recent posts from the organization
-      const posts = await prisma.post.findMany({
-        where: {
-          organizationId: organizationId,
-          moderationStatus: "PUBLISHED",
-          createdAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 20,
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-            },
-          },
-          replies: {
-            select: {
-              id: true,
-              createdAt: true,
+            take: 20,
+            include: {
               user: {
                 select: {
                   id: true,
                   first_name: true,
                   last_name: true,
+                  user_pic: true,
                 },
+              },
+              course: {
+                select: {
+                  id: true,
+                  course_title: true,
+                  course_image: true,
+                },
+              },
+            },
+          });
+
+          // ── 2. COURSE COMPLETION ACTIVITIES ────────────────────────────────────
+          // Get recent course completions
+          const courseCompletions = await prisma.enrollment.findMany({
+            where: {
+              userId: { in: memberIds },
+              status: "COMPLETED",
+              completedAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+              },
+            },
+            orderBy: {
+              completedAt: "desc",
+            },
+            take: 20,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              course: {
+                select: {
+                  id: true,
+                  course_title: true,
+                  course_image: true,
+                },
+              },
+            },
+          });
+
+          // ── 3. EVENT JOIN ACTIVITIES ───────────────────────────────────────────
+          // Get recent event joins
+          const eventJoins = await prisma.joinedEvent.findMany({
+            where: {
+              group: {
+                createdBy: { id: { in: memberIds } },
+              },
+              createdAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
               },
             },
             orderBy: {
               createdAt: "desc",
             },
-            take: 1,
-          },
-          likes: {
-            select: {
-              id: true,
-              userId: true,
+            take: 20,
+            include: {
+              event: {
+                select: {
+                  id: true,
+                  event_name: true,
+                  event_description: true,
+                  event_time: true,
+                  event_date: true,
+                },
+              },
+              group: {
+                select: {
+                  id: true,
+                  group_title: true,
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      // ── 6. QUIZ COMPLETION ACTIVITIES ──────────────────────────────────────
-      // Get recent quiz completions
-      const quizCompletions = await prisma.quizAttempt.findMany({
-        where: {
-          userId: { in: memberIds },
-          completed: true,
-          completedAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          completedAt: "desc",
-        },
-        take: 20,
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
+          // ── 4. GROUP JOIN ACTIVITIES ───────────────────────────────────────────
+          // Get recent group joins
+          const groupJoins = await prisma.joinedGroup.findMany({
+            where: {
+              studentId: { in: memberIds },
+              joinedAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+              },
             },
-          },
-          quiz: {
-            select: {
-              id: true,
-              title: true,
+            orderBy: {
+              joinedAt: "desc",
             },
-          },
-          course: {
-            select: {
-              id: true,
-              course_title: true,
+            take: 20,
+            include: {
+              student: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              group: {
+                select: {
+                  id: true,
+                  group_title: true,
+                  group_image: true,
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      // ── 7. ACHIEVEMENT UNLOCKED ACTIVITIES ─────────────────────────────────
-      // Get recent achievements
-      const achievements = await prisma.achievement.findMany({
-        where: {
-          userId: { in: memberIds },
-          createdAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
-          },
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 20,
-        include: {
-          user: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
+          // ── 5. POST ACTIVITIES ─────────────────────────────────────────────────
+          // Get recent posts from the organization
+          const posts = await prisma.post.findMany({
+            where: {
+              organizationId: organizationId,
+              moderationStatus: "PUBLISHED",
+              createdAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+              },
             },
-          },
-          course: {
-            select: {
-              id: true,
-              course_title: true,
+            orderBy: {
+              createdAt: "desc",
             },
-          },
-          group: {
-            select: {
-              id: true,
-              group_title: true,
+            take: 20,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              replies: {
+                select: {
+                  id: true,
+                  createdAt: true,
+                  user: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                    },
+                  },
+                },
+                orderBy: {
+                  createdAt: "desc",
+                },
+                take: 1,
+              },
+              likes: {
+                select: {
+                  id: true,
+                  userId: true,
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      // ── Combine and format all activities ──────────────────────────────────
-      const activities: any[] = [];
+          // ── 6. QUIZ COMPLETION ACTIVITIES ──────────────────────────────────────
+          // Get recent quiz completions
+          const quizCompletions = await prisma.quizAttempt.findMany({
+            where: {
+              userId: { in: memberIds },
+              completed: true,
+              completedAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+              },
+            },
+            orderBy: {
+              completedAt: "desc",
+            },
+            take: 20,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              quiz: {
+                select: {
+                  id: true,
+                  title: true,
+                },
+              },
+              course: {
+                select: {
+                  id: true,
+                  course_title: true,
+                },
+              },
+            },
+          });
 
-      // Add course joins
-      courseJoins.forEach((enrollment) => {
-        const userName = enrollment.user
-          ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim()
-          : "Someone";
-        activities.push({
-          id: `course_join_${enrollment.id}`,
-          type: "COURSE_JOIN",
-          user: enrollment.user
-            ? {
-                id: enrollment.user.id,
-                name: userName,
-                first_name: enrollment.user.first_name,
-                last_name: enrollment.user.last_name,
-                user_pic: enrollment.user.user_pic,
-              }
-            : null,
-          course: enrollment.course
-            ? {
-                id: enrollment.course.id,
-                title: enrollment.course.course_title,
-                image: enrollment.course.course_image,
-              }
-            : null,
-          message: `${userName} joined course "${enrollment.course?.course_title || "a course"}"`,
-          timestamp: enrollment.enrolledAt,
-          icon: "📚",
-        });
-      });
+          // ── 7. ACHIEVEMENT UNLOCKED ACTIVITIES ─────────────────────────────────
+          // Get recent achievements
+          const achievements = await prisma.achievement.findMany({
+            where: {
+              userId: { in: memberIds },
+              createdAt: {
+                gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // Last 30 days
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 20,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              course: {
+                select: {
+                  id: true,
+                  course_title: true,
+                },
+              },
+              group: {
+                select: {
+                  id: true,
+                  group_title: true,
+                },
+              },
+            },
+          });
 
-      // Add course completions
-      courseCompletions.forEach((enrollment) => {
-        const userName = enrollment.user
-          ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim()
-          : "Someone";
-        activities.push({
-          id: `course_complete_${enrollment.id}`,
-          type: "COURSE_COMPLETE",
-          user: enrollment.user
-            ? {
-                id: enrollment.user.id,
-                name: userName,
-                first_name: enrollment.user.first_name,
-                last_name: enrollment.user.last_name,
-                user_pic: enrollment.user.user_pic,
-              }
-            : null,
-          course: enrollment.course
-            ? {
-                id: enrollment.course.id,
-                title: enrollment.course.course_title,
-                image: enrollment.course.course_image,
-              }
-            : null,
-          message: `${userName} completed course "${enrollment.course?.course_title || "a course"}" 🎉`,
-          timestamp: enrollment.completedAt || enrollment.enrolledAt,
-          icon: "🏆",
-        });
-      });
+          // ── Combine and format all activities ──────────────────────────────────
+          const activities: any[] = [];
 
-      // Add event joins
-      eventJoins.forEach((eventJoin) => {
-        const eventName = eventJoin.event?.event_name || "an event";
-        activities.push({
-          id: `event_join_${eventJoin.id}`,
-          type: "EVENT_JOIN",
-          event: eventJoin.event
-            ? {
-                id: eventJoin.event.id,
-                name: eventJoin.event.event_name,
-                description: eventJoin.event.event_description,
-                time: eventJoin.event.event_time,
-                date: eventJoin.event.event_date,
-              }
-            : null,
-          group: eventJoin.group
-            ? {
-                id: eventJoin.group.id,
-                title: eventJoin.group.group_title,
-              }
-            : null,
-          message: `Someone joined event "${eventName}"`,
-          timestamp: eventJoin.createdAt,
-          icon: "📅",
-        });
-      });
+          // Add course joins
+          courseJoins.forEach((enrollment) => {
+            const userName = enrollment.user
+              ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim()
+              : "Someone";
+            activities.push({
+              id: `course_join_${enrollment.id}`,
+              type: "COURSE_JOIN",
+              user: enrollment.user
+                ? {
+                    id: enrollment.user.id,
+                    name: userName,
+                    first_name: enrollment.user.first_name,
+                    last_name: enrollment.user.last_name,
+                    user_pic: enrollment.user.user_pic,
+                  }
+                : null,
+              course: enrollment.course
+                ? {
+                    id: enrollment.course.id,
+                    title: enrollment.course.course_title,
+                    image: enrollment.course.course_image,
+                  }
+                : null,
+              message: `${userName} joined course "${enrollment.course?.course_title || "a course"}"`,
+              timestamp: enrollment.enrolledAt,
+              icon: "📚",
+            });
+          });
 
-      // Add group joins
-      groupJoins.forEach((groupJoin) => {
-        const userName = groupJoin.student
-          ? `${groupJoin.student.first_name} ${groupJoin.student.last_name}`.trim()
-          : "Someone";
-        activities.push({
-          id: `group_join_${groupJoin.id}`,
-          type: "GROUP_JOIN",
-          user: groupJoin.student
-            ? {
-                id: groupJoin.student.id,
-                name: userName,
-                first_name: groupJoin.student.first_name,
-                last_name: groupJoin.student.last_name,
-                user_pic: groupJoin.student.user_pic,
-              }
-            : null,
-          group: groupJoin.group
-            ? {
-                id: groupJoin.group.id,
-                title: groupJoin.group.group_title,
-                image: groupJoin.group.group_image,
-              }
-            : null,
-          message: `${userName} joined group "${groupJoin.group?.group_title || "a group"}"`,
-          timestamp: groupJoin.joinedAt,
-          icon: "👥",
-        });
-      });
+          // Add course completions
+          courseCompletions.forEach((enrollment) => {
+            const userName = enrollment.user
+              ? `${enrollment.user.first_name} ${enrollment.user.last_name}`.trim()
+              : "Someone";
+            activities.push({
+              id: `course_complete_${enrollment.id}`,
+              type: "COURSE_COMPLETE",
+              user: enrollment.user
+                ? {
+                    id: enrollment.user.id,
+                    name: userName,
+                    first_name: enrollment.user.first_name,
+                    last_name: enrollment.user.last_name,
+                    user_pic: enrollment.user.user_pic,
+                  }
+                : null,
+              course: enrollment.course
+                ? {
+                    id: enrollment.course.id,
+                    title: enrollment.course.course_title,
+                    image: enrollment.course.course_image,
+                  }
+                : null,
+              message: `${userName} completed course "${enrollment.course?.course_title || "a course"}" 🎉`,
+              timestamp: enrollment.completedAt || enrollment.enrolledAt,
+              icon: "🏆",
+            });
+          });
 
-      // Add posts
-      posts.forEach((post) => {
-        const userName = post.user
-          ? `${post.user.first_name} ${post.user.last_name}`.trim()
-          : "Someone";
-        const replyCount = post.replies?.length || 0;
-        const likeCount = post.likes?.length || 0;
+          // Add event joins
+          eventJoins.forEach((eventJoin) => {
+            const eventName = eventJoin.event?.event_name || "an event";
+            activities.push({
+              id: `event_join_${eventJoin.id}`,
+              type: "EVENT_JOIN",
+              event: eventJoin.event
+                ? {
+                    id: eventJoin.event.id,
+                    name: eventJoin.event.event_name,
+                    description: eventJoin.event.event_description,
+                    time: eventJoin.event.event_time,
+                    date: eventJoin.event.event_date,
+                  }
+                : null,
+              group: eventJoin.group
+                ? {
+                    id: eventJoin.group.id,
+                    title: eventJoin.group.group_title,
+                  }
+                : null,
+              message: `Someone joined event "${eventName}"`,
+              timestamp: eventJoin.createdAt,
+              icon: "📅",
+            });
+          });
 
-        let message = `${userName} posted: "${post.title}"`;
-        if (replyCount > 0) {
-          message += ` (${replyCount} ${replyCount === 1 ? "reply" : "replies"})`;
-        }
-        if (likeCount > 0) {
-          message += ` (${likeCount} ${likeCount === 1 ? "like" : "likes"})`;
-        }
+          // Add group joins
+          groupJoins.forEach((groupJoin) => {
+            const userName = groupJoin.student
+              ? `${groupJoin.student.first_name} ${groupJoin.student.last_name}`.trim()
+              : "Someone";
+            activities.push({
+              id: `group_join_${groupJoin.id}`,
+              type: "GROUP_JOIN",
+              user: groupJoin.student
+                ? {
+                    id: groupJoin.student.id,
+                    name: userName,
+                    first_name: groupJoin.student.first_name,
+                    last_name: groupJoin.student.last_name,
+                    user_pic: groupJoin.student.user_pic,
+                  }
+                : null,
+              group: groupJoin.group
+                ? {
+                    id: groupJoin.group.id,
+                    title: groupJoin.group.group_title,
+                    image: groupJoin.group.group_image,
+                  }
+                : null,
+              message: `${userName} joined group "${groupJoin.group?.group_title || "a group"}"`,
+              timestamp: groupJoin.joinedAt,
+              icon: "👥",
+            });
+          });
 
-        activities.push({
-          id: `post_${post.id}`,
-          type: "POST",
-          user: post.user
-            ? {
-                id: post.user.id,
-                name: userName,
-                first_name: post.user.first_name,
-                last_name: post.user.last_name,
-                user_pic: post.user.user_pic,
-              }
-            : null,
-          post: {
-            id: post.id,
-            title: post.title,
-            content: post.content,
-            replyCount,
-            likeCount,
-          },
-          message: message,
-          timestamp: post.createdAt,
-          icon: "💬",
-        });
-      });
+          // Add posts
+          posts.forEach((post) => {
+            const userName = post.user
+              ? `${post.user.first_name} ${post.user.last_name}`.trim()
+              : "Someone";
+            const replyCount = post.replies?.length || 0;
+            const likeCount = post.likes?.length || 0;
 
-      // Add quiz completions
-      quizCompletions.forEach((quizAttempt) => {
-        const userName = quizAttempt.user
-          ? `${quizAttempt.user.first_name} ${quizAttempt.user.last_name}`.trim()
-          : "Someone";
-        const quizTitle = quizAttempt.quiz?.title || "a quiz";
-        const score = quizAttempt.score || 0;
+            let message = `${userName} posted: "${post.title}"`;
+            if (replyCount > 0) {
+              message += ` (${replyCount} ${replyCount === 1 ? "reply" : "replies"})`;
+            }
+            if (likeCount > 0) {
+              message += ` (${likeCount} ${likeCount === 1 ? "like" : "likes"})`;
+            }
 
-        activities.push({
-          id: `quiz_complete_${quizAttempt.id}`,
-          type: "QUIZ_COMPLETE",
-          user: quizAttempt.user
-            ? {
-                id: quizAttempt.user.id,
-                name: userName,
-                first_name: quizAttempt.user.first_name,
-                last_name: quizAttempt.user.last_name,
-                user_pic: quizAttempt.user.user_pic,
-              }
-            : null,
-          quiz: {
-            id: quizAttempt.quiz?.id,
-            title: quizAttempt.quiz?.title,
-            score: score,
-          },
-          course: quizAttempt.course
-            ? {
-                id: quizAttempt.course.id,
-                title: quizAttempt.course.course_title,
-              }
-            : null,
-          message: `${userName} scored ${score}% on quiz "${quizTitle}"`,
-          timestamp: quizAttempt.completedAt || quizAttempt.startedAt,
-          icon: "📝",
-        });
-      });
+            activities.push({
+              id: `post_${post.id}`,
+              type: "POST",
+              user: post.user
+                ? {
+                    id: post.user.id,
+                    name: userName,
+                    first_name: post.user.first_name,
+                    last_name: post.user.last_name,
+                    user_pic: post.user.user_pic,
+                  }
+                : null,
+              post: {
+                id: post.id,
+                title: post.title,
+                content: post.content,
+                replyCount,
+                likeCount,
+              },
+              message: message,
+              timestamp: post.createdAt,
+              icon: "💬",
+            });
+          });
 
-      // Add achievements
-      achievements.forEach((achievement) => {
-        const userName = achievement.user
-          ? `${achievement.user.first_name} ${achievement.user.last_name}`.trim()
-          : "Someone";
-        const achievementTitle = achievement.title || "an achievement";
+          // Add quiz completions
+          quizCompletions.forEach((quizAttempt) => {
+            const userName = quizAttempt.user
+              ? `${quizAttempt.user.first_name} ${quizAttempt.user.last_name}`.trim()
+              : "Someone";
+            const quizTitle = quizAttempt.quiz?.title || "a quiz";
+            const score = quizAttempt.score || 0;
 
-        activities.push({
-          id: `achievement_${achievement.id}`,
-          type: "ACHIEVEMENT",
-          user: achievement.user
-            ? {
-                id: achievement.user.id,
-                name: userName,
-                first_name: achievement.user.first_name,
-                last_name: achievement.user.last_name,
-                user_pic: achievement.user.user_pic,
-              }
-            : null,
-          achievement: {
-            id: achievement.id,
-            title: achievement.title,
-            content: achievement.content,
-            point: achievement.point,
-          },
-          course: achievement.course
-            ? {
-                id: achievement.course.id,
-                title: achievement.course.course_title,
-              }
-            : null,
-          group: achievement.group
-            ? {
-                id: achievement.group.id,
-                title: achievement.group.group_title,
-              }
-            : null,
-          message: `${userName} unlocked achievement "${achievementTitle}"! 🏅`,
-          timestamp: achievement.createdAt,
-          icon: "⭐",
-        });
-      });
+            activities.push({
+              id: `quiz_complete_${quizAttempt.id}`,
+              type: "QUIZ_COMPLETE",
+              user: quizAttempt.user
+                ? {
+                    id: quizAttempt.user.id,
+                    name: userName,
+                    first_name: quizAttempt.user.first_name,
+                    last_name: quizAttempt.user.last_name,
+                    user_pic: quizAttempt.user.user_pic,
+                  }
+                : null,
+              quiz: {
+                id: quizAttempt.quiz?.id,
+                title: quizAttempt.quiz?.title,
+                score: score,
+              },
+              course: quizAttempt.course
+                ? {
+                    id: quizAttempt.course.id,
+                    title: quizAttempt.course.course_title,
+                  }
+                : null,
+              message: `${userName} scored ${score}% on quiz "${quizTitle}"`,
+              timestamp: quizAttempt.completedAt || quizAttempt.startedAt,
+              icon: "📝",
+            });
+          });
 
-      // Sort all activities by timestamp (newest first)
-      activities.sort((a, b) => {
-        return (
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-      });
+          // Add achievements
+          achievements.forEach((achievement) => {
+            const userName = achievement.user
+              ? `${achievement.user.first_name} ${achievement.user.last_name}`.trim()
+              : "Someone";
+            const achievementTitle = achievement.title || "an achievement";
 
-      // Limit to the most recent 50 activities
-      const recentActivities = activities.slice(0, 50);
+            activities.push({
+              id: `achievement_${achievement.id}`,
+              type: "ACHIEVEMENT",
+              user: achievement.user
+                ? {
+                    id: achievement.user.id,
+                    name: userName,
+                    first_name: achievement.user.first_name,
+                    last_name: achievement.user.last_name,
+                    user_pic: achievement.user.user_pic,
+                  }
+                : null,
+              achievement: {
+                id: achievement.id,
+                title: achievement.title,
+                content: achievement.content,
+                point: achievement.point,
+              },
+              course: achievement.course
+                ? {
+                    id: achievement.course.id,
+                    title: achievement.course.course_title,
+                  }
+                : null,
+              group: achievement.group
+                ? {
+                    id: achievement.group.id,
+                    title: achievement.group.group_title,
+                  }
+                : null,
+              message: `${userName} unlocked achievement "${achievementTitle}"! 🏅`,
+              timestamp: achievement.createdAt,
+              icon: "⭐",
+            });
+          });
+
+          // Sort all activities by timestamp (newest first)
+          activities.sort((a, b) => {
+            return (
+              new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+            );
+          });
+
+          // Limit to the most recent 50 activities
+          const recentActivities = activities.slice(0, 50);
 
           return {
             activities: recentActivities,
@@ -1740,7 +1760,10 @@ public async GetUserDetails(
     } catch (error: any) {
       console.error("[OrganizationAnalytics] error:", error.message);
       this.setStatus(500);
-      return { success: false, message: "Failed to fetch organization analytics" };
+      return {
+        success: false,
+        message: "Failed to fetch organization analytics",
+      };
     }
   }
 
@@ -1763,7 +1786,12 @@ public async GetUserDetails(
       const [courses, enrollments] = await Promise.all([
         prisma.course.findMany({
           where: { organizationId },
-          select: { id: true, course_title: true, status: true, createdAt: true },
+          select: {
+            id: true,
+            course_title: true,
+            status: true,
+            createdAt: true,
+          },
         }),
         memberIds.length
           ? prisma.enrollment.findMany({
@@ -1839,9 +1867,12 @@ public async GetUserDetails(
       // ── Top courses by enrollment (horizontal bars) ────────────────────
       const enrollmentsByCourse: Record<string, number> = {};
       enrollments.forEach((e) => {
-        enrollmentsByCourse[e.courseId] = (enrollmentsByCourse[e.courseId] || 0) + 1;
+        enrollmentsByCourse[e.courseId] =
+          (enrollmentsByCourse[e.courseId] || 0) + 1;
       });
-      const courseTitleById = new Map(courses.map((c) => [c.id, c.course_title]));
+      const courseTitleById = new Map(
+        courses.map((c) => [c.id, c.course_title]),
+      );
       const topCourses = Object.entries(enrollmentsByCourse)
         // Only this org's own courses — members may also enrol in public ones.
         .filter(([courseId]) => courseTitleById.has(courseId))
@@ -1862,7 +1893,8 @@ public async GetUserDetails(
           totalMembers: members.length,
           onlineMembers: members.filter((m) => m.user?.isOnline).length,
           totalCourses: courses.length,
-          publishedCourses: courses.filter((c) => c.status === "PUBLISHED").length,
+          publishedCourses: courses.filter((c) => c.status === "PUBLISHED")
+            .length,
           totalEnrollments: enrollments.length,
           completedEnrollments,
           completionRate:
@@ -1883,10 +1915,12 @@ public async GetUserDetails(
           label,
           value,
         })),
-        enrollmentsByStatus: Object.entries(statusCounts).map(([label, value]) => ({
-          label,
-          value,
-        })),
+        enrollmentsByStatus: Object.entries(statusCounts).map(
+          ([label, value]) => ({
+            label,
+            value,
+          }),
+        ),
         membersByJoinMethod: Object.entries(joinMethodCounts).map(
           ([label, value]) => ({ label, value }),
         ),
@@ -1926,127 +1960,127 @@ public async GetUserDetails(
         // similarly-fresh "online now" figure instead of this one lagging 5x longer.
         TTL.short,
         async () => {
-      // Get all active members of the organization
-      const members = await prisma.organizationMember.findMany({
-        where: {
-          organizationId: organizationId,
-          isActive: true,
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              role: true,
-              email_address: true,
-              userType: true,
-              isOnline: true,
-              lastActive: true,
+          // Get all active members of the organization
+          const members = await prisma.organizationMember.findMany({
+            where: {
+              organizationId: organizationId,
+              isActive: true,
             },
-          },
-        },
-      });
-
-      // Get all invited users (pending invitations)
-      const pendingInvitations = await prisma.inviteUser.count({
-        where: {
-          organizationId: organizationId,
-          expiresIn: { gt: new Date() },
-          // Exclude those who already accepted
-          NOT: {
-            email: {
-              in: members
-                .map((m) => m.user?.email_address)
-                .filter(Boolean) as string[],
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  role: true,
+                  email_address: true,
+                  userType: true,
+                  isOnline: true,
+                  lastActive: true,
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      // Count by role
-      let studentCount = 0;
-      let instructorCount = 0;
-      let adminCount = 0;
-      let orgAdminCount = 0;
-      let invitedMemberCount = 0;
-      let individualCount = 0;
-      let onlineCount = 0;
+          // Get all invited users (pending invitations)
+          const pendingInvitations = await prisma.inviteUser.count({
+            where: {
+              organizationId: organizationId,
+              expiresIn: { gt: new Date() },
+              // Exclude those who already accepted
+              NOT: {
+                email: {
+                  in: members
+                    .map((m) => m.user?.email_address)
+                    .filter(Boolean) as string[],
+                },
+              },
+            },
+          });
 
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+          // Count by role
+          let studentCount = 0;
+          let instructorCount = 0;
+          let adminCount = 0;
+          let orgAdminCount = 0;
+          let invitedMemberCount = 0;
+          let individualCount = 0;
+          let onlineCount = 0;
 
-      for (const member of members) {
-        const user = member.user;
-        if (!user) continue;
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-        // Count online users
-        if (
-          user.isOnline &&
-          user.lastActive &&
-          new Date(user.lastActive) > fiveMinutesAgo
-        ) {
-          onlineCount++;
-        }
+          for (const member of members) {
+            const user = member.user;
+            if (!user) continue;
 
-        // Count by role and userType
-        const role = user.role?.toLowerCase() || "";
-        const userType = user.userType || "";
+            // Count online users
+            if (
+              user.isOnline &&
+              user.lastActive &&
+              new Date(user.lastActive) > fiveMinutesAgo
+            ) {
+              onlineCount++;
+            }
 
-        if (role === "student") {
-          studentCount++;
-        } else if (role === "tutor" || role === "instructor") {
-          instructorCount++;
-        } else if (role === "admin") {
-          adminCount++;
-        } else if (role === "org_admin") {
-          orgAdminCount++;
-        }
+            // Count by role and userType
+            const role = user.role?.toLowerCase() || "";
+            const userType = user.userType || "";
 
-        // Count by userType
-        if (userType === "INVITED_MEMBER") {
-          invitedMemberCount++;
-        } else if (userType === "INDIVIDUAL") {
-          individualCount++;
-        }
-      }
+            if (role === "student") {
+              studentCount++;
+            } else if (role === "tutor" || role === "instructor") {
+              instructorCount++;
+            } else if (role === "admin") {
+              adminCount++;
+            } else if (role === "org_admin") {
+              orgAdminCount++;
+            }
 
-      // Total members (active)
-      const totalMembers = members.length;
+            // Count by userType
+            if (userType === "INVITED_MEMBER") {
+              invitedMemberCount++;
+            } else if (userType === "INDIVIDUAL") {
+              individualCount++;
+            }
+          }
 
-      // Get course enrollment stats
-      const totalEnrollments = await prisma.enrollment.count({
-        where: {
-          userId: { in: members.map((m) => m.userId) },
-        },
-      });
+          // Total members (active)
+          const totalMembers = members.length;
 
-      const completedCourses = await prisma.enrollment.count({
-        where: {
-          userId: { in: members.map((m) => m.userId) },
-          status: "COMPLETED",
-        },
-      });
+          // Get course enrollment stats
+          const totalEnrollments = await prisma.enrollment.count({
+            where: {
+              userId: { in: members.map((m) => m.userId) },
+            },
+          });
 
-      const inProgressCourses = await prisma.enrollment.count({
-        where: {
-          userId: { in: members.map((m) => m.userId) },
-          status: "IN_PROGRESS",
-        },
-      });
+          const completedCourses = await prisma.enrollment.count({
+            where: {
+              userId: { in: members.map((m) => m.userId) },
+              status: "COMPLETED",
+            },
+          });
 
-      // Get socket service for real-time online count (if available)
-      let socketOnlineCount = 0;
-      try {
-        const socketService = req.app?.get?.("socketService") as
-          | { getOrganizationOnlineUsers: (id: string) => any[] }
-          | undefined;
+          const inProgressCourses = await prisma.enrollment.count({
+            where: {
+              userId: { in: members.map((m) => m.userId) },
+              status: "IN_PROGRESS",
+            },
+          });
 
-        if (socketService) {
-          socketOnlineCount =
-            socketService.getOrganizationOnlineUsers(organizationId).length;
-        }
-      } catch (error) {
-        // Fallback to database count
-        socketOnlineCount = onlineCount;
-      }
+          // Get socket service for real-time online count (if available)
+          let socketOnlineCount = 0;
+          try {
+            const socketService = req.app?.get?.("socketService") as
+              | { getOrganizationOnlineUsers: (id: string) => any[] }
+              | undefined;
+
+            if (socketService) {
+              socketOnlineCount =
+                socketService.getOrganizationOnlineUsers(organizationId).length;
+            }
+          } catch (error) {
+            // Fallback to database count
+            socketOnlineCount = onlineCount;
+          }
 
           return {
             // Main stats for the UI cards
@@ -2251,9 +2285,6 @@ public async GetUserDetails(
         },
       });
 
-      const { sendOrganizationVerificationOTP } =
-        await import("../utils/sendmail.js");
-
       await sendOrganizationVerificationOTP(
         organization.organization_email,
         otp,
@@ -2449,9 +2480,6 @@ public async GetUserDetails(
           verificationOTPResendAt: new Date(),
         },
       });
-
-      const { sendOrganizationVerificationOTP } =
-        await import("../utils/sendmail.js");
 
       await sendOrganizationVerificationOTP(
         organization.organization_email,
@@ -2665,7 +2693,8 @@ public async GetUserDetails(
       // Validates and strips a data-URL prefix before decoding. A raw
       // Buffer.from here silently produced a corrupt file when the client
       // sent "data:<type>;base64,..." — see utils/uploads.ts.
-      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      const { buffer: fileBuffer, error: fileBufferDecodeError } =
+        decodeBase64Upload(body.file);
       if (!fileBuffer) {
         this.setStatus(400);
         return { message: fileBufferDecodeError || "Invalid file content" };
@@ -2722,7 +2751,8 @@ public async GetUserDetails(
       // Validates and strips a data-URL prefix before decoding. A raw
       // Buffer.from here silently produced a corrupt file when the client
       // sent "data:<type>;base64,..." — see utils/uploads.ts.
-      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      const { buffer: fileBuffer, error: fileBufferDecodeError } =
+        decodeBase64Upload(body.file);
       if (!fileBuffer) {
         this.setStatus(400);
         return { message: fileBufferDecodeError || "Invalid file content" };
@@ -2788,7 +2818,8 @@ public async GetUserDetails(
       // Validates and strips a data-URL prefix before decoding. A raw
       // Buffer.from here silently produced a corrupt file when the client
       // sent "data:<type>;base64,..." — see utils/uploads.ts.
-      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      const { buffer: fileBuffer, error: fileBufferDecodeError } =
+        decodeBase64Upload(body.file);
       if (!fileBuffer) {
         this.setStatus(400);
         return { message: fileBufferDecodeError || "Invalid file content" };
@@ -2854,7 +2885,8 @@ public async GetUserDetails(
       // Validates and strips a data-URL prefix before decoding. A raw
       // Buffer.from here silently produced a corrupt file when the client
       // sent "data:<type>;base64,..." — see utils/uploads.ts.
-      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      const { buffer: fileBuffer, error: fileBufferDecodeError } =
+        decodeBase64Upload(body.file);
       if (!fileBuffer) {
         this.setStatus(400);
         return { message: fileBufferDecodeError || "Invalid file content" };
@@ -2924,7 +2956,8 @@ public async GetUserDetails(
       // Validates and strips a data-URL prefix before decoding. A raw
       // Buffer.from here silently produced a corrupt file when the client
       // sent "data:<type>;base64,..." — see utils/uploads.ts.
-      const { buffer: fileBuffer, error: fileBufferDecodeError } = decodeBase64Upload(body.file);
+      const { buffer: fileBuffer, error: fileBufferDecodeError } =
+        decodeBase64Upload(body.file);
       if (!fileBuffer) {
         this.setStatus(400);
         return { message: fileBufferDecodeError || "Invalid file content" };
@@ -3199,13 +3232,21 @@ public async GetUserDetails(
       console.error("Error fetching organization profile:", error);
 
       // Return 401 for authentication errors instead of 500
-      if (error.status === 401 || error.message?.includes("No access token") || error.message?.includes("Unauthorized")) {
+      if (
+        error.status === 401 ||
+        error.message?.includes("No access token") ||
+        error.message?.includes("Unauthorized")
+      ) {
         this.setStatus(401);
         return { message: "Unauthorized", status: 401 };
       }
 
       this.setStatus(500);
-      return { message: "Internal server error", status: 500, error: error.message };
+      return {
+        message: "Internal server error",
+        status: 500,
+        error: error.message,
+      };
     }
   }
 
@@ -3238,7 +3279,10 @@ public async GetUserDetails(
       // an unscoped findFirst could match a different org's invite entirely.
       const invitation = await prisma.inviteUser.findFirst({
         where: {
-          email: { equals: normalizeEmail(body.email_address), mode: "insensitive" },
+          email: {
+            equals: normalizeEmail(body.email_address),
+            mode: "insensitive",
+          },
           organizationId,
         },
       });
@@ -3363,251 +3407,259 @@ public async GetUserDetails(
     }
   }
 
-@Security("bearerAuth")
-@Post("/invite-users-to-organization/{organizationId}")
-public async InviteUsersToOrganization(
-  @Path() organizationId: string,
-  @Request() req: any,
-  @Body() body: { users: { email: string; role: string }[] },
-): Promise<any> {
-  const userIdFromOrganization = req.org?.userId;
-  try {
-    const { users } = body;
+  @Security("bearerAuth")
+  @Post("/invite-users-to-organization/{organizationId}")
+  public async InviteUsersToOrganization(
+    @Path() organizationId: string,
+    @Request() req: any,
+    @Body() body: { users: { email: string; role: string }[] },
+  ): Promise<any> {
+    const userIdFromOrganization = req.org?.userId;
+    try {
+      const { users } = body;
 
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-    });
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+      });
 
-    if (!organization) {
-      this.setStatus(404);
-      return { success: false, message: "Organization not found" };
-    }
+      if (!organization) {
+        this.setStatus(404);
+        return { success: false, message: "Organization not found" };
+      }
 
-    const results = {
-      successful: [] as any[],
-      failed: [] as any[],
-      alreadyInvited: [] as any[],
-      alreadyMember: [] as any[],
-    };
+      const results = {
+        successful: [] as any[],
+        failed: [] as any[],
+        alreadyInvited: [] as any[],
+        alreadyMember: [] as any[],
+      };
 
-    const invitePromises = users.map(async (user) => {
-      try {
-        // ✅ First check if user exists in the system.
-        // Case-insensitive: an exact match missed pre-normalization accounts
-        // stored with capitals, so an existing member could be re-invited as
-        // though they were a stranger.
-        const existingUser = await prisma.user.findFirst({
-          where: {
-            email_address: {
-              equals: normalizeEmail(user.email),
-              mode: "insensitive",
-            },
-          },
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            email_address: true,
-          },
-        });
-
-        // ✅ If user exists, check if they are already a member
-        let existingMember = null;
-        if (existingUser) {
-          existingMember = await prisma.organizationMember.findFirst({
+      const invitePromises = users.map(async (user) => {
+        try {
+          // ✅ First check if user exists in the system.
+          // Case-insensitive: an exact match missed pre-normalization accounts
+          // stored with capitals, so an existing member could be re-invited as
+          // though they were a stranger.
+          const existingUser = await prisma.user.findFirst({
             where: {
-              organizationId: organizationId,
-              userId: existingUser.id,
-              isActive: true,
-            },
-            include: {
-              user: {
-                select: {
-                  id: true,
-                  first_name: true,
-                  last_name: true,
-                  email_address: true,
-                },
+              email_address: {
+                equals: normalizeEmail(user.email),
+                mode: "insensitive",
               },
             },
-          });
-        }
-
-        // ✅ If user exists in the system but not in the organization, they can be invited
-        // But we should still check if they are already a member
-        if (existingMember) {
-          results.alreadyMember.push({
-            email: user.email,
-            role: user.role,
-            message: "User is already a member of this organization",
-            user: existingMember.user ? {
-              id: existingMember.user.id,
-              name: `${existingMember.user.first_name} ${existingMember.user.last_name}`,
-              email: existingMember.user.email_address,
-            } : null,
-          });
-          return;
-        }
-
-        // ✅ If user exists in the system but is not a member, they can be invited
-        // No need to return here - continue with invitation flow
-
-        // Check if there's already an active invitation
-        const existingInvite = await prisma.inviteUser.findFirst({
-          where: {
-            email: { equals: normalizeEmail(user.email), mode: "insensitive" },
-            organizationId: organizationId,
-            expiresIn: { gt: new Date() },
-          },
-        });
-
-        if (existingInvite) {
-          results.alreadyInvited.push({
-            email: user.email,
-            role: user.role,
-            message: "User already has an active invitation",
-            inviteId: existingInvite.id,
-            expiresIn: existingInvite.expiresIn,
-          });
-          return;
-        }
-
-        // Check if there's an expired invitation that can be renewed
-        const expiredInvite = await prisma.inviteUser.findFirst({
-          where: {
-            email: user.email,
-            organizationId: organizationId,
-            expiresIn: { lte: new Date() },
-          },
-        });
-
-        // Generate new token
-        const tokencode = jwt.sign(
-          { organizationId, email: user.email },
-          process.env.BEARERAUTH_SECRET || "secret-key",
-          { expiresIn: "24h" },
-        );
-
-        let inviteEntry;
-
-        // If there's an expired invitation, update it instead of creating new
-        if (expiredInvite) {
-          inviteEntry = await prisma.inviteUser.update({
-            where: { id: expiredInvite.id },
-            data: {
-              code: tokencode,
-              role: user.role,
-              sentById: userIdFromOrganization,
-              expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
-              updatedAt: new Date(),
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              email_address: true,
             },
           });
-        } else {
-          // Create new invitation
-          inviteEntry = await prisma.inviteUser.create({
-            data: {
-              email: normalizeEmail(user.email),
+
+          // ✅ If user exists, check if they are already a member
+          let existingMember = null;
+          if (existingUser) {
+            existingMember = await prisma.organizationMember.findFirst({
+              where: {
+                organizationId: organizationId,
+                userId: existingUser.id,
+                isActive: true,
+              },
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    first_name: true,
+                    last_name: true,
+                    email_address: true,
+                  },
+                },
+              },
+            });
+          }
+
+          // ✅ If user exists in the system but not in the organization, they can be invited
+          // But we should still check if they are already a member
+          if (existingMember) {
+            results.alreadyMember.push({
+              email: user.email,
               role: user.role,
-              code: tokencode,
+              message: "User is already a member of this organization",
+              user: existingMember.user
+                ? {
+                    id: existingMember.user.id,
+                    name: `${existingMember.user.first_name} ${existingMember.user.last_name}`,
+                    email: existingMember.user.email_address,
+                  }
+                : null,
+            });
+            return;
+          }
+
+          // ✅ If user exists in the system but is not a member, they can be invited
+          // No need to return here - continue with invitation flow
+
+          // Check if there's already an active invitation
+          const existingInvite = await prisma.inviteUser.findFirst({
+            where: {
+              email: {
+                equals: normalizeEmail(user.email),
+                mode: "insensitive",
+              },
               organizationId: organizationId,
-              sentById: userIdFromOrganization,
-              expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              expiresIn: { gt: new Date() },
             },
           });
+
+          if (existingInvite) {
+            results.alreadyInvited.push({
+              email: user.email,
+              role: user.role,
+              message: "User already has an active invitation",
+              inviteId: existingInvite.id,
+              expiresIn: existingInvite.expiresIn,
+            });
+            return;
+          }
+
+          // Check if there's an expired invitation that can be renewed
+          const expiredInvite = await prisma.inviteUser.findFirst({
+            where: {
+              email: user.email,
+              organizationId: organizationId,
+              expiresIn: { lte: new Date() },
+            },
+          });
+
+          // Generate new token
+          const tokencode = jwt.sign(
+            { organizationId, email: user.email },
+            process.env.BEARERAUTH_SECRET || "secret-key",
+            { expiresIn: "24h" },
+          );
+
+          let inviteEntry;
+
+          // If there's an expired invitation, update it instead of creating new
+          if (expiredInvite) {
+            inviteEntry = await prisma.inviteUser.update({
+              where: { id: expiredInvite.id },
+              data: {
+                code: tokencode,
+                role: user.role,
+                sentById: userIdFromOrganization,
+                expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+                updatedAt: new Date(),
+              },
+            });
+          } else {
+            // Create new invitation
+            inviteEntry = await prisma.inviteUser.create({
+              data: {
+                email: normalizeEmail(user.email),
+                role: user.role,
+                code: tokencode,
+                organizationId: organizationId,
+                sentById: userIdFromOrganization,
+                expiresIn: new Date(Date.now() + 24 * 60 * 60 * 1000),
+              },
+            });
+          }
+
+          // Send invitation email
+          const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
+          const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+          const inviteLink = `${baseUrl}/auth/${tokencode}/accept_invite`;
+          const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
+
+          await SendEmail(user.email, emailSubject, emailText);
+
+          results.successful.push({
+            email: user.email,
+            role: user.role,
+            inviteId: inviteEntry.id,
+            isRenewal: !!expiredInvite,
+          });
+        } catch (error: any) {
+          console.error(
+            `Error processing invitation for ${user.email}:`,
+            error,
+          );
+          results.failed.push({
+            email: user.email,
+            role: user.role,
+            message: error.message || "Failed to send invitation",
+          });
         }
+      });
 
-        // Send invitation email
-        const emailSubject = `Invitation to join ${organization.organization_name} on GOYE Platform`;
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-        const inviteLink = `${baseUrl}/auth/${tokencode}/accept_invite`;
-        const emailText = `You have been invited to join "${organization.organization_name}". Accept here: ${inviteLink}`;
+      await Promise.all(invitePromises);
 
-        await SendEmail(user.email, emailSubject, emailText);
+      // Determine response status and message
+      const totalProcessed = users.length;
+      const successful = results.successful.length;
+      const alreadyMembers = results.alreadyMember.length;
+      const alreadyInvited = results.alreadyInvited.length;
+      const failed = results.failed.length;
 
-        results.successful.push({
-          email: user.email,
-          role: user.role,
-          inviteId: inviteEntry.id,
-          isRenewal: !!expiredInvite,
-        });
+      let statusCode = 200;
+      let message = "";
 
-      } catch (error: any) {
-        console.error(`Error processing invitation for ${user.email}:`, error);
-        results.failed.push({
-          email: user.email,
-          role: user.role,
-          message: error.message || "Failed to send invitation",
-        });
+      if (successful === totalProcessed) {
+        message = `Successfully invited ${successful} user(s)`;
+        statusCode = 200;
+      } else if (successful > 0) {
+        message = `Invited ${successful} user(s). `;
+        if (alreadyMembers > 0) {
+          message += `${alreadyMembers} user(s) are already members, `;
+        }
+        if (alreadyInvited > 0) {
+          message += `${alreadyInvited} user(s) already have active invitations, `;
+        }
+        if (failed > 0) {
+          message += `${failed} user(s) failed.`;
+        }
+        statusCode = 207;
+      } else if (alreadyMembers === totalProcessed) {
+        message = `All ${alreadyMembers} user(s) are already members of this organization`;
+        statusCode = 409;
+      } else if (alreadyInvited === totalProcessed) {
+        message = `All ${alreadyInvited} user(s) already have active invitations`;
+        statusCode = 409;
+      } else if (failed === totalProcessed) {
+        message = "Failed to send all invitations";
+        statusCode = 500;
+      } else {
+        message = "No invitations were sent";
+        statusCode = 400;
       }
-    });
 
-    await Promise.all(invitePromises);
-
-    // Determine response status and message
-    const totalProcessed = users.length;
-    const successful = results.successful.length;
-    const alreadyMembers = results.alreadyMember.length;
-    const alreadyInvited = results.alreadyInvited.length;
-    const failed = results.failed.length;
-
-    let statusCode = 200;
-    let message = "";
-
-    if (successful === totalProcessed) {
-      message = `Successfully invited ${successful} user(s)`;
-      statusCode = 200;
-    } else if (successful > 0) {
-      message = `Invited ${successful} user(s). `;
-      if (alreadyMembers > 0) {
-        message += `${alreadyMembers} user(s) are already members, `;
+      if (successful > 0) {
+        await invalidateOrgCaches(organizationId);
       }
-      if (alreadyInvited > 0) {
-        message += `${alreadyInvited} user(s) already have active invitations, `;
-      }
-      if (failed > 0) {
-        message += `${failed} user(s) failed.`;
-      }
-      statusCode = 207;
-    } else if (alreadyMembers === totalProcessed) {
-      message = `All ${alreadyMembers} user(s) are already members of this organization`;
-      statusCode = 409;
-    } else if (alreadyInvited === totalProcessed) {
-      message = `All ${alreadyInvited} user(s) already have active invitations`;
-      statusCode = 409;
-    } else if (failed === totalProcessed) {
-      message = "Failed to send all invitations";
-      statusCode = 500;
-    } else {
-      message = "No invitations were sent";
-      statusCode = 400;
+
+      this.setStatus(statusCode);
+      return {
+        success: successful > 0,
+        message: message,
+        data: {
+          totalProcessed: totalProcessed,
+          successful: results.successful,
+          alreadyMembers: results.alreadyMember,
+          alreadyInvited: results.alreadyInvited,
+          failed: results.failed,
+        },
+      };
+    } catch (error: any) {
+      console.error("Error in InviteUsersToOrganization:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Error processing bulk invitations",
+        error: error.message,
+      };
     }
-
-    if (successful > 0) {
-      await invalidateOrgCaches(organizationId);
-    }
-
-    this.setStatus(statusCode);
-    return {
-      success: successful > 0,
-      message: message,
-      data: {
-        totalProcessed: totalProcessed,
-        successful: results.successful,
-        alreadyMembers: results.alreadyMember,
-        alreadyInvited: results.alreadyInvited,
-        failed: results.failed,
-      },
-    };
-  } catch (error: any) {
-    console.error("Error in InviteUsersToOrganization:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Error processing bulk invitations",
-      error: error.message,
-    };
   }
-}
 
   @Get("/fetch-specific-invited-user-by-token/{token}")
   public async FetchInvitedUserByToken(@Path() token: string): Promise<any> {
@@ -4839,377 +4891,421 @@ public async InviteUsersToOrganization(
 
   // Add this to your OrganizationController class
 
-@Security("bearerAuth")
-@Get("/courses-with-stats/{organizationId}")
-public async GetOrganizationCoursesWithStats(
-  @Path() organizationId: string,
-  @Request() req: any,
-): Promise<any> {
-  try {
-    // Verify organization exists
-    const organization = await prisma.organization.findUnique({
-      where: { id: organizationId },
-      select: {
-        id: true,
-        organization_name: true,
-        organization_type: true,
-        organization_image: true,
-      },
-    });
-
-    if (!organization) {
-      this.setStatus(404);
-      return {
-        success: false,
-        message: "Organization not found",
-      };
-    }
-
-    const data = await useCacheAside(
-      CacheKeys.orgCoursesWithStats(organizationId),
-      TTL.medium,
-      async () => {
-    // Get all courses for this organization with their modules
-    const courses = await prisma.course.findMany({
-      where: {
-        organizationId: organizationId,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        module: {
-          include: {
-            lesson: true,
-          },
+  @Security("bearerAuth")
+  @Get("/courses-with-stats/{organizationId}")
+  public async GetOrganizationCoursesWithStats(
+    @Path() organizationId: string,
+    @Request() req: any,
+  ): Promise<any> {
+    try {
+      // Verify organization exists
+      const organization = await prisma.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          id: true,
+          organization_name: true,
+          organization_type: true,
+          organization_image: true,
         },
-        createdByDetails: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-          },
-        },
-        enrollment: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                first_name: true,
-                last_name: true,
-                email_address: true,
-                user_pic: true,
-              },
+      });
+
+      if (!organization) {
+        this.setStatus(404);
+        return {
+          success: false,
+          message: "Organization not found",
+        };
+      }
+
+      const data = await useCacheAside(
+        CacheKeys.orgCoursesWithStats(organizationId),
+        TTL.medium,
+        async () => {
+          // Get all courses for this organization with their modules
+          const courses = await prisma.course.findMany({
+            where: {
+              organizationId: organizationId,
             },
-          },
-        },
-        progress: true,
-        _count: {
-          select: {
-            enrollment: true,
-          },
-        },
-      },
-    });
-
-    // Get all organization members for progress calculation
-    const members = await prisma.organizationMember.findMany({
-      where: {
-        organizationId: organizationId,
-        isActive: true,
-      },
-      select: {
-        userId: true,
-      },
-    });
-    const memberIds = members.map((m) => m.userId);
-
-    // Get total active members count
-    const totalMembers = memberIds.length;
-
-    // Per-course, per-student progress used to mean two extra queries PER
-    // ENROLLMENT (a progress lookup and a video-tracker lookup), nested
-    // inside a per-course loop — so this scaled as courses × enrollments
-    // per course. Batched here into two queries total for the whole
-    // organization, then grouped in memory by courseId -> userId below.
-    const allCourseIds = courses.map((course) => course.id);
-    const allUserIds = Array.from(
-      new Set(courses.flatMap((course) => course.enrollment.map((e) => e.userId))),
-    );
-
-    const [allCompletedLessons, allVideoProgress] =
-      allCourseIds.length > 0 && allUserIds.length > 0
-        ? await Promise.all([
-            prisma.progress.findMany({
-              where: {
-                userId: { in: allUserIds },
-                lesson: { module: { courseId: { in: allCourseIds } } },
-                progressBar: { gte: 100 },
-              },
-              select: {
-                userId: true,
-                lessonId: true,
-                lesson: { select: { module: { select: { courseId: true } } } },
-              },
-            }),
-            prisma.videoTracker.findMany({
-              where: {
-                progress: { userId: { in: allUserIds } },
-                lesson: { module: { courseId: { in: allCourseIds } } },
-              },
-              select: {
-                videoTrackTime: true,
-                videoFinished: true,
-                progress: { select: { userId: true } },
-                lesson: {
-                  select: { duration: true, module: { select: { courseId: true } } },
+            orderBy: {
+              createdAt: "desc",
+            },
+            include: {
+              module: {
+                include: {
+                  lesson: true,
                 },
               },
-            }),
-          ])
-        : [[], []];
+              createdByDetails: {
+                select: {
+                  id: true,
+                  first_name: true,
+                  last_name: true,
+                  user_pic: true,
+                },
+              },
+              enrollment: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      first_name: true,
+                      last_name: true,
+                      email_address: true,
+                      user_pic: true,
+                    },
+                  },
+                },
+              },
+              progress: true,
+              _count: {
+                select: {
+                  enrollment: true,
+                },
+              },
+            },
+          });
 
-    // courseId -> userId -> set of completed lessonIds
-    const completedLessonsByCourseAndUser = new Map<string, Map<string, Set<string>>>();
-    for (const row of allCompletedLessons) {
-      const courseId = row.lesson?.module?.courseId;
-      if (!courseId || !row.userId) continue;
-      if (!completedLessonsByCourseAndUser.has(courseId)) {
-        completedLessonsByCourseAndUser.set(courseId, new Map());
-      }
-      const byUser = completedLessonsByCourseAndUser.get(courseId)!;
-      if (!byUser.has(row.userId)) byUser.set(row.userId, new Set());
-      byUser.get(row.userId)!.add(row.lessonId);
-    }
+          // Get all organization members for progress calculation
+          const members = await prisma.organizationMember.findMany({
+            where: {
+              organizationId: organizationId,
+              isActive: true,
+            },
+            select: {
+              userId: true,
+            },
+          });
+          const memberIds = members.map((m) => m.userId);
 
-    // courseId -> userId -> { totalVideoProgress, totalVideoDuration }
-    const videoProgressByCourseAndUser = new Map<
-      string,
-      Map<string, { totalVideoProgress: number; totalVideoDuration: number }>
-    >();
-    for (const row of allVideoProgress) {
-      const courseId = row.lesson?.module?.courseId;
-      const userId = row.progress?.userId;
-      if (!courseId || !userId) continue;
-      if (!videoProgressByCourseAndUser.has(courseId)) {
-        videoProgressByCourseAndUser.set(courseId, new Map());
-      }
-      const byUser = videoProgressByCourseAndUser.get(courseId)!;
-      if (!byUser.has(userId)) {
-        byUser.set(userId, { totalVideoProgress: 0, totalVideoDuration: 0 });
-      }
-      const acc = byUser.get(userId)!;
-      acc.totalVideoProgress += row.videoTrackTime || 0;
-      acc.totalVideoDuration += row.lesson?.duration || 0;
-    }
+          // Get total active members count
+          const totalMembers = memberIds.length;
 
-    // Calculate stats for each course
-    const courseStats = courses.map((course) => {
-        // Get all enrollments for this course
-        const enrollments = course.enrollment;
-        const totalEnrolled = enrollments.length;
+          // Per-course, per-student progress used to mean two extra queries PER
+          // ENROLLMENT (a progress lookup and a video-tracker lookup), nested
+          // inside a per-course loop — so this scaled as courses × enrollments
+          // per course. Batched here into two queries total for the whole
+          // organization, then grouped in memory by courseId -> userId below.
+          const allCourseIds = courses.map((course) => course.id);
+          const allUserIds = Array.from(
+            new Set(
+              courses.flatMap((course) =>
+                course.enrollment.map((e) => e.userId),
+              ),
+            ),
+          );
 
-        // Count completed enrollments
-        const completedEnrollments = enrollments.filter(
-          (e) => e.status === "COMPLETED"
-        ).length;
+          const [allCompletedLessons, allVideoProgress] =
+            allCourseIds.length > 0 && allUserIds.length > 0
+              ? await Promise.all([
+                  prisma.progress.findMany({
+                    where: {
+                      userId: { in: allUserIds },
+                      lesson: { module: { courseId: { in: allCourseIds } } },
+                      progressBar: { gte: 100 },
+                    },
+                    select: {
+                      userId: true,
+                      lessonId: true,
+                      lesson: {
+                        select: { module: { select: { courseId: true } } },
+                      },
+                    },
+                  }),
+                  prisma.videoTracker.findMany({
+                    where: {
+                      progress: { userId: { in: allUserIds } },
+                      lesson: { module: { courseId: { in: allCourseIds } } },
+                    },
+                    select: {
+                      videoTrackTime: true,
+                      videoFinished: true,
+                      progress: { select: { userId: true } },
+                      lesson: {
+                        select: {
+                          duration: true,
+                          module: { select: { courseId: true } },
+                        },
+                      },
+                    },
+                  }),
+                ])
+              : [[], []];
 
-        // Count in-progress enrollments
-        const inProgressEnrollments = enrollments.filter(
-          (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED"
-        ).length;
+          // courseId -> userId -> set of completed lessonIds
+          const completedLessonsByCourseAndUser = new Map<
+            string,
+            Map<string, Set<string>>
+          >();
+          for (const row of allCompletedLessons) {
+            const courseId = row.lesson?.module?.courseId;
+            if (!courseId || !row.userId) continue;
+            if (!completedLessonsByCourseAndUser.has(courseId)) {
+              completedLessonsByCourseAndUser.set(courseId, new Map());
+            }
+            const byUser = completedLessonsByCourseAndUser.get(courseId)!;
+            if (!byUser.has(row.userId)) byUser.set(row.userId, new Set());
+            byUser.get(row.userId)!.add(row.lessonId);
+          }
 
-        // Calculate completion rate
-        const completionRate = totalEnrolled > 0
-          ? Math.round((completedEnrollments / totalEnrolled) * 100)
-          : 0;
+          // courseId -> userId -> { totalVideoProgress, totalVideoDuration }
+          const videoProgressByCourseAndUser = new Map<
+            string,
+            Map<
+              string,
+              { totalVideoProgress: number; totalVideoDuration: number }
+            >
+          >();
+          for (const row of allVideoProgress) {
+            const courseId = row.lesson?.module?.courseId;
+            const userId = row.progress?.userId;
+            if (!courseId || !userId) continue;
+            if (!videoProgressByCourseAndUser.has(courseId)) {
+              videoProgressByCourseAndUser.set(courseId, new Map());
+            }
+            const byUser = videoProgressByCourseAndUser.get(courseId)!;
+            if (!byUser.has(userId)) {
+              byUser.set(userId, {
+                totalVideoProgress: 0,
+                totalVideoDuration: 0,
+              });
+            }
+            const acc = byUser.get(userId)!;
+            acc.totalVideoProgress += row.videoTrackTime || 0;
+            acc.totalVideoDuration += row.lesson?.duration || 0;
+          }
 
-        // Get all lessons in the course
-        const allLessons = course.module.flatMap((m) => m.lesson);
-        const totalLessons = allLessons.length;
+          // Calculate stats for each course
+          const courseStats = courses.map((course) => {
+            // Get all enrollments for this course
+            const enrollments = course.enrollment;
+            const totalEnrolled = enrollments.length;
 
-        // Calculate progress for each enrolled student — looked up from the
-        // batched maps above instead of querying per enrollment.
-        const studentProgress = enrollments.map((enrollment) => {
-            const completedCount =
-              completedLessonsByCourseAndUser.get(course.id)?.get(enrollment.userId)?.size || 0;
+            // Count completed enrollments
+            const completedEnrollments = enrollments.filter(
+              (e) => e.status === "COMPLETED",
+            ).length;
 
-            const videoAcc = videoProgressByCourseAndUser.get(course.id)?.get(enrollment.userId);
-            const totalVideoProgress = videoAcc?.totalVideoProgress || 0;
-            const totalVideoDuration = videoAcc?.totalVideoDuration || 0;
+            // Count in-progress enrollments
+            const inProgressEnrollments = enrollments.filter(
+              (e) => e.status === "IN_PROGRESS" || e.status === "ENROLLED",
+            ).length;
 
-            const videoPercentage = totalVideoDuration > 0
-              ? Math.min(Math.round((totalVideoProgress / totalVideoDuration) * 100), 100)
-              : 0;
+            // Calculate completion rate
+            const completionRate =
+              totalEnrolled > 0
+                ? Math.round((completedEnrollments / totalEnrolled) * 100)
+                : 0;
 
-            // Overall progress: 70% lesson completion + 30% video progress
-            const lessonPercentage = totalLessons > 0
-              ? Math.round((completedCount / totalLessons) * 100)
-              : 0;
+            // Get all lessons in the course
+            const allLessons = course.module.flatMap((m) => m.lesson);
+            const totalLessons = allLessons.length;
 
-            const overallProgress = Math.round(
-              (lessonPercentage * 0.7) + (videoPercentage * 0.3)
+            // Calculate progress for each enrolled student — looked up from the
+            // batched maps above instead of querying per enrollment.
+            const studentProgress = enrollments.map((enrollment) => {
+              const completedCount =
+                completedLessonsByCourseAndUser
+                  .get(course.id)
+                  ?.get(enrollment.userId)?.size || 0;
+
+              const videoAcc = videoProgressByCourseAndUser
+                .get(course.id)
+                ?.get(enrollment.userId);
+              const totalVideoProgress = videoAcc?.totalVideoProgress || 0;
+              const totalVideoDuration = videoAcc?.totalVideoDuration || 0;
+
+              const videoPercentage =
+                totalVideoDuration > 0
+                  ? Math.min(
+                      Math.round(
+                        (totalVideoProgress / totalVideoDuration) * 100,
+                      ),
+                      100,
+                    )
+                  : 0;
+
+              // Overall progress: 70% lesson completion + 30% video progress
+              const lessonPercentage =
+                totalLessons > 0
+                  ? Math.round((completedCount / totalLessons) * 100)
+                  : 0;
+
+              const overallProgress = Math.round(
+                lessonPercentage * 0.7 + videoPercentage * 0.3,
+              );
+
+              return {
+                userId: enrollment.userId,
+                userName: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
+                userPic: enrollment.user.user_pic,
+                status: enrollment.status,
+                completedLessons: completedCount,
+                totalLessons: totalLessons,
+                lessonProgress: lessonPercentage,
+                videoProgress: videoPercentage,
+                overallProgress: Math.min(overallProgress, 100),
+                startedAt: enrollment.startedAt,
+                completedAt: enrollment.completedAt,
+              };
+            });
+
+            // Calculate average progress across all students
+            const totalProgress = studentProgress.reduce(
+              (sum, s) => sum + s.overallProgress,
+              0,
             );
+            const averageProgress =
+              studentProgress.length > 0
+                ? Math.round(totalProgress / studentProgress.length)
+                : 0;
+
+            // Count students with progress > 0 (active students)
+            const activeStudents = studentProgress.filter(
+              (s) => s.overallProgress > 0,
+            ).length;
+
+            // Count students with 100% progress (completed)
+            const completedStudents = studentProgress.filter(
+              (s) => s.overallProgress === 100,
+            ).length;
+
+            // Get module and lesson counts
+            const moduleCount = course.module.length;
+            const lessonCount = allLessons.length;
 
             return {
-              userId: enrollment.userId,
-              userName: `${enrollment.user.first_name} ${enrollment.user.last_name}`,
-              userPic: enrollment.user.user_pic,
-              status: enrollment.status,
-              completedLessons: completedCount,
-              totalLessons: totalLessons,
-              lessonProgress: lessonPercentage,
-              videoProgress: videoPercentage,
-              overallProgress: Math.min(overallProgress, 100),
-              startedAt: enrollment.startedAt,
-              completedAt: enrollment.completedAt,
+              id: course.id,
+              course_title: course.course_title,
+              course_short_description: course.course_short_description,
+              course_description: course.course_description,
+              course_level: course.course_level,
+              course_image: course.course_image,
+              createdBy: course.createdByDetails
+                ? `${course.createdByDetails.first_name} ${course.createdByDetails.last_name}`
+                : "Unknown",
+              createdByPic: course.createdByDetails?.user_pic || null,
+              createdAt: course.createdAt,
+              updatedAt: course.updatedAt,
+              stats: {
+                // Enrollment stats
+                totalEnrollments: totalEnrolled,
+                completedEnrollments: completedEnrollments,
+                inProgressEnrollments: inProgressEnrollments,
+                completionRate: completionRate,
+                dropOutRate:
+                  totalEnrolled > 0
+                    ? Math.round(
+                        ((totalEnrolled -
+                          completedEnrollments -
+                          inProgressEnrollments) /
+                          totalEnrolled) *
+                          100,
+                      )
+                    : 0,
+
+                // Course structure
+                moduleCount: moduleCount,
+                lessonCount: lessonCount,
+                totalDuration: course.module.reduce((acc, m) => {
+                  const durationSum = m.lesson.reduce(
+                    (sum, l) => sum + (l.duration || 0),
+                    0,
+                  );
+                  return acc + durationSum;
+                }, 0),
+
+                // Student progress stats
+                totalStudents: totalEnrolled,
+                activeStudents: activeStudents,
+                completedStudents: completedStudents,
+                averageProgress: averageProgress,
+
+                // Student progress details
+                studentProgress: studentProgress,
+
+                // Percentage of students who started
+                engagementRate:
+                  totalMembers > 0
+                    ? Math.round((totalEnrolled / totalMembers) * 100)
+                    : 0,
+              },
             };
           });
 
-        // Calculate average progress across all students
-        const totalProgress = studentProgress.reduce(
-          (sum, s) => sum + s.overallProgress,
-          0
-        );
-        const averageProgress = studentProgress.length > 0
-          ? Math.round(totalProgress / studentProgress.length)
-          : 0;
+          // Calculate overall organization stats
+          const totalCourses = courseStats.length;
+          const totalEnrollmentsAcrossAllCourses = courseStats.reduce(
+            (sum, c) => sum + c.stats.totalEnrollments,
+            0,
+          );
+          const totalCompletedAcrossAllCourses = courseStats.reduce(
+            (sum, c) => sum + c.stats.completedEnrollments,
+            0,
+          );
+          const totalLessonsAcrossAllCourses = courseStats.reduce(
+            (sum, c) => sum + c.stats.lessonCount,
+            0,
+          );
+          const totalModulesAcrossAllCourses = courseStats.reduce(
+            (sum, c) => sum + c.stats.moduleCount,
+            0,
+          );
 
-        // Count students with progress > 0 (active students)
-        const activeStudents = studentProgress.filter(
-          (s) => s.overallProgress > 0
-        ).length;
-
-        // Count students with 100% progress (completed)
-        const completedStudents = studentProgress.filter(
-          (s) => s.overallProgress === 100
-        ).length;
-
-        // Get module and lesson counts
-        const moduleCount = course.module.length;
-        const lessonCount = allLessons.length;
-
-        return {
-          id: course.id,
-          course_title: course.course_title,
-          course_short_description: course.course_short_description,
-          course_description: course.course_description,
-          course_level: course.course_level,
-          course_image: course.course_image,
-          createdBy: course.createdByDetails
-            ? `${course.createdByDetails.first_name} ${course.createdByDetails.last_name}`
-            : "Unknown",
-          createdByPic: course.createdByDetails?.user_pic || null,
-          createdAt: course.createdAt,
-          updatedAt: course.updatedAt,
-          stats: {
-            // Enrollment stats
-            totalEnrollments: totalEnrolled,
-            completedEnrollments: completedEnrollments,
-            inProgressEnrollments: inProgressEnrollments,
-            completionRate: completionRate,
-            dropOutRate: totalEnrolled > 0
-              ? Math.round(((totalEnrolled - completedEnrollments - inProgressEnrollments) / totalEnrolled) * 100)
-              : 0,
-
-            // Course structure
-            moduleCount: moduleCount,
-            lessonCount: lessonCount,
-            totalDuration: course.module.reduce((acc, m) => {
-              const durationSum = m.lesson.reduce(
-                (sum, l) => sum + (l.duration || 0),
-                0
-              );
-              return acc + durationSum;
-            }, 0),
-
-            // Student progress stats
-            totalStudents: totalEnrolled,
-            activeStudents: activeStudents,
-            completedStudents: completedStudents,
-            averageProgress: averageProgress,
-
-            // Student progress details
-            studentProgress: studentProgress,
-
-            // Percentage of students who started
-            engagementRate: totalMembers > 0
-              ? Math.round((totalEnrolled / totalMembers) * 100)
-              : 0,
-          },
-        };
-      });
-
-    // Calculate overall organization stats
-    const totalCourses = courseStats.length;
-    const totalEnrollmentsAcrossAllCourses = courseStats.reduce(
-      (sum, c) => sum + c.stats.totalEnrollments,
-      0
-    );
-    const totalCompletedAcrossAllCourses = courseStats.reduce(
-      (sum, c) => sum + c.stats.completedEnrollments,
-      0
-    );
-    const totalLessonsAcrossAllCourses = courseStats.reduce(
-      (sum, c) => sum + c.stats.lessonCount,
-      0
-    );
-    const totalModulesAcrossAllCourses = courseStats.reduce(
-      (sum, c) => sum + c.stats.moduleCount,
-      0
-    );
-
-    // Calculate overall average progress
-    const overallAvgProgress = courseStats.length > 0
-      ? Math.round(
-          courseStats.reduce((sum, c) => sum + c.stats.averageProgress, 0) /
-            courseStats.length
-        )
-      : 0;
-
-        return {
-          organization: {
-            id: organization.id,
-            name: organization.organization_name,
-            type: organization.organization_type,
-            image: organization.organization_image,
-          },
-          summary: {
-            totalCourses: totalCourses,
-            totalEnrollments: totalEnrollmentsAcrossAllCourses,
-            totalCompletions: totalCompletedAcrossAllCourses,
-            totalModules: totalModulesAcrossAllCourses,
-            totalLessons: totalLessonsAcrossAllCourses,
-            overallAverageProgress: overallAvgProgress,
-            overallCompletionRate: totalEnrollmentsAcrossAllCourses > 0
+          // Calculate overall average progress
+          const overallAvgProgress =
+            courseStats.length > 0
               ? Math.round(
-                  (totalCompletedAcrossAllCourses / totalEnrollmentsAcrossAllCourses) *
-                    100
+                  courseStats.reduce(
+                    (sum, c) => sum + c.stats.averageProgress,
+                    0,
+                  ) / courseStats.length,
                 )
-              : 0,
-          },
-          courses: courseStats,
-        };
-      },
-    );
+              : 0;
 
-    this.setStatus(200);
-    return {
-      success: true,
-      message: "Organization courses with stats fetched successfully",
-      data,
-    };
-  } catch (error: any) {
-    console.error("Error fetching courses with stats:", error);
-    this.setStatus(500);
-    return {
-      success: false,
-      message: "Failed to fetch courses with stats",
-      error: error.message,
-    };
+          return {
+            organization: {
+              id: organization.id,
+              name: organization.organization_name,
+              type: organization.organization_type,
+              image: organization.organization_image,
+            },
+            summary: {
+              totalCourses: totalCourses,
+              totalEnrollments: totalEnrollmentsAcrossAllCourses,
+              totalCompletions: totalCompletedAcrossAllCourses,
+              totalModules: totalModulesAcrossAllCourses,
+              totalLessons: totalLessonsAcrossAllCourses,
+              overallAverageProgress: overallAvgProgress,
+              overallCompletionRate:
+                totalEnrollmentsAcrossAllCourses > 0
+                  ? Math.round(
+                      (totalCompletedAcrossAllCourses /
+                        totalEnrollmentsAcrossAllCourses) *
+                        100,
+                    )
+                  : 0,
+            },
+            courses: courseStats,
+          };
+        },
+      );
+
+      this.setStatus(200);
+      return {
+        success: true,
+        message: "Organization courses with stats fetched successfully",
+        data,
+      };
+    } catch (error: any) {
+      console.error("Error fetching courses with stats:", error);
+      this.setStatus(500);
+      return {
+        success: false,
+        message: "Failed to fetch courses with stats",
+        error: error.message,
+      };
+    }
   }
-}
 
   @Security("bearerAuth")
   @Post("/logout")
@@ -5242,10 +5338,15 @@ public async GetOrganizationCoursesWithStats(
   public async RemoveMember(
     @Path() organizationId: string,
     @Path() userId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
-      const permission = await assertCanManageMember(req, organizationId, userId, "remove");
+      const permission = await assertCanManageMember(
+        req,
+        organizationId,
+        userId,
+        "remove",
+      );
       if (permission.ok === false) {
         this.setStatus(permission.status);
         return { success: false, message: permission.message };
@@ -5266,7 +5367,11 @@ public async GetOrganizationCoursesWithStats(
     } catch (error: any) {
       console.error("Error removing member:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to remove member", error: error.message };
+      return {
+        success: false,
+        message: "Failed to remove member",
+        error: error.message,
+      };
     }
   }
 
@@ -5276,10 +5381,15 @@ public async GetOrganizationCoursesWithStats(
     @Path() organizationId: string,
     @Path() userId: string,
     @Body() body: { suspend: boolean },
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
-      const permission = await assertCanManageMember(req, organizationId, userId, "suspend");
+      const permission = await assertCanManageMember(
+        req,
+        organizationId,
+        userId,
+        "suspend",
+      );
       if (permission.ok === false) {
         this.setStatus(permission.status);
         return { success: false, message: permission.message };
@@ -5295,12 +5405,18 @@ public async GetOrganizationCoursesWithStats(
       this.setStatus(200);
       return {
         success: true,
-        message: body.suspend ? "Member suspended successfully" : "Member restored successfully",
+        message: body.suspend
+          ? "Member suspended successfully"
+          : "Member restored successfully",
       };
     } catch (error: any) {
       console.error("Error suspending member:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to update member status", error: error.message };
+      return {
+        success: false,
+        message: "Failed to update member status",
+        error: error.message,
+      };
     }
   }
 
@@ -5314,7 +5430,7 @@ public async GetOrganizationCoursesWithStats(
   public async PromoteMember(
     @Path() organizationId: string,
     @Path() userId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const permission = await assertOrgAdminOf(req, organizationId);
@@ -5328,7 +5444,10 @@ public async GetOrganizationCoursesWithStats(
       });
       if (!membership) {
         this.setStatus(404);
-        return { success: false, message: "This user is not a member of this organization" };
+        return {
+          success: false,
+          message: "This user is not a member of this organization",
+        };
       }
 
       await prisma.$transaction([
@@ -5345,11 +5464,18 @@ public async GetOrganizationCoursesWithStats(
       await invalidateOrgCaches(organizationId);
 
       this.setStatus(200);
-      return { success: true, message: "Member promoted to admin successfully" };
+      return {
+        success: true,
+        message: "Member promoted to admin successfully",
+      };
     } catch (error: any) {
       console.error("Error promoting member:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to promote member", error: error.message };
+      return {
+        success: false,
+        message: "Failed to promote member",
+        error: error.message,
+      };
     }
   }
 
@@ -5361,10 +5487,15 @@ public async GetOrganizationCoursesWithStats(
   public async DemoteMember(
     @Path() organizationId: string,
     @Path() userId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
-      const permission = await assertCanManageMember(req, organizationId, userId, "demote");
+      const permission = await assertCanManageMember(
+        req,
+        organizationId,
+        userId,
+        "demote",
+      );
       if (permission.ok === false) {
         this.setStatus(permission.status);
         return { success: false, message: permission.message };
@@ -5376,7 +5507,9 @@ public async GetOrganizationCoursesWithStats(
       });
 
       const [ownsAnother, adminElsewhere] = await Promise.all([
-        prisma.organization.count({ where: { userId, NOT: { id: organizationId } } }),
+        prisma.organization.count({
+          where: { userId, NOT: { id: organizationId } },
+        }),
         prisma.organizationMember.count({
           where: {
             userId,
@@ -5387,7 +5520,8 @@ public async GetOrganizationCoursesWithStats(
         }),
       ]);
       const stillAdmin = ownsAnother > 0 || adminElsewhere > 0;
-      const ordinaryRole = user?.userType === "INVITED_MEMBER" ? "invited_user" : "student";
+      const ordinaryRole =
+        user?.userType === "INVITED_MEMBER" ? "invited_user" : "student";
 
       await prisma.$transaction([
         prisma.organizationMember.update({
@@ -5396,7 +5530,12 @@ public async GetOrganizationCoursesWithStats(
         }),
         ...(stillAdmin
           ? []
-          : [prisma.user.update({ where: { id: userId }, data: { role: ordinaryRole } })]),
+          : [
+              prisma.user.update({
+                where: { id: userId },
+                data: { role: ordinaryRole },
+              }),
+            ]),
       ]);
 
       await invalidateOrgCaches(organizationId);
@@ -5406,7 +5545,11 @@ public async GetOrganizationCoursesWithStats(
     } catch (error: any) {
       console.error("Error demoting member:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to remove admin rights", error: error.message };
+      return {
+        success: false,
+        message: "Failed to remove admin rights",
+        error: error.message,
+      };
     }
   }
 
@@ -5421,7 +5564,7 @@ public async GetOrganizationCoursesWithStats(
       audience: "all" | "students" | "instructors" | "specific";
       targetUserIds?: string[];
     },
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const permission = await assertOrgAdminOf(req, organizationId);
@@ -5448,13 +5591,17 @@ public async GetOrganizationCoursesWithStats(
       } else if (body.audience === "instructors") {
         targetMembers = members.filter((m) => m.user.role === "instructor");
       } else if (body.audience === "specific" && body.targetUserIds) {
-        targetMembers = members.filter((m) => body.targetUserIds?.includes(m.userId));
+        targetMembers = members.filter((m) =>
+          body.targetUserIds?.includes(m.userId),
+        );
       }
 
       // Create announcement notifications for each target member
       const toRoleForMember = (memberRole: string): Role => {
-        if (memberRole === "instructor" || memberRole === "tutor") return Role.INSTRUCTOR;
-        if (memberRole === "admin" || memberRole === "org_admin") return Role.ORG_ADMIN;
+        if (memberRole === "instructor" || memberRole === "tutor")
+          return Role.INSTRUCTOR;
+        if (memberRole === "admin" || memberRole === "org_admin")
+          return Role.ORG_ADMIN;
         return Role.STUDENT;
       };
       const notifications = targetMembers.map((member) => ({
@@ -5481,7 +5628,11 @@ public async GetOrganizationCoursesWithStats(
     } catch (error: any) {
       console.error("Error creating announcement:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to create announcement", error: error.message };
+      return {
+        success: false,
+        message: "Failed to create announcement",
+        error: error.message,
+      };
     }
   }
 
@@ -5489,7 +5640,7 @@ public async GetOrganizationCoursesWithStats(
   @Get("/announcements/{organizationId}")
   public async GetAnnouncements(
     @Path() organizationId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const announcements = await prisma.notification.findMany({
@@ -5507,7 +5658,11 @@ public async GetOrganizationCoursesWithStats(
     } catch (error: any) {
       console.error("Error fetching announcements:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to fetch announcements", error: error.message };
+      return {
+        success: false,
+        message: "Failed to fetch announcements",
+        error: error.message,
+      };
     }
   }
 
@@ -5525,7 +5680,7 @@ public async GetOrganizationCoursesWithStats(
       capacity?: number;
       type: string;
     },
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const permission = await assertOrgAdminOf(req, organizationId);
@@ -5557,11 +5712,19 @@ public async GetOrganizationCoursesWithStats(
       await invalidateOrgCaches(organizationId);
 
       this.setStatus(201);
-      return { success: true, message: "Event created successfully", data: event };
+      return {
+        success: true,
+        message: "Event created successfully",
+        data: event,
+      };
     } catch (error: any) {
       console.error("Error creating event:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to create event", error: error.message };
+      return {
+        success: false,
+        message: "Failed to create event",
+        error: error.message,
+      };
     }
   }
 
@@ -5569,7 +5732,7 @@ public async GetOrganizationCoursesWithStats(
   @Get("/events/{organizationId}")
   public async GetEvents(
     @Path() organizationId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const eventsWithAttendeeCount = await useCacheAside(
@@ -5596,7 +5759,11 @@ public async GetOrganizationCoursesWithStats(
     } catch (error: any) {
       console.error("Error fetching events:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to fetch events", error: error.message };
+      return {
+        success: false,
+        message: "Failed to fetch events",
+        error: error.message,
+      };
     }
   }
 
@@ -5615,7 +5782,7 @@ public async GetOrganizationCoursesWithStats(
       capacity?: number;
       status?: string;
     },
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const permission = await assertOrgAdminOf(req, organizationId);
@@ -5640,11 +5807,19 @@ public async GetOrganizationCoursesWithStats(
       await invalidateOrgCaches(organizationId);
 
       this.setStatus(200);
-      return { success: true, message: "Event updated successfully", data: event };
+      return {
+        success: true,
+        message: "Event updated successfully",
+        data: event,
+      };
     } catch (error: any) {
       console.error("Error updating event:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to update event", error: error.message };
+      return {
+        success: false,
+        message: "Failed to update event",
+        error: error.message,
+      };
     }
   }
 
@@ -5653,7 +5828,7 @@ public async GetOrganizationCoursesWithStats(
   public async DeleteEvent(
     @Path() organizationId: string,
     @Path() eventId: string,
-    @Request() req: any
+    @Request() req: any,
   ): Promise<any> {
     try {
       const permission = await assertOrgAdminOf(req, organizationId);
@@ -5673,7 +5848,11 @@ public async GetOrganizationCoursesWithStats(
     } catch (error: any) {
       console.error("Error deleting event:", error);
       this.setStatus(500);
-      return { success: false, message: "Failed to delete event", error: error.message };
+      return {
+        success: false,
+        message: "Failed to delete event",
+        error: error.message,
+      };
     }
   }
 }
