@@ -77,7 +77,7 @@ const models: TsoaRoute.Models = {
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Pick_User.Exclude_keyofUser.id__": {
         "dataType": "refAlias",
-        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"updatedAt":{"dataType":"any"},"first_name":{"dataType":"string","required":true},"last_name":{"dataType":"string","required":true},"email_address":{"dataType":"string","required":true},"password":{"dataType":"string","required":true},"country":{"dataType":"string","required":true},"state":{"dataType":"string","required":true},"phone_number":{"dataType":"string","required":true},"language":{"dataType":"string"},"languageCode":{"dataType":"string","required":true},"role":{"dataType":"string","required":true},"level":{"dataType":"string","required":true},"createAt":{"dataType":"any"}},"validators":{}},
+        "type": {"dataType":"nestedObjectLiteral","nestedProperties":{"updatedAt":{"dataType":"any"},"first_name":{"dataType":"string","required":true},"last_name":{"dataType":"string","required":true},"email_address":{"dataType":"string","required":true},"password":{"dataType":"string","required":true},"country":{"dataType":"string","required":true},"state":{"dataType":"string","required":true},"phone_number":{"dataType":"string","required":true},"language":{"dataType":"string"},"languageCode":{"dataType":"string"},"role":{"dataType":"string","required":true},"level":{"dataType":"string","required":true},"createAt":{"dataType":"any"}},"validators":{}},
     },
     // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
     "Omit_User.id_": {
@@ -4750,6 +4750,39 @@ export function RegisterRoutes(app: Router,opts?:{multer?:ReturnType<typeof mult
 
               await templateService.apiHandler({
                 methodName: 'PromoteMember',
+                controller,
+                response,
+                next,
+                validatedArgs,
+                successStatus: undefined,
+              });
+            } catch (err) {
+                return next(err);
+            }
+        });
+        // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+        const argsOrganizationController_DemoteMember: Record<string, TsoaRoute.ParameterSchema> = {
+                organizationId: {"in":"path","name":"organizationId","required":true,"dataType":"string"},
+                userId: {"in":"path","name":"userId","required":true,"dataType":"string"},
+                req: {"in":"request","name":"req","required":true,"dataType":"object"},
+        };
+        app.put('/api/organizations/members/:organizationId/:userId/demote',
+            authenticateMiddleware([{"bearerAuth":[]}]),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController)),
+            ...(fetchMiddlewares<RequestHandler>(OrganizationController.prototype.DemoteMember)),
+
+            async function OrganizationController_DemoteMember(request: ExRequest, response: ExResponse, next: any) {
+
+            // WARNING: This file was auto-generated with tsoa. Please do not modify it. Re-run tsoa to re-generate this file: https://github.com/lukeautry/tsoa
+
+            let validatedArgs: any[] = [];
+            try {
+                validatedArgs = templateService.getValidatedArgs({ args: argsOrganizationController_DemoteMember, request, response });
+
+                const controller = new OrganizationController();
+
+              await templateService.apiHandler({
+                methodName: 'DemoteMember',
                 controller,
                 response,
                 next,

@@ -4,15 +4,81 @@ dotenv.config();
 import prisma from "../src/db";
 import bcrypt from "bcryptjs";
 import readline from "readline";
+import { Writable } from "stream";
+import { normalizeEmail } from "../src/utils/email";
+
+// readline writes through this stream. While `muted` is true everything it
+// writes (including the characters you type) is swallowed, so passwords stay
+// hidden, but the prompt text we print ourselves is never erased.
+let muted = false;
+const mutableStdout = new Writable({
+  write(chunk, encoding, callback) {
+    if (!muted) process.stdout.write(chunk, encoding as BufferEncoding);
+    callback();
+  },
+});
 
 const rl = readline.createInterface({
   input: process.stdin,
-  output: process.stdout,
+  output: mutableStdout,
+  terminal: true,
 });
 
 function question(query: string): Promise<string> {
   return new Promise((resolve) => rl.question(query, resolve));
 }
+
+/** Like question(), but doesn't echo what's typed (for passwords). */
+function questionHidden(query: string): Promise<string> {
+  return new Promise((resolve) => {
+    // Print the prompt ourselves, THEN mute readline's output.
+    const label = query.replace(/:\s*$/, "");
+    process.stdout.write(`${label} (typing is hidden, press Enter when done): `);
+    muted = true;
+    rl.question("", (answer) => {
+      muted = false;
+      process.stdout.write("\n");
+      resolve(answer);
+    });
+  });
+}
+
+/** Host + database name only. Never prints the username or password. */
+function describeDatabase(): string {
+  try {
+    const url = new URL(process.env.DATABASE_URL || "");
+    return `${url.hostname}${url.pathname}`;
+  } catch {
+    return "(DATABASE_URL missing or unreadable)";
+  }
+}
+
+const PERMISSIONS: Record<string, Record<string, boolean>> = {
+  super_admin: {
+    canManageUsers: true,
+    canManageCourses: true,
+    canManageGroups: true,
+    canManageAdmins: true,
+    canViewAnalytics: true,
+    canDeleteContent: true,
+  },
+  content_admin: {
+    canManageUsers: false,
+    canManageCourses: true,
+    canManageGroups: true,
+    canManageAdmins: false,
+    canViewAnalytics: true,
+    canDeleteContent: true,
+  },
+  user_admin: {
+    canManageUsers: true,
+    canManageCourses: false,
+    canManageGroups: false,
+    canManageAdmins: false,
+    canViewAnalytics: false,
+    canDeleteContent: false,
+  },
+};
 
 async function createAdmin() {
   try {
@@ -24,38 +90,62 @@ async function createAdmin() {
       console.log("Protection Password not found");
       return;
     }
-    const checkPass = await question("Admin Password: ");
+    const checkPass = await questionHidden("Admin Password: ");
     if (checkPass !== process.env.PROTECTION_PASSWORD) {
       console.log("\n[ERROR] Incorrect password. Exiting...\n");
-      rl.close();
+      return;
+    }
+    console.log("\n[OK] Password verified!\n");
+
+    // Which database is this script about to write to? It reads the LOCAL
+    // .env, which is not necessarily the same database your Render backend
+    // uses. Always confirm before creating anything.
+    console.log(`Target database: ${describeDatabase()}`);
+    const proceed = await question("Create the admin in THIS database? (yes/no): ");
+    if (proceed.trim().toLowerCase() !== "yes") {
+      console.log("\n[CANCELLED] Nothing was created.\n");
       return;
     }
 
-    console.log("\n[OK] Password verified!\n");
-    console.log("===== CREATE NEW ADMIN =====\n");
+    console.log("\n===== CREATE NEW ADMIN =====\n");
 
-    // Email
+    // Email: stored normalized, and checked case-insensitively against BOTH
+    // user accounts and organization emails (same rule signup uses).
     let email = "";
     while (!email) {
-      email = await question("Email: ");
-      if (!email) {
+      const input = await question("Email: ");
+      if (!input) {
         console.log("[ERROR] Email is required\n");
         continue;
       }
-
-      if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(email)) {
+      if (!/^[^\s@]+@([^\s@]+\.)+[^\s@]+$/.test(input)) {
         console.log("[ERROR] Invalid email format\n");
-        email = "";
         continue;
       }
 
-      const existingUser = await prisma.user.findUnique({
-        where: { email_address: email },
-      });
+      const normalized = normalizeEmail(input);
+      const [existingUser, existingOrg] = await Promise.all([
+        prisma.user.findFirst({
+          where: { email_address: { equals: normalized, mode: "insensitive" } },
+          select: { id: true, role: true },
+        }),
+        prisma.organization.findFirst({
+          where: { organization_email: { equals: normalized, mode: "insensitive" } },
+          select: { id: true },
+        }),
+      ]);
+
       if (existingUser) {
-        console.log(`[ERROR] Email ${email} already exists\n`);
-        email = "";
+        console.log(
+          `[ERROR] ${normalized} already exists as a user (role: ${existingUser.role})\n`,
+        );
+        continue;
       }
+      if (existingOrg) {
+        console.log(`[ERROR] ${normalized} is already registered to an organization\n`);
+        continue;
+      }
+      email = normalized;
     }
 
     const firstName = await question("First Name: ");
@@ -78,15 +168,14 @@ async function createAdmin() {
     console.log("  content_admin - Manage courses, groups, content");
     console.log("  user_admin - Manage users only");
 
-    let adminRole = await question(
+    const roleInput = await question(
       `Choose role (1-3) or press Enter for super_admin: `,
     );
-    const roleNum = parseInt(adminRole);
-    if (!isNaN(roleNum) && roleNum >= 1 && roleNum <= 3) {
-      adminRole = roleOptions[roleNum - 1];
-    } else {
-      adminRole = "super_admin";
-    }
+    const roleNum = parseInt(roleInput);
+    const adminRole =
+      !isNaN(roleNum) && roleNum >= 1 && roleNum <= 3
+        ? roleOptions[roleNum - 1]
+        : "super_admin";
 
     // Level
     const levelOptions = [
@@ -100,118 +189,94 @@ async function createAdmin() {
     console.log("\nAvailable Levels:");
     levelOptions.forEach((l, i) => console.log(`  ${i + 1}. ${l}`));
 
-    let level = await question(
+    const levelInput = await question(
       `Choose level (1-6) or press Enter for Administrator: `,
     );
-    const levelNum = parseInt(level);
-    if (!isNaN(levelNum) && levelNum >= 1 && levelNum <= 6) {
-      level = levelOptions[levelNum - 1];
-    } else {
-      level = "Administrator";
-    }
+    const levelNum = parseInt(levelInput);
+    const level =
+      !isNaN(levelNum) && levelNum >= 1 && levelNum <= 6
+        ? levelOptions[levelNum - 1]
+        : "Administrator";
 
-    // Password
+    // Password (hidden, entered twice)
     let password = "";
     while (!password) {
-      password = await question("Password (min 8 chars): ");
-      if (password.length < 8) {
+      const first = await questionHidden("Password (min 8 chars): ");
+      if (first.length < 8) {
         console.log("[ERROR] Password must be at least 8 characters\n");
-        password = "";
+        continue;
       }
+      const second = await questionHidden("Confirm password: ");
+      if (first !== second) {
+        console.log("[ERROR] Passwords do not match\n");
+        continue;
+      }
+      password = first;
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create the admin user
-    const admin = await prisma.user.create({
-      data: {
-        first_name: firstName || "System",
-        last_name: lastName || "Administrator",
-        email_address: email,
-        password: hashedPassword,
-        role: "goye_admin",
-        country: country,
-        state: state,
-        phone_number: phoneNumber,
-        level: level,
-        point: 0,
-        form_type: "ADMIN",
-      },
-    });
-
-    console.log("\n[OK] Admin user created");
-
-    // Set permissions based on role
-    let permissions = {};
-
-    switch (adminRole) {
-      case "super_admin":
-        permissions = {
-          canManageUsers: true,
-          canManageCourses: true,
-          canManageGroups: true,
-          canManageAdmins: true,
-          canViewAnalytics: true,
-          canDeleteContent: true,
-        };
-        break;
-      case "content_admin":
-        permissions = {
-          canManageUsers: false,
-          canManageCourses: true,
-          canManageGroups: true,
-          canManageAdmins: false,
-          canViewAnalytics: true,
-          canDeleteContent: true,
-        };
-        break;
-      case "user_admin":
-        permissions = {
-          canManageUsers: true,
-          canManageCourses: false,
-          canManageGroups: false,
-          canManageAdmins: false,
-          canViewAnalytics: false,
-          canDeleteContent: false,
-        };
-        break;
-    }
-
-    // Create admin profile
-    try {
-      await prisma.adminProfile.create({
+    // User + admin profile are created together: if the profile fails, the
+    // user is rolled back instead of being left behind as a half-made admin.
+    const admin = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
         data: {
-          userId: admin.id,
+          first_name: firstName || "System",
+          last_name: lastName || "Administrator",
+          email_address: email,
+          password: hashedPassword,
+          role: "goye_admin",
+          // Without this the DB default (INDIVIDUAL) applied, so admins were
+          // counted as individual learners in the dashboard stats.
+          // NOTE: needs "ADMIN" to exist in your UserType enum.
+          userType: "ADMIN" as any,
+          form_type: "ADMIN",
+          country,
+          state,
+          phone_number: phoneNumber,
+          level,
+          point: 0,
+          isProfileComplete: true,
+          isVerified: true,
+          verifiedAt: new Date(),
+        },
+      });
+
+      await tx.adminProfile.create({
+        data: {
+          userId: created.id,
           role: adminRole,
-          permissions: permissions,
+          permissions: PERMISSIONS[adminRole],
           isActive: true,
         },
       });
-      console.log("[OK] Admin profile created");
-    } catch (error: any) {
-      if (error.code === "P2021") {
-        console.log("\n[WARNING] AdminProfile table does not exist");
-        console.log(
-          "Run migration first: npx prisma migrate dev --name add_admin_profile",
-        );
-      } else {
-        throw error;
-      }
-    }
+
+      return created;
+    });
 
     console.log("\n===== ADMIN CREATED SUCCESSFULLY =====\n");
+    console.log(`Database: ${describeDatabase()}`);
     console.log(`Email: ${email}`);
     console.log(
       `Name: ${firstName || "System"} ${lastName || "Administrator"}`,
     );
-    console.log(`Password: ${password}`);
+    // The password is deliberately NOT printed. It would sit in terminal
+    // history and screen recordings.
     console.log(`Admin Role: ${adminRole}`);
     console.log(`Level: ${level}`);
     console.log(`Location: ${country}, ${state}`);
     console.log(`Phone: ${phoneNumber}`);
     console.log(`ID: ${admin.id}\n`);
-  } catch (error) {
-    console.error("\n[ERROR] Failed to create admin:", error);
+  } catch (error: any) {
+    if (error?.code === "P2021") {
+      console.log("\n[ERROR] AdminProfile table does not exist");
+      console.log(
+        "Run migration first: npx prisma migrate dev --name add_admin_profile",
+      );
+      console.log("No user was created (the transaction was rolled back).\n");
+    } else {
+      console.error("\n[ERROR] Failed to create admin:", error);
+    }
   } finally {
     rl.close();
     await prisma.$disconnect();
