@@ -1317,7 +1317,7 @@ model ModerationRecord {
   flaggedPhrases      String[]
   requiresHumanReview Boolean  @default(false)
   escalated           Boolean  @default(false)
-  model               String?
+  model               String?	
   policyVersion       String
   providerError       String?
 
