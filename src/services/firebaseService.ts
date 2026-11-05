@@ -10,31 +10,35 @@ export interface GoogleUser {
   emailVerified: boolean;
 }
 
-export interface FindUserResult {
-  user: any;
-  isExistingUser: boolean;
-  isProfileComplete: boolean;
-  message: string;
-}
+/**
+ * Read-only result of checking whether an account already exists for this
+ * Google identity. `new` means no user row exists — the caller should
+ * proceed with signup (and create the user via /signup after OTP). The
+ * `existing_*` variants mean a user row already exists — the caller should
+ * run the login flow for that user.
+ */
+export type GoogleLookupResult =
+  | { kind: "new"; googleUser: GoogleUser }
+  | { kind: "existing_linked"; user: any; isProfileComplete: boolean }
+  | { kind: "existing_by_email"; user: any; isProfileComplete: boolean };
 
 export class FirebaseAuthService {
-  
   async verifyGoogleToken(idToken: string): Promise<GoogleUser | null> {
     try {
       const decodedToken = await auth.verifyIdToken(idToken);
       const userRecord = await auth.getUser(decodedToken.uid);
-      
+
       if (!userRecord.email) {
         console.error('No email provided from Google');
         return null;
       }
-      
+
       return {
         uid: userRecord.uid,
         email: userRecord.email,
         name: userRecord.displayName || userRecord.email.split('@')[0],
         picture: userRecord.photoURL || null,
-        emailVerified: userRecord.emailVerified || false
+        emailVerified: userRecord.emailVerified || false,
       };
     } catch (error) {
       console.error('Google token verification failed:', error);
@@ -42,100 +46,42 @@ export class FirebaseAuthService {
     }
   }
 
-  async findOrCreateGoogleUser(googleUser: GoogleUser): Promise<FindUserResult> {
-    try {
-      // Check if user exists by firebase_uid
-      let user = await prisma.user.findFirst({
-        where: { firebase_uid: googleUser.uid }
-      });
-
-      let isExistingUser = false;
-      let isProfileComplete = false;
-      let message = "";
-
-      // USER EXISTS BY FIREBASE_UID
-      if (user) {
-        isExistingUser = true;
-        isProfileComplete = user.isProfileComplete === true;
-        message = isProfileComplete ? "User exists and profile is complete" : "User exists but profile is incomplete";
-        
-        console.log(`✅ User found by firebase_uid: ${user.email_address}, Profile Complete: ${isProfileComplete}`);
-        return { user, isExistingUser, isProfileComplete, message };
-      }
-
-      // CHECK IF USER EXISTS BY EMAIL
-      user = await prisma.user.findFirst({
-        where: { email_address: googleUser.email }
-      });
-
-      // USER EXISTS BY EMAIL - LINK GOOGLE ACCOUNT
-      if (user) {
-        isExistingUser = true;
-        
-        // Check if profile is already complete
-        isProfileComplete = user.isProfileComplete || 
-          (user.country && user.country !== "" && 
-           user.state && user.state !== "" && 
-           user.phone_number && user.phone_number !== "");
-        
-        message = isProfileComplete ? "User exists and profile is complete" : "User exists but profile is incomplete";
-        
-        // Link Google account to existing user
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            firebase_uid: googleUser.uid,
-            provider: "GOOGLE",
-            // A prior upload is the user's deliberate choice — don't let
-            // linking Google clobber it with the OAuth photo.
-            user_pic: user.user_pic || googleUser.picture,
-            isProfileComplete: isProfileComplete
-          }
-        });
-        
-        console.log(`🔗 Linked Google account to existing user: ${user.email_address}, Profile Complete: ${isProfileComplete}`);
-        return { user, isExistingUser, isProfileComplete, message };
-      }
-
-      // USER DOES NOT EXIST - CREATE NEW USER
-      // Parse name from googleUser
-      const nameParts = googleUser.name.split(' ');
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(' ') || '';
-
-      // Create new user
-      user = await prisma.user.create({
-        data: {
-          email_address: googleUser.email,
-          first_name: firstName,
-          last_name: lastName,
-          firebase_uid: googleUser.uid,
-          provider: "GOOGLE",
-          user_pic: googleUser.picture,
-          password: null,
-          form_type: "INDIVIDUAL",
-          role: "student",
-          country: "",
-          state: "",
-          phone_number: "",
-          level: "Beginner",
-          isProfileComplete: false,
-          isOnline: true,
-          lastActive: new Date()
-        }
-      });
-
-      isExistingUser = false;
-      isProfileComplete = false;
-      message = "User does not exist - New user created";
-
-      console.log(`✨ Created new Google user: ${user.email_address}`);
-      return { user, isExistingUser, isProfileComplete, message };
-
-    } catch (error) {
-      console.error('Error in findOrCreateGoogleUser:', error);
-      throw error;
+  /**
+   * Read-only lookup. Never writes to the DB.
+   *
+   * Resolution order:
+   *   1. Account already linked by firebase_uid  → existing_linked
+   *   2. Account already exists by email         → existing_by_email
+   *   3. Neither                                  → new
+   *
+   * Callers use `new` to route to the signup form (prefill only) and
+   * `existing_*` to route to the login/dashboard flow. The actual user
+   * creation happens in /signup after OTP verification.
+   */
+  async lookupGoogleUser(googleUser: GoogleUser): Promise<GoogleLookupResult> {
+    const byUid = await prisma.user.findFirst({
+      where: { firebase_uid: googleUser.uid },
+    });
+    if (byUid) {
+      return {
+        kind: "existing_linked",
+        user: byUid,
+        isProfileComplete: byUid.isProfileComplete === true,
+      };
     }
+
+    const byEmail = await prisma.user.findFirst({
+      where: { email_address: googleUser.email },
+    });
+    if (byEmail) {
+      return {
+        kind: "existing_by_email",
+        user: byEmail,
+        isProfileComplete: byEmail.isProfileComplete === true,
+      };
+    }
+
+    return { kind: "new", googleUser };
   }
 }
 

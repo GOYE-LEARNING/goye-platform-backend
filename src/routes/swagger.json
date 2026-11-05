@@ -2524,11 +2524,7 @@
 				"tags": [
 					"User control APIs"
 				],
-				"security": [
-					{
-						"bearerAuth": []
-					}
-				],
+				"security": [],
 				"parameters": [],
 				"requestBody": {
 					"required": true,
@@ -2552,6 +2548,9 @@
 										"type": "string"
 									},
 									"language": {
+										"type": "string"
+									},
+									"email_address": {
 										"type": "string"
 									},
 									"level": {
@@ -2580,6 +2579,7 @@
 									}
 								},
 								"required": [
+									"email_address",
 									"level",
 									"role",
 									"phone_number",

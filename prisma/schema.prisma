@@ -235,8 +235,8 @@ model User {
   // ── Org membership audit trail (which orgs this user belongs to & how) ──
   organizationMemberships OrganizationMember[]
   // ─────────────────────────────────────────────────────────────────────────
-  eventsCreated    OrganizationEvent[]
-  eventAttendances EventAttendee[]
+  eventsCreated           OrganizationEvent[]
+  eventAttendances        EventAttendee[]
 
   // ── ShekiAI course-drafting assistant sessions (shared DB, separate service) ──
   courseDraftSessions CourseDraftSession[]
@@ -346,19 +346,19 @@ model AdminProfile {
 // ─────────────────────────────────────────────
 
 model UserSession {
-  id           String   @id @default(cuid())
-  userId       String
-  deviceId     String   @unique
-  deviceType   String
-  accessToken  String?
-  refreshToken String
-  userType     String
-  createdAt    DateTime @default(now())
-  lastActive   DateTime @updatedAt
-  expiresAt    DateTime
-  isRevoked    Boolean  @default(false)
-  userAgent    String?
-  ipAddress    String?
+  id            String   @id @default(cuid())
+  userId        String
+  deviceId      String   @unique
+  deviceType    String
+  accessToken   String?
+  refreshToken  String
+  userType      String
+  createdAt     DateTime @default(now())
+  lastActive    DateTime @updatedAt
+  expiresAt     DateTime
+  isRevoked     Boolean  @default(false)
+  userAgent     String?
+  ipAddress     String?
   // Expo push token for this specific device, so a push notification can be
   // sent to every device a user is logged in on. Null until the mobile app
   // registers one (web sessions never set this).
@@ -659,16 +659,16 @@ model CourseDraftSession {
 }
 
 model CourseDraftMessage {
-  id        String             @id @default(cuid())
-  sessionId String
-  role      String // system | user | assistant | tool
-  content   String?
+  id         String             @id @default(cuid())
+  sessionId  String
+  role       String // system | user | assistant | tool
+  content    String?
   toolCallId String?
-  toolName  String?
-  toolArgs  Json?
-  audioUrl  String? // set only if this turn originated from voice (not persisted storage)
-  createdAt DateTime           @default(now())
-  session   CourseDraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  toolName   String?
+  toolArgs   Json?
+  audioUrl   String? // set only if this turn originated from voice (not persisted storage)
+  createdAt  DateTime           @default(now())
+  session    CourseDraftSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
 }
@@ -869,19 +869,19 @@ model PrivateMessage {
 // ─────────────────────────────────────────────
 
 model Post {
-  id             String         @id @default(cuid())
-  title          String
-  content        String
-  userId         String
-  createdAt      DateTime       @default(now())
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  replies        Reply[]        @relation("PostReplies")
-  likes          Likes[]
-  notification   Notification[]
-  courses        Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  organization   Organization?  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  courseId       String
-  organizationId String?
+  id               String           @id @default(cuid())
+  title            String
+  content          String
+  userId           String
+  createdAt        DateTime         @default(now())
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replies          Reply[]          @relation("PostReplies")
+  likes            Likes[]
+  notification     Notification[]
+  courses          Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  organization     Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  courseId         String
+  organizationId   String?
   moderationStatus ModerationStatus @default(PENDING_REVIEW)
 
   @@index([moderationStatus])
@@ -889,18 +889,18 @@ model Post {
 }
 
 model Reply {
-  id           String         @id @default(cuid())
-  content      String
-  postId       String?
-  userId       String
-  parentId     String?
-  createdAt    DateTime       @default(now())
-  notification Notification[]
-  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post         Post?          @relation("PostReplies", fields: [postId], references: [id], onDelete: Cascade)
-  parent       Reply?         @relation("ReplyChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children     Reply[]        @relation("ReplyChildren")
-  likes        Likes[]
+  id               String           @id @default(cuid())
+  content          String
+  postId           String?
+  userId           String
+  parentId         String?
+  createdAt        DateTime         @default(now())
+  notification     Notification[]
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post             Post?            @relation("PostReplies", fields: [postId], references: [id], onDelete: Cascade)
+  parent           Reply?           @relation("ReplyChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children         Reply[]          @relation("ReplyChildren")
+  likes            Likes[]
   moderationStatus ModerationStatus @default(PENDING_REVIEW)
 
   @@index([parentId])
@@ -990,32 +990,32 @@ model JoinedEvent {
 // ─────────────────────────────────────────────
 
 model OrganizationEvent {
-  id               String       @id @default(cuid())
-  name             String
-  description      String?
-  date             DateTime
-  time             String
-  location         String?
-  capacity         Int          @default(100)
-  type             String       @default("general")
-  status           String       @default("upcoming") // upcoming, ongoing, past, cancelled
-  organizationId   String
-  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy        String
-  createdByUser    User         @relation(fields: [createdBy], references: [id], onDelete: Cascade)
-  attendees        EventAttendee[]
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  description    String?
+  date           DateTime
+  time           String
+  location       String?
+  capacity       Int             @default(100)
+  type           String          @default("general")
+  status         String          @default("upcoming") // upcoming, ongoing, past, cancelled
+  organizationId String
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      String
+  createdByUser  User            @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  attendees      EventAttendee[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 }
 
 model EventAttendee {
-  id             String           @id @default(cuid())
-  eventId        String
-  event          OrganizationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId         String
-  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  status         String           @default("registered") // registered, attended, cancelled
-  joinedAt       DateTime         @default(now())
+  id       String            @id @default(cuid())
+  eventId  String
+  event    OrganizationEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status   String            @default("registered") // registered, attended, cancelled
+  joinedAt DateTime          @default(now())
 
   @@unique([eventId, userId])
 }
@@ -1220,19 +1220,19 @@ model Certificate {
 // ─────────────────────────────────────────────
 
 model Discussion {
-  id        String           @id @default(cuid())
-  content   String
-  category  Category         @default(DISCUSSION)
-  mediaUrls Json?            @default("[]")
-  isPublic  Boolean          @default(true)
-  authorId  String
-  parentId  String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  author    User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent    Discussion?      @relation("DiscussionReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Discussion[]     @relation("DiscussionReplies")
-  likes     DiscussionLike[]
+  id               String           @id @default(cuid())
+  content          String
+  category         Category         @default(DISCUSSION)
+  mediaUrls        Json?            @default("[]")
+  isPublic         Boolean          @default(true)
+  authorId         String
+  parentId         String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  author           User             @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent           Discussion?      @relation("DiscussionReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies          Discussion[]     @relation("DiscussionReplies")
+  likes            DiscussionLike[]
   moderationStatus ModerationStatus @default(PENDING_REVIEW)
 
   @@index([authorId])
@@ -1271,7 +1271,6 @@ model Feedback {
   organization   Organization? @relation(fields: [organizationId], references: [id])
   organizationId String?
 }
-
 
 // ─────────────────────────────────────────────
 // CONTENT MODERATION (review-before-publication)
@@ -1317,7 +1316,7 @@ model ModerationRecord {
   flaggedPhrases      String[]
   requiresHumanReview Boolean  @default(false)
   escalated           Boolean  @default(false)
-  model               String?	
+  model               String?
   policyVersion       String
   providerError       String?
 

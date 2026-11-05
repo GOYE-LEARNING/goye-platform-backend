@@ -66,538 +66,573 @@ export async function verifyPassword(
 @Route("user")
 @Tags("User control APIs")
 export class UserController extends Controller {
-  @Post("/auth/google")
-  public async GoogleAuth(
-    @Body() body: { idToken: string; deviceId?: string },
-    @Request() req: any,
-  ): Promise<any> {
-    try {
-      const userAgent = req.headers["user-agent"] || "unknown";
-      const deviceType = getDeviceType(userAgent);
-      // Prefer the client's own device ID (header or body) so this device
-      // maps to the same userSession row every request makes going forward,
-      // instead of minting a disconnected server-generated ID the client
-      // never sees or sends back.
-      const deviceId =
-        (req.headers["x-device-id"] as string) ||
-        body.deviceId ||
-        generateDeviceId();
-      const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
-      const isProduction = process.env.NODE_ENV === "production";
+ @Post("/auth/google")
+public async GoogleAuth(
+  @Body() body: { idToken: string; deviceId?: string },
+  @Request() req: any,
+): Promise<any> {
+  try {
+    const userAgent = req.headers["user-agent"] || "unknown";
+    const deviceType = getDeviceType(userAgent);
+    const deviceId =
+      (req.headers["x-device-id"] as string) ||
+      body.deviceId ||
+      generateDeviceId();
+    const ipAddress = req.ip || req.headers["x-forwarded-for"] || "unknown";
+    const isProduction = process.env.NODE_ENV === "production";
 
-      const googleUser = await firebaseAuthService.verifyGoogleToken(
-        body.idToken,
-      );
+    const googleUser = await firebaseAuthService.verifyGoogleToken(
+      body.idToken,
+    );
 
-      if (!googleUser) {
-        this.setStatus(401);
-        return { success: false, message: "Invalid Google token" };
-      }
+    if (!googleUser) {
+      this.setStatus(401);
+      return { success: false, message: "Invalid Google token" };
+    }
 
-      const {
-        user,
-        isExistingUser,
-        isProfileComplete,
-        message: userStatusMessage,
-      } = await firebaseAuthService.findOrCreateGoogleUser(googleUser);
+    // ─── LOOKUP ONLY (no writes) ──────────────────────────────────────────
+    const lookup = await firebaseAuthService.lookupGoogleUser(googleUser);
 
-      if (!user) {
-        this.setStatus(500);
-        return { success: false, message: "Failed to process user" };
-      }
+    // ─── NEW USER → client goes to signup form ────────────────────────────
+    if (lookup.kind === "new") {
+      this.setStatus(200);
+      return {
+        success: true,
+        isNewUser: true,
+        // Hand back the prefill data + Google identity so the signup form
+        // can prefill, and /signup can attach the Google link at creation.
+        googleUid: googleUser.uid,
+        profile: {
+          email: googleUser.email,
+          first_name: googleUser.name.split(" ")[0] || "",
+          last_name: googleUser.name.split(" ").slice(1).join(" ") || "",
+          picture: googleUser.picture,
+          email_verified: googleUser.emailVerified,
+        },
+      };
+    }
 
-      let organization = await prisma.organization.findFirst({
-        where: { userId: user.id },
+    // ─── EXISTING USER → run the branch flow below ────────────────────────
+    const user = lookup.user;
+    const isExistingUser = true;
+    const isProfileComplete = lookup.isProfileComplete;
+    const userStatusMessage = isProfileComplete
+      ? "User exists and profile is complete"
+      : "User exists but profile is incomplete";
+
+    if (!user) {
+      this.setStatus(500);
+      return { success: false, message: "Failed to process user" };
+    }
+
+    // Link Google identity if this user was matched by email but had no
+    // firebase_uid yet. (Safe: the account already exists; we're only
+    // attaching the OAuth identity, not creating anything.)
+    if (!user.firebase_uid) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          firebase_uid: googleUser.uid,
+          provider: "GOOGLE",
+          user_pic: user.user_pic || googleUser.picture,
+        },
+      });
+    }
+
+    let organization = await prisma.organization.findFirst({
+      where: { userId: user.id },
+      include: { user: true },
+    });
+
+    const updateUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { isOnline: true, lastActive: new Date() },
+    });
+
+    // ─── ORGANIZATION OWNER ───────────────────────────────────────────────
+    if (organization) {
+      const updatedOrganization = await prisma.organization.update({
+        where: { id: organization.id },
+        data: { isOnline: true, lastActive: new Date() },
         include: { user: true },
       });
 
-      const updateUser = await prisma.user.update({
-        where: { id: user.id },
-        data: { isOnline: true, lastActive: new Date() },
+      let plan = await prisma.pricingHistory.findFirst({
+        where: { userId: updateUser.id },
       });
 
-      // ─── ORGANIZATION OWNER ───────────────────────────────────────────────
-      if (organization) {
-        const updatedOrganization = await prisma.organization.update({
-          where: { id: organization.id },
-          data: { isOnline: true, lastActive: new Date() },
-          include: { user: true },
-        });
-
-        let plan = await prisma.pricingHistory.findFirst({
-          where: { userId: updateUser.id },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: null,
-            type: "ORGANIZATION",
-            orgId: updatedOrganization.id,
-          });
-        }
-
-        const { accessToken, refreshToken } = generateTokens({
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: null,
           type: "ORGANIZATION",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          userType: updateUser.userType,           // ✅
-          organizationId: updatedOrganization.id,
+          orgId: updatedOrganization.id,
+        });
+      }
+
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ORGANIZATION",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        userType: updateUser.userType,
+        organizationId: updatedOrganization.id,
+        organization_name: updatedOrganization.organization_name,
+        organization_email: updatedOrganization.organization_email,
+        organization_role: updateUser.role,
+        userId: updateUser.id,
+        provider: "GOOGLE",
+        level: "ORGANIZATION",
+        firebase_uid: user.firebase_uid,
+        deviceId: deviceId,
+        deviceType: deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      await prisma.userSession.upsert({
+        where: { deviceId: deviceId },
+        update: {
+          userId: updateUser.id,
+          refreshToken,
+          accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId,
+          deviceType,
+          refreshToken,
+          accessToken,
+          userType: "ORGANIZATION",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          ipAddress,
+          isRevoked: false,
+        },
+      });
+
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 15 * 60 * 1000,
+        });
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        isNewUser: false,
+        message: "Google authentication successful",
+        status: {
+          isExistingUser: true,
+          isProfileComplete: true,
+          requiresProfileCompletion: false,
+        },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "ORGANIZATION",
+          userType: updateUser.userType,
+          id: updatedOrganization.id,
           organization_name: updatedOrganization.organization_name,
           organization_email: updatedOrganization.organization_email,
           organization_role: updateUser.role,
-          userId: updateUser.id,
-          provider: "GOOGLE",
-          level: "ORGANIZATION",
-          firebase_uid: user.firebase_uid,
-          deviceId: deviceId,
-          deviceType: deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        await prisma.userSession.upsert({
-          where: { deviceId: deviceId },
-          update: {
-            userId: updateUser.id, // reassign device to the account that just logged in
-            refreshToken,
-            accessToken,
-            userType: "ORGANIZATION",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent,
-            ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId,
-            deviceType,
-            refreshToken,
-            accessToken,
-            userType: "ORGANIZATION",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent,
-            ipAddress,
-            isRevoked: false,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 15 * 60 * 1000,
-          });
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true,
-            secure: isProduction,
-            sameSite: isProduction ? "none" : "lax",
-            path: "/",
-            maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Google authentication successful",
-          status: {
-            isExistingUser: true,
-            isProfileComplete: true,
-            requiresProfileCompletion: false,
-          },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "ORGANIZATION",
-            userType: updateUser.userType,   // ✅
-            id: updatedOrganization.id,
-            organization_name: updatedOrganization.organization_name,
-            organization_email: updatedOrganization.organization_email,
-            organization_role: updateUser.role,
-            organization_isOnline: updatedOrganization.isOnline,
-          },
-        };
-      }
-
-      // ─── ADMIN ────────────────────────────────────────────────────────────
-      if (user.role === "goye_admin") {
-        const adminProfile = await prisma.adminProfile.findUnique({
-          where: { userId: user.id },
-        });
-
-        let progress = await prisma.progress.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: { userId: user.id, startedJourney: true, progressBar: 0 },
-          });
-        }
-
-        let plan = await prisma.pricingHistory.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: user.id,
-            type: "INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        const { accessToken, refreshToken } = generateTokens({
-          type: "ADMIN",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          userType: updateUser.userType,   // ✅
-          adminRole: adminProfile?.role || "super_admin",
-          progressId: progress.id,
-          level: updateUser.level,
-          provider: "GOOGLE",
-          firebase_uid: user.firebase_uid,
-          deviceId,
-          deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        await prisma.userSession.upsert({
-          where: { deviceId },
-          update: {
-            userId: updateUser.id, // reassign device to the account that just logged in
-            refreshToken,
-            accessToken,
-            userType: "ADMIN",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent,
-            ipAddress,
-            lastActive: new Date(),
-            isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id,
-            deviceId,
-            deviceType,
-            refreshToken,
-            accessToken,
-            userType: "ADMIN",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent,
-            ipAddress,
-            isRevoked: false,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
-          });
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Google authentication successful",
-          status: { isExistingUser: true, isProfileComplete: true, requiresProfileCompletion: false },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "ADMIN",
-            userType: updateUser.userType,   // ✅
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            role: updateUser.role,
-            adminRole: adminProfile?.role || "super_admin",
-            progressId: progress.id,
-          },
-        };
-      }
-
-      // ─── INVITED MEMBER ───────────────────────────────────────────────────
-      // ✅ Use userType instead of form_type === "INVITED"
-      if (user.userType === "INVITED_MEMBER") {
-        // ✅ Resolve which org this user belongs to via OrganizationMember
-        const membership = await prisma.organizationMember.findFirst({
-          where: { userId: user.id, isActive: true },
-          select: { organizationId: true },
-        });
-
-        let progress = await prisma.progress.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: { userId: user.id, startedJourney: true, progressBar: 0 },
-          });
-        }
-
-        let plan = await prisma.pricingHistory.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: user.id,
-            type: "INVITED_INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        const { accessToken, refreshToken } = generateTokens({
-          type: "INVITED_USER",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          userType: updateUser.userType,                    // ✅
-          progressId: progress.id,
-          level: updateUser.level,
-          updateStatus: updateUser.isOnline,
-          organizationId: membership?.organizationId || null, // ✅ from membership table
-          provider: "GOOGLE",
-          firebase_uid: user.firebase_uid,
-          deviceId,
-          deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-        });
-
-        await prisma.userSession.upsert({
-          where: { deviceId },
-          update: {
-            userId: updateUser.id, // reassign device to the account that just logged in
-            refreshToken, accessToken, userType: "INVITED_USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id, deviceId, deviceType,
-            refreshToken, accessToken, userType: "INVITED_USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent, ipAddress, isRevoked: false,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
-          });
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: "Google authentication successful",
-          status: { isExistingUser: true, isProfileComplete: true, requiresProfileCompletion: false },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "INVITED_USER",
-            userType: updateUser.userType,               // ✅
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            role: updateUser.role,
-            progressId: progress.id,
-            organizationId: membership?.organizationId || null, // ✅
-          },
-        };
-      }
-
-      // ─── INDIVIDUAL ───────────────────────────────────────────────────────
-      if (user.userType === "INDIVIDUAL" || user.form_type === "INDIVIDUAL") {
-        let progress = await prisma.progress.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!progress) {
-          progress = await prisma.progress.create({
-            data: { userId: user.id, startedJourney: true, progressBar: 0 },
-          });
-        }
-
-        let plan = await prisma.pricingHistory.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!plan) {
-          plan = await PricingService.GenerateNewPaymentForNewUser({
-            userId: user.id,
-            type: "INDIVIDUAL",
-            orgId: null,
-          });
-        }
-
-        let settings = await prisma.settings.findFirst({
-          where: { userId: user.id },
-        });
-
-        if (!settings) {
-          settings = await prisma.settings.create({
-            data: {
-              enable_push_notification: true,
-              course_updates: true,
-              event: true,
-              achievement: true,
-              daily_reminders: true,
-              darkMode: false,
-              email_notification: true,
-              updatedAt: new Date(),
-              userId: user.id,
-              organizationId: null,
-            },
-          });
-        }
-
-        const { accessToken, refreshToken } = generateTokens({
-          type: "USER",
-          id: updateUser.id,
-          email: updateUser.email_address,
-          role: updateUser.role,
-          userType: updateUser.userType,   // ✅
-          level: updateUser.level,
-          progressId: progress.id,
-          updateStatus: updateUser.isOnline,
-          planId: plan.id,
-          settingsId: settings.id,
-          provider: "GOOGLE",
-          firebase_uid: user.firebase_uid,
-          deviceId,
-          deviceType,
-          full_name: `${updateUser.first_name} ${updateUser.last_name}`,
-          user_pic: user.user_pic,
-          isProfileComplete,
-        });
-
-        await prisma.userSession.upsert({
-          where: { deviceId },
-          update: {
-            userId: updateUser.id, // reassign device to the account that just logged in
-            refreshToken, accessToken, userType: "USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
-          },
-          create: {
-            userId: updateUser.id, deviceId, deviceType,
-            refreshToken, accessToken, userType: "USER",
-            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-            userAgent, ipAddress, isRevoked: false,
-          },
-        });
-
-        if (req.res) {
-          req.res.cookie("accessToken", accessToken, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
-          });
-          req.res.cookie("refreshToken", refreshToken, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("deviceId", deviceId, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("progress_id", progress.id, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-          req.res.cookie("plan_id", plan.id, {
-            httpOnly: true, secure: isProduction,
-            sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-          });
-        }
-
-        let responseMessage = "";
-        if (!isExistingUser) {
-          responseMessage = "New user created. Please complete your profile.";
-        } else if (isExistingUser && !isProfileComplete) {
-          responseMessage = "Welcome back! Please complete your profile to continue.";
-        } else {
-          responseMessage = "Welcome back! Your profile is complete.";
-        }
-
-        this.setStatus(200);
-        return {
-          success: true,
-          message: responseMessage,
-          status: {
-            isExistingUser,
-            isProfileComplete,
-            requiresProfileCompletion: !isProfileComplete,
-            userStatusMessage,
-          },
-          accessToken,
-          refreshToken,
-          user: {
-            type: "USER",
-            userType: updateUser.userType,   // ✅
-            id: updateUser.id,
-            first_name: updateUser.first_name,
-            last_name: updateUser.last_name,
-            email_address: updateUser.email_address,
-            role: updateUser.role,
-            user_pic: user.user_pic,
-            provider: user.provider,
-            country: user.country,
-            state: user.state,
-            phone_number: user.phone_number,
-            isProfileComplete,
-            progressId: progress.id,
-            planId: plan.id,
-          },
-        };
-      }
-
-      this.setStatus(404);
-      return { success: false, message: "User not found" };
-    } catch (error: any) {
-      console.error("Google auth error:", error);
-      this.setStatus(500);
-      return {
-        success: false,
-        message: `Google authentication failed: ${error.message}`,
+          organization_isOnline: updatedOrganization.isOnline,
+        },
       };
     }
+
+    // ─── ADMIN ────────────────────────────────────────────────────────────
+    if (user.role === "goye_admin") {
+      const adminProfile = await prisma.adminProfile.findUnique({
+        where: { userId: user.id },
+      });
+
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: { userId: user.id, startedJourney: true, progressBar: 0 },
+        });
+      }
+
+      let plan = await prisma.pricingHistory.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: user.id,
+          type: "INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      const { accessToken, refreshToken } = generateTokens({
+        type: "ADMIN",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        userType: updateUser.userType,
+        adminRole: adminProfile?.role || "super_admin",
+        progressId: progress.id,
+        level: updateUser.level,
+        provider: "GOOGLE",
+        firebase_uid: user.firebase_uid,
+        deviceId,
+        deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      await prisma.userSession.upsert({
+        where: { deviceId },
+        update: {
+          userId: updateUser.id,
+          refreshToken,
+          accessToken,
+          userType: "ADMIN",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          ipAddress,
+          lastActive: new Date(),
+          isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id,
+          deviceId,
+          deviceType,
+          refreshToken,
+          accessToken,
+          userType: "ADMIN",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent,
+          ipAddress,
+          isRevoked: false,
+        },
+      });
+
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
+        });
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        isNewUser: false,
+        message: "Google authentication successful",
+        status: { isExistingUser: true, isProfileComplete: true, requiresProfileCompletion: false },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "ADMIN",
+          userType: updateUser.userType,
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          role: updateUser.role,
+          adminRole: adminProfile?.role || "super_admin",
+          progressId: progress.id,
+        },
+      };
+    }
+
+    // ─── INVITED MEMBER ───────────────────────────────────────────────────
+    if (user.userType === "INVITED_MEMBER") {
+      const membership = await prisma.organizationMember.findFirst({
+        where: { userId: user.id, isActive: true },
+        select: { organizationId: true },
+      });
+
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: { userId: user.id, startedJourney: true, progressBar: 0 },
+        });
+      }
+
+      let plan = await prisma.pricingHistory.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: user.id,
+          type: "INVITED_INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      const { accessToken, refreshToken } = generateTokens({
+        type: "INVITED_USER",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        userType: updateUser.userType,
+        progressId: progress.id,
+        level: updateUser.level,
+        updateStatus: updateUser.isOnline,
+        organizationId: membership?.organizationId || null,
+        provider: "GOOGLE",
+        firebase_uid: user.firebase_uid,
+        deviceId,
+        deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+      });
+
+      await prisma.userSession.upsert({
+        where: { deviceId },
+        update: {
+          userId: updateUser.id,
+          refreshToken, accessToken, userType: "INVITED_USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id, deviceId, deviceType,
+          refreshToken, accessToken, userType: "INVITED_USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent, ipAddress, isRevoked: false,
+        },
+      });
+
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
+        });
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        isNewUser: false,
+        message: "Google authentication successful",
+        status: { isExistingUser: true, isProfileComplete: true, requiresProfileCompletion: false },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "INVITED_USER",
+          userType: updateUser.userType,
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          role: updateUser.role,
+          progressId: progress.id,
+          organizationId: membership?.organizationId || null,
+        },
+      };
+    }
+
+    // ─── INDIVIDUAL ───────────────────────────────────────────────────────
+    if (user.userType === "INDIVIDUAL" || user.form_type === "INDIVIDUAL") {
+      let progress = await prisma.progress.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!progress) {
+        progress = await prisma.progress.create({
+          data: { userId: user.id, startedJourney: true, progressBar: 0 },
+        });
+      }
+
+      let plan = await prisma.pricingHistory.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!plan) {
+        plan = await PricingService.GenerateNewPaymentForNewUser({
+          userId: user.id,
+          type: "INDIVIDUAL",
+          orgId: null,
+        });
+      }
+
+      let settings = await prisma.settings.findFirst({
+        where: { userId: user.id },
+      });
+
+      if (!settings) {
+        settings = await prisma.settings.create({
+          data: {
+            enable_push_notification: true,
+            course_updates: true,
+            event: true,
+            achievement: true,
+            daily_reminders: true,
+            darkMode: false,
+            email_notification: true,
+            updatedAt: new Date(),
+            userId: user.id,
+            organizationId: null,
+          },
+        });
+      }
+
+      const { accessToken, refreshToken } = generateTokens({
+        type: "USER",
+        id: updateUser.id,
+        email: updateUser.email_address,
+        role: updateUser.role,
+        userType: updateUser.userType,
+        level: updateUser.level,
+        progressId: progress.id,
+        updateStatus: updateUser.isOnline,
+        planId: plan.id,
+        settingsId: settings.id,
+        provider: "GOOGLE",
+        firebase_uid: user.firebase_uid,
+        deviceId,
+        deviceType,
+        full_name: `${updateUser.first_name} ${updateUser.last_name}`,
+        user_pic: user.user_pic,
+        isProfileComplete,
+      });
+
+      await prisma.userSession.upsert({
+        where: { deviceId },
+        update: {
+          userId: updateUser.id,
+          refreshToken, accessToken, userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent, ipAddress, lastActive: new Date(), isRevoked: false,
+        },
+        create: {
+          userId: updateUser.id, deviceId, deviceType,
+          refreshToken, accessToken, userType: "USER",
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          userAgent, ipAddress, isRevoked: false,
+        },
+      });
+
+      if (req.res) {
+        req.res.cookie("accessToken", accessToken, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
+        });
+        req.res.cookie("refreshToken", refreshToken, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("deviceId", deviceId, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 365 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+        req.res.cookie("plan_id", plan.id, {
+          httpOnly: true, secure: isProduction,
+          sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+
+      let responseMessage = "";
+      if (!isExistingUser) {
+        responseMessage = "New user created. Please complete your profile.";
+      } else if (isExistingUser && !isProfileComplete) {
+        responseMessage = "Welcome back! Please complete your profile to continue.";
+      } else {
+        responseMessage = "Welcome back! Your profile is complete.";
+      }
+
+      this.setStatus(200);
+      return {
+        success: true,
+        isNewUser: false,
+        message: responseMessage,
+        status: {
+          isExistingUser,
+          isProfileComplete,
+          requiresProfileCompletion: !isProfileComplete,
+          userStatusMessage,
+        },
+        accessToken,
+        refreshToken,
+        user: {
+          type: "USER",
+          userType: updateUser.userType,
+          id: updateUser.id,
+          first_name: updateUser.first_name,
+          last_name: updateUser.last_name,
+          email_address: updateUser.email_address,
+          role: updateUser.role,
+          user_pic: user.user_pic,
+          provider: user.provider,
+          country: user.country,
+          state: user.state,
+          phone_number: user.phone_number,
+          isProfileComplete,
+          progressId: progress.id,
+          planId: plan.id,
+        },
+      };
+    }
+
+    this.setStatus(404);
+    return { success: false, message: "User not found" };
+  } catch (error: any) {
+    console.error("Google auth error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Google authentication failed: ${error.message}`,
+    };
   }
+}
 
 @Post("/signup")
   public async CreateUser(
@@ -673,6 +708,7 @@ export class UserController extends Controller {
                 password: hashedPassword,
                 country: body.country,
                 state: body.state,
+                isProfileComplete: true,
                 phone_number: body.phone_number,
                 role: requestedRole,
                 level: body.level,
@@ -1314,256 +1350,282 @@ export class UserController extends Controller {
       return { message: `An error occurred: ${error.message}` };
     }
   }
+@Post("/complete-profile")
+public async CompleteProfile(
+  @Request() req: any,
+  @Body()
+  body: {
+    first_name: string;
+    last_name: string;
+    password: string;
+    country: string;
+    state: string;
+    phone_number: string;
+    role: string;
+    level: string;
+    email_address: string; // ✅ required — the account to complete
+    language?: string;
+    languageCode?: string;
+    bio?: string;
+    church_name?: string;
+    church_role?: string;
+    social_media?: string;
+  },
+) {
+  const isProduction = process.env.NODE_ENV === "production";
 
-  @Security("bearerAuth")
-  @Post("/complete-profile")
-  public async CompleteProfile(
-    @Request() req: any,
-    @Body()
-    body: {
-      first_name: string;
-      last_name: string;
-      password: string;
-      country: string;
-      state: string;
-      phone_number: string;
-      role: string;
-      level: string;
-      language?: string;
-      languageCode?: string;
-      bio?: string;
-      church_name?: string;
-      church_role?: string;
-      social_media?: string;
-    },
-  ) {
-    const userId = req.user?.id;
-    const isProduction = process.env.NODE_ENV === "production";
+  const email = (body.email_address || "").trim();
+  if (!email) {
+    this.setStatus(400);
+    return { success: false, message: "Email address is required" };
+  }
 
-    if (!userId) {
-      this.setStatus(401);
-      return { success: false, message: "Unauthorized - User not found" };
+  try {
+    // ── Lookup by email from the body ────────────────────────────────
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        email_address: { equals: email, mode: "insensitive" },
+      },
+      include: { progress: true, settings: true, user_plan: true },
+    });
+
+    if (!existingUser) {
+      this.setStatus(404);
+      return { success: false, message: "User does not exist" };
     }
 
-    try {
-      const existingUser = await prisma.user.findUnique({
-        where: { id: userId },
-        include: { progress: true, settings: true, user_plan: true },
-      });
+    if (existingUser.isProfileComplete === true) {
+      this.setStatus(400);
+      return { success: false, message: "Profile is already complete" };
+    }
 
-      if (!existingUser) {
-        this.setStatus(404);
-        return { success: false, message: "User does not exist" };
-      }
+    const userId = existingUser.id;
+    const userLevel = body.level || "1";
 
-      if (existingUser.isProfileComplete === true) {
-        this.setStatus(400);
-        return { success: false, message: "Profile is already complete" };
-      }
+    const requestedRole = (body.role || "student").toString().toLowerCase();
+    if (!["student", "instructor", "tutor"].includes(requestedRole)) {
+      this.setStatus(400);
+      return { success: false, message: "Invalid role" };
+    }
+    const isTutor =
+      requestedRole === "instructor" || requestedRole === "tutor";
+    const clip = (value: unknown, max: number): string | undefined => {
+      if (typeof value !== "string") return undefined;
+      const trimmed = value.trim();
+      return trimmed ? trimmed.slice(0, max) : undefined;
+    };
 
-      const userLevel = body.level || "1";
+    const hashPassword = await bcrypt.hash(body.password, 10);
 
-      // Same rule as /signup: a client may only pick a learner or tutor role.
-      const requestedRole = (body.role || "student").toString().toLowerCase();
-      if (!["student", "instructor", "tutor"].includes(requestedRole)) {
-        this.setStatus(400);
-        return { success: false, message: "Invalid role" };
-      }
-      const isTutor = requestedRole === "instructor" || requestedRole === "tutor";
-      const clip = (value: unknown, max: number): string | undefined => {
-        if (typeof value !== "string") return undefined;
-        const trimmed = value.trim();
-        return trimmed ? trimmed.slice(0, max) : undefined;
-      };
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        first_name: body.first_name,
+        last_name: body.last_name,
+        country: body.country,
+        state: body.state,
+        password: hashPassword,
+        phone_number: body.phone_number,
+        role: requestedRole,
+        level: userLevel,
+        isProfileComplete: true,
+        ...(body.language ? { language: body.language } : {}),
+        ...(body.languageCode
+          ? { languageCode: toDbLanguageCode(body.languageCode) as any }
+          : {}),
+        ...(isTutor
+          ? {
+              bio: clip(body.bio, 2000),
+              church_name: clip(body.church_name, 200),
+              church_role: clip(body.church_role, 100),
+              social_media: clip(body.social_media, 300),
+            }
+          : {}),
+      },
+    });
 
-      const hashPassword = await bcrypt.hash(body.password, 10);
-
-      const updatedUser = await prisma.user.update({
-        where: { id: userId },
+    // ── Supporting rows ─────────────────────────────────────────────
+    let settings = existingUser.settings?.[0];
+    if (!settings) {
+      settings = await prisma.settings.create({
         data: {
-          first_name: body.first_name,
-          last_name: body.last_name,
-          country: body.country,
-          state: body.state,
-          password: hashPassword,
-          phone_number: body.phone_number,
-          role: requestedRole,
-          level: userLevel,
-          isProfileComplete: true,
-          ...(body.language ? { language: body.language } : {}),
-          ...(body.languageCode ? { languageCode: toDbLanguageCode(body.languageCode) as any } : {}),
-          // ✅ userType stays as INDIVIDUAL — no change needed on profile completion
-          // Only ever sent by the frontend for role === "instructor"; stays
-          // null for students since the form doesn't collect it from them.
-          ...(isTutor
-            ? {
-                bio: clip(body.bio, 2000),
-                church_name: clip(body.church_name, 200),
-                church_role: clip(body.church_role, 100),
-                social_media: clip(body.social_media, 300),
-              }
-            : {}),
+          enable_push_notification: true,
+          course_updates: true,
+          event: true,
+          achievement: true,
+          daily_reminders: true,
+          darkMode: false,
+          email_notification: true,
+          updatedAt: new Date(),
+          userId,
+          organizationId: null,
         },
       });
+    }
 
-      let settings = existingUser.settings?.[0];
-      if (!settings) {
-        settings = await prisma.settings.create({
-          data: {
-            enable_push_notification: true,
-            course_updates: true,
-            event: true,
-            achievement: true,
-            daily_reminders: true,
-            darkMode: false,
-            email_notification: true,
-            updatedAt: new Date(),
-            userId,
-            organizationId: null,
-          },
-        });
-      }
+    let progress = existingUser.progress?.[0];
+    if (!progress) {
+      progress = await prisma.progress.create({
+        data: { userId, startedJourney: true, progressBar: 0 },
+      });
 
-      let progress = existingUser.progress?.[0];
-      if (!progress) {
-        progress = await prisma.progress.create({
-          data: { userId, startedJourney: true, progressBar: 0 },
-        });
+      await GrowthService.AchievementMessage({
+        message_title: "Christian Cadet",
+        message_content: `${updatedUser.first_name} you just joined the rest of the soldiers to join the army`,
+        point: 10,
+        progress_message: "",
+        userId,
+        badge: "CADET_BADGE",
+        progressId: progress.id,
+      });
+    }
 
-        await GrowthService.AchievementMessage({
-          message_title: "Christian Cadet",
-          message_content: `${updatedUser.first_name} you just joined the rest of the soldiers to join the army`,
-          point: 10,
-          progress_message: "",
-          userId,
-          badge: "CADET_BADGE",
-          progressId: progress.id,
-        });
-      }
+    let plan = existingUser.user_plan?.[0];
+    if (!plan) {
+      plan = await PricingService.GenerateNewPaymentForNewUser({
+        userId,
+        type: "INDIVIDUAL",
+        orgId: null,
+      });
+    }
 
-      let plan = existingUser.user_plan?.[0];
-      if (!plan) {
-        plan = await PricingService.GenerateNewPaymentForNewUser({
-          userId,
-          type: "INDIVIDUAL",
-          orgId: null,
-        });
-      }
+    // ── Tokens / session / cookies ───────────────────────────────────
+    const deviceId =
+      req.cookies?.deviceId ||
+      req.headers["x-device-id"] ||
+      generateDeviceId();
+    const userAgent = req.headers["user-agent"] || "unknown";
+    const deviceType = getDeviceType(userAgent);
 
-      // Mobile has no cookie jar and sends its stable device id as a header
-      // instead — reading only the cookie meant every mobile profile
-      // completion invented a brand-new deviceId and orphaned that device's
-      // real session row.
-      const deviceId =
-        req.cookies?.deviceId || req.headers["x-device-id"] || generateDeviceId();
-      const userAgent = req.headers["user-agent"] || "unknown";
-      const deviceType = getDeviceType(userAgent);
+    const { accessToken, refreshToken } = generateTokens({
+      type: "USER",
+      id: updatedUser.id,
+      email: updatedUser.email_address,
+      role: updatedUser.role,
+      userType: updatedUser.userType,
+      level: updatedUser.level,
+      progressId: progress?.id,
+      updateStatus: updatedUser.isOnline,
+      planId: plan?.id,
+      settingsId: settings?.id,
+      deviceId,
+      deviceType,
+      full_name: `${updatedUser.first_name} ${updatedUser.last_name}`,
+      user_pic: updatedUser.user_pic,
+      isProfileComplete: true,
+    });
 
-      const { accessToken, refreshToken } = generateTokens({
-        type: "USER",
-        id: updatedUser.id,
-        email: updatedUser.email_address,
-        role: updatedUser.role,
-        userType: updatedUser.userType,   // ✅
-        level: updatedUser.level,
-        progressId: progress?.id,
-        updateStatus: updatedUser.isOnline,
-        planId: plan?.id,
-        settingsId: settings?.id,
+    await prisma.userSession.upsert({
+      where: { deviceId },
+      update: {
+        userId,
+        refreshToken,
+        accessToken,
+        lastActive: new Date(),
+        isRevoked: false,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+      create: {
+        userId,
         deviceId,
         deviceType,
-        full_name: `${updatedUser.first_name} ${updatedUser.last_name}`,
-        user_pic: updatedUser.user_pic,
-        isProfileComplete: true,
-      });
-
-      // Scoped to THIS device only. This used to be an updateMany over every
-      // session belonging to the user, which stamped the one new refreshToken
-      // onto every other device's row too — and since the refresh endpoint
-      // looks a session up by exact (refreshToken, deviceId) match, every
-      // other logged-in device instantly stopped being able to refresh and
-      // got bounced to login. upsert keyed on the unique deviceId leaves
-      // other devices' sessions untouched, matching how Login already works.
-      await prisma.userSession.upsert({
-        where: { deviceId },
-        update: {
-          userId,
-          refreshToken,
-          accessToken,
-          lastActive: new Date(),
-          isRevoked: false,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        },
-        create: {
-          userId,
-          deviceId,
-          deviceType,
-          refreshToken,
-          accessToken,
-          userType: "USER",
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-          userAgent,
-          isRevoked: false,
-        },
-      });
-
-      await NotificationService.createNotification({
-        message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
-        title: "Welcome to GOYE",
-        type: "greeting",
-        role: Role.STUDENT,
-        to: Role.STUDENT,
-        userId,
-      });
-
-      if (req.res) {
-        req.res.cookie("accessToken", accessToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000 });
-        req.res.cookie("refreshToken", refreshToken, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
-        if (progress?.id) {
-          req.res.cookie("progress_id", progress.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
-        }
-        if (plan?.id) {
-          req.res.cookie("plan_id", plan.id, { httpOnly: true, secure: isProduction, sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000 });
-        }
-      }
-
-      this.setStatus(200);
-      return {
-        success: true,
-        message: "Profile completed successfully! Welcome to GOYE!",
-        accessToken,
         refreshToken,
-        data: {
-          user: {
-            id: updatedUser.id,
-            first_name: updatedUser.first_name,
-            last_name: updatedUser.last_name,
-            email_address: updatedUser.email_address,
-            country: updatedUser.country,
-            state: updatedUser.state,
-            phone_number: updatedUser.phone_number,
-            role: updatedUser.role,
-            level: updatedUser.level,
-            userType: updatedUser.userType,   // ✅
-            isProfileComplete: updatedUser.isProfileComplete,
-          },
-          settings: {
-            id: settings.id,
-            darkMode: settings.darkMode,
-            email_notification: settings.email_notification,
-          },
-          progress: progress
-            ? { id: progress.id, progressBar: progress.progressBar, startedJourney: progress.startedJourney }
-            : null,
-          plan: plan ? { id: plan.id, type: plan.type } : null,
-        },
-      };
-    } catch (error: any) {
-      console.error("Complete profile error:", error);
-      this.setStatus(500);
-      return { success: false, message: `Failed to complete profile: ${error.message}` };
+        accessToken,
+        userType: "USER",
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        userAgent,
+        isRevoked: false,
+      },
+    });
+
+    await NotificationService.createNotification({
+      message: `Hello ${updatedUser.first_name}, welcome to GOYE! Your profile is now complete. Get ready to encounter the best JESUS.`,
+      title: "Welcome to GOYE",
+      type: "greeting",
+      role: Role.STUDENT,
+      to: Role.STUDENT,
+      userId,
+    });
+
+    if (req.res) {
+      req.res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+        path: "/",
+        maxAge: 15 * 60 * 1000,
+      });
+      req.res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+        path: "/",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+      if (progress?.id) {
+        req.res.cookie("progress_id", progress.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
+      if (plan?.id) {
+        req.res.cookie("plan_id", plan.id, {
+          httpOnly: true,
+          secure: isProduction,
+          sameSite: isProduction ? "none" : "lax",
+          path: "/",
+          maxAge: 7 * 24 * 60 * 60 * 1000,
+        });
+      }
     }
+
+    this.setStatus(200);
+    return {
+      success: true,
+      message: "Profile completed successfully! Welcome to GOYE!",
+      accessToken,
+      refreshToken,
+      data: {
+        user: {
+          id: updatedUser.id,
+          first_name: updatedUser.first_name,
+          last_name: updatedUser.last_name,
+          email_address: updatedUser.email_address,
+          country: updatedUser.country,
+          state: updatedUser.state,
+          phone_number: updatedUser.phone_number,
+          role: updatedUser.role,
+          level: updatedUser.level,
+          userType: updatedUser.userType,
+          isProfileComplete: updatedUser.isProfileComplete,
+        },
+        settings: {
+          id: settings.id,
+          darkMode: settings.darkMode,
+          email_notification: settings.email_notification,
+        },
+        progress: progress
+          ? {
+              id: progress.id,
+              progressBar: progress.progressBar,
+              startedJourney: progress.startedJourney,
+            }
+          : null,
+        plan: plan ? { id: plan.id, type: plan.type } : null,
+      },
+    };
+  } catch (error: any) {
+    console.error("Complete profile error:", error);
+    this.setStatus(500);
+    return {
+      success: false,
+      message: `Failed to complete profile: ${error.message}`,
+    };
   }
+}
 
   @Get("/check-email")
   public async CheckEmail(@Query() email: string): Promise<any> {
@@ -3248,48 +3310,53 @@ public async GetSocketToken(@Request() req: any): Promise<any> {
   return { token: socketToken };
 }
   @Post("/refresh")
-  public async RefreshToken(@Request() req: any): Promise<any> {
-    const refreshToken = req.cookies?.refreshToken;
-    const deviceId = req.cookies?.deviceId;
+public async RefreshToken(@Request() req: any): Promise<any> {
+  // Accept headers OR cookies. The client sends both — browsers carry the
+  // cookies, native/mobile clients only carry the headers.
+  const refreshToken =
+    req.cookies?.refreshToken ||
+    (req.headers["x-refresh-token"] as string | undefined);
+  const deviceId =
+    (req.headers["x-device-id"] as string | undefined) ||
+    req.cookies?.deviceId;
 
-    if (!refreshToken) {
-      this.setStatus(401);
-      return { message: "No refresh token provided" };
-    }
-
-    if (!deviceId) {
-      this.setStatus(401);
-      return { message: "No device ID provided" };
-    }
-
-    try {
-      const tokens = await refreshTokens(refreshToken, deviceId);
-
-      if (!tokens) {
-        this.setStatus(401);
-        return { message: "Failed to refresh token - invalid or expired session" };
-      }
-
-      const isProduction = process.env.NODE_ENV === "production";
-
-      req.res.cookie("accessToken", tokens.accessToken, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
-      });
-
-      req.res.cookie("refreshToken", tokens.refreshToken, {
-        httpOnly: true, secure: isProduction,
-        sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-
-      this.setStatus(200);
-      return { message: "Token refreshed successfully", accessToken: tokens.accessToken };
-    } catch (error: any) {
-      console.error("Refresh token error:", error);
-      this.setStatus(401);
-      return { message: "Invalid refresh token" };
-    }
+  if (!refreshToken) {
+    this.setStatus(401);
+    return { message: "No refresh token provided" };
   }
+  if (!deviceId) {
+    this.setStatus(401);
+    return { message: "No device ID provided" };
+  }
+
+  try {
+    const tokens = await refreshTokens(refreshToken, deviceId);
+
+    if (!tokens) {
+      this.setStatus(401);
+      return { message: "Failed to refresh token - invalid or expired session" };
+    }
+
+    const isProduction = process.env.NODE_ENV === "production";
+
+    req.res.cookie("accessToken", tokens.accessToken, {
+      httpOnly: true, secure: isProduction,
+      sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 15 * 60 * 1000,
+    });
+
+    req.res.cookie("refreshToken", tokens.refreshToken, {
+      httpOnly: true, secure: isProduction,
+      sameSite: isProduction ? "none" : "lax", path: "/", maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    this.setStatus(200);
+    return { message: "Token refreshed successfully", accessToken: tokens.accessToken };
+  } catch (error: any) {
+    console.error("Refresh token error:", error);
+    this.setStatus(401);
+    return { message: "Invalid refresh token" };
+  }
+}
 
   @Security("bearerAuth")
   @Get("fetch-countries")
