@@ -269,6 +269,12 @@ public async GoogleAuth(
         where: { userId: user.id },
       });
 
+      // Fail closed: a goye_admin with no AdminProfile is not a provisioned admin.
+      if (!adminProfile) {
+        this.setStatus(403);
+        return { message: "This admin account is not fully provisioned." };
+      }
+
       let progress = await prisma.progress.findFirst({
         where: { userId: user.id },
       });
@@ -297,7 +303,7 @@ public async GoogleAuth(
         email: updateUser.email_address,
         role: updateUser.role,
         userType: updateUser.userType,
-        adminRole: adminProfile?.role || "super_admin",
+        adminRole: adminProfile.role,
         progressId: progress.id,
         level: updateUser.level,
         provider: "GOOGLE",
@@ -368,7 +374,7 @@ public async GoogleAuth(
           first_name: updateUser.first_name,
           last_name: updateUser.last_name,
           role: updateUser.role,
-          adminRole: adminProfile?.role || "super_admin",
+          adminRole: adminProfile.role,
           progressId: progress.id,
         },
       };
@@ -1062,11 +1068,19 @@ public async GoogleAuth(
           return { message: "Password is invalid" };
         }
  
+        // Fail closed: a goye_admin with no AdminProfile is not a provisioned
+        // admin (create-admin.ts creates the user and the profile together, in
+        // one transaction). Refuse rather than read .role off a null profile.
+        if (!user.adminProfile) {
+          this.setStatus(403);
+          return { message: "This admin account is not fully provisioned." };
+        }
+
         const updateUser = await prisma.user.update({
           where: { id: user.id },
           data: { isOnline: true, lastActive: new Date() },
         });
- 
+
         const progress = await ensureProgress(updateUser.id, updateUser.first_name, false);
         const planId = await ensurePlanId(updateUser.id, {
           userId: updateUser.id,
@@ -1082,7 +1096,7 @@ public async GoogleAuth(
           userType: updateUser.userType,
           language: updateUser.language,
           languageCode: updateUser.languageCode,
-          adminRole: user.adminProfile?.role || "super_admin",
+          adminRole: user.adminProfile.role,
           progressId: progress.id,
           level: updateUser.level,
           planId,
@@ -1108,7 +1122,7 @@ public async GoogleAuth(
               first_name: updateUser.first_name,
               last_name: updateUser.last_name,
               role: updateUser.role,
-              adminRole: user.adminProfile?.role || "super_admin",
+              adminRole: user.adminProfile.role,
               progressId: progress.id,
             },
           },

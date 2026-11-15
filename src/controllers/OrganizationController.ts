@@ -3110,7 +3110,10 @@ export class OrganizationController extends Controller {
               country: body.user_country,
               state: body.user_state,
               phone_number: body.user_phone_number,
-              role: body.user_role,
+              // role removed: the platform security role must not be settable
+              // from a profile edit. This was a privilege-escalation vector and
+              // also clobbered an owner's "org_admin" with client-sent values
+              // like "Administrator"/"admin".
               form_type: body.user_form_type as any,
               // ✅ preserve userType — never overwrite it during a plain update
             },
@@ -3313,6 +3316,16 @@ export class OrganizationController extends Controller {
       }
 
       // ✅ Create user — mark as INVITED_MEMBER (replaces `invited: true`)
+      // The request body is spread into the new user below, so a client-supplied
+      // `role` would otherwise set the platform security role. Never let the body
+      // assign a privileged role (defense in depth with the fail-closed checks).
+      const PRIVILEGED_ROLES = [
+        "goye_admin",
+        "super_admin",
+        "org_admin",
+        "content_admin",
+        "user_admin",
+      ];
       const user = await prisma.user.create({
         data: {
           ...body,
@@ -3321,6 +3334,9 @@ export class OrganizationController extends Controller {
           userType: "INVITED_MEMBER", // ✅ new field
           form_type: "INVITED",
           level: body.level || "Beginner",
+          role: PRIVILEGED_ROLES.includes((body as any).role)
+            ? "member"
+            : ((body as any).role || "member"),
           // ✅ Do NOT connect org here via the one-to-one relation;
           //    the OrganizationMember table now owns that relationship.
         },

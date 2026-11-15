@@ -32,7 +32,9 @@ export class SuperAdminController extends Controller {
     const adminProfile = await prisma.adminProfile.findUnique({
       where: { userId: req.user.id },
     });
-    if ((adminProfile?.role || "super_admin") !== "super_admin") {
+    // Fail closed: require a real AdminProfile whose role is "super_admin".
+    // A missing profile must mean "denied", not "assume super_admin".
+    if (!adminProfile || adminProfile.role !== "super_admin") {
       this.setStatus(403);
       return false;
     }
