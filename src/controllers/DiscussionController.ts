@@ -68,6 +68,15 @@ const VALID_CATEGORIES = [
   "QUESTION",
 ];
 
+const mapGamification = (sideEffects: any) => {
+  const result = sideEffects?.gamification;
+  return {
+    pointsEarned: result?.data?.pointsAdded ?? 0,
+    leveledUp: result?.data?.leveledUp ?? false,
+    newLevel: result?.data?.newLevel ?? null,
+  };
+};
+
 @Route("discussion")
 @Tags("Discussion & Messaging APIs")
 export class DiscussionController extends Controller {
@@ -162,104 +171,107 @@ export class DiscussionController extends Controller {
 
   // ==================== PUBLIC DISCUSSIONS (ENCRYPTED) ====================
 
-  @Security("bearerAuth")
-  @Post("/public")
-  public async CreatePublicDiscussion(
-    @Request() req: any,
-    @Body() body: CreateDiscussionDTO,
-  ): Promise<any> {
-    const userId = req.user?.id;
+ @Security("bearerAuth")
+@Post("/public")
+public async CreatePublicDiscussion(
+  @Request() req: any,
+  @Body() body: CreateDiscussionDTO,
+): Promise<any> {
+  const userId = req.user?.id;
 
-    if (!userId) {
-      this.setStatus(401);
-      return { message: "User not authorized" };
-    }
-
-    try {
-      if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
-        this.setStatus(400);
-        return { message: "Content or media is required" };
-      }
-
-      // Validate category
-      const normalizedCategory = body.category.toUpperCase();
-      if (!VALID_CATEGORIES.includes(normalizedCategory)) {
-        this.setStatus(400);
-        return {
-          message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}`,
-        };
-      }
-
-      const rawText = (body.content ?? "").trim();
-      if (rawText.length > MAX_CONTENT_CHARS) {
-        this.setStatus(400);
-        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
-      }
-
-      // ENCRYPT the public discussion content
-      const encryptedContent = EncryptionUtil.encrypt(rawText);
-      const discussion = await prisma.discussion.create({
-        data: {
-          content: encryptedContent,
-          category: normalizedCategory as any,
-          mediaUrls: (body.mediaUrls as any) || [],
-          isPublic: true,
-          authorId: userId,
-          moderationStatus: "PENDING_REVIEW",
-        },
-        include: {
-          author: {
-            select: {
-              id: true,
-              first_name: true,
-              last_name: true,
-              user_pic: true,
-              role: true,
-            },
-          },
-          _count: {
-            select: {
-              replies: true,
-              likes: true,
-            },
-          },
-        },
-      });
-
-      // XP is awarded by the gate, only once the discussion is published.
-      const moderation = await submitNewWithBudget({
-        type: "DISCUSSION",
-        contentId: discussion.id,
-        authorId: userId,
-        plaintext: rawText,
-        hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
-      });
-      const gamificationResult = moderation.sideEffects?.gamification;
-
-      this.setStatus(201);
-      return {
-        message: moderation.message,
-        data: {
-          ...discussion,
-          content: rawText,
-          moderationStatus: moderation.status,
-        },
-        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
-        gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
-        },
-      };
-    } catch (error: any) {
-      console.error("Error creating discussion:", error);
-      this.setStatus(500);
-      return {
-        message: "Failed to create discussion",
-        error: error.message,
-      };
-    }
+  if (!userId) {
+    this.setStatus(401);
+    return { message: "User not authorized" };
   }
+
+  try {
+    if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
+      this.setStatus(400);
+      return { message: "Content or media is required" };
+    }
+
+    // Validate category
+    const normalizedCategory = (body.category ?? "DISCUSSION").toUpperCase();
+    if (!VALID_CATEGORIES.includes(normalizedCategory)) {
+      this.setStatus(400);
+      return {
+        message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}`,
+      };
+    }
+
+    const rawText = (body.content ?? "").trim();
+    if (rawText.length > MAX_CONTENT_CHARS) {
+      this.setStatus(400);
+      return {
+        message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.`,
+      };
+    }
+
+    // ENCRYPT the public discussion content
+    const encryptedContent = EncryptionUtil.encrypt(rawText);
+
+    const discussion = await prisma.discussion.create({
+      data: {
+        content: encryptedContent,
+        category: normalizedCategory as any,
+        mediaUrls: (body.mediaUrls as any) || [],
+        isPublic: true,
+        authorId: userId,
+        moderationStatus: "PENDING_REVIEW",
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            first_name: true,
+            last_name: true,
+            user_pic: true,
+            role: true,
+          },
+        },
+        _count: {
+          select: {
+            replies: true,
+            likes: true,
+          },
+        },
+      },
+    });
+
+    // XP is awarded by the gate, only once the discussion is published.
+    // While a post is held for review, sideEffects.gamification is undefined.
+    const moderation = await submitNewWithBudget({
+      type: "DISCUSSION",
+      contentId: discussion.id,
+      authorId: userId,
+      plaintext: rawText,
+      hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
+    });
+
+    this.setStatus(201);
+    return {
+      message: moderation.message,
+      data: {
+        ...discussion,
+        content: rawText,
+        moderationStatus: moderation.status,
+      },
+      moderation: {
+        status: moderation.status,
+        authorMessage: moderation.authorMessage,
+        flagged: moderation.flagged,
+      },
+      gamification: mapGamification(moderation.sideEffects),
+    };
+  } catch (error: any) {
+    console.error("Error creating discussion:", error);
+    this.setStatus(500);
+    return {
+      message: "Failed to create discussion",
+      error: error.message,
+    };
+  }
+}
 
     @Get("/public")
   public async GetPublicDiscussions(
