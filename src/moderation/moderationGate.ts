@@ -2,7 +2,10 @@ import prisma from "../db";
 import { EncryptionUtil } from "../utils/encryption";
 import { invalidatePattern } from "../utils/redis";
 import { NotificationService, Role } from "../services/notificationServices";
-import { ActionType, GamificationService } from "../services/gamificationService";
+import {
+  ActionType,
+  GamificationService,
+} from "../services/gamificationService";
 import { POLICY_VERSION } from "./policy";
 import {
   decideStatus,
@@ -14,7 +17,10 @@ import {
 
 export type ContentType = "POST" | "REPLY" | "DISCUSSION";
 
-const OPEN_STATUSES: ModerationStatusValue[] = ["PENDING_REVIEW", "HUMAN_REVIEW"];
+const OPEN_STATUSES: ModerationStatusValue[] = [
+  "PENDING_REVIEW",
+  "HUMAN_REVIEW",
+];
 
 export interface GateResult {
   status: ModerationStatusValue;
@@ -48,7 +54,11 @@ export class ModerationError extends Error {
 
 // ── User-facing wording: neutral, never asserts a violation was proven ──────
 
-function messageFor(status: ModerationStatusValue, isEdit: boolean, authorMessage = ""): string {
+function messageFor(
+  status: ModerationStatusValue,
+  isEdit: boolean,
+  authorMessage = "",
+): string {
   const note = authorMessage ? ` ${authorMessage}` : "";
   switch (status) {
     case "PUBLISHED":
@@ -90,9 +100,15 @@ function resultFrom(
 
 async function invalidateContentCaches(): Promise<void> {
   try {
-    await Promise.all([invalidatePattern("social:*"), invalidatePattern("discussions:public:*")]);
+    await Promise.all([
+      invalidatePattern("social:*"),
+      invalidatePattern("discussions:public:*"),
+    ]);
   } catch (err: any) {
-    console.error("[Moderation] cache invalidation failed:", err?.message ?? err);
+    console.error(
+      "[Moderation] cache invalidation failed:",
+      err?.message ?? err,
+    );
   }
 }
 
@@ -106,7 +122,10 @@ interface Live {
   plaintext: string;
 }
 
-async function resolveOrganizationId(authorId: string | null, direct?: string | null): Promise<string | null> {
+async function resolveOrganizationId(
+  authorId: string | null,
+  direct?: string | null,
+): Promise<string | null> {
   if (direct) return direct;
   if (!authorId) return null;
   const membership = await prisma.organizationMember.findFirst({
@@ -129,7 +148,10 @@ async function loadLive(type: ContentType, id: string): Promise<Live | null> {
     };
   }
   if (type === "REPLY") {
-    const r = await prisma.reply.findUnique({ where: { id }, include: { post: { select: { organizationId: true } } } });
+    const r = await prisma.reply.findUnique({
+      where: { id },
+      include: { post: { select: { organizationId: true } } },
+    });
     if (!r) return null;
     return {
       moderationStatus: r.moderationStatus as ModerationStatusValue,
@@ -174,8 +196,10 @@ async function transitionEntity(
 ): Promise<number> {
   const where: any = { id, moderationStatus: { in: from } };
   const data: any = { moderationStatus: to };
-  if (type === "POST") return (await prisma.post.updateMany({ where, data })).count;
-  if (type === "REPLY") return (await prisma.reply.updateMany({ where, data })).count;
+  if (type === "POST")
+    return (await prisma.post.updateMany({ where, data })).count;
+  if (type === "REPLY")
+    return (await prisma.reply.updateMany({ where, data })).count;
   return (await prisma.discussion.updateMany({ where, data })).count;
 }
 
@@ -187,25 +211,44 @@ async function applyEditToEntity(
   if (type === "POST") {
     await prisma.post.update({
       where: { id },
-      data: { content: stored.content, ...(stored.title ? { title: stored.title } : {}) },
+      data: {
+        content: stored.content,
+        ...(stored.title ? { title: stored.title } : {}),
+      },
     });
   } else if (type === "REPLY") {
-    await prisma.reply.update({ where: { id }, data: { content: stored.content } });
+    await prisma.reply.update({
+      where: { id },
+      data: { content: stored.content },
+    });
   } else {
-    await prisma.discussion.update({ where: { id }, data: { content: stored.content } });
+    await prisma.discussion.update({
+      where: { id },
+      data: { content: stored.content },
+    });
   }
 }
 
 // ── Side effects that must only happen once content is actually public ─────
 
-export async function runPublishSideEffects(type: ContentType, id: string): Promise<{ gamification?: any }> {
+export async function runPublishSideEffects(
+  type: ContentType,
+  id: string,
+): Promise<{ gamification?: any }> {
   try {
     if (type === "POST") {
-      const p = await prisma.post.findUnique({ where: { id }, select: { userId: true, courseId: true } });
+      const p = await prisma.post.findUnique({
+        where: { id },
+        select: { userId: true, courseId: true },
+      });
       if (p?.userId) {
-        const g = await GamificationService.AddPointsWithGamification(p.userId, ActionType.DISCUSSION_PARTICIPATION, {
-          courseId: p.courseId,
-        });
+        const g = await GamificationService.AddPointsWithGamification(
+          p.userId,
+          ActionType.DISCUSSION_PARTICIPATION,
+          {
+            courseId: p.courseId,
+          },
+        );
         return { gamification: g };
       }
       return {};
@@ -221,9 +264,13 @@ export async function runPublishSideEffects(type: ContentType, id: string): Prom
         },
       });
       if (!r) return {};
-      const g = await GamificationService.AddPointsWithGamification(r.userId, ActionType.DISCUSSION_PARTICIPATION, {
-        courseId: r.post?.courseId,
-      });
+      const g = await GamificationService.AddPointsWithGamification(
+        r.userId,
+        ActionType.DISCUSSION_PARTICIPATION,
+        {
+          courseId: r.post?.courseId,
+        },
+      );
       if (r.parent && r.parent.userId !== r.userId) {
         await NotificationService.createNotification({
           message: `${r.user?.first_name || "Someone"} replied to your comment`,
@@ -243,11 +290,20 @@ export async function runPublishSideEffects(type: ContentType, id: string): Prom
       where: { id },
       include: {
         author: { select: { first_name: true, last_name: true } },
-        parent: { select: { authorId: true, parentId: true, author: { select: { role: true } } } },
+        parent: {
+          select: {
+            authorId: true,
+            parentId: true,
+            author: { select: { role: true } },
+          },
+        },
       },
     });
     if (!d) return {};
-    const g = await GamificationService.AddPointsWithGamification(d.authorId, ActionType.DISCUSSION_PARTICIPATION);
+    const g = await GamificationService.AddPointsWithGamification(
+      d.authorId,
+      ActionType.DISCUSSION_PARTICIPATION,
+    );
     if (d.parent && d.parent.authorId !== d.authorId) {
       const asInstructor = d.parent.author.role === "instructor";
       const name = `${d.author.first_name} ${d.author.last_name}`;
@@ -265,7 +321,10 @@ export async function runPublishSideEffects(type: ContentType, id: string): Prom
     return { gamification: g };
   } catch (err: any) {
     // The content is already public; a failed XP/notification must not undo that.
-    console.error(`[Moderation] publish side effects failed for ${type} ${id}:`, err?.message ?? err);
+    console.error(
+      `[Moderation] publish side effects failed for ${type} ${id}:`,
+      err?.message ?? err,
+    );
     return {};
   }
 }
@@ -301,8 +360,10 @@ async function evaluate(args: {
       status: "HUMAN_REVIEW",
       escalated: false,
       fields: {
-        reason: "Media-only submission: there is no text for the AI to evaluate.",
-        authorMessage: "Because it has no text for the AI to read, a person will look at it before it appears.",
+        reason:
+          "Media-only submission: there is no text for the AI to evaluate.",
+        authorMessage:
+          "Because it has no text for the AI to read, a person will look at it before it appears.",
         requiresHumanReview: true,
         policyVersion: POLICY_VERSION,
         providerError: null,
@@ -318,8 +379,10 @@ async function evaluate(args: {
       fields: {
         ...ev.fields,
         requiresHumanReview: true,
-        reason: `${ev.fields.reason ?? ""} Includes attached media, which needs a person to review.`.trim(),
-        authorMessage: "Because your post includes media, a person will look at it before it appears.",
+        reason:
+          `${ev.fields.reason ?? ""} Includes attached media, which needs a person to review.`.trim(),
+        authorMessage:
+          "Because your post includes media, a person will look at it before it appears.",
       },
     };
   }
@@ -337,7 +400,13 @@ async function evaluateCore(args: {
   // Retry/duplicate safety: the same text for the same content, already
   // evaluated, is not sent to the provider again.
   const prior = await prisma.moderationRecord.findFirst({
-    where: { contentId: args.contentId, contentType: args.type, contentHash: args.hash, aiDecision: { not: null }, isEdit: args.isEdit },
+    where: {
+      contentId: args.contentId,
+      contentType: args.type,
+      contentHash: args.hash,
+      aiDecision: { not: null },
+      isEdit: args.isEdit,
+    },
     orderBy: { createdAt: "desc" },
   });
   if (prior) {
@@ -352,12 +421,21 @@ async function evaluateCore(args: {
       flaggedPhrases: prior.flaggedPhrases ?? [],
     };
     const d = decideStatus(verdict);
-    return { status: d.status, escalated: d.escalated, fields: reuseFields(prior) };
+    return {
+      status: d.status,
+      escalated: d.escalated,
+      fields: reuseFields(prior),
+    };
   }
 
-  const result = await evaluateContent({ title: args.title, content: args.plaintext });
+  const result = await evaluateContent({
+    title: args.title,
+    content: args.plaintext,
+  });
   if (!result.ok) {
-    console.warn(`[Moderation] ${args.type} ${args.contentId} left unpublished: ${result.error} (${result.latencyMs}ms)`);
+    console.warn(
+      `[Moderation] ${args.type} ${args.contentId} left unpublished: ${result.error} (${result.latencyMs}ms)`,
+    );
     return {
       status: "PENDING_REVIEW",
       escalated: false,
@@ -380,7 +458,8 @@ async function evaluateCore(args: {
       reason: result.verdict.reason,
       authorMessage: result.verdict.authorMessage || null,
       flaggedPhrases: result.verdict.flaggedPhrases,
-      requiresHumanReview: result.verdict.requiresHumanReview || result.truncated,
+      requiresHumanReview:
+        result.verdict.requiresHumanReview || result.truncated,
       model: result.model,
       policyVersion: POLICY_VERSION,
       providerError: null,
@@ -404,9 +483,16 @@ function reuseFields(prior: any): Record<string, any> {
   };
 }
 
-async function supersedeOpenRecords(type: ContentType, contentId: string): Promise<void> {
+async function supersedeOpenRecords(
+  type: ContentType,
+  contentId: string,
+): Promise<void> {
   await prisma.moderationRecord.updateMany({
-    where: { contentType: type, contentId, status: { in: OPEN_STATUSES as any } },
+    where: {
+      contentType: type,
+      contentId,
+      status: { in: OPEN_STATUSES as any },
+    },
     data: {
       status: "REJECTED",
       humanDecision: "superseded",
@@ -450,7 +536,15 @@ export async function submitNew(args: {
     },
   });
 
-  const ev = await evaluate({ type: args.type, title: args.title, plaintext: args.plaintext, hash, contentId: args.contentId, isEdit: false, hasMedia: args.hasMedia });
+  const ev = await evaluate({
+    type: args.type,
+    title: args.title,
+    plaintext: args.plaintext,
+    hash,
+    contentId: args.contentId,
+    isEdit: false,
+    hasMedia: args.hasMedia,
+  });
 
   await prisma.moderationRecord.update({
     where: { id: record.id },
@@ -459,14 +553,17 @@ export async function submitNew(args: {
 
   let sideEffects: GateResult["sideEffects"];
   if (ev.status !== "PENDING_REVIEW") {
-    const moved = await transitionEntity(args.type, args.contentId, ev.status, ["PENDING_REVIEW"]);
+    const moved = await transitionEntity(args.type, args.contentId, ev.status, [
+      "PENDING_REVIEW",
+    ]);
     if (moved > 0 && ev.status === "PUBLISHED") {
-      sideEffects = await runPublishSideEffects(args.type, args.contentId);
-      await invalidateContentCaches();
+      await invalidateContentCaches(); // keep awaited so the feed is fresh
+      void runPublishSideEffects(args.type, args.contentId); // don't block the response
     }
   }
 
-  if (ev.status === "PENDING_REVIEW" && ev.fields.providerError) scheduleRetry(record.id, 1);
+  if (ev.status === "PENDING_REVIEW" && ev.fields.providerError)
+    scheduleRetry(record.id, 1);
   return resultFrom(ev.status, record.id, false, ev.fields, sideEffects);
 }
 
@@ -494,7 +591,10 @@ export async function submitEdit(args: {
       contentType: args.type,
       contentId: args.contentId,
       authorId: args.authorId,
-      organizationId: await resolveOrganizationId(args.authorId, live.organizationId),
+      organizationId: await resolveOrganizationId(
+        args.authorId,
+        live.organizationId,
+      ),
       isEdit: true,
       contentHash: hash,
       pendingTitle: args.title ?? null,
@@ -504,9 +604,18 @@ export async function submitEdit(args: {
     },
   });
 
-  const ev = await evaluate({ type: args.type, title: args.title, plaintext: args.plaintext, hash, contentId: args.contentId, isEdit: true, hasMedia: args.hasMedia });
+  const ev = await evaluate({
+    type: args.type,
+    title: args.title,
+    plaintext: args.plaintext,
+    hash,
+    contentId: args.contentId,
+    isEdit: true,
+    hasMedia: args.hasMedia,
+  });
 
-  const decided = ev.status !== "PENDING_REVIEW" && ev.status !== "HUMAN_REVIEW";
+  const decided =
+    ev.status !== "PENDING_REVIEW" && ev.status !== "HUMAN_REVIEW";
   await prisma.moderationRecord.update({
     where: { id: record.id },
     data: {
@@ -518,27 +627,37 @@ export async function submitEdit(args: {
   });
 
   if (ev.status === "PUBLISHED") {
-    await applyEditToEntity(args.type, args.contentId, { title: args.title, content: stored });
+    await applyEditToEntity(args.type, args.contentId, {
+      title: args.title,
+      content: stored,
+    });
     await invalidateContentCaches();
   }
 
-  if (ev.status === "PENDING_REVIEW" && ev.fields.providerError) scheduleRetry(record.id, 1);
+  if (ev.status === "PENDING_REVIEW" && ev.fields.providerError)
+    scheduleRetry(record.id, 1);
   return resultFrom(ev.status, record.id, true, ev.fields);
 }
 
 // ── Human review ────────────────────────────────────────────────────────────
 
-export function canModerate(m: Moderator, record: { organizationId: string | null }): boolean {
+export function canModerate(
+  m: Moderator,
+  record: { organizationId: string | null },
+): boolean {
   if (m.role === "goye_admin") return true;
   const orgAdmin =
-    m.role === "org_admin" || ["admin", "owner", "Administrator"].includes(m.orgRole ?? "");
+    m.role === "org_admin" ||
+    ["admin", "owner", "Administrator"].includes(m.orgRole ?? "");
   return !!m.orgId && orgAdmin && record.organizationId === m.orgId;
 }
 
 export function isModeratorRole(m: Moderator): boolean {
   return (
     m.role === "goye_admin" ||
-    (!!m.orgId && (m.role === "org_admin" || ["admin", "owner", "Administrator"].includes(m.orgRole ?? "")))
+    (!!m.orgId &&
+      (m.role === "org_admin" ||
+        ["admin", "owner", "Administrator"].includes(m.orgRole ?? "")))
   );
 }
 
@@ -548,13 +667,16 @@ export async function humanDecide(args: {
   decision: "approve" | "reject";
   reason?: string;
 }): Promise<{ status: ModerationStatusValue }> {
-  const record = await prisma.moderationRecord.findUnique({ where: { id: args.recordId } });
+  const record = await prisma.moderationRecord.findUnique({
+    where: { id: args.recordId },
+  });
   if (!record || !canModerate(args.moderator, record)) {
     // Same answer for "missing" and "not yours" so ids can't be probed.
     throw new ModerationError(404, "Moderation record not found");
   }
 
-  const newStatus: ModerationStatusValue = args.decision === "approve" ? "PUBLISHED" : "REJECTED";
+  const newStatus: ModerationStatusValue =
+    args.decision === "approve" ? "PUBLISHED" : "REJECTED";
 
   // Atomic claim: only one concurrent decision can move a record out of an open state.
   const claimed = await prisma.moderationRecord.updateMany({
@@ -569,22 +691,36 @@ export async function humanDecide(args: {
       pendingTitle: null,
     },
   });
-  if (claimed.count === 0) throw new ModerationError(409, "This item has already been decided");
+  if (claimed.count === 0)
+    throw new ModerationError(409, "This item has already been decided");
 
   const type = record.contentType as ContentType;
   if (record.isEdit) {
     if (args.decision === "approve" && record.pendingContent != null) {
-      await applyEditToEntity(type, record.contentId, { title: record.pendingTitle, content: record.pendingContent });
+      await applyEditToEntity(type, record.contentId, {
+        title: record.pendingTitle,
+        content: record.pendingContent,
+      });
     }
   } else {
-    const moved = await transitionEntity(type, record.contentId, newStatus, ["PENDING_REVIEW", "HUMAN_REVIEW"]);
-    if (moved > 0 && newStatus === "PUBLISHED") await runPublishSideEffects(type, record.contentId);
+    const moved = await transitionEntity(type, record.contentId, newStatus, [
+      "PENDING_REVIEW",
+      "HUMAN_REVIEW",
+    ]);
+    if (moved > 0 && newStatus === "PUBLISHED")
+      await runPublishSideEffects(type, record.contentId);
   }
   await invalidateContentCaches();
 
   const reason = args.reason?.trim().slice(0, 300);
   if (args.decision === "approve") {
-    void notifyAuthor(record.authorId, record.isEdit ? "Your changes are live" : "Your post is live", record.isEdit ? "A moderator approved your changes and they are now live." : "A moderator approved your post and it is now live.");
+    void notifyAuthor(
+      record.authorId,
+      record.isEdit ? "Your changes are live" : "Your post is live",
+      record.isEdit
+        ? "A moderator approved your changes and they are now live."
+        : "A moderator approved your post and it is now live.",
+    );
   } else {
     void notifyAuthor(
       record.authorId,
@@ -596,9 +732,15 @@ export async function humanDecide(args: {
 }
 
 /** Re-runs the AI for a record the provider failed on (or that a moderator wants re-checked). */
-export async function rerunRecord(recordId: string, moderator: Moderator): Promise<GateResult> {
-  const record = await prisma.moderationRecord.findUnique({ where: { id: recordId } });
-  if (!record || !canModerate(moderator, record)) throw new ModerationError(404, "Moderation record not found");
+export async function rerunRecord(
+  recordId: string,
+  moderator: Moderator,
+): Promise<GateResult> {
+  const record = await prisma.moderationRecord.findUnique({
+    where: { id: recordId },
+  });
+  if (!record || !canModerate(moderator, record))
+    throw new ModerationError(404, "Moderation record not found");
   if (!OPEN_STATUSES.includes(record.status as ModerationStatusValue)) {
     throw new ModerationError(409, "This item has already been decided");
   }
@@ -613,14 +755,23 @@ async function reevaluate(record: any): Promise<GateResult> {
     : (await loadLive(type, record.contentId))?.plaintext;
   if (!plaintext) throw new ModerationError(404, "Content no longer exists");
 
-  const title = record.isEdit ? (record.pendingTitle ?? undefined) : (await loadLive(type, record.contentId))?.title;
+  const title = record.isEdit
+    ? (record.pendingTitle ?? undefined)
+    : (await loadLive(type, record.contentId))?.title;
   const hash = hashContent(type, title, plaintext);
 
   // A rerun must ask the provider again, so it deliberately skips the reuse shortcut.
   const result = await evaluateContent({ title, content: plaintext });
   if (!result.ok) {
-    await prisma.moderationRecord.update({ where: { id: record.id }, data: { providerError: result.error } });
-    return { status: record.status as ModerationStatusValue, recordId: record.id, message: "The AI check is unavailable right now." };
+    await prisma.moderationRecord.update({
+      where: { id: record.id },
+      data: { providerError: result.error },
+    });
+    return {
+      status: record.status as ModerationStatusValue,
+      recordId: record.id,
+      message: "The AI check is unavailable right now.",
+    };
   }
 
   const d = decideStatus(result.verdict, result.truncated);
@@ -645,17 +796,26 @@ async function reevaluate(record: any): Promise<GateResult> {
       contentHash: hash,
       escalated: d.escalated,
       status: d.status,
-      ...(record.isEdit && decided ? { pendingContent: null, pendingTitle: null } : {}),
+      ...(record.isEdit && decided
+        ? { pendingContent: null, pendingTitle: null }
+        : {}),
     },
   });
 
   if (record.isEdit) {
     if (d.status === "PUBLISHED" && record.pendingContent != null) {
-      await applyEditToEntity(type, record.contentId, { title: record.pendingTitle, content: record.pendingContent });
+      await applyEditToEntity(type, record.contentId, {
+        title: record.pendingTitle,
+        content: record.pendingContent,
+      });
     }
   } else if (d.status !== "PENDING_REVIEW") {
-    const moved = await transitionEntity(type, record.contentId, d.status, ["PENDING_REVIEW", "HUMAN_REVIEW"]);
-    if (moved > 0 && d.status === "PUBLISHED") await runPublishSideEffects(type, record.contentId);
+    const moved = await transitionEntity(type, record.contentId, d.status, [
+      "PENDING_REVIEW",
+      "HUMAN_REVIEW",
+    ]);
+    if (moved > 0 && d.status === "PUBLISHED")
+      await runPublishSideEffects(type, record.contentId);
   }
   await invalidateContentCaches();
   return resultFrom(d.status, record.id, record.isEdit, fields);
@@ -663,7 +823,11 @@ async function reevaluate(record: any): Promise<GateResult> {
 
 // ── Not leaving anyone waiting ──────────────────────────────────────────────
 
-async function notifyAuthor(authorId: string | null | undefined, title: string, message: string): Promise<void> {
+async function notifyAuthor(
+  authorId: string | null | undefined,
+  title: string,
+  message: string,
+): Promise<void> {
   if (!authorId) return; // organization posts have no personal author to notify
   try {
     await NotificationService.createNotification({
@@ -675,14 +839,27 @@ async function notifyAuthor(authorId: string | null | undefined, title: string, 
       userId: authorId,
     });
   } catch (err: any) {
-    console.error("[Moderation] could not notify the author:", err?.message ?? err);
+    console.error(
+      "[Moderation] could not notify the author:",
+      err?.message ?? err,
+    );
   }
 }
 
 /** Tells the author how it turned out, once a decision made after the request has ended. */
-async function notifyDecided(authorId: string | null | undefined, r: GateResult, isEdit: boolean): Promise<void> {
+async function notifyDecided(
+  authorId: string | null | undefined,
+  r: GateResult,
+  isEdit: boolean,
+): Promise<void> {
   if (r.status === "PUBLISHED") {
-    await notifyAuthor(authorId, isEdit ? "Your changes are live" : "Your post is live", isEdit ? "Your changes were approved and are now live." : "Your post was approved and is now live.");
+    await notifyAuthor(
+      authorId,
+      isEdit ? "Your changes are live" : "Your post is live",
+      isEdit
+        ? "Your changes were approved and are now live."
+        : "Your post was approved and is now live.",
+    );
   } else if (r.status === "REJECTED" || r.status === "HUMAN_REVIEW") {
     await notifyAuthor(authorId, "Your post needs attention", r.message);
   }
@@ -699,13 +876,18 @@ function scheduleRetry(recordId: string, attempt: number): void {
   if (delay === undefined) return;
   const t = setTimeout(async () => {
     try {
-      const record = await prisma.moderationRecord.findUnique({ where: { id: recordId } });
+      const record = await prisma.moderationRecord.findUnique({
+        where: { id: recordId },
+      });
       if (!record || record.status !== "PENDING_REVIEW") return;
       const r = await reevaluate(record);
       if (r.status === "PENDING_REVIEW") scheduleRetry(recordId, attempt + 1);
       else await notifyDecided(record.authorId, r, record.isEdit);
     } catch (err: any) {
-      console.error("[Moderation] automatic retry failed:", err?.message ?? err);
+      console.error(
+        "[Moderation] automatic retry failed:",
+        err?.message ?? err,
+      );
       scheduleRetry(recordId, attempt + 1);
     }
   }, delay);
@@ -717,19 +899,31 @@ export function startModerationSweep(): void {
   const t = setTimeout(async () => {
     try {
       const rows = await prisma.moderationRecord.findMany({
-        where: { status: "PENDING_REVIEW", aiDecision: null, createdAt: { lt: new Date(Date.now() - 20_000) } },
+        where: {
+          status: "PENDING_REVIEW",
+          aiDecision: null,
+          createdAt: { lt: new Date(Date.now() - 20_000) },
+        },
         orderBy: { createdAt: "asc" },
         take: 20,
       });
       for (const record of rows) {
         try {
           const r = await reevaluate(record);
-          if (r.status !== "PENDING_REVIEW") await notifyDecided(record.authorId, r, record.isEdit);
+          if (r.status !== "PENDING_REVIEW")
+            await notifyDecided(record.authorId, r, record.isEdit);
         } catch (err: any) {
-          console.error("[Moderation] sweep could not re-check", record.id, err?.message ?? err);
+          console.error(
+            "[Moderation] sweep could not re-check",
+            record.id,
+            err?.message ?? err,
+          );
         }
       }
-      if (rows.length) console.log(`[Moderation] start-up sweep re-checked ${rows.length} waiting item(s)`);
+      if (rows.length)
+        console.log(
+          `[Moderation] start-up sweep re-checked ${rows.length} waiting item(s)`,
+        );
     } catch (err: any) {
       console.error("[Moderation] start-up sweep failed:", err?.message ?? err);
     }
@@ -737,7 +931,8 @@ export function startModerationSweep(): void {
   t.unref?.();
 }
 
-const responseBudgetMs = () => Number(process.env.MODERATION_RESPONSE_BUDGET_MS) || 2500;
+const responseBudgetMs = () =>
+  Number(process.env.MODERATION_RESPONSE_BUDGET_MS) || 2500;
 
 /**
  * Gives the AI a short window to answer so the person usually gets the verdict, and the reason if
@@ -749,7 +944,12 @@ async function withBudget(
   ctx: { authorId: string | null; isEdit: boolean },
   budgetMs?: number,
 ): Promise<GateResult> {
-  const pending: GateResult = { status: "PENDING_REVIEW", recordId: "", message: messageFor("PENDING_REVIEW", ctx.isEdit), background: true };
+  const pending: GateResult = {
+    status: "PENDING_REVIEW",
+    recordId: "",
+    message: messageFor("PENDING_REVIEW", ctx.isEdit),
+    background: true,
+  };
   const work: Promise<GateResult | null> = run().catch((err) => {
     console.error("[Moderation] check failed:", err?.message ?? err);
     return null;
@@ -763,17 +963,33 @@ async function withBudget(
   if (timer) clearTimeout(timer);
 
   if (first === "slow") {
-    void work.then((r) => (r ? notifyDecided(ctx.authorId, r, ctx.isEdit) : undefined));
+    void work.then((r) =>
+      r ? notifyDecided(ctx.authorId, r, ctx.isEdit) : undefined,
+    );
     return pending;
   }
   return first ?? pending;
 }
 
-export const submitNewWithBudget = (args: Parameters<typeof submitNew>[0], budgetMs?: number) =>
-  withBudget(() => submitNew(args), { authorId: args.authorId, isEdit: false }, budgetMs);
+export const submitNewWithBudget = (
+  args: Parameters<typeof submitNew>[0],
+  budgetMs?: number,
+) =>
+  withBudget(
+    () => submitNew(args),
+    { authorId: args.authorId, isEdit: false },
+    budgetMs,
+  );
 
-export const submitEditWithBudget = (args: Parameters<typeof submitEdit>[0], budgetMs?: number) =>
-  withBudget(() => submitEdit(args), { authorId: args.authorId, isEdit: true }, budgetMs);
+export const submitEditWithBudget = (
+  args: Parameters<typeof submitEdit>[0],
+  budgetMs?: number,
+) =>
+  withBudget(
+    () => submitEdit(args),
+    { authorId: args.authorId, isEdit: true },
+    budgetMs,
+  );
 
 // ── Moderator views ─────────────────────────────────────────────────────────
 
@@ -800,12 +1016,16 @@ export async function listQueue(
   moderator: Moderator,
   opts: { status?: string; page?: number; limit?: number },
 ): Promise<{ items: QueueItem[]; total: number }> {
-  if (!isModeratorRole(moderator)) throw new ModerationError(403, "Moderator access required");
+  if (!isModeratorRole(moderator))
+    throw new ModerationError(403, "Moderator access required");
 
   const limit = Math.min(Math.max(opts.limit ?? 20, 1), 50);
   const page = Math.max(opts.page ?? 1, 1);
   const statuses: ModerationStatusValue[] =
-    opts.status && ["PENDING_REVIEW", "HUMAN_REVIEW", "PUBLISHED", "REJECTED"].includes(opts.status)
+    opts.status &&
+    ["PENDING_REVIEW", "HUMAN_REVIEW", "PUBLISHED", "REJECTED"].includes(
+      opts.status,
+    )
       ? [opts.status as ModerationStatusValue]
       : OPEN_STATUSES;
 
@@ -826,8 +1046,13 @@ export async function listQueue(
   for (const r of rows) {
     const type = r.contentType as ContentType;
     let preview = "";
-    if (r.isEdit && r.pendingContent != null) preview = fromStored(type, r.pendingContent);
-    else if (r.status === "PENDING_REVIEW" || r.status === "HUMAN_REVIEW" || r.status === "REJECTED") {
+    if (r.isEdit && r.pendingContent != null)
+      preview = fromStored(type, r.pendingContent);
+    else if (
+      r.status === "PENDING_REVIEW" ||
+      r.status === "HUMAN_REVIEW" ||
+      r.status === "REJECTED"
+    ) {
       preview = (await loadLive(type, r.contentId))?.plaintext ?? "";
     }
     items.push({
@@ -852,8 +1077,13 @@ export async function listQueue(
   return { items, total };
 }
 
-export async function getHistory(moderator: Moderator, contentType: ContentType, contentId: string) {
-  if (!isModeratorRole(moderator)) throw new ModerationError(403, "Moderator access required");
+export async function getHistory(
+  moderator: Moderator,
+  contentType: ContentType,
+  contentId: string,
+) {
+  if (!isModeratorRole(moderator))
+    throw new ModerationError(403, "Moderator access required");
   const rows = await prisma.moderationRecord.findMany({
     where: { contentType, contentId },
     orderBy: { createdAt: "asc" },

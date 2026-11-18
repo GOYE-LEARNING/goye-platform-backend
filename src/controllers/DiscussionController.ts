@@ -20,11 +20,17 @@ import {
   GamificationService,
 } from "../services/gamificationService";
 import { EncryptionUtil } from "../utils/encryption";
-import { submitNewWithBudget, submitEditWithBudget } from "../moderation/moderationGate";
+import {
+  submitNewWithBudget,
+  submitEditWithBudget,
+} from "../moderation/moderationGate";
 import { MAX_CONTENT_CHARS } from "../moderation/validation";
 import { MediaService } from "../services/mediaServices";
 import { CacheKeys, TTL, useCacheAside } from "../utils/redis";
-import { assertCanStartPrivateChat, ORG_LEADER_ROLES } from "../utils/chatPermissions";
+import {
+  assertCanStartPrivateChat,
+  ORG_LEADER_ROLES,
+} from "../utils/chatPermissions";
 // ==================== INTERFACES ====================
 
 interface MediaItem {
@@ -94,7 +100,9 @@ export class DiscussionController extends Controller {
     // Validates and strips a data-URL prefix before decoding. A raw
     // Buffer.from here silently produced a corrupt file when the client
     // sent "data:<type>;base64,..." — see utils/uploads.ts.
-    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(body.file);
+    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(
+      body.file,
+    );
     if (!buffer) {
       this.setStatus(400);
       return { message: bufferDecodeError || "Invalid file content" };
@@ -138,7 +146,9 @@ export class DiscussionController extends Controller {
     // Validates and strips a data-URL prefix before decoding. A raw
     // Buffer.from here silently produced a corrupt file when the client
     // sent "data:<type>;base64,..." — see utils/uploads.ts.
-    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(body.file);
+    const { buffer: buffer, error: bufferDecodeError } = decodeBase64Upload(
+      body.file,
+    );
     if (!buffer) {
       this.setStatus(400);
       return { message: bufferDecodeError || "Invalid file content" };
@@ -171,109 +181,110 @@ export class DiscussionController extends Controller {
 
   // ==================== PUBLIC DISCUSSIONS (ENCRYPTED) ====================
 
- @Security("bearerAuth")
-@Post("/public")
-public async CreatePublicDiscussion(
-  @Request() req: any,
-  @Body() body: CreateDiscussionDTO,
-): Promise<any> {
-  const userId = req.user?.id;
+  @Security("bearerAuth")
+  @Post("/public")
+  public async CreatePublicDiscussion(
+    @Request() req: any,
+    @Body() body: CreateDiscussionDTO,
+  ): Promise<any> {
+    const userId = req.user?.id;
 
-  if (!userId) {
-    this.setStatus(401);
-    return { message: "User not authorized" };
-  }
-
-  try {
-    if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
-      this.setStatus(400);
-      return { message: "Content or media is required" };
+    if (!userId) {
+      this.setStatus(401);
+      return { message: "User not authorized" };
     }
 
-    // Validate category
-    const normalizedCategory = (body.category ?? "DISCUSSION").toUpperCase();
-    if (!VALID_CATEGORIES.includes(normalizedCategory)) {
-      this.setStatus(400);
-      return {
-        message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}`,
-      };
-    }
+    try {
+      if (!body.content && (!body.mediaUrls || body.mediaUrls.length === 0)) {
+        this.setStatus(400);
+        return { message: "Content or media is required" };
+      }
 
-    const rawText = (body.content ?? "").trim();
-    if (rawText.length > MAX_CONTENT_CHARS) {
-      this.setStatus(400);
-      return {
-        message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.`,
-      };
-    }
+      // Validate category
+      const normalizedCategory = (body.category ?? "DISCUSSION").toUpperCase();
+      if (!VALID_CATEGORIES.includes(normalizedCategory)) {
+        this.setStatus(400);
+        return {
+          message: `Invalid category. Must be one of: ${VALID_CATEGORIES.join(", ")}`,
+        };
+      }
 
-    // ENCRYPT the public discussion content
-    const encryptedContent = EncryptionUtil.encrypt(rawText);
+      const rawText = (body.content ?? "").trim();
+      if (rawText.length > MAX_CONTENT_CHARS) {
+        this.setStatus(400);
+        return {
+          message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.`,
+        };
+      }
 
-    const discussion = await prisma.discussion.create({
-      data: {
-        content: encryptedContent,
-        category: normalizedCategory as any,
-        mediaUrls: (body.mediaUrls as any) || [],
-        isPublic: true,
+      // ENCRYPT the public discussion content
+      const encryptedContent = EncryptionUtil.encrypt(rawText);
+
+      const discussion = await prisma.discussion.create({
+        data: {
+          content: encryptedContent,
+          category: normalizedCategory as any,
+          mediaUrls: (body.mediaUrls as any) || [],
+          isPublic: true,
+          authorId: userId,
+          moderationStatus: "PENDING_REVIEW",
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
+          },
+          _count: {
+            select: {
+              replies: true,
+              likes: true,
+            },
+          },
+        },
+      });
+
+      // XP is awarded by the gate, only once the discussion is published.
+      // While a post is held for review, sideEffects.gamification is undefined.
+      const moderation = await submitNewWithBudget({
+        type: "DISCUSSION",
+        contentId: discussion.id,
         authorId: userId,
-        moderationStatus: "PENDING_REVIEW",
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            first_name: true,
-            last_name: true,
-            user_pic: true,
-            role: true,
-          },
-        },
-        _count: {
-          select: {
-            replies: true,
-            likes: true,
-          },
-        },
-      },
-    });
+        plaintext: rawText,
+        hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
+      });
 
-    // XP is awarded by the gate, only once the discussion is published.
-    // While a post is held for review, sideEffects.gamification is undefined.
-    const moderation = await submitNewWithBudget({
-      type: "DISCUSSION",
-      contentId: discussion.id,
-      authorId: userId,
-      plaintext: rawText,
-      hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
-    });
-
-    this.setStatus(201);
-    return {
-      message: moderation.message,
-      data: {
-        ...discussion,
-        content: rawText,
-        moderationStatus: moderation.status,
-      },
-      moderation: {
-        status: moderation.status,
-        authorMessage: moderation.authorMessage,
-        flagged: moderation.flagged,
-      },
-      gamification: mapGamification(moderation.sideEffects),
-    };
-  } catch (error: any) {
-    console.error("Error creating discussion:", error);
-    this.setStatus(500);
-    return {
-      message: "Failed to create discussion",
-      error: error.message,
-    };
+      this.setStatus(201);
+      return {
+        message: moderation.message,
+        data: {
+          ...discussion,
+          content: rawText,
+          moderationStatus: moderation.status,
+        },
+        moderation: {
+          status: moderation.status,
+          authorMessage: moderation.authorMessage,
+          flagged: moderation.flagged,
+          background: moderation.background ?? false,
+        },
+        gamification: mapGamification(moderation.sideEffects),
+      };
+    } catch (error: any) {
+      console.error("Error creating discussion:", error);
+      this.setStatus(500);
+      return {
+        message: "Failed to create discussion",
+        error: error.message,
+      };
+    }
   }
-}
 
-    @Get("/public")
+  @Get("/public")
   public async GetPublicDiscussions(
     @Request() req: any,
     @Query() sort: "latest" | "popular" = "latest",
@@ -391,7 +402,11 @@ public async CreatePublicDiscussion(
       const skip = (page - 1) * limit;
 
       const discussion = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true, moderationStatus: "PUBLISHED" },
+        where: {
+          id: discussionId,
+          isPublic: true,
+          moderationStatus: "PUBLISHED",
+        },
         include: {
           author: {
             select: {
@@ -558,7 +573,11 @@ public async CreatePublicDiscussion(
 
     try {
       const parent = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true, moderationStatus: "PUBLISHED" },
+        where: {
+          id: discussionId,
+          isPublic: true,
+          moderationStatus: "PUBLISHED",
+        },
         include: {
           author: {
             select: {
@@ -577,13 +596,18 @@ public async CreatePublicDiscussion(
       }
 
       const rawText = (body.content ?? "").trim();
-      if (!rawText && !(Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0)) {
+      if (
+        !rawText &&
+        !(Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0)
+      ) {
         this.setStatus(400);
         return { message: "Content or media is required" };
       }
       if (rawText.length > MAX_CONTENT_CHARS) {
         this.setStatus(400);
-        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+        return {
+          message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.`,
+        };
       }
 
       const encryptedContent = EncryptionUtil.encrypt(rawText);
@@ -623,7 +647,6 @@ public async CreatePublicDiscussion(
         plaintext: rawText,
         hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
       });
-      const gamificationResult = moderation.sideEffects?.gamification;
 
       this.setStatus(201);
       return {
@@ -633,12 +656,13 @@ public async CreatePublicDiscussion(
           content: rawText,
           moderationStatus: moderation.status,
         },
-        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
-        gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
+        moderation: {
+          status: moderation.status,
+          authorMessage: moderation.authorMessage,
+          flagged: moderation.flagged,
+          background: moderation.background ?? false,
         },
+        gamification: mapGamification(moderation.sideEffects),
       };
     } catch (error: any) {
       console.error("Error replying to discussion:", error);
@@ -717,13 +741,18 @@ public async CreatePublicDiscussion(
       // Create the nested reply with reference to who they're replying to
       const replyToName = `${parentReply.author.first_name} ${parentReply.author.last_name}`;
       const rawText = (body.content ?? "").trim();
-      if (!rawText && !(Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0)) {
+      if (
+        !rawText &&
+        !(Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0)
+      ) {
         this.setStatus(400);
         return { message: "Content or media is required" };
       }
       if (rawText.length > MAX_CONTENT_CHARS) {
         this.setStatus(400);
-        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+        return {
+          message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.`,
+        };
       }
 
       const encryptedContent = EncryptionUtil.encrypt(rawText);
@@ -763,7 +792,6 @@ public async CreatePublicDiscussion(
         plaintext: rawText,
         hasMedia: Array.isArray(body.mediaUrls) && body.mediaUrls.length > 0,
       });
-      const gamificationResult = moderation.sideEffects?.gamification;
 
       this.setStatus(201);
       return {
@@ -777,12 +805,13 @@ public async CreatePublicDiscussion(
             name: replyToName,
           },
         },
-        moderation: { status: moderation.status, authorMessage: moderation.authorMessage, flagged: moderation.flagged },
-        gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
+        moderation: {
+          status: moderation.status,
+          authorMessage: moderation.authorMessage,
+          flagged: moderation.flagged,
+          background: moderation.background ?? false,
         },
+        gamification: mapGamification(moderation.sideEffects),
       };
     } catch (error: any) {
       console.error("Error creating nested reply:", error);
@@ -1037,8 +1066,12 @@ public async CreatePublicDiscussion(
         return { message: "You can only edit your own posts" };
       }
 
-      // Validate category
-      const normalizedCategory = body.category.toUpperCase();
+      // Validate category (fall back to the post's current category if omitted)
+      const normalizedCategory = (
+        body.category ??
+        discussion.category ??
+        "DISCUSSION"
+      ).toUpperCase();
       if (!VALID_CATEGORIES.includes(normalizedCategory)) {
         this.setStatus(400);
         return {
@@ -1049,7 +1082,9 @@ public async CreatePublicDiscussion(
       const rawText = (body.content ?? "").trim();
       if (rawText.length > MAX_CONTENT_CHARS) {
         this.setStatus(400);
-        return { message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.` };
+        return {
+          message: `Content must be ${MAX_CONTENT_CHARS} characters or fewer.`,
+        };
       }
 
       const wasPublished = discussion.moderationStatus === "PUBLISHED";
@@ -1059,12 +1094,17 @@ public async CreatePublicDiscussion(
         // The live row must keep showing the last approved version, so media
         // may only be removed here, never swapped in unreviewed.
         if (incomingMedia) {
-          const existing = ((discussion.mediaUrls as any[]) ?? []).map((m) => JSON.stringify(m));
-          const addsNew = incomingMedia.some((m) => !existing.includes(JSON.stringify(m)));
+          const existing = ((discussion.mediaUrls as any[]) ?? []).map((m) =>
+            JSON.stringify(m),
+          );
+          const addsNew = incomingMedia.some(
+            (m) => !existing.includes(JSON.stringify(m)),
+          );
           if (addsNew) {
             this.setStatus(400);
             return {
-              message: "New media can't be added to a published post. Create a new post instead.",
+              message:
+                "New media can't be added to a published post. Create a new post instead.",
             };
           }
         }
@@ -1074,7 +1114,10 @@ public async CreatePublicDiscussion(
           contentId: discussionId,
           authorId: userId,
           plaintext: rawText,
-          hasMedia: Array.isArray(incomingMedia ?? discussion.mediaUrls) && ((incomingMedia ?? (discussion.mediaUrls as any[])) as any[]).length > 0,
+          hasMedia:
+            Array.isArray(incomingMedia ?? discussion.mediaUrls) &&
+            ((incomingMedia ?? (discussion.mediaUrls as any[])) as any[])
+              .length > 0,
         });
 
         const live = await prisma.discussion.update({
@@ -1085,7 +1128,13 @@ public async CreatePublicDiscussion(
           },
           include: {
             author: {
-              select: { id: true, first_name: true, last_name: true, user_pic: true, role: true },
+              select: {
+                id: true,
+                first_name: true,
+                last_name: true,
+                user_pic: true,
+                role: true,
+              },
             },
             _count: { select: { replies: true, likes: true } },
           },
@@ -1100,7 +1149,13 @@ public async CreatePublicDiscussion(
             content: EncryptionUtil.decrypt(live.content),
             moderationStatus: "PUBLISHED",
           },
-          moderation: { status: edit.status, authorMessage: edit.authorMessage, flagged: edit.flagged, isEdit: true },
+          moderation: {
+            status: edit.status,
+            authorMessage: edit.authorMessage,
+            flagged: edit.flagged,
+            background: edit.background ?? false,
+            isEdit: true,
+          },
         };
       }
 
@@ -1115,7 +1170,13 @@ public async CreatePublicDiscussion(
         },
         include: {
           author: {
-            select: { id: true, first_name: true, last_name: true, user_pic: true, role: true },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
+            },
           },
           _count: { select: { replies: true, likes: true } },
         },
@@ -1126,14 +1187,26 @@ public async CreatePublicDiscussion(
         contentId: discussionId,
         authorId: userId,
         plaintext: rawText,
-        hasMedia: Array.isArray(updated.mediaUrls) && (updated.mediaUrls as any[]).length > 0,
+        hasMedia:
+          Array.isArray(updated.mediaUrls) &&
+          (updated.mediaUrls as any[]).length > 0,
       });
 
       this.setStatus(200);
       return {
         message: resubmitted.message,
-        data: { ...updated, content: rawText, moderationStatus: resubmitted.status },
-        moderation: { status: resubmitted.status, authorMessage: resubmitted.authorMessage, flagged: resubmitted.flagged, isEdit: false },
+        data: {
+          ...updated,
+          content: rawText,
+          moderationStatus: resubmitted.status,
+        },
+        moderation: {
+          status: resubmitted.status,
+          authorMessage: resubmitted.authorMessage,
+          flagged: resubmitted.flagged,
+          background: resubmitted.background ?? false,
+          isEdit: false,
+        },
       };
     } catch (error: any) {
       console.error("Error updating discussion:", error);
@@ -1261,7 +1334,10 @@ public async CreatePublicDiscussion(
         return { message: "You cannot send a message to yourself" };
       }
 
-      const permission = await assertCanStartPrivateChat(userId, body.receiverId);
+      const permission = await assertCanStartPrivateChat(
+        userId,
+        body.receiverId,
+      );
       if (permission.allowed === false) {
         this.setStatus(403);
         return { message: permission.message };
@@ -1339,9 +1415,9 @@ public async CreatePublicDiscussion(
           replyTo: replyToFormatted,
         },
         gamification: {
-          pointsEarned: gamificationResult.data?.pointsAdded,
-          leveledUp: gamificationResult.data?.leveledUp,
-          newLevel: gamificationResult.data?.newLevel,
+          pointsEarned: gamificationResult?.data?.pointsAdded ?? 0,
+          leveledUp: gamificationResult?.data?.leveledUp ?? false,
+          newLevel: gamificationResult?.data?.newLevel ?? null,
         },
       };
     } catch (error: any) {
@@ -1516,7 +1592,11 @@ public async CreatePublicDiscussion(
 
       // Check discussion exists
       const discussion = await prisma.discussion.findUnique({
-        where: { id: discussionId, isPublic: true, moderationStatus: "PUBLISHED" },
+        where: {
+          id: discussionId,
+          isPublic: true,
+          moderationStatus: "PUBLISHED",
+        },
         select: { id: true },
       });
 
@@ -1581,7 +1661,7 @@ public async CreatePublicDiscussion(
             },
           },
         },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         skip,
         take: limit,
       });
@@ -1975,7 +2055,10 @@ public async CreatePublicDiscussion(
         });
         if (senderMembership && !ORG_LEADER_ROLES.includes(user?.role || "")) {
           const orgMembers = await prisma.organizationMember.findMany({
-            where: { organizationId: senderMembership.organizationId, isActive: true },
+            where: {
+              organizationId: senderMembership.organizationId,
+              isActive: true,
+            },
             select: { userId: true, user: { select: { role: true } } },
           });
           const orgLeaderIds = new Set(
@@ -1983,7 +2066,9 @@ public async CreatePublicDiscussion(
               .filter((m) => ORG_LEADER_ROLES.includes(m.user.role))
               .map((m) => m.userId),
           );
-          uniqueTutors = uniqueTutors.filter((t: any) => orgLeaderIds.has(t.id));
+          uniqueTutors = uniqueTutors.filter((t: any) =>
+            orgLeaderIds.has(t.id),
+          );
         }
       }
 
@@ -2028,15 +2113,22 @@ public async CreatePublicDiscussion(
       // recentMessages is already ordered newest-first, so the first time we
       // see a given conversation partner IS their most recent message —
       // same result `findFirst` + `orderBy: desc` gave per tutor before.
-      const lastMessageByTutor = new Map<string, (typeof recentMessages)[number]>();
+      const lastMessageByTutor = new Map<
+        string,
+        (typeof recentMessages)[number]
+      >();
       for (const message of recentMessages) {
-        const otherPartyId = message.senderId === userId ? message.receiverId : message.senderId;
+        const otherPartyId =
+          message.senderId === userId ? message.receiverId : message.senderId;
         if (otherPartyId && !lastMessageByTutor.has(otherPartyId)) {
           lastMessageByTutor.set(otherPartyId, message);
         }
       }
       const unreadCountByTutor = new Map<string, number>(
-        unreadGroups.map((row: any) => [row.senderId as string, row._count._all]),
+        unreadGroups.map((row: any) => [
+          row.senderId as string,
+          row._count._all,
+        ]),
       );
 
       const tutorsWithMessages = uniqueTutors.map((tutor: any) => {
@@ -2140,37 +2232,38 @@ public async CreatePublicDiscussion(
       const tutors = await useCacheAside(
         CacheKeys.tutorDirectory(`${userId}:${query.toLowerCase()}:${limit}`),
         TTL.short,
-        () => prisma.user.findMany({
-        where: {
-          AND: [
-            {
-              OR: [
-                { role: "instructor" },
-                { role: "tutor" },
-                { role: "admin" },
+        () =>
+          prisma.user.findMany({
+            where: {
+              AND: [
+                {
+                  OR: [
+                    { role: "instructor" },
+                    { role: "tutor" },
+                    { role: "admin" },
+                  ],
+                },
+                {
+                  id: { not: userId },
+                },
+                {
+                  OR: [
+                    { first_name: { contains: query, mode: "insensitive" } },
+                    { last_name: { contains: query, mode: "insensitive" } },
+                    { email_address: { contains: query, mode: "insensitive" } },
+                  ],
+                },
               ],
             },
-            {
-              id: { not: userId },
+            select: {
+              id: true,
+              first_name: true,
+              last_name: true,
+              user_pic: true,
+              role: true,
             },
-            {
-              OR: [
-                { first_name: { contains: query, mode: "insensitive" } },
-                { last_name: { contains: query, mode: "insensitive" } },
-                { email_address: { contains: query, mode: "insensitive" } },
-              ],
-            },
-          ],
-        },
-        select: {
-          id: true,
-          first_name: true,
-          last_name: true,
-          user_pic: true,
-          role: true,
-        },
-        take: limit,
-        }),
+            take: limit,
+          }),
       );
 
       this.setStatus(200);
@@ -2445,15 +2538,22 @@ public async CreatePublicDiscussion(
           : Promise.resolve([]),
       ]);
 
-      const lastMessageByStudent = new Map<string, (typeof recentMessages)[number]>();
+      const lastMessageByStudent = new Map<
+        string,
+        (typeof recentMessages)[number]
+      >();
       for (const message of recentMessages) {
-        const otherPartyId = message.senderId === userId ? message.receiverId : message.senderId;
+        const otherPartyId =
+          message.senderId === userId ? message.receiverId : message.senderId;
         if (otherPartyId && !lastMessageByStudent.has(otherPartyId)) {
           lastMessageByStudent.set(otherPartyId, message);
         }
       }
       const unreadCountByStudent = new Map<string, number>(
-        unreadGroups.map((row: any) => [row.senderId as string, row._count._all]),
+        unreadGroups.map((row: any) => [
+          row.senderId as string,
+          row._count._all,
+        ]),
       );
 
       const studentsWithMessages = students.map((student: any) => {
